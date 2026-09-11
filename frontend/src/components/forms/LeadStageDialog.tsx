@@ -5,8 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { isApiError } from '@/lib/api/errors';
-import type { LeadDetail, StageDefinition } from '@/types/api';
+import { errorMessage } from '@/lib/api/errors';
+import type { LeadDetail, StageDefinition } from '@/lib/api/types';
 
 export function LeadStageDialog({
   leadId,
@@ -44,7 +44,7 @@ export function LeadStageDialog({
       void qc.invalidateQueries({ queryKey: ['leads'] });
       onClose();
     },
-    onError: (e) => setError(isApiError(e) ? e.backendMessage : 'Ismeretlen hiba.'),
+    onError: (e) => setError(errorMessage(e, 'Ismeretlen hiba.')),
   });
 
   const valid = target !== '' && (!needsNote || note.trim() !== '');

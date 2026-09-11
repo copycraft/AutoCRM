@@ -10,7 +10,7 @@ pub fn hex_bytes<S: Serializer>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str(&hex::encode(bytes))
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Image {
     pub id: i64,
     pub order_id: i64,
@@ -23,7 +23,9 @@ pub struct Image {
     pub thumb_key: Option<String>,
     pub content_type: String,
     pub original_filename: Option<String>,
+    /// Hex-encoded sha256 of the original file.
     #[serde(serialize_with = "hex_bytes")]
+    #[schema(value_type = String)]
     pub content_hash: Vec<u8>,
     pub byte_size: i64,
     pub width: Option<i32>,

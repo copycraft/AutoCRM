@@ -26,10 +26,12 @@ pub struct Storage {
 }
 
 /// A request the client must perform exactly as described: every header listed is signed.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct PresignedRequest {
     pub method: String,
     pub url: String,
+    /// `[name, value]` pairs; every one must be sent unchanged.
+    #[schema(value_type = Vec<Vec<String>>)]
     pub headers: Vec<(String, String)>,
 }
 

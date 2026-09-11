@@ -2,12 +2,14 @@
 
 use std::time::Duration;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{delete, get, post};
-use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::Items;
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
@@ -23,18 +25,24 @@ use crate::service::media::{self, Completed, UploadRequest, UploadResponse};
 
 const URL_TTL: Duration = Duration::from_secs(3600);
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/orders/{id}/uploads", post(request_upload))
-        .route("/uploads/complete", post(complete_upload))
-        .route("/orders/{id}/images", get(list_images))
-        .route("/images/{id}/original", get(original_url))
-        .route("/images/{id}", delete(delete_image))
-        .route("/orders/{id}/documents", get(list_documents))
-        .route("/documents/{id}/download", get(document_url))
-        .route("/documents/{id}", delete(delete_document))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(request_upload))
+        .routes(routes!(complete_upload))
+        .routes(routes!(list_images))
+        .routes(routes!(original_url))
+        .routes(routes!(delete_image))
+        .routes(routes!(list_documents))
+        .routes(routes!(document_url))
+        .routes(routes!(delete_document))
 }
 
+#[utoipa::path(
+    post, path = "/orders/{id}/uploads", tag = "media",
+    params(("id" = i64, Path)),
+    request_body = UploadRequest,
+    responses((status = 200, body = UploadResponse))
+)]
 async fn request_upload(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -47,11 +55,19 @@ async fn request_upload(
     ))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct CompleteBody {
     ticket: String,
 }
 
+#[utoipa::path(
+    post, path = "/uploads/complete", tag = "media",
+    request_body = CompleteBody,
+    responses(
+        (status = 201, description = "Recorded", body = Completed),
+        (status = 200, description = "Already recorded", body = Completed)
+    )
+)]
 async fn complete_upload(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -72,19 +88,27 @@ async fn complete_upload(
     ))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct ImageView {
     #[serde(flatten)]
     image: Image,
+    /// Presigned, expires after one hour; null until the thumbnail is generated.
     thumb_url: Option<String>,
+    /// Presigned, expires after one hour.
     display_url: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct ImagesQuery {
     category: Option<ImageCategory>,
 }
 
+#[utoipa::path(
+    get, path = "/orders/{id}/images", tag = "media",
+    params(("id" = i64, Path), ImagesQuery),
+    responses((status = 200, body = Items<ImageView>))
+)]
 async fn list_images(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -115,11 +139,24 @@ async fn list_images(
     Ok(Items::new(views))
 }
 
+#[derive(Serialize, ToSchema)]
+struct OriginalImageUrl {
+    /// Presigned, expires after one hour.
+    url: String,
+    /// Hex sha256 of the original file.
+    sha256: String,
+}
+
+#[utoipa::path(
+    get, path = "/images/{id}/original", tag = "media",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = OriginalImageUrl))
+)]
 async fn original_url(
     State(state): State<AppState>,
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<Json<OriginalImageUrl>> {
     me.require(Capability::ViewOriginalImages)?;
     let image = images::find(&state.db, id)
         .await?
@@ -142,11 +179,17 @@ async fn original_url(
         user_id = me.user_id,
         "original image accessed"
     );
-    Ok(Json(
-        json!({ "url": url, "sha256": hex::encode(&image.content_hash) }),
-    ))
+    Ok(Json(OriginalImageUrl {
+        url,
+        sha256: hex::encode(&image.content_hash),
+    }))
 }
 
+#[utoipa::path(
+    delete, path = "/images/{id}", tag = "media",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Deleted. Intake photos answer `409 immutable`."))
+)]
 async fn delete_image(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -178,6 +221,11 @@ async fn delete_image(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    get, path = "/orders/{id}/documents", tag = "media",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Items<Document>))
+)]
 async fn list_documents(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -191,11 +239,22 @@ async fn list_documents(
     ))
 }
 
+#[derive(Serialize, ToSchema)]
+struct DownloadUrl {
+    /// Presigned, expires after one hour.
+    url: String,
+}
+
+#[utoipa::path(
+    get, path = "/documents/{id}/download", tag = "media",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = DownloadUrl))
+)]
 async fn document_url(
     State(state): State<AppState>,
     Auth(_): Auth,
     ApiPath(id): ApiPath<i64>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<Json<DownloadUrl>> {
     let doc = documents::find(&state.db, id)
         .await?
         .filter(|d| d.deleted_at.is_none())
@@ -208,9 +267,14 @@ async fn document_url(
             Some(content_disposition("attachment", &doc.filename)),
         )
         .await?;
-    Ok(Json(json!({ "url": url })))
+    Ok(Json(DownloadUrl { url }))
 }
 
+#[utoipa::path(
+    delete, path = "/documents/{id}", tag = "media",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Deleted"))
+)]
 async fn delete_document(
     State(state): State<AppState>,
     Auth(me): Auth,

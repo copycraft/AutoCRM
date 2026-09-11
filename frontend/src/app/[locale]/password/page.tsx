@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { authApi } from '@/lib/api/endpoints';
-import { isApiError } from '@/lib/api/errors';
+import { errorMessage } from '@/lib/api/errors';
 
 export default function PasswordPage() {
   const t = useTranslations('auth');
@@ -24,10 +24,10 @@ export default function PasswordPage() {
     }
     setBusy(true);
     try {
-      await authApi.changePassword(current, next);
+      await authApi.changePassword({ current_password: current, new_password: next });
       router.replace(`/${locale}`);
     } catch (err) {
-      setError(isApiError(err) ? err.backendMessage : 'Hiba történt.');
+      setError(errorMessage(err, 'Hiba történt.'));
     } finally {
       setBusy(false);
     }

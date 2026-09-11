@@ -4,7 +4,7 @@ use sqlx::{PgConnection, PgExecutor};
 
 use crate::domain::media::DocumentKind;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Document {
     pub id: i64,
     pub order_id: i64,
@@ -13,7 +13,9 @@ pub struct Document {
     pub content_type: String,
     #[serde(skip)]
     pub storage_key: String,
+    /// Hex-encoded sha256 of the file.
     #[serde(serialize_with = "super::images::hex_bytes")]
+    #[schema(value_type = String)]
     pub content_hash: Vec<u8>,
     pub byte_size: i64,
     pub uploaded_at: DateTime<Utc>,

@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
+import { ApiError } from '@/lib/api/errors';
 
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -12,7 +13,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
             staleTime: 30_000,
             gcTime: 5 * 60_000,
             retry: (count, err) => {
-              const status = (err as { status?: number })?.status ?? 0;
+              const status = err instanceof ApiError ? err.status : 0;
               if (status === 401 || status === 403 || status === 404) return false;
               return count < 2;
             },

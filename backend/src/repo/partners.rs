@@ -4,7 +4,7 @@ use sqlx::PgExecutor;
 
 use crate::domain::partner::PartnerKind;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Partner {
     pub id: i64,
     pub kind: PartnerKind,
@@ -12,6 +12,7 @@ pub struct Partner {
     pub tax_number: Option<String>,
     pub eu_tax_number: Option<String>,
     pub country: String,
+    #[schema(value_type = crate::domain::money::Currency)]
     pub default_currency: String,
     pub email: Option<String>,
     pub phone: Option<String>,

@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgExecutor;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct StageEntry {
     pub id: i64,
     pub stage_key: String,
@@ -16,7 +16,7 @@ pub struct StageEntry {
     pub note: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct CurrentStage {
     pub stage_key: String,
     pub entered_at: DateTime<Utc>,

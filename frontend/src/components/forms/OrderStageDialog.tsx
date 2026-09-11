@@ -5,8 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { isApiError } from '@/lib/api/errors';
-import type { OrderDetail, StageDefinition } from '@/types/api';
+import { errorMessage } from '@/lib/api/errors';
+import type { OrderDetail, StageDefinition } from '@/lib/api/types';
 
 function gateText(d: StageDefinition): string | null {
   if (d.min_images > 0 && d.required_image_category) {
@@ -50,7 +50,7 @@ export function OrderStageDialog({
       void qc.invalidateQueries({ queryKey: ['orders'] });
       onClose();
     },
-    onError: (e) => setError(isApiError(e) ? e.backendMessage : 'Ismeretlen hiba.'),
+    onError: (e) => setError(errorMessage(e, 'Ismeretlen hiba.')),
   });
 
   const valid = target !== '' && (!needsNote || note.trim() !== '');

@@ -1,13 +1,15 @@
 //! Stage definitions, project types and settings: everything that is configuration rather
 //! than code, editable without a deploy.
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, patch};
-use axum::{Json, Router};
 use chrono::NaiveTime;
 use serde::Deserialize;
 use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::{Items, patch as patch_field, required};
@@ -22,16 +24,13 @@ use crate::repo::config::{
     self, NewStageDefinition, ProjectType, Settings, SettingsUpdate, StageDefinitionUpdate,
 };
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/stage-definitions", get(list_stages).post(create_stage))
-        .route("/stage-definitions/{id}", patch(update_stage))
-        .route(
-            "/project-types",
-            get(list_project_types).post(create_project_type),
-        )
-        .route("/project-types/{id}", patch(update_project_type))
-        .route("/settings", get(get_settings).put(put_settings))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list_stages, create_stage))
+        .routes(routes!(update_stage))
+        .routes(routes!(list_project_types, create_project_type))
+        .routes(routes!(update_project_type))
+        .routes(routes!(get_settings, put_settings))
 }
 
 fn valid_key(key: &str) -> bool {
@@ -41,11 +40,17 @@ fn valid_key(key: &str) -> bool {
         && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct StagesQuery {
     entity: Option<StageEntity>,
 }
 
+#[utoipa::path(
+    get, path = "/stage-definitions", tag = "configuration",
+    params(StagesQuery),
+    responses((status = 200, body = Items<StageDefinition>))
+)]
 async fn list_stages(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -58,9 +63,10 @@ async fn list_stages(
     Ok(Items::new(rows))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct CreateStage {
     entity: StageEntity,
+    /// Permanent; lowercase letters, digits and underscores.
     key: String,
     label_hu: String,
     position: i32,
@@ -93,6 +99,11 @@ fn validate_gate(
     Ok(())
 }
 
+#[utoipa::path(
+    post, path = "/stage-definitions", tag = "configuration",
+    request_body = CreateStage,
+    responses((status = 201, body = StageDefinition))
+)]
 async fn create_stage(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -137,7 +148,7 @@ async fn create_stage(
     Ok((StatusCode::CREATED, Json(created)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct PatchStage {
     label_hu: Option<String>,
     position: Option<i32>,
@@ -149,6 +160,12 @@ struct PatchStage {
     is_active: Option<bool>,
 }
 
+#[utoipa::path(
+    patch, path = "/stage-definitions/{id}", tag = "configuration",
+    params(("id" = i64, Path)),
+    request_body = PatchStage,
+    responses((status = 200, body = StageDefinition))
+)]
 async fn update_stage(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -239,6 +256,10 @@ async fn update_stage(
     Ok(Json(updated))
 }
 
+#[utoipa::path(
+    get, path = "/project-types", tag = "configuration",
+    responses((status = 200, body = Items<ProjectType>))
+)]
 async fn list_project_types(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -246,13 +267,18 @@ async fn list_project_types(
     Ok(Items::new(config::project_types(&state.db).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct CreateProjectType {
     key: String,
     label_hu: String,
     position: i32,
 }
 
+#[utoipa::path(
+    post, path = "/project-types", tag = "configuration",
+    request_body = CreateProjectType,
+    responses((status = 201, body = ProjectType))
+)]
 async fn create_project_type(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -285,13 +311,19 @@ async fn create_project_type(
     Ok((StatusCode::CREATED, Json(created)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct PatchProjectType {
     label_hu: Option<String>,
     position: Option<i32>,
     is_active: Option<bool>,
 }
 
+#[utoipa::path(
+    patch, path = "/project-types/{id}", tag = "configuration",
+    params(("id" = i64, Path)),
+    request_body = PatchProjectType,
+    responses((status = 200, body = ProjectType))
+)]
 async fn update_project_type(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -339,12 +371,17 @@ async fn update_project_type(
     Ok(Json(updated))
 }
 
+#[utoipa::path(
+    get, path = "/settings", tag = "configuration",
+    responses((status = 200, body = Settings))
+)]
 async fn get_settings(State(state): State<AppState>, Auth(_): Auth) -> AppResult<Json<Settings>> {
     Ok(Json(config::settings(&state.db).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct SettingsBody {
+    /// The kill switch for automatic email.
     automatic_email_enabled: bool,
     max_auto_emails_per_recipient_day: i32,
     send_window_start: NaiveTime,
@@ -357,6 +394,11 @@ struct SettingsBody {
     stalled_alert_recipients: Vec<String>,
 }
 
+#[utoipa::path(
+    put, path = "/settings", tag = "configuration",
+    request_body = SettingsBody,
+    responses((status = 200, body = Settings))
+)]
 async fn put_settings(
     State(state): State<AppState>,
     Auth(me): Auth,

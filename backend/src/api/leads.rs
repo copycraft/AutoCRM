@@ -1,9 +1,11 @@
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, post};
-use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::orders::{OrderBody, fields_from_body};
@@ -18,25 +20,33 @@ use crate::repo::stages::{CurrentStage, StageEntry};
 use crate::repo::{audit, leads, like_pattern, orders, stages};
 use crate::service::{self, stages::StageChange};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/leads", get(search).post(create))
-        .route("/leads/{id}", get(detail).patch(update))
-        .route("/leads/{id}/stage", post(change_stage))
-        .route("/leads/{id}/convert", post(convert))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(search, create))
+        .routes(routes!(detail, update))
+        .routes(routes!(change_stage))
+        .routes(routes!(convert))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct SearchQuery {
     q: Option<String>,
+    /// Stage key.
     stage: Option<String>,
     assigned_to: Option<i64>,
+    /// Only leads not in a terminal stage.
     #[serde(default)]
     open: bool,
     limit: Option<i64>,
     offset: Option<i64>,
 }
 
+#[utoipa::path(
+    get, path = "/leads", tag = "leads",
+    params(SearchQuery),
+    responses((status = 200, body = Items<LeadSummary>))
+)]
 async fn search(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -56,7 +66,8 @@ async fn search(
     Ok(Items::new(rows))
 }
 
-#[derive(Deserialize)]
+/// Create requires `title`. On PATCH every field is optional; `null` clears.
+#[derive(Deserialize, ToSchema)]
 struct LeadBody {
     title: Option<String>,
     #[serde(default, deserialize_with = "patch_field")]
@@ -113,6 +124,11 @@ fn merge(current: Option<&Lead>, b: LeadBody) -> AppResult<LeadInput> {
     })
 }
 
+#[utoipa::path(
+    post, path = "/leads", tag = "leads",
+    request_body = LeadBody,
+    responses((status = 201, body = Lead))
+)]
 async fn create(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -124,13 +140,13 @@ async fn create(
     Ok((StatusCode::CREATED, Json(lead)))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct OrderRef {
     id: i64,
     number: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct LeadDetail {
     lead: Lead,
     stage: Option<CurrentStage>,
@@ -138,6 +154,11 @@ struct LeadDetail {
     order: Option<OrderRef>,
 }
 
+#[utoipa::path(
+    get, path = "/leads/{id}", tag = "leads",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = LeadDetail))
+)]
 async fn detail(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -159,6 +180,12 @@ async fn detail(
     }))
 }
 
+#[utoipa::path(
+    patch, path = "/leads/{id}", tag = "leads",
+    params(("id" = i64, Path)),
+    request_body = LeadBody,
+    responses((status = 200, body = Lead))
+)]
 async fn update(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -218,12 +245,20 @@ async fn update(
     Ok(Json(updated))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct StageBody {
+    /// Target stage key.
     pub stage: String,
+    /// Required for backward moves and reopening a terminal stage.
     pub note: Option<String>,
 }
 
+#[utoipa::path(
+    post, path = "/leads/{id}/stage", tag = "leads",
+    params(("id" = i64, Path)),
+    request_body = StageBody,
+    responses((status = 200, body = StageChange))
+)]
 async fn change_stage(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -238,6 +273,12 @@ async fn change_stage(
     Ok(Json(change))
 }
 
+#[utoipa::path(
+    post, path = "/leads/{id}/convert", tag = "leads",
+    params(("id" = i64, Path)),
+    request_body(content = OrderBody, description = "`partner_id` may be omitted when the lead has one; `title` defaults to the lead's."),
+    responses((status = 201, body = Order))
+)]
 async fn convert(
     State(state): State<AppState>,
     Auth(me): Auth,

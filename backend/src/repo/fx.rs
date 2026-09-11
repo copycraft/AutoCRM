@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::PgExecutor;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct FxRate {
     pub day: NaiveDate,
     pub base: String,

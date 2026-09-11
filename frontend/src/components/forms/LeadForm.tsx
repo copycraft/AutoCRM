@@ -5,14 +5,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
-import { useQuery } from '@tanstack/react-query';
-import { isApiError } from '@/lib/api/errors';
+import { skipToken, useQuery } from '@tanstack/react-query';
+import { errorMessage } from '@/lib/api/errors';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { useAuth } from '@/lib/auth/context';
 import { PartnerPicker, type PartnerOption } from './PartnerPicker';
 import { AssigneeField } from './AssigneeField';
-import type { Lead } from '@/types/api';
+import type { Lead, LeadBody } from '@/lib/api/types';
 
 const schema = z.object({
   title: z.string().trim().min(1),
@@ -28,10 +27,13 @@ const schema = z.object({
 
 export type LeadFormValues = z.infer<typeof schema>;
 
-export function leadCreateBody(v: LeadFormValues, meId: number | undefined): Record<string, unknown> {
+function assignee(v: LeadFormValues['assigned_to'], meId: number | undefined): number | null {
+  return v === 'me' ? (meId ?? null) : v;
+}
+
+export function leadCreateBody(v: LeadFormValues, meId: number | undefined): LeadBody {
   const clean = (s: string | undefined) => (s?.trim() ? s.trim() : undefined);
-  const assigned =
-    v.assigned_to === 'me' ? (meId ?? null) : (v.assigned_to as number | null);
+  const assigned = assignee(v.assigned_to, meId);
   return {
     title: v.title.trim(),
     partner_id: v.partner?.id ?? null,
@@ -46,19 +48,19 @@ export function leadCreateBody(v: LeadFormValues, meId: number | undefined): Rec
 }
 
 /** PATCH diff: omit unchanged, null clears (backend blank→null). */
-export function leadPatchBody(original: Lead, v: LeadFormValues, meId: number | undefined): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
+export function leadPatchBody(original: Lead, v: LeadFormValues, meId: number | undefined): LeadBody {
+  const body: LeadBody = {};
   if (v.title.trim() !== original.title) body.title = v.title.trim();
   const origPartner = original.partner_id ?? null;
   if ((v.partner?.id ?? null) !== origPartner) body.partner_id = v.partner?.id ?? null;
   const newContact = v.contact_id ? Number(v.contact_id) : null;
-  if (newContact !== original.contact_id) body.contact_id = newContact;
+  if (newContact !== (original.contact_id ?? null)) body.contact_id = newContact;
   for (const f of ['contact_name', 'contact_email', 'contact_phone', 'source', 'description'] as const) {
     const nv = v[f]?.trim() ?? '';
     if (nv !== (original[f] ?? '')) body[f] = nv ? nv : null;
   }
-  const assigned = v.assigned_to === 'me' ? (meId ?? null) : (v.assigned_to as number | null);
-  if (assigned !== original.assigned_to) body.assigned_to = assigned;
+  const assigned = assignee(v.assigned_to, meId);
+  if (assigned !== (original.assigned_to ?? null)) body.assigned_to = assigned;
   return body;
 }
 
@@ -76,7 +78,6 @@ export function LeadForm({
   const t = useTranslations('leads');
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
-  const { user } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const { register, handleSubmit, control, watch, formState } = useForm<LeadFormValues>({
@@ -95,10 +96,10 @@ export function LeadForm({
   });
 
   const partner = watch('partner');
+  const partnerId = partner?.id;
   const contactsQuery = useQuery({
-    queryKey: qk.partner(partner?.id ?? 0),
-    queryFn: () => partnersApi.get(partner!.id),
-    enabled: partner != null,
+    queryKey: qk.partner(partnerId ?? 0),
+    queryFn: partnerId === undefined ? skipToken : () => partnersApi.get(partnerId),
   });
 
   return (
@@ -110,7 +111,7 @@ export function LeadForm({
         try {
           await onSubmit(v);
         } catch (e) {
-          setServerError(isApiError(e) ? e.backendMessage : 'Ismeretlen hiba történt.');
+          setServerError(errorMessage(e, 'Ismeretlen hiba történt.'));
         }
       })}
     >

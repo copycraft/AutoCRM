@@ -1,47 +1,112 @@
+use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::routing::{delete, get, post};
-use axum::{Json, Router};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use utoipa::ToSchema;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, Auth, SESSION_COOKIE, check_origin, client_ip, user_agent};
 use super::{Items, optional};
 use crate::AppState;
+use crate::domain::role::Role;
 use crate::error::{AppError, AppResult};
 use crate::repo::sessions::{self, SessionInfo, SessionKind};
-use crate::service::auth::{self, LoginRequest};
+use crate::repo::users::User;
+use crate::service::auth::{self, AuthUser, LoginRequest};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/auth/login", post(login))
-        .route("/auth/logout", post(logout))
-        .route("/auth/me", get(me))
-        .route("/auth/password", post(change_password))
-        .route("/auth/sessions", get(list_sessions))
-        .route("/auth/sessions/{id}", delete(revoke_session))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(login))
+        .routes(routes!(logout))
+        .routes(routes!(me))
+        .routes(routes!(change_password))
+        .routes(routes!(list_sessions))
+        .routes(routes!(revoke_session))
 }
 
 fn default_client() -> SessionKind {
     SessionKind::Web
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct LoginBody {
     email: String,
     password: String,
+    /// `web` (default) sets the session cookie; `mobile` returns a bearer token.
     #[serde(default = "default_client")]
     client: SessionKind,
     device_label: Option<String>,
 }
 
+/// The signed-in user as clients see it. Login and `/auth/me` return the same shape.
+#[derive(Serialize, ToSchema)]
+pub struct SessionUser {
+    pub id: i64,
+    pub email: String,
+    pub display_name: String,
+    pub role: Role,
+    /// While true, every endpoint except `/auth/me`, `/auth/password` and `/auth/logout`
+    /// answers `422 password_change_required`.
+    pub must_change_password: bool,
+    pub session_kind: SessionKind,
+}
+
+impl SessionUser {
+    fn from_user(user: &User, session_kind: SessionKind) -> Self {
+        SessionUser {
+            id: user.id,
+            email: user.email.clone(),
+            display_name: user.display_name.clone(),
+            role: user.role,
+            must_change_password: user.must_change_password,
+            session_kind,
+        }
+    }
+}
+
+impl From<AuthUser> for SessionUser {
+    fn from(user: AuthUser) -> Self {
+        SessionUser {
+            id: user.user_id,
+            email: user.email,
+            display_name: user.display_name,
+            role: user.role,
+            must_change_password: user.must_change_password,
+            session_kind: user.session_kind,
+        }
+    }
+}
+
+#[derive(Serialize, ToSchema)]
+struct LoginResponse {
+    user: SessionUser,
+    /// Mobile clients only: send as `Authorization: Bearer <token>`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+    /// Mobile clients only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct MeResponse {
+    user: SessionUser,
+}
+
+#[utoipa::path(
+    post, path = "/auth/login", tag = "auth", security(()),
+    request_body = LoginBody,
+    responses((status = 200, description = "Signed in. Web clients also receive the httpOnly `autocrm_session` cookie.", body = LoginResponse))
+)]
 async fn login(
     State(state): State<AppState>,
     headers: HeaderMap,
     jar: CookieJar,
     ApiJson(body): ApiJson<LoginBody>,
-) -> AppResult<(CookieJar, Json<Value>)> {
+) -> AppResult<(CookieJar, Json<LoginResponse>)> {
     // Login CSRF: a hostile page must not be able to sign a browser into another account.
     if body.client == SessionKind::Web && headers.contains_key(header::ORIGIN) {
         check_origin(&headers, &state.config)?;
@@ -60,6 +125,7 @@ async fn login(
     .await?;
     tracing::info!(user_id = outcome.user.id, session_id = outcome.session_id, kind = ?body.client, "login");
 
+    let user = SessionUser::from_user(&outcome.user, body.client);
     match body.client {
         SessionKind::Web => {
             let max_age = (outcome.expires_at - chrono::Utc::now())
@@ -72,17 +138,30 @@ async fn login(
                 .path("/")
                 .max_age(cookie::time::Duration::seconds(max_age))
                 .build();
-            Ok((jar.add(cookie), Json(json!({ "user": outcome.user }))))
+            Ok((
+                jar.add(cookie),
+                Json(LoginResponse {
+                    user,
+                    token: None,
+                    expires_at: None,
+                }),
+            ))
         }
         SessionKind::Mobile => Ok((
             jar,
-            Json(
-                json!({ "token": outcome.token, "expires_at": outcome.expires_at, "user": outcome.user }),
-            ),
+            Json(LoginResponse {
+                user,
+                token: Some(outcome.token),
+                expires_at: Some(outcome.expires_at),
+            }),
         )),
     }
 }
 
+#[utoipa::path(
+    post, path = "/auth/logout", tag = "auth",
+    responses((status = 204, description = "Current session revoked"))
+)]
 async fn logout(
     State(state): State<AppState>,
     Auth(user): Auth,
@@ -93,16 +172,25 @@ async fn logout(
     Ok((StatusCode::NO_CONTENT, jar))
 }
 
-async fn me(Auth(user): Auth) -> Json<Value> {
-    Json(json!({ "user": user }))
+#[utoipa::path(
+    get, path = "/auth/me", tag = "auth",
+    responses((status = 200, body = MeResponse))
+)]
+async fn me(Auth(user): Auth) -> Json<MeResponse> {
+    Json(MeResponse { user: user.into() })
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct ChangePasswordBody {
     current_password: String,
     new_password: String,
 }
 
+#[utoipa::path(
+    post, path = "/auth/password", tag = "auth",
+    request_body = ChangePasswordBody,
+    responses((status = 204, description = "Password changed; other sessions revoked"))
+)]
 async fn change_password(
     State(state): State<AppState>,
     Auth(user): Auth,
@@ -116,13 +204,17 @@ async fn change_password(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct SessionView {
     #[serde(flatten)]
     session: SessionInfo,
     current: bool,
 }
 
+#[utoipa::path(
+    get, path = "/auth/sessions", tag = "auth",
+    responses((status = 200, body = Items<SessionView>))
+)]
 async fn list_sessions(
     State(state): State<AppState>,
     Auth(user): Auth,
@@ -139,6 +231,11 @@ async fn list_sessions(
     ))
 }
 
+#[utoipa::path(
+    delete, path = "/auth/sessions/{id}", tag = "auth",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Session revoked"))
+)]
 async fn revoke_session(
     State(state): State<AppState>,
     Auth(user): Auth,

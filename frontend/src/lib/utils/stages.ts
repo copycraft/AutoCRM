@@ -1,4 +1,4 @@
-import type { StageDefinition } from '@/types/api';
+import type { StageDefinition } from '@/lib/api/types';
 
 /** Badge tone from backend stage flags — never hardcoded stage names. */
 export function stageTone(def: StageDefinition | undefined): 'signal' | 'cold' | 'done' | 'steel' {

@@ -1,12 +1,14 @@
 //! Blockers: "we are waiting on a thing from someone".
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, patch, post};
-use axum::{Json, Router};
 use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::{Items, optional, page_limit, page_offset, patch as patch_field, patch_text, required};
@@ -17,22 +19,28 @@ use crate::error::{AppError, AppResult};
 use crate::repo::blockers::{Blocker, BlockerInput};
 use crate::repo::{audit, blockers, orders, partners};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/blockers", get(list_open))
-        .route("/orders/{id}/blockers", get(list_for_order).post(create))
-        .route("/blockers/{id}", patch(update))
-        .route("/blockers/{id}/resolve", post(resolve))
-        .route("/blockers/{id}/reopen", post(reopen))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list_open))
+        .routes(routes!(list_for_order, create))
+        .routes(routes!(update))
+        .routes(routes!(resolve))
+        .routes(routes!(reopen))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct OpenQuery {
     responsible_partner_id: Option<i64>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
 
+#[utoipa::path(
+    get, path = "/blockers", tag = "blockers",
+    params(OpenQuery),
+    responses((status = 200, description = "Open blockers across all orders", body = Items<Blocker>))
+)]
 async fn list_open(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -48,6 +56,11 @@ async fn list_open(
     Ok(Items::new(rows))
 }
 
+#[utoipa::path(
+    get, path = "/orders/{id}/blockers", tag = "blockers",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Items<Blocker>))
+)]
 async fn list_for_order(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -58,7 +71,8 @@ async fn list_for_order(
     ))
 }
 
-#[derive(Deserialize)]
+/// Create requires `what`. On PATCH every field is optional; `null` clears.
+#[derive(Deserialize, ToSchema)]
 struct BlockerBody {
     what: Option<String>,
     #[serde(default, deserialize_with = "patch_field")]
@@ -103,6 +117,12 @@ fn merge(current: Option<&Blocker>, b: BlockerBody) -> AppResult<BlockerInput> {
     })
 }
 
+#[utoipa::path(
+    post, path = "/orders/{id}/blockers", tag = "blockers",
+    params(("id" = i64, Path)),
+    request_body = BlockerBody,
+    responses((status = 201, body = Blocker))
+)]
 async fn create(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -137,6 +157,12 @@ async fn create(
     Ok((StatusCode::CREATED, Json(blocker)))
 }
 
+#[utoipa::path(
+    patch, path = "/blockers/{id}", tag = "blockers",
+    params(("id" = i64, Path)),
+    request_body = BlockerBody,
+    responses((status = 200, body = Blocker))
+)]
 async fn update(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -191,11 +217,17 @@ async fn update(
     Ok(Json(updated))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct ResolveBody {
     note: Option<String>,
 }
 
+#[utoipa::path(
+    post, path = "/blockers/{id}/resolve", tag = "blockers",
+    params(("id" = i64, Path)),
+    request_body = ResolveBody,
+    responses((status = 200, body = Blocker))
+)]
 async fn resolve(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -230,6 +262,11 @@ async fn resolve(
     Ok(Json(updated))
 }
 
+#[utoipa::path(
+    post, path = "/blockers/{id}/reopen", tag = "blockers",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Blocker))
+)]
 async fn reopen(
     State(state): State<AppState>,
     Auth(me): Auth,

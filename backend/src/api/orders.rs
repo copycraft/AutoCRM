@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, patch, post};
-use axum::{Json, Router};
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::leads::StageBody;
@@ -32,15 +34,15 @@ use crate::service::orders::{
 };
 use crate::service::{self, stages::StageChange};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/orders", get(search).post(create))
-        .route("/orders/{id}", get(detail).patch(update))
-        .route("/orders/{id}/stage", post(change_stage))
-        .route("/orders/{id}/stages", get(stage_history))
-        .route("/orders/{id}/audit", get(audit_trail))
-        .route("/orders/{id}/items", get(list_items).post(add_item))
-        .route("/order-items/{id}", patch(update_item).delete(delete_item))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(search, create))
+        .routes(routes!(detail, update))
+        .routes(routes!(change_stage))
+        .routes(routes!(stage_history))
+        .routes(routes!(audit_trail))
+        .routes(routes!(list_items, add_item))
+        .routes(routes!(update_item, delete_item))
 }
 
 /// Quantities arrive as strings ("1.5") for exactness; plain JSON numbers are accepted too.
@@ -57,19 +59,28 @@ fn optional_decimal<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Decimal>, 
     decimal_str_or_number(d).map(Some)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct SearchQuery {
+    /// Matches number, title, partner, VIN, and plate ignoring spaces and dashes.
     q: Option<String>,
+    /// Stage key.
     stage: Option<String>,
     partner_id: Option<i64>,
     project_type_id: Option<i64>,
     assigned_to: Option<i64>,
+    /// Only orders not in a terminal stage.
     #[serde(default)]
     open: bool,
     limit: Option<i64>,
     offset: Option<i64>,
 }
 
+#[utoipa::path(
+    get, path = "/orders", tag = "orders",
+    params(SearchQuery),
+    responses((status = 200, body = Items<OrderSummary>))
+)]
 async fn search(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -100,22 +111,25 @@ async fn search(
     ))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct ItemBody {
     pub description: String,
+    /// Decimal string, e.g. `"2.5"`.
     #[serde(deserialize_with = "decimal_str_or_number")]
+    #[schema(value_type = String)]
     pub quantity: Decimal,
-    /// Minor units (fillér / eurocent).
+    /// Minor units (fillér / eurocent). May be negative for discount lines.
     pub unit_price: i64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct OrderBody {
     pub title: Option<String>,
     pub partner_id: Option<i64>,
     pub contact_id: Option<i64>,
     pub project_type_id: Option<i64>,
     pub currency: Currency,
+    /// Defaults to today. Reports normalise the order's value at this date's MNB rate.
     pub valuation_date: Option<NaiveDate>,
     pub vehicle_make: Option<String>,
     pub vehicle_model: Option<String>,
@@ -162,6 +176,11 @@ pub fn fields_from_body(
     Ok((fields, items))
 }
 
+#[utoipa::path(
+    post, path = "/orders", tag = "orders",
+    request_body(content = OrderBody, description = "`partner_id` and `title` are required."),
+    responses((status = 201, body = Order))
+)]
 async fn create(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -179,13 +198,13 @@ async fn create(
     Ok((StatusCode::CREATED, Json(order)))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct PartnerRef {
     id: i64,
     name: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct StageView {
     key: String,
     label_hu: String,
@@ -194,14 +213,15 @@ struct StageView {
     is_terminal: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ItemView {
     #[serde(flatten)]
     item: OrderItem,
+    /// Backend-computed: round(quantity × unit_price), half away from zero.
     line_total_minor: i64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct OrderDetail {
     order: Order,
     partner: PartnerRef,
@@ -209,6 +229,8 @@ struct OrderDetail {
     items: Vec<ItemView>,
     value: OrderValue,
     blockers: Vec<Blocker>,
+    /// Image count per category; categories without images are absent.
+    #[schema(value_type = HashMap<String, i64>)]
     image_counts: HashMap<ImageCategory, i64>,
 }
 
@@ -226,6 +248,11 @@ fn item_view(item: OrderItem) -> AppResult<ItemView> {
     })
 }
 
+#[utoipa::path(
+    get, path = "/orders/{id}", tag = "orders",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = OrderDetail))
+)]
 async fn detail(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -279,14 +306,16 @@ async fn detail(
     }))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct PatchOrder {
     title: Option<String>,
+    /// Changing partner without naming `contact_id` clears the contact.
     partner_id: Option<i64>,
     #[serde(default, deserialize_with = "patch_field")]
     contact_id: Option<Option<i64>>,
     #[serde(default, deserialize_with = "patch_field")]
     project_type_id: Option<Option<i64>>,
+    /// Rejected with `422 currency_locked` while the order has line items.
     currency: Option<Currency>,
     valuation_date: Option<NaiveDate>,
     #[serde(default, deserialize_with = "patch_field")]
@@ -305,6 +334,12 @@ struct PatchOrder {
     assigned_to: Option<Option<i64>>,
 }
 
+#[utoipa::path(
+    patch, path = "/orders/{id}", tag = "orders",
+    params(("id" = i64, Path)),
+    request_body = PatchOrder,
+    responses((status = 200, body = Order))
+)]
 async fn update(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -414,6 +449,12 @@ async fn update(
     Ok(Json(updated))
 }
 
+#[utoipa::path(
+    post, path = "/orders/{id}/stage", tag = "orders",
+    params(("id" = i64, Path)),
+    request_body = StageBody,
+    responses((status = 200, body = StageChange))
+)]
 async fn change_stage(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -428,6 +469,11 @@ async fn change_stage(
     Ok(Json(change))
 }
 
+#[utoipa::path(
+    get, path = "/orders/{id}/stages", tag = "orders",
+    params(("id" = i64, Path)),
+    responses((status = 200, description = "Stage history, oldest first", body = Items<StageEntry>))
+)]
 async fn stage_history(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -439,11 +485,17 @@ async fn stage_history(
     Ok(Items::new(stages::order_history(&state.db, id).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct AuditQuery {
     limit: Option<i64>,
 }
 
+#[utoipa::path(
+    get, path = "/orders/{id}/audit", tag = "orders",
+    params(("id" = i64, Path), AuditQuery),
+    responses((status = 200, body = Items<AuditEntry>))
+)]
 async fn audit_trail(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -455,6 +507,11 @@ async fn audit_trail(
     ))
 }
 
+#[utoipa::path(
+    get, path = "/orders/{id}/items", tag = "orders",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Items<ItemView>))
+)]
 async fn list_items(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -466,15 +523,24 @@ async fn list_items(
     ))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct AddItem {
     description: String,
+    /// Decimal string, e.g. `"2.5"`.
     #[serde(deserialize_with = "decimal_str_or_number")]
+    #[schema(value_type = String)]
     quantity: Decimal,
+    /// Minor units in the order's currency. May be negative for discount lines.
     unit_price: i64,
     position: Option<i32>,
 }
 
+#[utoipa::path(
+    post, path = "/orders/{id}/items", tag = "orders",
+    params(("id" = i64, Path)),
+    request_body = AddItem,
+    responses((status = 201, body = ItemView))
+)]
 async fn add_item(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -521,15 +587,23 @@ async fn add_item(
     Ok((StatusCode::CREATED, Json(item_view(item)?)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct PatchItem {
     description: Option<String>,
+    /// Decimal string, e.g. `"2.5"`.
     #[serde(default, deserialize_with = "optional_decimal")]
+    #[schema(value_type = Option<String>)]
     quantity: Option<Decimal>,
     unit_price: Option<i64>,
     position: Option<i32>,
 }
 
+#[utoipa::path(
+    patch, path = "/order-items/{id}", tag = "orders",
+    params(("id" = i64, Path)),
+    request_body = PatchItem,
+    responses((status = 200, body = ItemView))
+)]
 async fn update_item(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -600,6 +674,11 @@ async fn update_item(
     Ok(Json(item_view(updated)?))
 }
 
+#[utoipa::path(
+    delete, path = "/order-items/{id}", tag = "orders",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Deleted"))
+)]
 async fn delete_item(
     State(state): State<AppState>,
     Auth(me): Auth,

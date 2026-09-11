@@ -19,7 +19,7 @@ import { qk } from '@/lib/query/provider';
 import { canEditLeads, useAuth } from '@/lib/auth/context';
 import { daysSince, formatDate } from '@/lib/utils/format';
 import { stageTone } from '@/lib/utils/stages';
-import type { LeadSummary, StageDefinition } from '@/types/api';
+import type { LeadSummary, StageDefinition } from '@/lib/api/types';
 
 const PAGE_SIZE = 50;
 

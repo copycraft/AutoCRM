@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Snowflake } from 'lucide-react';
 import { useAuth } from '@/lib/auth/context';
-import { isApiError } from '@/lib/api/errors';
+import { errorMessage } from '@/lib/api/errors';
 
 const schema = z.object({
   email: z.string().email(),
@@ -28,9 +28,9 @@ export default function LoginPage() {
     setServerError(null);
     try {
       const res = await login(v.email.trim(), v.password);
-      router.replace(res.must_change_password ? `/${locale}/password` : `/${locale}`);
+      router.replace(res.user.must_change_password ? `/${locale}/password` : `/${locale}`);
     } catch (e) {
-      setServerError(isApiError(e) ? e.backendMessage : t('invalidCredentials'));
+      setServerError(errorMessage(e, t('invalidCredentials')));
     }
   });
 

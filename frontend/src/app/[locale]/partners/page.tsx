@@ -16,7 +16,11 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditPartners, useAuth } from '@/lib/auth/context';
-import type { Partner } from '@/types/api';
+import type { Partner, PartnerKind } from '@/lib/api/types';
+
+function toKind(value: string): PartnerKind | '' {
+  return value === 'business' || value === 'person' ? value : '';
+}
 
 const PAGE_SIZE = 50;
 
@@ -54,7 +58,7 @@ export default function PartnersPage() {
   const locale = useLocale();
   const { user } = useAuth();
   const [q, setQ] = useState('');
-  const [kind, setKind] = useState('');
+  const [kind, setKind] = useState<PartnerKind | ''>('');
   const [includeArchived, setIncludeArchived] = useState(false);
   const [offset, setOffset] = useState(0);
   const debouncedQ = useDebouncedValue(q);
@@ -107,7 +111,7 @@ export default function PartnersPage() {
             className="input"
             value={kind}
             onChange={(e) => {
-              setKind(e.target.value);
+              setKind(toKind(e.target.value));
               setOffset(0);
             }}
           >

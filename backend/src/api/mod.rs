@@ -1,4 +1,8 @@
 //! HTTP handlers. Thin: parse → check capability → call service/repo → serialize.
+//!
+//! Every route is mounted through `OpenApiRouter::routes(routes!(..))`, which only accepts
+//! handlers carrying a `#[utoipa::path]` annotation. A handler that is not in the OpenAPI
+//! document therefore cannot be served: the published contract covers the whole API.
 
 pub mod admin;
 pub mod auth;
@@ -9,6 +13,7 @@ pub mod extract;
 pub mod leads;
 pub mod media;
 pub mod mobile;
+pub mod openapi;
 pub mod orders;
 pub mod partners;
 pub mod reports;
@@ -22,17 +27,19 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::json;
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
+use utoipa::ToSchema;
+use utoipa_axum::router::OpenApiRouter;
 
 use crate::AppState;
 use crate::error::{AppError, AppResult};
 
-pub fn router(state: AppState) -> Router {
-    let api = Router::new()
+/// All `/api` routes, with their OpenAPI operations.
+pub fn api_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .merge(auth::routes())
         .merge(users::routes())
         .merge(configuration::routes())
@@ -44,7 +51,11 @@ pub fn router(state: AppState) -> Router {
         .merge(mobile::routes())
         .merge(email::routes())
         .merge(reports::routes())
-        .merge(admin::routes());
+        .merge(admin::routes())
+}
+
+pub fn router(state: AppState) -> Router {
+    let (api, _) = api_routes().split_for_parts();
 
     Router::new()
         .route("/health", get(health))
@@ -60,6 +71,13 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
+#[derive(Serialize)]
+struct Health {
+    status: &'static str,
+    database: &'static str,
+    storage: &'static str,
+}
+
 async fn health(State(state): State<AppState>) -> impl IntoResponse {
     let db_ok = sqlx::query_scalar!(r#"SELECT 1 AS "one!""#)
         .fetch_one(&state.db)
@@ -71,17 +89,23 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
     } else {
         StatusCode::SERVICE_UNAVAILABLE
     };
+    let reachable = |ok: bool| if ok { "ok" } else { "unreachable" };
     (
         status,
-        Json(json!({
-            "status": if status == StatusCode::OK { "ok" } else { "degraded" },
-            "database": if db_ok { "ok" } else { "unreachable" },
-            "storage": if storage_ok { "ok" } else { "unreachable" },
-        })),
+        Json(Health {
+            status: if status == StatusCode::OK {
+                "ok"
+            } else {
+                "degraded"
+            },
+            database: reachable(db_ok),
+            storage: reachable(storage_ok),
+        }),
     )
 }
 
-#[derive(Debug, Serialize)]
+/// The list envelope: `{"items": [...]}`.
+#[derive(Debug, Serialize, ToSchema)]
 pub struct Items<T> {
     pub items: Vec<T>,
 }

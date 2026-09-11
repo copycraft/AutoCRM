@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DetailSkeleton } from '@/components/ui/LoadingState';
@@ -36,22 +36,23 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
     queryKey: qk.stages('lead'),
     queryFn: () => configApi.stages('lead'),
   });
+  const partnerId = detail.data?.lead.partner_id ?? null;
+  const assignedTo = detail.data?.lead.assigned_to ?? null;
   const partnerQuery = useQuery({
-    queryKey: detail.data?.lead.partner_id ? qk.partner(detail.data.lead.partner_id) : ['partner', 'none'],
-    queryFn: () => partnersApi.get(detail.data!.lead.partner_id!),
-    enabled: detail.data?.lead.partner_id != null,
+    queryKey: partnerId !== null ? qk.partner(partnerId) : ['partner', 'none'],
+    queryFn: partnerId === null ? skipToken : () => partnersApi.get(partnerId),
   });
   // GET /users is admin-only; non-admins see the raw id (backend gap).
   const usersQuery = useQuery({
     queryKey: qk.users,
     queryFn: () => usersApi.list(),
-    enabled: canAdmin(user) && detail.data?.lead.assigned_to != null,
+    enabled: canAdmin(user) && assignedTo !== null,
     retry: false,
   });
-  const assigneeName = detail.data?.lead.assigned_to
-    ? (usersQuery.data?.items.find((u) => u.id === detail.data!.lead.assigned_to)?.display_name ??
-      `#${detail.data.lead.assigned_to}`)
-    : '—';
+  const assigneeName =
+    assignedTo !== null
+      ? (usersQuery.data?.items.find((u) => u.id === assignedTo)?.display_name ?? `#${assignedTo}`)
+      : '—';
 
   const patch = useMutation({
     mutationFn: (body: Record<string, unknown>) => leadsApi.patch(id, body),

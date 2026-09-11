@@ -1,4 +1,5 @@
 use std::io::BufRead;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -49,12 +50,28 @@ enum Command {
         #[arg(long)]
         to: String,
     },
+    /// Write the OpenAPI document (the API contract) as JSON. Needs no configuration.
+    Openapi {
+        /// Output file; stdout when omitted.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
     let cli = Cli::parse();
+    if let Some(Command::Openapi { out }) = &cli.command {
+        let json = api::openapi::document_json()?;
+        match out {
+            Some(path) => {
+                std::fs::write(path, json).with_context(|| format!("writing {}", path.display()))?
+            }
+            None => print!("{json}"),
+        }
+        return Ok(());
+    }
     let config = Config::from_env()?;
     let _log_guard = telemetry::init(&config)?;
 
@@ -74,6 +91,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Command::EmailTest { to } => email_test(config, to).await,
+        Command::Openapi { .. } => unreachable!("handled before configuration is loaded"),
     }
 }
 

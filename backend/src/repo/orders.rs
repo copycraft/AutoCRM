@@ -5,7 +5,7 @@ use sqlx::{PgConnection, PgExecutor};
 
 use crate::domain::order::format_order_number;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Order {
     pub id: i64,
     pub number: String,
@@ -14,6 +14,7 @@ pub struct Order {
     pub contact_id: Option<i64>,
     pub lead_id: Option<i64>,
     pub project_type_id: Option<i64>,
+    #[schema(value_type = crate::domain::money::Currency)]
     pub currency: String,
     pub valuation_date: NaiveDate,
     pub vehicle_make: Option<String>,
@@ -189,7 +190,7 @@ pub async fn update(
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct OrderSummary {
     pub id: i64,
     pub number: String,
@@ -198,6 +199,7 @@ pub struct OrderSummary {
     pub partner_name: String,
     pub project_type_id: Option<i64>,
     pub project_type_label: Option<String>,
+    #[schema(value_type = crate::domain::money::Currency)]
     pub currency: String,
     pub total_minor: i64,
     pub vehicle_make: Option<String>,
@@ -275,8 +277,9 @@ pub async fn search(
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct OrderValue {
+    #[schema(value_type = crate::domain::money::Currency)]
     pub currency: String,
     pub total_minor: i64,
     pub valuation_date: NaiveDate,

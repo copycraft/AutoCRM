@@ -16,7 +16,7 @@ type HmacSha256 = Hmac<Sha256>;
 /// Domain separation: this key signs upload tickets and nothing else.
 const CONTEXT: &[u8] = b"autocrm-upload-ticket-v1.";
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum UploadTarget {
     Image { category: ImageCategory },

@@ -4,13 +4,13 @@ import { createContext, useCallback, useContext, useMemo, type ReactNode } from 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import type { Role, User } from '@/types/api';
+import type { LoginResponse, Role, SessionUser } from '@/lib/api/types';
 
 interface AuthState {
-  user: User | null;
+  user: SessionUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ must_change_password: boolean }>;
+  login: (email: string, password: string) => Promise<LoginResponse>;
   logout: () => Promise<void>;
   refetch: () => Promise<void>;
 }
@@ -44,19 +44,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [qc]);
 
-  const value = useMemo<AuthState>(
-    () => ({
-      user: data ?? null,
+  const value = useMemo<AuthState>(() => {
+    const user = data?.user ?? null;
+    return {
+      user,
       isLoading,
-      isAuthenticated: !!data,
+      isAuthenticated: user !== null,
       login,
       logout,
       refetch: async () => {
         await refetch();
       },
-    }),
-    [data, isLoading, login, logout, refetch],
-  );
+    };
+  }, [data, isLoading, login, logout, refetch]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -71,35 +71,35 @@ export function useAuth(): AuthState {
 // UI-only: backend remains the security boundary.
 // NOTE: lead stage changes require EditLeads (admin|office) — designers get
 // 403 there, unlike order stage changes (ChangeStages). Use canEditLeads.
-export function canEdit(user: User | null): boolean {
+export function canEdit(user: SessionUser | null): boolean {
   return !!user && (user.role === 'admin' || user.role === 'office');
 }
 
-export function canEditPartners(user: User | null): boolean {
+export function canEditPartners(user: SessionUser | null): boolean {
   return canEdit(user);
 }
 
-export function canEditLeads(user: User | null): boolean {
+export function canEditLeads(user: SessionUser | null): boolean {
   return canEdit(user);
 }
 
-export function canEditOrders(user: User | null): boolean {
+export function canEditOrders(user: SessionUser | null): boolean {
   return canEdit(user);
 }
 
-export function canChangeStage(user: User | null): boolean {
+export function canChangeStage(user: SessionUser | null): boolean {
   return !!user && (user.role === 'admin' || user.role === 'office' || user.role === 'designer');
 }
 
-export function canManageBlockers(user: User | null): boolean {
+export function canManageBlockers(user: SessionUser | null): boolean {
   return canChangeStage(user);
 }
 
-export function canUploadMedia(user: User | null): boolean {
+export function canUploadMedia(user: SessionUser | null): boolean {
   return canChangeStage(user);
 }
 
-export function canAdmin(user: User | null): boolean {
+export function canAdmin(user: SessionUser | null): boolean {
   return !!user && user.role === 'admin';
 }
 

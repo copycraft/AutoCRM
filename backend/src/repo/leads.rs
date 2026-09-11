@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgExecutor;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Lead {
     pub id: i64,
     pub title: String,
@@ -33,7 +33,7 @@ pub struct LeadInput {
     pub assigned_to: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct LeadSummary {
     pub id: i64,
     pub title: String,

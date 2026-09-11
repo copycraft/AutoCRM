@@ -8,7 +8,7 @@ use crate::domain::role::Role;
 const LOCK_AFTER_FAILURES: i32 = 10;
 const LOCK_MINUTES: i32 = 15;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct User {
     pub id: i64,
     pub email: String,

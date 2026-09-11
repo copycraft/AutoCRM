@@ -19,7 +19,8 @@ import { qk } from '@/lib/query/provider';
 import { canChangeStage, canEditOrders, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { formatDate, formatDateTime } from '@/lib/utils/format';
-import { isBlockerOpen, isBlockerOverdue, type Currency } from '@/types/api';
+import type { PatchOrder } from '@/lib/api/types';
+import { isBlockerOpen, isBlockerOverdue } from '@/lib/utils/blockers';
 
 type Tab = 'data' | 'items' | 'stages' | 'blockers' | 'audit';
 
@@ -62,7 +63,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   });
 
   const patch = useMutation({
-    mutationFn: (body: Record<string, unknown>) => ordersApi.patch(id, body),
+    mutationFn: (body: PatchOrder) => ordersApi.patch(id, body),
     onSuccess: () => {
       setEditing(false);
       void qc.invalidateQueries({ queryKey: qk.order(id) });
@@ -87,8 +88,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   }
 
   const { order, partner, stage, items, value, blockers, image_counts } = detail.data;
-  const currency = (order.currency === 'EUR' ? 'EUR' : 'HUF') as Currency;
+  const currency = order.currency;
   const defs = stagesQuery.data?.items ?? [];
+  const auditItems = audit.data?.items ?? [];
   const openBlockers = blockers.filter(isBlockerOpen);
   const tabs: { key: Tab; label: string }[] = [
     { key: 'data', label: t('tabsData') },
@@ -183,16 +185,16 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     <div>
                       <p className="text-metadata text-steel-500">HUF (MNB, {formatDate(value.valuation_date)})</p>
                       <p className="text-section font-mono font-medium">
-                        {value.total_huf_minor !== null ? (
+                        {value.total_huf_minor != null ? (
                           <Money minor={value.total_huf_minor} currency="HUF" />
                         ) : (
                           <StatusBadge tone="signal">{t('missingFx')}</StatusBadge>
                         )}
                       </p>
                     </div>
-                    {value.fx_rate !== null && value.fx_day && (
+                    {value.fx_rate != null && value.fx_day && (
                       <p className="text-metadata text-steel-500 font-mono">
-                        {t('fxRate')}: {String(value.fx_rate)} · {t('fxDay')}: {formatDate(value.fx_day)}
+                        {t('fxRate')}: {value.fx_rate} · {t('fxDay')}: {formatDate(value.fx_day)}
                       </p>
                     )}
                   </div>
@@ -203,10 +205,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     <h2 className="text-section font-semibold">{t('imagesSection')}</h2>
                   </div>
                   <div className="card-content flex flex-wrap gap-2">
-                    {(Object.keys(image_counts) as (keyof typeof image_counts)[]).length === 0 && (
+                    {Object.keys(image_counts).length === 0 && (
                       <p className="text-sm text-steel-500">—</p>
                     )}
-                    {(Object.entries(image_counts) as [string, number][]).map(([cat, n]) => (
+                    {Object.entries(image_counts).map(([cat, n]) => (
                       <StatusBadge key={cat} tone="steel">
                         {cat}: {n}
                       </StatusBadge>
@@ -306,11 +308,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                   <p className="text-sm text-steel-500">{tc('loading')}</p>
                 ) : audit.isError ? (
                   <ErrorState error={audit.error} onRetry={() => void audit.refetch()} />
-                ) : (audit.data?.items.length ?? 0) === 0 ? (
+                ) : auditItems.length === 0 ? (
                   <p className="text-sm text-steel-500">{t('auditEmpty')}</p>
                 ) : (
                   <ul className="space-y-3">
-                    {audit.data!.items.map((a) => (
+                    {auditItems.map((a) => (
                       <li key={a.id} className="text-sm">
                         <p>
                           <span className="font-medium">{a.action}</span>{' '}

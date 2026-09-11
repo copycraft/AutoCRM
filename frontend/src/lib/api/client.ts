@@ -1,22 +1,26 @@
 // Thin fetch wrapper around the Rust/Axum backend.
-// - Base path /api (rewritten to :8080 in dev via next.config.js)
+// - Base path /api (rewritten to the backend in dev via next.config.js)
 // - Web auth = httpOnly `autocrm_session` cookie → credentials: 'include'
-// - JSON in / JSON out
+// - Every JSON response is validated at this boundary against the zod schema generated from
+//   the API contract; a mismatch throws ContractError instead of flowing on as a lie.
 // - PATCH semantics preserved: caller builds exact body (omit = keep, null = clear)
 // - Never logs secrets.
 
-import { parseApiError } from './errors';
+import type { ZodType, ZodTypeDef } from 'zod';
+import { ContractError, parseApiError } from './errors';
 
 const BASE = '/api';
 
+type Search = Record<string, string | number | boolean | undefined | null>;
+
 interface RequestOptions {
-  method?: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
-  search?: Record<string, string | number | boolean | undefined | null>;
+  search?: Search;
   signal?: AbortSignal;
 }
 
-function buildUrl(path: string, search?: RequestOptions['search']): string {
+function buildUrl(path: string, search?: Search): string {
   const url = new URL(BASE + path, window.location.origin);
   if (search) {
     for (const [k, v] of Object.entries(search)) {
@@ -27,7 +31,7 @@ function buildUrl(path: string, search?: RequestOptions['search']): string {
   return url.toString();
 }
 
-export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+async function send(path: string, opts: RequestOptions): Promise<Response> {
   const { method = 'GET', body, search, signal } = opts;
   const res = await fetch(buildUrl(path, search), {
     method,
@@ -37,17 +41,25 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw await parseApiError(res);
-  if (res.status === 204) return undefined as T;
-  const text = await res.text();
-  if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  return res;
 }
 
-export const api = {
-  get: <T>(path: string, search?: RequestOptions['search'], signal?: AbortSignal) =>
-    apiFetch<T>(path, { search, signal }),
-  post: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: 'POST', body }),
-  patch: <T>(path: string, body: unknown) => apiFetch<T>(path, { method: 'PATCH', body }),
-  put: <T>(path: string, body: unknown) => apiFetch<T>(path, { method: 'PUT', body }),
-  del: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
-};
+/** A JSON response, parsed and validated against its generated schema. */
+export async function request<T>(
+  path: string,
+  schema: ZodType<T, ZodTypeDef, unknown>,
+  opts: RequestOptions = {},
+): Promise<T> {
+  const res = await send(path, opts);
+  const json: unknown = await res.json();
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    throw new ContractError(`${opts.method ?? 'GET'} ${path}`, parsed.error.issues);
+  }
+  return parsed.data;
+}
+
+/** A response without a body (204 No Content, 202 Accepted). */
+export async function requestNoContent(path: string, opts: RequestOptions = {}): Promise<void> {
+  await send(path, opts);
+}

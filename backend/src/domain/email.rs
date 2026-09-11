@@ -5,7 +5,9 @@ use chrono::{DateTime, Datelike, NaiveDateTime, NaiveTime, TimeDelta, TimeZone, 
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, utoipa::ToSchema,
+)]
 #[sqlx(type_name = "email_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum EmailStatus {

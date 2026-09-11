@@ -4,9 +4,24 @@
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use serde_json::json;
+use serde::Serialize;
+use utoipa::ToSchema;
 
 use crate::domain::stage::TransitionError;
+
+/// The body of every non-2xx response.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ErrorBody {
+    pub error: ErrorDetail,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ErrorDetail {
+    /// Stable machine-readable code, e.g. `validation`, `stage_gate`, `currency_locked`.
+    pub code: String,
+    /// Human-readable detail. For `validation` it names the field and the reason.
+    pub message: String,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -152,10 +167,12 @@ impl IntoResponse for AppError {
                 )
             }
         };
-        (
-            status,
-            Json(json!({ "error": { "code": code, "message": message } })),
-        )
-            .into_response()
+        let body = ErrorBody {
+            error: ErrorDetail {
+                code: code.to_string(),
+                message,
+            },
+        };
+        (status, Json(body)).into_response()
     }
 }

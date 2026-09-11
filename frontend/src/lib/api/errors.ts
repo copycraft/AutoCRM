@@ -1,8 +1,9 @@
 // Centralised backend error handling.
-// Backend contract: { error: { code, message } } with HTTP status.
+// Backend contract: { error: { code, message } } with HTTP status (ErrorBody in the OpenAPI document).
 // Maps codes to Hungarian human-readable messages (FRONTEND_PLAN.md §14).
 
-import type { ApiErrorBody } from '@/types/api';
+import type { ZodIssue } from 'zod';
+import { zErrorBody } from './zod/zod.gen';
 
 export class ApiError extends Error {
   code: string;
@@ -15,6 +16,20 @@ export class ApiError extends Error {
     this.code = code;
     this.status = status;
     this.backendMessage = backendMessage;
+  }
+}
+
+/** A response that does not match the generated API contract. */
+export class ContractError extends Error {
+  readonly endpoint: string;
+  readonly issues: ZodIssue[];
+
+  constructor(endpoint: string, issues: ZodIssue[]) {
+    super(`Response from ${endpoint} does not match the API contract`);
+    this.name = 'ContractError';
+    this.endpoint = endpoint;
+    this.issues = issues;
+    console.error(this.message, issues);
   }
 }
 
@@ -42,6 +57,7 @@ const HUNGARIAN_MESSAGES: Record<string, string> = {
   invalid_reference: 'Érvénytelen hivatkozás.',
   constraint_violation: 'Az adat sérti az adatbázis megkötéseit.',
   too_many_requests: 'Túl sok sikertelen próbálkozás. A fiók 15 percre zárolva.',
+  contract_violation: 'A szerver válasza nem a várt formátumú.',
 };
 
 export function hungarianMessage(code: string, fallback: string): string {
@@ -49,18 +65,25 @@ export function hungarianMessage(code: string, fallback: string): string {
 }
 
 export async function parseApiError(res: Response): Promise<ApiError> {
-  let code = 'unknown';
-  let message = `Hiba (${res.status})`;
+  let body: unknown = null;
   try {
-    const body = (await res.json()) as ApiErrorBody;
-    if (body?.error?.code) code = body.error.code;
-    if (body?.error?.message) message = body.error.message;
+    body = await res.json();
   } catch {
     // non-JSON error body — keep generic message
   }
+  const parsed = zErrorBody.safeParse(body);
+  const code = parsed.success ? parsed.data.error.code : 'unknown';
+  const message = parsed.success ? parsed.data.error.message : `Hiba (${res.status})`;
   return new ApiError(code, res.status, hungarianMessage(code, message));
 }
 
 export function isApiError(err: unknown): err is ApiError {
   return err instanceof ApiError;
+}
+
+/** The user-facing text for any error thrown by the API layer. */
+export function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.backendMessage;
+  if (err instanceof ContractError) return hungarianMessage('contract_violation', fallback);
+  return fallback;
 }

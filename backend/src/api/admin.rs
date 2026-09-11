@@ -1,12 +1,14 @@
 //! Operational visibility: dead jobs, stuck email, FX coverage.
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, post};
-use axum::{Json, Router};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::{Items, page_limit};
@@ -18,21 +20,32 @@ use crate::jobs::kinds;
 use crate::repo::jobs::{self, Job};
 use crate::repo::{config, emails, fx};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/admin/status", get(status))
-        .route("/admin/jobs", get(list_jobs))
-        .route("/admin/jobs/{id}/retry", post(retry_job))
-        .route("/admin/fx/fetch", post(fetch_fx))
-        .route("/admin/run/{kind}", post(run_now))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(status))
+        .routes(routes!(list_jobs))
+        .routes(routes!(retry_job))
+        .routes(routes!(fetch_fx))
+        .routes(routes!(run_now))
+}
+
+#[derive(Serialize, ToSchema)]
+struct JobQueued {
+    /// Null when an identical job was already queued.
+    job_id: Option<i64>,
 }
 
 /// Runs a periodic job now instead of waiting for the scheduler ("send the nudges now").
+#[utoipa::path(
+    post, path = "/admin/run/{kind}", tag = "admin",
+    params(("kind" = String, Path, description = "`nudge_blockers` or `stalled_orders`")),
+    responses((status = 202, body = JobQueued))
+)]
 async fn run_now(
     State(state): State<AppState>,
     Auth(me): Auth,
     ApiPath(kind): ApiPath<String>,
-) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+) -> AppResult<(StatusCode, Json<JobQueued>)> {
     me.require(Capability::OperateSystem)?;
     let kind = match kind.as_str() {
         kinds::NUDGE_BLOCKERS => kinds::NUDGE_BLOCKERS,
@@ -50,12 +63,13 @@ async fn run_now(
         user_id = me.user_id,
         "periodic job triggered manually"
     );
-    Ok((StatusCode::ACCEPTED, Json(json!({ "job_id": job_id }))))
+    Ok((StatusCode::ACCEPTED, Json(JobQueued { job_id })))
 }
 
-#[derive(Serialize)]
-struct Status {
+#[derive(Serialize, ToSchema)]
+struct AdminStatus {
     environment: String,
+    /// `dry_run` or `smtp`.
     email_mode: &'static str,
     smtp_host: Option<String>,
     /// Set during staging or the parallel run: all mail goes to this one address.
@@ -68,10 +82,14 @@ struct Status {
     latest_eur_rate_day: Option<NaiveDate>,
 }
 
-async fn status(State(state): State<AppState>, Auth(me): Auth) -> AppResult<Json<Status>> {
+#[utoipa::path(
+    get, path = "/admin/status", tag = "admin",
+    responses((status = 200, body = AdminStatus))
+)]
+async fn status(State(state): State<AppState>, Auth(me): Auth) -> AppResult<Json<AdminStatus>> {
     me.require(Capability::OperateSystem)?;
     let settings = config::settings(&state.db).await?;
-    Ok(Json(Status {
+    Ok(Json(AdminStatus {
         environment: format!("{:?}", state.config.env).to_lowercase(),
         email_mode: match state.config.email.transport {
             EmailTransportConfig::DryRun => "dry_run",
@@ -91,13 +109,19 @@ async fn status(State(state): State<AppState>, Auth(me): Auth) -> AppResult<Json
     }))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct JobsQuery {
     /// "failed" (default) or "pending"
     state: Option<String>,
     limit: Option<i64>,
 }
 
+#[utoipa::path(
+    get, path = "/admin/jobs", tag = "admin",
+    params(JobsQuery),
+    responses((status = 200, body = Items<Job>))
+)]
 async fn list_jobs(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -113,6 +137,11 @@ async fn list_jobs(
     Ok(Items::new(rows))
 }
 
+#[utoipa::path(
+    post, path = "/admin/jobs/{id}/retry", tag = "admin",
+    params(("id" = i64, Path)),
+    responses((status = 202, description = "Re-queued"))
+)]
 async fn retry_job(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -129,17 +158,22 @@ async fn retry_job(
     Ok(StatusCode::ACCEPTED)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct FxFetch {
     from: NaiveDate,
     to: NaiveDate,
 }
 
+#[utoipa::path(
+    post, path = "/admin/fx/fetch", tag = "admin",
+    request_body = FxFetch,
+    responses((status = 202, body = JobQueued))
+)]
 async fn fetch_fx(
     State(state): State<AppState>,
     Auth(me): Auth,
     ApiJson(b): ApiJson<FxFetch>,
-) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+) -> AppResult<(StatusCode, Json<JobQueued>)> {
     me.require(Capability::OperateSystem)?;
     if b.from > b.to {
         return Err(AppError::validation("from must not be after to"));
@@ -153,5 +187,5 @@ async fn fetch_fx(
         Some(&key),
     )
     .await?;
-    Ok((StatusCode::ACCEPTED, Json(json!({ "job_id": job_id }))))
+    Ok((StatusCode::ACCEPTED, Json(JobQueued { job_id })))
 }

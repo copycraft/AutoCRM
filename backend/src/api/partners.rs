@@ -1,9 +1,11 @@
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, patch, post};
-use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::{Items, optional, page_limit, page_offset, patch as patch_field, patch_text, required};
@@ -18,22 +20,21 @@ use crate::repo::orders::{OrderFilter, OrderSummary};
 use crate::repo::partners::{Partner, PartnerInput};
 use crate::repo::{audit, contacts, like_pattern, orders, partners};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/partners", get(search).post(create))
-        .route("/partners/{id}", get(detail).patch(update))
-        .route("/partners/{id}/archive", post(archive))
-        .route("/partners/{id}/unarchive", post(unarchive))
-        .route(
-            "/partners/{id}/contacts",
-            get(list_contacts).post(create_contact),
-        )
-        .route("/contacts/{id}", patch(update_contact))
-        .route("/contacts/{id}/archive", post(archive_contact))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(search, create))
+        .routes(routes!(detail, update))
+        .routes(routes!(archive))
+        .routes(routes!(unarchive))
+        .routes(routes!(list_contacts, create_contact))
+        .routes(routes!(update_contact))
+        .routes(routes!(archive_contact))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct SearchQuery {
+    /// Matches name, tax number, e-mail and city.
     q: Option<String>,
     kind: Option<PartnerKind>,
     #[serde(default)]
@@ -42,6 +43,11 @@ struct SearchQuery {
     offset: Option<i64>,
 }
 
+#[utoipa::path(
+    get, path = "/partners", tag = "partners",
+    params(SearchQuery),
+    responses((status = 200, body = Items<Partner>))
+)]
 async fn search(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -110,13 +116,16 @@ fn validate(d: PartnerDraft) -> AppResult<PartnerInput> {
     })
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct CreatePartner {
     kind: PartnerKind,
     name: String,
+    /// Hungarian tax numbers are normalised to `12345678-1-23`.
     tax_number: Option<String>,
     eu_tax_number: Option<String>,
+    /// ISO 3166-1 alpha-2; defaults to `HU`.
     country: Option<String>,
+    /// Defaults to `HUF`.
     default_currency: Option<Currency>,
     email: Option<String>,
     phone: Option<String>,
@@ -127,6 +136,11 @@ struct CreatePartner {
     notes: Option<String>,
 }
 
+#[utoipa::path(
+    post, path = "/partners", tag = "partners",
+    request_body = CreatePartner,
+    responses((status = 201, body = Partner))
+)]
 async fn create(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -163,13 +177,18 @@ async fn create(
     Ok((StatusCode::CREATED, Json(partner)))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct PartnerDetail {
     partner: Partner,
     contacts: Vec<Contact>,
     orders: Vec<OrderSummary>,
 }
 
+#[utoipa::path(
+    get, path = "/partners/{id}", tag = "partners",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = PartnerDetail))
+)]
 async fn detail(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -191,7 +210,7 @@ async fn detail(
     }))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct PatchPartner {
     kind: Option<PartnerKind>,
     name: Option<String>,
@@ -217,6 +236,12 @@ struct PatchPartner {
     notes: Option<Option<String>>,
 }
 
+#[utoipa::path(
+    patch, path = "/partners/{id}", tag = "partners",
+    params(("id" = i64, Path)),
+    request_body = PatchPartner,
+    responses((status = 200, body = Partner))
+)]
 async fn update(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -314,6 +339,11 @@ async fn set_archived(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post, path = "/partners/{id}/archive", tag = "partners",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Archived"))
+)]
 async fn archive(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -322,6 +352,11 @@ async fn archive(
     set_archived(&state, &me, id, true).await
 }
 
+#[utoipa::path(
+    post, path = "/partners/{id}/unarchive", tag = "partners",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Restored"))
+)]
 async fn unarchive(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -330,12 +365,18 @@ async fn unarchive(
     set_archived(&state, &me, id, false).await
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct ContactsQuery {
     #[serde(default)]
     include_archived: bool,
 }
 
+#[utoipa::path(
+    get, path = "/partners/{id}/contacts", tag = "partners",
+    params(("id" = i64, Path), ContactsQuery),
+    responses((status = 200, body = Items<Contact>))
+)]
 async fn list_contacts(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -347,7 +388,8 @@ async fn list_contacts(
     ))
 }
 
-#[derive(Deserialize)]
+/// Create requires `name`. On PATCH every field is optional; `null` clears.
+#[derive(Deserialize, ToSchema)]
 struct ContactBody {
     name: Option<String>,
     #[serde(default, deserialize_with = "patch_field")]
@@ -382,6 +424,12 @@ fn merge_contact(current: Option<&Contact>, b: ContactBody) -> AppResult<Contact
     })
 }
 
+#[utoipa::path(
+    post, path = "/partners/{id}/contacts", tag = "partners",
+    params(("id" = i64, Path)),
+    request_body = ContactBody,
+    responses((status = 201, body = Contact))
+)]
 async fn create_contact(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -408,6 +456,12 @@ async fn create_contact(
     Ok((StatusCode::CREATED, Json(contact)))
 }
 
+#[utoipa::path(
+    patch, path = "/contacts/{id}", tag = "partners",
+    params(("id" = i64, Path)),
+    request_body = ContactBody,
+    responses((status = 200, body = Contact))
+)]
 async fn update_contact(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -435,6 +489,11 @@ async fn update_contact(
     Ok(Json(updated))
 }
 
+#[utoipa::path(
+    post, path = "/contacts/{id}/archive", tag = "partners",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Archived"))
+)]
 async fn archive_contact(
     State(state): State<AppState>,
     Auth(me): Auth,

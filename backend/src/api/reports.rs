@@ -1,11 +1,13 @@
 //! The reports. A handful of real endpoints, not a report builder; add more when asked.
 
+use axum::Json;
 use axum::extract::State;
-use axum::routing::get;
-use axum::{Json, Router};
 use chrono::{DateTime, NaiveDate, TimeDelta, TimeZone, Utc};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::Items;
 use super::extract::{ApiQuery, Auth};
@@ -17,23 +19,26 @@ use crate::repo::reports::{
 };
 use crate::service::business_today;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/reports/volume", get(volume))
-        .route("/reports/stage-durations", get(stage_durations))
-        .route("/reports/throughput", get(throughput))
-        .route("/reports/stalled", get(stalled))
-        .route("/reports/blocker-load", get(blocker_load))
-        .route("/reports/fx-rates", get(fx_rates))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(volume))
+        .routes(routes!(stage_durations))
+        .routes(routes!(throughput))
+        .routes(routes!(stalled))
+        .routes(routes!(blocker_load))
+        .routes(routes!(fx_rates))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct Range {
+    /// Defaults to 365 days before `to`.
     from: Option<NaiveDate>,
+    /// Defaults to today.
     to: Option<NaiveDate>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct Period {
     from: NaiveDate,
     to: NaiveDate,
@@ -60,7 +65,8 @@ fn utc_bounds(tz: Tz, p: &Period) -> (DateTime<Utc>, DateTime<Utc>) {
     (start(p.from), start(p.to + TimeDelta::days(1)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct VolumeQuery {
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
@@ -70,7 +76,7 @@ struct VolumeQuery {
     include_cancelled: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct VolumeReport {
     period: Period,
     group: String,
@@ -78,6 +84,11 @@ struct VolumeReport {
     totals: VolumeRow,
 }
 
+#[utoipa::path(
+    get, path = "/reports/volume", tag = "reports",
+    params(VolumeQuery),
+    responses((status = 200, body = VolumeReport))
+)]
 async fn volume(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -122,19 +133,25 @@ async fn volume(
     }))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct DurationQuery {
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
     project_type_id: Option<i64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct DurationReport {
     period: Period,
     rows: Vec<StageDurationRow>,
 }
 
+#[utoipa::path(
+    get, path = "/reports/stage-durations", tag = "reports",
+    params(DurationQuery),
+    responses((status = 200, body = DurationReport))
+)]
 async fn stage_durations(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -146,12 +163,17 @@ async fn stage_durations(
     Ok(Json(DurationReport { period: p, rows }))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct ThroughputReport {
     period: Period,
     rows: Vec<ThroughputRow>,
 }
 
+#[utoipa::path(
+    get, path = "/reports/throughput", tag = "reports",
+    params(Range),
+    responses((status = 200, body = ThroughputReport))
+)]
 async fn throughput(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -163,6 +185,10 @@ async fn throughput(
     Ok(Json(ThroughputReport { period: p, rows }))
 }
 
+#[utoipa::path(
+    get, path = "/reports/stalled", tag = "reports",
+    responses((status = 200, description = "Open orders past their stage's `stall_after_days`", body = Items<StalledOrder>))
+)]
 async fn stalled(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -170,7 +196,7 @@ async fn stalled(
     Ok(Items::new(reports::stalled_orders(&state.db).await?))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct BlockerLoadEntry {
     #[serde(flatten)]
     row: BlockerLoadRow,
@@ -178,13 +204,18 @@ struct BlockerLoadEntry {
     share_of_waiting: f64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct BlockerLoadReport {
     period: Period,
     total_waiting_days: f64,
     rows: Vec<BlockerLoadEntry>,
 }
 
+#[utoipa::path(
+    get, path = "/reports/blocker-load", tag = "reports",
+    params(Range),
+    responses((status = 200, body = BlockerLoadReport))
+)]
 async fn blocker_load(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -213,13 +244,20 @@ async fn blocker_load(
     }))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct FxQuery {
+    /// Defaults to EUR.
     base: Option<String>,
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
 }
 
+#[utoipa::path(
+    get, path = "/reports/fx-rates", tag = "reports",
+    params(FxQuery),
+    responses((status = 200, description = "Stored MNB rates", body = Items<FxRate>))
+)]
 async fn fx_rates(
     State(state): State<AppState>,
     Auth(_): Auth,

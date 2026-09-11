@@ -26,7 +26,7 @@ pub async fn record(
     Ok(())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AuditEntry {
     pub id: i64,
     pub at: DateTime<Utc>,
@@ -35,6 +35,7 @@ pub struct AuditEntry {
     pub entity: String,
     pub entity_id: i64,
     pub action: String,
+    #[schema(value_type = Object)]
     pub changes: Value,
 }
 

@@ -170,7 +170,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                         <span className="font-medium">{o.title}</span>{' '}
                         <span className="text-steel-500">· {o.stage_label}</span>
                       </span>
-                      <Money minor={o.total_minor} currency={o.currency === 'EUR' ? 'EUR' : 'HUF'} />
+                      <Money minor={o.total_minor} currency={o.currency} />
                     </Link>
                   ))}
                   {orders.length === 0 && (

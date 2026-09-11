@@ -1,194 +1,203 @@
-import { api } from '@/lib/api/client';
-import type {
-  AuditEntry,
-  Blocker,
-  Contact,
-  EmailDetail,
-  EmailMessage,
-  EmailPreview,
-  EmailTemplate,
-  InitiateUploadRequest,
-  InitiateUploadResponse,
-  Items,
-  Lead,
-  LeadDetail,
-  LeadSummary,
-  LoginRequest,
-  OrderBody,
-  OrderDetail,
-  OrderDocument,
-  OrderImage,
-  OrderItemView,
-  OrderRef,
-  OrderRow,
-  OrderSummary,
-  Partner,
-  PartnerDetail,
-  ProjectType,
-  SessionInfo,
-  Settings,
-  StageChange,
-  StageDefinition,
-  StageEntry,
-  User,
-  AdminStatus,
-  Job,
-} from '@/types/api';
+// One function per backend operation. Response types come from the generated contract and
+// every response is validated by the generated zod schema passed to `request`: if the schema's
+// output and the declared return type disagree, this file does not compile.
+
+import { request, requestNoContent } from './client';
+import * as s from './zod/zod.gen';
+import type { components } from './schema.gen';
+import type { QueryOf, StageEntity } from './types';
+
+type S = components['schemas'];
 
 // ── Auth ──
 export const authApi = {
-  login: (body: LoginRequest) => api.post<{ must_change_password: boolean }>('/auth/login', body),
-  logout: () => api.post<void>('/auth/logout'),
-  me: () => api.get<User>('/auth/me'),
-  changePassword: (current_password: string, new_password: string) =>
-    api.post<void>('/auth/password', { current_password, new_password }),
-  sessions: () => api.get<Items<SessionInfo>>('/auth/sessions'),
-  deleteSession: (id: number) => api.del<void>(`/auth/sessions/${id}`),
+  login: (body: S['LoginBody']): Promise<S['LoginResponse']> =>
+    request('/auth/login', s.zAuthLoginResponse, { method: 'POST', body }),
+  logout: (): Promise<void> => requestNoContent('/auth/logout', { method: 'POST' }),
+  me: (): Promise<S['MeResponse']> => request('/auth/me', s.zAuthMeResponse),
+  changePassword: (body: S['ChangePasswordBody']): Promise<void> =>
+    requestNoContent('/auth/password', { method: 'POST', body }),
+  sessions: (): Promise<S['Items_SessionView']> => request('/auth/sessions', s.zAuthListSessionsResponse),
+  revokeSession: (id: number): Promise<void> =>
+    requestNoContent(`/auth/sessions/${id}`, { method: 'DELETE' }),
 };
 
 // ── Users (admin) ──
 export const usersApi = {
-  list: () => api.get<Items<User>>('/users'),
-  create: (body: { email: string; display_name: string; role: User['role']; temporary_password: string }) =>
-    api.post<User>('/users', body),
-  patch: (id: number, body: { display_name?: string; role?: User['role']; is_active?: boolean }) =>
-    api.patch<User>(`/users/${id}`, body),
-  setPassword: (id: number, temporary_password: string) =>
-    api.post<void>(`/users/${id}/password`, { temporary_password }),
-  revokeSessions: (id: number) => api.post<void>(`/users/${id}/revoke-sessions`),
+  list: (): Promise<S['Items_User']> => request('/users', s.zUsersListResponse),
+  create: (body: S['CreateUser']): Promise<S['User']> =>
+    request('/users', s.zUsersCreateResponse, { method: 'POST', body }),
+  update: (id: number, body: S['UpdateUser']): Promise<S['User']> =>
+    request(`/users/${id}`, s.zUsersUpdateResponse, { method: 'PATCH', body }),
+  resetPassword: (id: number, body: S['ResetPassword']): Promise<void> =>
+    requestNoContent(`/users/${id}/password`, { method: 'POST', body }),
+  revokeSessions: (id: number): Promise<S['RevokedSessions']> =>
+    request(`/users/${id}/revoke-sessions`, s.zUsersRevokeSessionsResponse, { method: 'POST' }),
 };
 
 // ── Partners ──
 export const partnersApi = {
-  list: (params?: {
-    q?: string;
-    kind?: string;
-    include_archived?: boolean;
-    limit?: number;
-    offset?: number;
-  }) => api.get<Items<Partner>>('/partners', params),
-  get: (id: number) => api.get<PartnerDetail>(`/partners/${id}`),
-  create: (body: Record<string, unknown>) => api.post<Partner>('/partners', body),
-  patch: (id: number, body: Record<string, unknown>) => api.patch<Partner>(`/partners/${id}`, body),
-  archive: (id: number) => api.post<void>(`/partners/${id}/archive`),
-  unarchive: (id: number) => api.post<void>(`/partners/${id}/unarchive`),
-  contacts: (partnerId: number) => api.get<Items<Contact>>(`/partners/${partnerId}/contacts`),
-  createContact: (partnerId: number, body: Record<string, unknown>) =>
-    api.post<Contact>(`/partners/${partnerId}/contacts`, body),
-  patchContact: (id: number, body: Record<string, unknown>) => api.patch<Contact>(`/contacts/${id}`, body),
-  archiveContact: (id: number) => api.post<void>(`/contacts/${id}/archive`),
+  list: (search: QueryOf<'partners_search'> = {}): Promise<S['Items_Partner']> =>
+    request('/partners', s.zPartnersSearchResponse, { search }),
+  get: (id: number): Promise<S['PartnerDetail']> => request(`/partners/${id}`, s.zPartnersDetailResponse),
+  create: (body: S['CreatePartner']): Promise<S['Partner']> =>
+    request('/partners', s.zPartnersCreateResponse, { method: 'POST', body }),
+  patch: (id: number, body: S['PatchPartner']): Promise<S['Partner']> =>
+    request(`/partners/${id}`, s.zPartnersUpdateResponse, { method: 'PATCH', body }),
+  archive: (id: number): Promise<void> => requestNoContent(`/partners/${id}/archive`, { method: 'POST' }),
+  unarchive: (id: number): Promise<void> =>
+    requestNoContent(`/partners/${id}/unarchive`, { method: 'POST' }),
+  contacts: (partnerId: number, search: QueryOf<'partners_list_contacts'> = {}): Promise<S['Items_Contact']> =>
+    request(`/partners/${partnerId}/contacts`, s.zPartnersListContactsResponse, { search }),
+  createContact: (partnerId: number, body: S['ContactBody']): Promise<S['Contact']> =>
+    request(`/partners/${partnerId}/contacts`, s.zPartnersCreateContactResponse, { method: 'POST', body }),
+  patchContact: (id: number, body: S['ContactBody']): Promise<S['Contact']> =>
+    request(`/contacts/${id}`, s.zPartnersUpdateContactResponse, { method: 'PATCH', body }),
+  archiveContact: (id: number): Promise<void> =>
+    requestNoContent(`/contacts/${id}/archive`, { method: 'POST' }),
 };
 
 // ── Leads ──
 export const leadsApi = {
-  list: (params?: {
-    q?: string;
-    stage?: string;
-    assigned_to?: number;
-    open?: boolean;
-    limit?: number;
-    offset?: number;
-  }) => api.get<Items<LeadSummary>>('/leads', params),
-  get: (id: number) => api.get<LeadDetail>(`/leads/${id}`),
-  create: (body: Record<string, unknown>) => api.post<Lead>('/leads', body),
-  patch: (id: number, body: Record<string, unknown>) => api.patch<Lead>(`/leads/${id}`, body),
-  stage: (id: number, body: { stage: string; note?: string }) =>
-    api.post<StageChange>(`/leads/${id}/stage`, body),
-  convert: (id: number, body: OrderBody) => api.post<OrderRef>(`/leads/${id}/convert`, body),
+  list: (search: QueryOf<'leads_search'> = {}): Promise<S['Items_LeadSummary']> =>
+    request('/leads', s.zLeadsSearchResponse, { search }),
+  get: (id: number): Promise<S['LeadDetail']> => request(`/leads/${id}`, s.zLeadsDetailResponse),
+  create: (body: S['LeadBody']): Promise<S['Lead']> =>
+    request('/leads', s.zLeadsCreateResponse, { method: 'POST', body }),
+  patch: (id: number, body: S['LeadBody']): Promise<S['Lead']> =>
+    request(`/leads/${id}`, s.zLeadsUpdateResponse, { method: 'PATCH', body }),
+  stage: (id: number, body: S['StageBody']): Promise<S['StageChange']> =>
+    request(`/leads/${id}/stage`, s.zLeadsChangeStageResponse, { method: 'POST', body }),
+  convert: (id: number, body: S['OrderBody']): Promise<S['Order']> =>
+    request(`/leads/${id}/convert`, s.zLeadsConvertResponse, { method: 'POST', body }),
 };
 
 // ── Orders ──
 export const ordersApi = {
-  list: (params?: {
-    q?: string; stage?: string; partner_id?: number; project_type_id?: number;
-    assigned_to?: number; open?: boolean; limit?: number; offset?: number;
-  }) => api.get<Items<OrderSummary>>('/orders', params),
-  get: (id: number) => api.get<OrderDetail>(`/orders/${id}`),
-  create: (body: Record<string, unknown>) => api.post<OrderRow>('/orders', body),
-  patch: (id: number, body: Record<string, unknown>) => api.patch<OrderRow>(`/orders/${id}`, body),
-  stage: (id: number, body: { stage: string; note?: string }) =>
-    api.post<StageChange>(`/orders/${id}/stage`, body),
-  stages: (id: number) => api.get<Items<StageEntry>>(`/orders/${id}/stages`),
-  audit: (id: number, params?: { limit?: number }) =>
-    api.get<Items<AuditEntry>>(`/orders/${id}/audit`, params),
-  items: (orderId: number) => api.get<Items<OrderItemView>>(`/orders/${orderId}/items`),
-  createItem: (orderId: number, body: Record<string, unknown>) =>
-    api.post<OrderItemView>(`/orders/${orderId}/items`, body),
-  patchItem: (id: number, body: Record<string, unknown>) =>
-    api.patch<OrderItemView>(`/order-items/${id}`, body),
-  deleteItem: (id: number) => api.del<void>(`/order-items/${id}`),
+  list: (search: QueryOf<'orders_search'> = {}): Promise<S['Items_OrderSummary']> =>
+    request('/orders', s.zOrdersSearchResponse, { search }),
+  get: (id: number): Promise<S['OrderDetail']> => request(`/orders/${id}`, s.zOrdersDetailResponse),
+  create: (body: S['OrderBody']): Promise<S['Order']> =>
+    request('/orders', s.zOrdersCreateResponse, { method: 'POST', body }),
+  patch: (id: number, body: S['PatchOrder']): Promise<S['Order']> =>
+    request(`/orders/${id}`, s.zOrdersUpdateResponse, { method: 'PATCH', body }),
+  stage: (id: number, body: S['StageBody']): Promise<S['StageChange']> =>
+    request(`/orders/${id}/stage`, s.zOrdersChangeStageResponse, { method: 'POST', body }),
+  stages: (id: number): Promise<S['Items_StageEntry']> =>
+    request(`/orders/${id}/stages`, s.zOrdersStageHistoryResponse),
+  audit: (id: number, search: QueryOf<'orders_audit_trail'> = {}): Promise<S['Items_AuditEntry']> =>
+    request(`/orders/${id}/audit`, s.zOrdersAuditTrailResponse, { search }),
+  items: (orderId: number): Promise<S['Items_ItemView']> =>
+    request(`/orders/${orderId}/items`, s.zOrdersListItemsResponse),
+  createItem: (orderId: number, body: S['AddItem']): Promise<S['ItemView']> =>
+    request(`/orders/${orderId}/items`, s.zOrdersAddItemResponse, { method: 'POST', body }),
+  patchItem: (id: number, body: S['PatchItem']): Promise<S['ItemView']> =>
+    request(`/order-items/${id}`, s.zOrdersUpdateItemResponse, { method: 'PATCH', body }),
+  deleteItem: (id: number): Promise<void> => requestNoContent(`/order-items/${id}`, { method: 'DELETE' }),
 };
 
 // ── Blockers ──
 export const blockersApi = {
-  list: (params?: { responsible_partner_id?: number }) =>
-    api.get<Items<Blocker>>('/blockers', params),
-  forOrder: (orderId: number) => api.get<Items<Blocker>>(`/orders/${orderId}/blockers`),
-  create: (orderId: number, body: Record<string, unknown>) =>
-    api.post<Blocker>(`/orders/${orderId}/blockers`, body),
-  patch: (id: number, body: Record<string, unknown>) => api.patch<Blocker>(`/blockers/${id}`, body),
-  resolve: (id: number, note?: string) => api.post<Blocker>(`/blockers/${id}/resolve`, { note }),
-  reopen: (id: number) => api.post<Blocker>(`/blockers/${id}/reopen`),
+  listOpen: (search: QueryOf<'blockers_list_open'> = {}): Promise<S['Items_Blocker']> =>
+    request('/blockers', s.zBlockersListOpenResponse, { search }),
+  forOrder: (orderId: number): Promise<S['Items_Blocker']> =>
+    request(`/orders/${orderId}/blockers`, s.zBlockersListForOrderResponse),
+  create: (orderId: number, body: S['BlockerBody']): Promise<S['Blocker']> =>
+    request(`/orders/${orderId}/blockers`, s.zBlockersCreateResponse, { method: 'POST', body }),
+  patch: (id: number, body: S['BlockerBody']): Promise<S['Blocker']> =>
+    request(`/blockers/${id}`, s.zBlockersUpdateResponse, { method: 'PATCH', body }),
+  resolve: (id: number, body: S['ResolveBody']): Promise<S['Blocker']> =>
+    request(`/blockers/${id}/resolve`, s.zBlockersResolveResponse, { method: 'POST', body }),
+  reopen: (id: number): Promise<S['Blocker']> =>
+    request(`/blockers/${id}/reopen`, s.zBlockersReopenResponse, { method: 'POST' }),
 };
 
 // ── Media ──
 export const mediaApi = {
-  images: (orderId: number, category?: string) =>
-    api.get<Items<OrderImage>>(`/orders/${orderId}/images`, { category }),
-  original: (imageId: number) => api.get<{ url: string; sha256: string }>(`/images/${imageId}/original`),
-  deleteImage: (id: number) => api.del<void>(`/images/${id}`),
-  documents: (orderId: number) => api.get<Items<OrderDocument>>(`/orders/${orderId}/documents`),
-  downloadDocument: (id: number) => api.get<{ url: string }>(`/documents/${id}/download`),
-  deleteDocument: (id: number) => api.del<void>(`/documents/${id}`),
-  initiateUpload: (orderId: number, body: InitiateUploadRequest) =>
-    api.post<InitiateUploadResponse>(`/orders/${orderId}/uploads`, body),
-  completeUpload: (ticket: string) => api.post<{ image_id?: number; document_id?: number }>('/uploads/complete', { ticket }),
+  images: (orderId: number, search: QueryOf<'media_list_images'> = {}): Promise<S['Items_ImageView']> =>
+    request(`/orders/${orderId}/images`, s.zMediaListImagesResponse, { search }),
+  original: (imageId: number): Promise<S['OriginalImageUrl']> =>
+    request(`/images/${imageId}/original`, s.zMediaOriginalUrlResponse),
+  deleteImage: (id: number): Promise<void> => requestNoContent(`/images/${id}`, { method: 'DELETE' }),
+  documents: (orderId: number): Promise<S['Items_Document']> =>
+    request(`/orders/${orderId}/documents`, s.zMediaListDocumentsResponse),
+  downloadDocument: (id: number): Promise<S['DownloadUrl']> =>
+    request(`/documents/${id}/download`, s.zMediaDocumentUrlResponse),
+  deleteDocument: (id: number): Promise<void> => requestNoContent(`/documents/${id}`, { method: 'DELETE' }),
+  requestUpload: (orderId: number, body: S['UploadRequest']): Promise<S['UploadResponse']> =>
+    request(`/orders/${orderId}/uploads`, s.zMediaRequestUploadResponse, { method: 'POST', body }),
+  completeUpload: (body: S['CompleteBody']): Promise<S['Completed']> =>
+    request('/uploads/complete', s.zMediaCompleteUploadResponse, { method: 'POST', body }),
 };
 
 // ── Email ──
 export const emailApi = {
-  list: (params?: { order_id?: number; lead_id?: number; partner_id?: number; status?: string; attention?: boolean }) =>
-    api.get<Items<EmailMessage>>('/emails', params),
-  get: (id: number) => api.get<EmailDetail>(`/emails/${id}`),
-  preview: (body: Record<string, unknown>) => api.post<EmailPreview>('/emails/preview', body),
-  send: (body: Record<string, unknown>) => api.post<EmailMessage>('/emails', body),
-  cancel: (id: number) => api.post<void>(`/emails/${id}/cancel`),
-  retry: (id: number) => api.post<void>(`/emails/${id}/retry`),
-  templates: () => api.get<Items<EmailTemplate>>('/email-templates'),
-  updateTemplate: (id: number, body: Record<string, unknown>) =>
-    api.patch<EmailTemplate>(`/email-templates/${id}`, body),
+  list: (search: QueryOf<'email_list'> = {}): Promise<S['Items_EmailSummary']> =>
+    request('/emails', s.zEmailListResponse, { search }),
+  get: (id: number): Promise<S['EmailMessage']> => request(`/emails/${id}`, s.zEmailDetailResponse),
+  preview: (body: S['ComposeRequest']): Promise<S['Preview']> =>
+    request('/emails/preview', s.zEmailPreviewResponse, { method: 'POST', body }),
+  send: (body: S['ComposeRequest']): Promise<S['EmailMessage']> =>
+    request('/emails', s.zEmailSendResponse, { method: 'POST', body }),
+  cancel: (id: number): Promise<void> => requestNoContent(`/emails/${id}/cancel`, { method: 'POST' }),
+  retry: (id: number): Promise<void> => requestNoContent(`/emails/${id}/retry`, { method: 'POST' }),
+  templates: (): Promise<S['Items_EmailTemplate']> => request('/email-templates', s.zEmailListTemplatesResponse),
+  createTemplate: (body: S['CreateTemplate']): Promise<S['EmailTemplate']> =>
+    request('/email-templates', s.zEmailCreateTemplateResponse, { method: 'POST', body }),
+  updateTemplate: (id: number, body: S['PatchTemplate']): Promise<S['EmailTemplate']> =>
+    request(`/email-templates/${id}`, s.zEmailUpdateTemplateResponse, { method: 'PATCH', body }),
+  variables: (): Promise<S['Items_TemplateVariable']> =>
+    request('/email-templates/variables', s.zEmailVariablesResponse),
+  suppressions: (): Promise<S['Items_Suppression']> =>
+    request('/email-suppressions', s.zEmailListSuppressionsResponse),
+  addSuppression: (body: S['AddSuppression']): Promise<void> =>
+    requestNoContent('/email-suppressions', { method: 'POST', body }),
+  removeSuppression: (email: string): Promise<void> =>
+    requestNoContent(`/email-suppressions/${encodeURIComponent(email)}`, { method: 'DELETE' }),
 };
 
-// ── Config ──
+// ── Configuration ──
 export const configApi = {
-  stages: (entity?: string) => api.get<Items<StageDefinition>>('/stage-definitions', { entity }),
-  createStage: (body: Record<string, unknown>) => api.post<StageDefinition>('/stage-definitions', body),
-  patchStage: (id: number, body: Record<string, unknown>) =>
-    api.patch<StageDefinition>(`/stage-definitions/${id}`, body),
-  projectTypes: () => api.get<Items<ProjectType>>('/project-types'),
-  patchProjectType: (id: number, body: Record<string, unknown>) =>
-    api.patch<ProjectType>(`/project-types/${id}`, body),
-  settings: () => api.get<Settings>('/settings'),
-  saveSettings: (body: Settings) => api.put<Settings>('/settings', body),
+  stages: (entity?: StageEntity): Promise<S['Items_StageDefinition']> =>
+    request('/stage-definitions', s.zConfigurationListStagesResponse, { search: { entity } }),
+  createStage: (body: S['CreateStage']): Promise<S['StageDefinition']> =>
+    request('/stage-definitions', s.zConfigurationCreateStageResponse, { method: 'POST', body }),
+  patchStage: (id: number, body: S['PatchStage']): Promise<S['StageDefinition']> =>
+    request(`/stage-definitions/${id}`, s.zConfigurationUpdateStageResponse, { method: 'PATCH', body }),
+  projectTypes: (): Promise<S['Items_ProjectType']> =>
+    request('/project-types', s.zConfigurationListProjectTypesResponse),
+  createProjectType: (body: S['CreateProjectType']): Promise<S['ProjectType']> =>
+    request('/project-types', s.zConfigurationCreateProjectTypeResponse, { method: 'POST', body }),
+  patchProjectType: (id: number, body: S['PatchProjectType']): Promise<S['ProjectType']> =>
+    request(`/project-types/${id}`, s.zConfigurationUpdateProjectTypeResponse, { method: 'PATCH', body }),
+  settings: (): Promise<S['Settings']> => request('/settings', s.zConfigurationGetSettingsResponse),
+  saveSettings: (body: S['SettingsBody']): Promise<S['Settings']> =>
+    request('/settings', s.zConfigurationPutSettingsResponse, { method: 'PUT', body }),
 };
 
-// ── Reports / Admin ──
+// ── Reports ──
 export const reportsApi = {
-  volume: (params?: Record<string, string | number | boolean | undefined>) =>
-    api.get<Record<string, unknown>>('/reports/volume', params),
-  stageDurations: (params?: Record<string, string | number | undefined>) =>
-    api.get<Record<string, unknown>>('/reports/stage-durations', params),
-  throughput: (params?: Record<string, string | undefined>) =>
-    api.get<Record<string, unknown>>('/reports/throughput', params),
-  stalled: () => api.get<Items<Record<string, unknown>>>('/reports/stalled'),
-  blockerLoad: () => api.get<Items<Record<string, unknown>>>('/reports/blocker-load'),
-  fxRates: (params?: { base?: string }) => api.get<Record<string, unknown>>('/reports/fx-rates', params),
+  volume: (search: QueryOf<'reports_volume'> = {}): Promise<S['VolumeReport']> =>
+    request('/reports/volume', s.zReportsVolumeResponse, { search }),
+  stageDurations: (search: QueryOf<'reports_stage_durations'> = {}): Promise<S['DurationReport']> =>
+    request('/reports/stage-durations', s.zReportsStageDurationsResponse, { search }),
+  throughput: (search: QueryOf<'reports_throughput'> = {}): Promise<S['ThroughputReport']> =>
+    request('/reports/throughput', s.zReportsThroughputResponse, { search }),
+  stalled: (): Promise<S['Items_StalledOrder']> => request('/reports/stalled', s.zReportsStalledResponse),
+  blockerLoad: (search: QueryOf<'reports_blocker_load'> = {}): Promise<S['BlockerLoadReport']> =>
+    request('/reports/blocker-load', s.zReportsBlockerLoadResponse, { search }),
+  fxRates: (search: QueryOf<'reports_fx_rates'> = {}): Promise<S['Items_FxRate']> =>
+    request('/reports/fx-rates', s.zReportsFxRatesResponse, { search }),
 };
 
+// ── Admin ──
 export const adminApi = {
-  status: () => api.get<AdminStatus>('/admin/status'),
-  jobs: (state?: string) => api.get<Items<Job>>('/admin/jobs', { state }),
-  retryJob: (id: number) => api.post<void>(`/admin/jobs/${id}/retry`),
-  fetchFx: (from: string, to: string) => api.post<void>('/admin/fx/fetch', { from, to }),
-  run: (kind: 'nudge_blockers' | 'stalled_orders') => api.post<void>(`/admin/run/${kind}`),
+  status: (): Promise<S['AdminStatus']> => request('/admin/status', s.zAdminStatusResponse),
+  jobs: (search: QueryOf<'admin_list_jobs'> = {}): Promise<S['Items_Job']> =>
+    request('/admin/jobs', s.zAdminListJobsResponse, { search }),
+  retryJob: (id: number): Promise<void> => requestNoContent(`/admin/jobs/${id}/retry`, { method: 'POST' }),
+  fetchFx: (body: S['FxFetch']): Promise<S['JobQueued']> =>
+    request('/admin/fx/fetch', s.zAdminFetchFxResponse, { method: 'POST', body }),
+  run: (kind: 'nudge_blockers' | 'stalled_orders'): Promise<S['JobQueued']> =>
+    request(`/admin/run/${kind}`, s.zAdminRunNowResponse, { method: 'POST' }),
 };

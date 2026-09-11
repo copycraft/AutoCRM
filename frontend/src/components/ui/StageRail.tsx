@@ -3,7 +3,7 @@
 
 import { Check, Circle, CircleDot } from 'lucide-react';
 import { cn, formatDateTime } from '@/lib/utils/format';
-import type { StageDefinition, StageEntry } from '@/types/api';
+import type { StageDefinition, StageEntry } from '@/lib/api/types';
 
 export function StageRail({
   stages,

@@ -8,10 +8,10 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { isApiError } from '@/lib/api/errors';
+import { errorMessage } from '@/lib/api/errors';
 import { Money } from '@/components/ui/Money';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import type { Currency, OrderItemView } from '@/types/api';
+import type { AddItem, Currency, ItemView, PatchItem } from '@/lib/api/types';
 
 const schema = z.object({
   description: z.string().trim().min(1),
@@ -33,9 +33,9 @@ function ItemForm({
   submitLabel,
   onCancel,
 }: {
-  initial?: OrderItemView;
+  initial?: ItemView;
   currency: Currency;
-  onSubmit: (body: Record<string, unknown>) => Promise<void>;
+  onSubmit: (item: AddItem) => Promise<void>;
   submitLabel: string;
   onCancel: () => void;
 }) {
@@ -69,13 +69,13 @@ function ItemForm({
           return;
         }
         try {
-          const body: Record<string, unknown> = { quantity: v.quantity.trim().replace(',', '.') };
-          if (!initial || v.description.trim() !== initial.description) body.description = v.description.trim();
-          if (!initial || unit !== initial.unit_price) body.unit_price = unit;
-          if (!initial) body.description = v.description.trim();
-          await onSubmit(body);
+          await onSubmit({
+            description: v.description.trim(),
+            quantity: v.quantity.trim().replace(',', '.'),
+            unit_price: unit,
+          });
         } catch (e) {
-          setServerError(isApiError(e) ? e.backendMessage : 'Ismeretlen hiba.');
+          setServerError(errorMessage(e, 'Ismeretlen hiba.'));
         }
       })}
     >
@@ -110,21 +110,30 @@ function ItemForm({
   );
 }
 
+/** PATCH diff: only fields that changed. */
+function itemPatch(original: ItemView, v: AddItem): PatchItem {
+  const body: PatchItem = {};
+  if (v.description !== original.description) body.description = v.description;
+  if (v.quantity !== original.quantity) body.quantity = v.quantity;
+  if (v.unit_price !== original.unit_price) body.unit_price = v.unit_price;
+  return body;
+}
+
 export function ItemsSection({
   orderId,
   items,
   currency,
 }: {
   orderId: number;
-  items: OrderItemView[];
+  items: ItemView[];
   currency: Currency;
 }) {
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<OrderItemView | null>(null);
-  const [deleting, setDeleting] = useState<OrderItemView | null>(null);
+  const [editing, setEditing] = useState<ItemView | null>(null);
+  const [deleting, setDeleting] = useState<ItemView | null>(null);
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: qk.order(orderId) });
@@ -132,15 +141,14 @@ export function ItemsSection({
   };
 
   const create = useMutation({
-    mutationFn: (body: Record<string, unknown>) => ordersApi.createItem(orderId, body),
+    mutationFn: (body: AddItem) => ordersApi.createItem(orderId, body),
     onSuccess: () => {
       setAdding(false);
       invalidate();
     },
   });
   const patch = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-      ordersApi.patchItem(id, body),
+    mutationFn: ({ id, body }: { id: number; body: PatchItem }) => ordersApi.patchItem(id, body),
     onSuccess: () => {
       setEditing(null);
       invalidate();
@@ -193,7 +201,7 @@ export function ItemsSection({
                       currency={currency}
                       submitLabel={t('saveItem')}
                       onCancel={() => setEditing(null)}
-                      onSubmit={(b) => patch.mutateAsync({ id: it.id, body: b }).then(() => undefined)}
+                      onSubmit={(v) => patch.mutateAsync({ id: it.id, body: itemPatch(it, v) }).then(() => undefined)}
                     />
                   </td>
                 </tr>

@@ -1,12 +1,14 @@
 //! Staff accounts. Admin only. There is no self-registration: an admin creates the account
 //! with a temporary password that must be changed at first login.
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, patch, post};
-use axum::{Json, Router};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use utoipa::ToSchema;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, Auth};
 use super::{Items, required};
@@ -18,20 +20,24 @@ use crate::repo::users::User;
 use crate::repo::{audit, sessions, users};
 use crate::service::auth;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/users", get(list).post(create))
-        .route("/users/{id}", patch(update))
-        .route("/users/{id}/password", post(reset_password))
-        .route("/users/{id}/revoke-sessions", post(revoke_sessions))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list, create))
+        .routes(routes!(update))
+        .routes(routes!(reset_password))
+        .routes(routes!(revoke_sessions))
 }
 
+#[utoipa::path(
+    get, path = "/users", tag = "users",
+    responses((status = 200, body = Items<User>))
+)]
 async fn list(State(state): State<AppState>, Auth(me): Auth) -> AppResult<Json<Items<User>>> {
     me.require(Capability::ManageUsers)?;
     Ok(Items::new(users::list(&state.db).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct CreateUser {
     email: String,
     display_name: String,
@@ -39,6 +45,11 @@ struct CreateUser {
     temporary_password: String,
 }
 
+#[utoipa::path(
+    post, path = "/users", tag = "users",
+    request_body = CreateUser,
+    responses((status = 201, body = User))
+)]
 async fn create(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -66,13 +77,19 @@ async fn create(
     Ok((StatusCode::CREATED, Json(user)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct UpdateUser {
     display_name: Option<String>,
     role: Option<Role>,
     is_active: Option<bool>,
 }
 
+#[utoipa::path(
+    patch, path = "/users/{id}", tag = "users",
+    params(("id" = i64, Path)),
+    request_body = UpdateUser,
+    responses((status = 200, body = User))
+)]
 async fn update(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -137,11 +154,17 @@ async fn update(
     Ok(Json(after))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct ResetPassword {
     temporary_password: String,
 }
 
+#[utoipa::path(
+    post, path = "/users/{id}/password", tag = "users",
+    params(("id" = i64, Path)),
+    request_body = ResetPassword,
+    responses((status = 204, description = "Password reset; the user must change it at next login"))
+)]
 async fn reset_password(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -170,12 +193,22 @@ async fn reset_password(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Serialize, ToSchema)]
+struct RevokedSessions {
+    revoked: u64,
+}
+
+#[utoipa::path(
+    post, path = "/users/{id}/revoke-sessions", tag = "users",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = RevokedSessions))
+)]
 async fn revoke_sessions(
     State(state): State<AppState>,
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<Json<RevokedSessions>> {
     me.require(Capability::ManageUsers)?;
     let revoked = sessions::revoke_all(&state.db, id, None).await?;
-    Ok(Json(json!({ "revoked": revoked })))
+    Ok(Json(RevokedSessions { revoked }))
 }

@@ -25,7 +25,7 @@ use crate::service::auth::AuthUser;
 
 const TICKET_TTL: TimeDelta = TimeDelta::hours(2);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UploadRequest {
     pub target: UploadTarget,
     pub filename: Option<String>,
@@ -35,7 +35,7 @@ pub struct UploadRequest {
     pub sha256: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum UploadResponse {
     /// Perform `upload` exactly as given (all headers are signed), then POST the ticket to
@@ -52,7 +52,7 @@ pub enum UploadResponse {
     },
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Completed {
     Image { image: Image, created: bool },

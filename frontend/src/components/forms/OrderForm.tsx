@@ -5,17 +5,18 @@ import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
-import { useQuery } from '@tanstack/react-query';
-import { isApiError } from '@/lib/api/errors';
+import { skipToken, useQuery } from '@tanstack/react-query';
+import { errorMessage } from '@/lib/api/errors';
 import { configApi, partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { useAuth } from '@/lib/auth/context';
 import { PartnerPicker, type PartnerOption } from './PartnerPicker';
 import { AssigneeField } from './AssigneeField';
-import type { Currency, OrderRow } from '@/types/api';
+import type { Order, OrderBody, PatchOrder } from '@/lib/api/types';
 
 const schema = z.object({
   title: z.string().trim().min(1),
+  // Partner is required, but enforced in the submit handler (not via
+  // .refine) so the field type stays a plain nullable the form can handle.
   partner: z.custom<PartnerOption | null>(() => true),
   contact_id: z.string(),
   project_type_id: z.string(),
@@ -37,12 +38,17 @@ function todayLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function orderCreateBody(v: OrderFormValues, meId: number | undefined): Record<string, unknown> {
+function assignee(v: OrderFormValues['assigned_to'], meId: number | undefined): number | null {
+  return v === 'me' ? (meId ?? null) : v;
+}
+
+export function orderCreateBody(v: OrderFormValues, meId: number | undefined): OrderBody {
   const clean = (s: string | undefined) => (s?.trim() ? s.trim() : undefined);
   const date = (s: string) => (s ? s : undefined);
   return {
     title: v.title.trim(),
-    partner_id: v.partner!.id,
+    // The form requires a partner; the backend rejects a missing partner_id regardless.
+    partner_id: v.partner?.id,
     contact_id: v.contact_id ? Number(v.contact_id) : undefined,
     project_type_id: v.project_type_id ? Number(v.project_type_id) : undefined,
     currency: v.currency,
@@ -53,7 +59,7 @@ export function orderCreateBody(v: OrderFormValues, meId: number | undefined): R
     vehicle_vin: clean(v.vehicle_vin),
     description: clean(v.description),
     due_date: date(v.due_date),
-    assigned_to: v.assigned_to === 'me' ? (meId ?? null) : (v.assigned_to as number | null),
+    assigned_to: assignee(v.assigned_to, meId),
     items: [],
   };
 }
@@ -65,23 +71,23 @@ export function orderCreateBody(v: OrderFormValues, meId: number | undefined): R
  * mirroring the backend rule.
  */
 export function orderPatchBody(
-  original: OrderRow,
+  original: Order,
   v: OrderFormValues,
   meId: number | undefined,
   contactDirty: boolean,
-): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
+): PatchOrder {
+  const body: PatchOrder = {};
   if (v.title.trim() !== original.title) body.title = v.title.trim();
   const newPartner = v.partner?.id ?? null;
   const partnerChanged = newPartner !== original.partner_id;
   if (partnerChanged && newPartner !== null) body.partner_id = newPartner;
   const newContact = v.contact_id ? Number(v.contact_id) : null;
-  if (newContact !== original.contact_id) body.contact_id = newContact;
-  else if (partnerChanged && contactDirty === false && original.contact_id !== null) {
+  if (newContact !== (original.contact_id ?? null)) body.contact_id = newContact;
+  else if (partnerChanged && contactDirty === false && original.contact_id != null) {
     body.contact_id = null;
   }
   const newPt = v.project_type_id ? Number(v.project_type_id) : null;
-  if (newPt !== original.project_type_id) body.project_type_id = newPt;
+  if (newPt !== (original.project_type_id ?? null)) body.project_type_id = newPt;
   if (v.valuation_date && v.valuation_date !== original.valuation_date) {
     body.valuation_date = v.valuation_date;
   }
@@ -90,9 +96,9 @@ export function orderPatchBody(
     if (nv !== (original[f] ?? '')) body[f] = nv ? nv : null;
   }
   const newDue = v.due_date ? v.due_date : null;
-  if (newDue !== original.due_date) body.due_date = newDue;
-  const assigned = v.assigned_to === 'me' ? (meId ?? null) : (v.assigned_to as number | null);
-  if (assigned !== original.assigned_to) body.assigned_to = assigned;
+  if (newDue !== (original.due_date ?? null)) body.due_date = newDue;
+  const assigned = assignee(v.assigned_to, meId);
+  if (assigned !== (original.assigned_to ?? null)) body.assigned_to = assigned;
   return body;
 }
 
@@ -103,7 +109,7 @@ export function OrderForm({
   onSubmit,
   submitLabel,
 }: {
-  initial?: OrderRow;
+  initial?: Order;
   initialPartner?: PartnerOption | null;
   /** True while the order has items — currency select disabled. */
   currencyLocked?: boolean;
@@ -113,8 +119,8 @@ export function OrderForm({
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
-  const { user } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [partnerError, setPartnerError] = useState(false);
 
   const { register, handleSubmit, control, watch, formState } = useForm<OrderFormValues>({
     resolver: zodResolver(schema),
@@ -123,7 +129,7 @@ export function OrderForm({
       partner: initialPartner ?? null,
       contact_id: initial?.contact_id ? String(initial.contact_id) : '',
       project_type_id: initial?.project_type_id ? String(initial.project_type_id) : '',
-      currency: (initial?.currency === 'EUR' ? 'EUR' : 'HUF') as Currency,
+      currency: initial?.currency ?? 'HUF',
       valuation_date: initial?.valuation_date ?? todayLocal(),
       vehicle_make: initial?.vehicle_make ?? '',
       vehicle_model: initial?.vehicle_model ?? '',
@@ -136,10 +142,10 @@ export function OrderForm({
   });
 
   const partner = watch('partner');
+  const partnerId = partner?.id;
   const contactsQuery = useQuery({
-    queryKey: qk.partner(partner?.id ?? 0),
-    queryFn: () => partnersApi.get(partner!.id),
-    enabled: partner != null,
+    queryKey: qk.partner(partnerId ?? 0),
+    queryFn: partnerId === undefined ? skipToken : () => partnersApi.get(partnerId),
   });
   const projectTypes = useQuery({
     queryKey: qk.projectTypes,
@@ -152,10 +158,14 @@ export function OrderForm({
       noValidate
       onSubmit={handleSubmit(async (v) => {
         setServerError(null);
+        if (!v.partner) {
+          setPartnerError(true);
+          return;
+        }
         try {
           await onSubmit(v, !!formState.dirtyFields.contact_id);
         } catch (e) {
-          setServerError(isApiError(e) ? e.backendMessage : 'Ismeretlen hiba történt.');
+          setServerError(errorMessage(e, 'Ismeretlen hiba történt.'));
         }
       })}
     >
@@ -174,7 +184,17 @@ export function OrderForm({
           control={control}
           name="partner"
           render={({ field }) => (
-            <PartnerPicker value={field.value} onChange={field.onChange} label={`${tc('partner')} *`} />
+            <div>
+              <PartnerPicker
+                value={field.value}
+                onChange={(p) => {
+                  field.onChange(p);
+                  if (p) setPartnerError(false);
+                }}
+                label={`${tc('partner')} *`}
+              />
+              {partnerError && <p className="mt-1 text-xs text-signal">{tv('required')}</p>}
+            </div>
           )}
         />
         <div>

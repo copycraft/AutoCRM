@@ -47,7 +47,7 @@ pub struct About {
     pub blocker_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AttachmentRef {
     pub document_id: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -189,7 +189,7 @@ pub async fn template_values(
     Ok(v)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ComposeRequest {
     pub order_id: Option<i64>,
     pub lead_id: Option<i64>,
@@ -204,7 +204,7 @@ pub struct ComposeRequest {
     pub attachment_document_ids: Vec<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct Preview {
     pub to: String,
     pub cc: Vec<String>,

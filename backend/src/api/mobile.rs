@@ -1,12 +1,14 @@
 //! The Android photo app needs exactly one thing beyond auth and uploads: a small order
 //! picker it can cache offline.
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::header;
 use axum::response::IntoResponse;
-use axum::routing::get;
-use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::Items;
 use super::extract::{ApiQuery, Auth};
@@ -16,11 +18,12 @@ use crate::error::AppResult;
 use crate::repo::like_pattern;
 use crate::repo::orders::{self, OrderFilter};
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/mobile/orders", get(order_picker))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(order_picker))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct PickerQuery {
     q: Option<String>,
     /// Defaults to open orders only; pass `all=true` to include finished ones.
@@ -28,7 +31,7 @@ struct PickerQuery {
     all: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 struct PickerOrder {
     id: i64,
     number: String,
@@ -40,6 +43,11 @@ struct PickerOrder {
     stage_label: String,
 }
 
+#[utoipa::path(
+    get, path = "/mobile/orders", tag = "mobile",
+    params(PickerQuery),
+    responses((status = 200, description = "Compact order picker; `Cache-Control: private, max-age=60`", body = Items<PickerOrder>))
+)]
 async fn order_picker(
     State(state): State<AppState>,
     Auth(_): Auth,

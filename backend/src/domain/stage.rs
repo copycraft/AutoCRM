@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use super::media::ImageCategory;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum StageEntity {
     Lead,
@@ -38,9 +38,10 @@ pub mod keys {
     pub const LEAD_WON: &str = "won";
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 pub struct StageDefinition {
     pub id: i64,
+    #[schema(value_type = StageEntity)]
     pub entity: String,
     pub key: String,
     pub label_hu: String,
@@ -53,7 +54,7 @@ pub struct StageDefinition {
     pub is_active: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TransitionKind {
     Forward,

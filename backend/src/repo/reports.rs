@@ -5,7 +5,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use sqlx::PgExecutor;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct VolumeRow {
     pub key: String,
     pub label: String,
@@ -104,7 +104,7 @@ pub async fn volume_by_project_type(
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct StageDurationRow {
     pub stage_key: String,
     pub label: String,
@@ -147,7 +147,7 @@ pub async fn stage_durations(
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ThroughputRow {
     pub period: String,
     pub completed: i64,
@@ -186,7 +186,7 @@ pub async fn throughput(
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct StalledOrder {
     pub order_id: i64,
     pub number: String,
@@ -220,7 +220,7 @@ pub async fn stalled_orders(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Stalled
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct BlockerLoadRow {
     pub partner_id: Option<i64>,
     pub responsible: String,

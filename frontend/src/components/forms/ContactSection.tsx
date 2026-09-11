@@ -8,10 +8,10 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { isApiError } from '@/lib/api/errors';
+import { errorMessage } from '@/lib/api/errors';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import type { Contact } from '@/types/api';
+import type { Contact, ContactBody } from '@/lib/api/types';
 
 const schema = z.object({
   name: z.string().trim().min(1),
@@ -55,7 +55,7 @@ function ContactForm({
         try {
           await onSubmit(v);
         } catch (e) {
-          setServerError(isApiError(e) ? e.backendMessage : 'Ismeretlen hiba.');
+          setServerError(errorMessage(e, 'Ismeretlen hiba.'));
         }
       })}
     >
@@ -97,6 +97,17 @@ function ContactForm({
 
 const clean = (s: string | undefined) => (s?.trim() ? s.trim() : null);
 
+/** PATCH diff: omit unchanged, null clears. */
+function contactPatch(original: Contact, v: Values): ContactBody {
+  const body: ContactBody = {};
+  if (v.name.trim() !== original.name) body.name = v.name.trim();
+  for (const f of ['email', 'phone', 'position', 'notes'] as const) {
+    const nv = v[f]?.trim() ?? '';
+    if (nv !== (original[f] ?? '')) body[f] = nv ? nv : null;
+  }
+  return body;
+}
+
 export function ContactSection({ partnerId, contacts }: { partnerId: number; contacts: Contact[] }) {
   const t = useTranslations('partners');
   const tc = useTranslations('common');
@@ -126,18 +137,8 @@ export function ContactSection({ partnerId, contacts }: { partnerId: number; con
   });
 
   const patch = useMutation({
-    mutationFn: ({ id, v }: { id: number; v: Values }) =>
-      partnersApi.patchContact(id, {
-        ...(v.name.trim() !== editing?.name ? { name: v.name.trim() } : {}),
-        ...(['email', 'phone', 'position', 'notes'] as const).reduce<Record<string, string | null>>(
-          (acc, f) => {
-            const nv = v[f]?.trim() ?? '';
-            if (nv !== (editing?.[f] ?? '')) acc[f] = nv ? nv : null;
-            return acc;
-          },
-          {},
-        ),
-      }),
+    mutationFn: ({ original, v }: { original: Contact; v: Values }) =>
+      partnersApi.patchContact(original.id, contactPatch(original, v)),
     onSuccess: () => {
       setEditing(null);
       invalidate();
@@ -180,7 +181,7 @@ export function ContactSection({ partnerId, contacts }: { partnerId: number; con
                 initial={c}
                 submitLabel={tc('save')}
                 onCancel={() => setEditing(null)}
-                onSubmit={(v) => patch.mutateAsync({ id: c.id, v }).then(() => undefined)}
+                onSubmit={(v) => patch.mutateAsync({ original: c, v }).then(() => undefined)}
               />
             ) : (
               <div className="flex flex-wrap items-start justify-between gap-3">

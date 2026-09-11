@@ -13,7 +13,7 @@ use crate::repo::{audit, config, images, leads, orders, stages};
 use crate::service::auth::AuthUser;
 use crate::service::automation;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct StageChange {
     pub from: String,
     pub to: String,

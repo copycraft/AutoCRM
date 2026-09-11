@@ -21,7 +21,7 @@ import { qk } from '@/lib/query/provider';
 import { canEditOrders, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { formatDate } from '@/lib/utils/format';
-import type { Currency, OrderSummary, StageDefinition } from '@/types/api';
+import type { OrderSummary, StageDefinition } from '@/lib/api/types';
 
 const PAGE_SIZE = 50;
 
@@ -120,7 +120,7 @@ export default function OrdersPage() {
         header: t('total'),
         accessorKey: 'total_minor',
         cell: ({ row }) => (
-          <Money minor={row.original.total_minor} currency={(row.original.currency === 'EUR' ? 'EUR' : 'HUF') as Currency} />
+          <Money minor={row.original.total_minor} currency={row.original.currency} />
         ),
       },
       {

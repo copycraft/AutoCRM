@@ -3,11 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { configApi, leadsApi, partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { isApiError } from '@/lib/api/errors';
-import type { Currency, LeadDetail } from '@/types/api';
+import { errorMessage } from '@/lib/api/errors';
+import type { Currency, LeadDetail } from '@/lib/api/types';
+
+function toCurrency(value: string): Currency {
+  return value === 'EUR' ? 'EUR' : 'HUF';
+}
 
 export function LeadConvertDialog({
   leadId,
@@ -31,11 +35,10 @@ export function LeadConvertDialog({
   const [description, setDescription] = useState(lead.description ?? '');
   const [error, setError] = useState<string | null>(null);
 
-  const partnerId = lead.partner_id;
+  const partnerId = lead.partner_id ?? undefined;
   const partnerQuery = useQuery({
-    queryKey: partnerId ? qk.partner(partnerId) : ['partner', 'none'],
-    queryFn: () => partnersApi.get(partnerId!),
-    enabled: partnerId != null,
+    queryKey: qk.partner(partnerId ?? 0),
+    queryFn: partnerId === undefined ? skipToken : () => partnersApi.get(partnerId),
   });
   const projectTypes = useQuery({
     queryKey: qk.projectTypes,
@@ -43,15 +46,14 @@ export function LeadConvertDialog({
   });
 
   // Default currency from the lead's partner; falls back to HUF.
-  const defaultCurrency: Currency =
-    partnerQuery.data?.partner.default_currency === 'EUR' ? 'EUR' : 'HUF';
+  const defaultCurrency: Currency = partnerQuery.data?.partner.default_currency ?? 'HUF';
   const effectiveCurrency = partnerQuery.data ? defaultCurrency : currency;
 
   const convert = useMutation({
     mutationFn: () =>
       leadsApi.convert(leadId, {
         title: title.trim() || undefined,
-        partner_id: partnerId ?? undefined,
+        partner_id: partnerId,
         currency: effectiveCurrency,
         project_type_id: projectTypeId ? Number(projectTypeId) : undefined,
         description: description.trim() || undefined,
@@ -63,10 +65,10 @@ export function LeadConvertDialog({
       void qc.invalidateQueries({ queryKey: ['orders'] });
       router.push(`/${locale}/orders/${order.id}`);
     },
-    onError: (e) => setError(isApiError(e) ? e.backendMessage : 'Ismeretlen hiba.'),
+    onError: (e) => setError(errorMessage(e, 'Ismeretlen hiba.')),
   });
 
-  const canConvert = title.trim() !== '' && partnerId != null && !convert.isPending;
+  const canConvert = title.trim() !== '' && partnerId !== undefined && !convert.isPending;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4" role="dialog" aria-modal="true" aria-label={t('convertTitle')} onClick={onClose}>
@@ -97,7 +99,7 @@ export function LeadConvertDialog({
                   {defaultCurrency} <span className="text-steel-500">(partner)</span>
                 </p>
               ) : (
-                <select id="lc-currency" className="input" value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
+                <select id="lc-currency" className="input" value={currency} onChange={(e) => setCurrency(toCurrency(e.target.value))}>
                   <option value="HUF">HUF</option>
                   <option value="EUR">EUR</option>
                 </select>

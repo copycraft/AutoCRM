@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
-import { isApiError } from '@/lib/api/errors';
-import type { Currency, Partner, PartnerKind } from '@/types/api';
+import { errorMessage } from '@/lib/api/errors';
+import type { CreatePartner, Partner, PatchPartner } from '@/lib/api/types';
 
 const schema = z.object({
   kind: z.enum(['business', 'person']),
@@ -33,7 +33,7 @@ function toForm(p?: Partner): PartnerFormValues {
     tax_number: p?.tax_number ?? '',
     eu_tax_number: p?.eu_tax_number ?? '',
     country: p?.country ?? 'HU',
-    default_currency: (p?.default_currency === 'EUR' ? 'EUR' : 'HUF') as Currency,
+    default_currency: p?.default_currency ?? 'HUF',
     email: p?.email ?? '',
     phone: p?.phone ?? '',
     website: p?.website ?? '',
@@ -48,8 +48,8 @@ function toForm(p?: Partner): PartnerFormValues {
  * Build a PATCH body with backend semantics: omit unchanged, null clears.
  * Text fields: '' on a previously-filled value → null (backend blank→null).
  */
-export function partnerPatchBody(original: Partner, v: PartnerFormValues): Record<string, unknown> {
-  const body: Record<string, unknown> = {};
+export function partnerPatchBody(original: Partner, v: PartnerFormValues): PatchPartner {
+  const body: PatchPartner = {};
   if (v.kind !== original.kind) body.kind = v.kind;
   if (v.name.trim() !== original.name) body.name = v.name.trim();
   if ((v.tax_number?.trim() ?? '') !== (original.tax_number ?? '')) {
@@ -69,10 +69,10 @@ export function partnerPatchBody(original: Partner, v: PartnerFormValues): Recor
   return body;
 }
 
-export function partnerCreateBody(v: PartnerFormValues): Record<string, unknown> {
+export function partnerCreateBody(v: PartnerFormValues): CreatePartner {
   const clean = (s: string | undefined) => (s?.trim() ? s.trim() : undefined);
   return {
-    kind: v.kind as PartnerKind,
+    kind: v.kind,
     name: v.name.trim(),
     tax_number: clean(v.tax_number),
     eu_tax_number: clean(v.eu_tax_number),
@@ -116,7 +116,7 @@ export function PartnerForm({
         try {
           await onSubmit(v);
         } catch (e) {
-          setServerError(isApiError(e) ? e.backendMessage : 'Ismeretlen hiba történt.');
+          setServerError(errorMessage(e, 'Ismeretlen hiba történt.'));
         }
       })}
     >

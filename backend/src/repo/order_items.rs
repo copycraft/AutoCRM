@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::PgExecutor;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct OrderItem {
     pub id: i64,
     pub order_id: i64,
@@ -12,6 +12,7 @@ pub struct OrderItem {
     #[serde(with = "rust_decimal::serde::str")]
     pub quantity: Decimal,
     pub unit_price: i64,
+    #[schema(value_type = crate::domain::money::Currency)]
     pub currency: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

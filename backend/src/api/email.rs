@@ -1,11 +1,13 @@
 //! Email log, manual compose, templates and the suppression list.
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{delete, get, patch, post};
-use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use utoipa::{IntoParams, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::{Items, optional, page_limit, page_offset, required};
@@ -19,38 +21,40 @@ use crate::repo::emails::{self, EmailFilter, EmailMessage, EmailSummary, Suppres
 use crate::repo::templates::{self, EmailTemplate};
 use crate::service::email::{self as email_service, ComposeRequest, Preview};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/emails", get(list).post(send))
-        .route("/emails/preview", post(preview))
-        .route("/emails/{id}", get(detail))
-        .route("/emails/{id}/cancel", post(cancel))
-        .route("/emails/{id}/retry", post(retry))
-        .route(
-            "/email-templates",
-            get(list_templates).post(create_template),
-        )
-        .route("/email-templates/variables", get(variables))
-        .route("/email-templates/{id}", patch(update_template))
-        .route(
-            "/email-suppressions",
-            get(list_suppressions).post(add_suppression),
-        )
-        .route("/email-suppressions/{email}", delete(remove_suppression))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list, send))
+        .routes(routes!(preview))
+        .routes(routes!(detail))
+        .routes(routes!(cancel))
+        .routes(routes!(retry))
+        .routes(routes!(list_templates, create_template))
+        .routes(routes!(variables))
+        .routes(routes!(update_template))
+        .routes(routes!(list_suppressions, add_suppression))
+        .routes(routes!(remove_suppression))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct ListQuery {
     order_id: Option<i64>,
     lead_id: Option<i64>,
+    /// Includes mail about the partner's orders and leads.
     partner_id: Option<i64>,
     status: Option<EmailStatus>,
+    /// Only failed and needs-review mail.
     #[serde(default)]
     attention: bool,
     limit: Option<i64>,
     offset: Option<i64>,
 }
 
+#[utoipa::path(
+    get, path = "/emails", tag = "email",
+    params(ListQuery),
+    responses((status = 200, body = Items<EmailSummary>))
+)]
 async fn list(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -74,6 +78,11 @@ async fn list(
     ))
 }
 
+#[utoipa::path(
+    get, path = "/emails/{id}", tag = "email",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = EmailMessage))
+)]
 async fn detail(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -86,6 +95,11 @@ async fn detail(
     ))
 }
 
+#[utoipa::path(
+    post, path = "/emails/preview", tag = "email",
+    request_body = ComposeRequest,
+    responses((status = 200, body = Preview))
+)]
 async fn preview(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -95,6 +109,11 @@ async fn preview(
     Ok(Json(email_service::preview(&state, &me, &req).await?))
 }
 
+#[utoipa::path(
+    post, path = "/emails", tag = "email",
+    request_body(content = ComposeRequest, description = "Subject/body override the template. Unresolved variables are rejected."),
+    responses((status = 202, description = "Queued", body = EmailMessage))
+)]
 async fn send(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -108,6 +127,11 @@ async fn send(
     Ok((StatusCode::ACCEPTED, Json(email)))
 }
 
+#[utoipa::path(
+    post, path = "/emails/{id}/cancel", tag = "email",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Cancelled"))
+)]
 async fn cancel(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -129,6 +153,11 @@ async fn cancel(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post, path = "/emails/{id}/retry", tag = "email",
+    params(("id" = i64, Path)),
+    responses((status = 202, description = "Re-queued. Only failed or needs-review mail."))
+)]
 async fn retry(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -144,6 +173,10 @@ async fn retry(
     Ok(StatusCode::ACCEPTED)
 }
 
+#[utoipa::path(
+    get, path = "/email-templates", tag = "email",
+    responses((status = 200, body = Items<EmailTemplate>))
+)]
 async fn list_templates(
     State(state): State<AppState>,
     Auth(_): Auth,
@@ -151,17 +184,21 @@ async fn list_templates(
     Ok(Items::new(templates::list(&state.db).await?))
 }
 
-#[derive(Serialize)]
-struct Variable {
+#[derive(Serialize, ToSchema)]
+struct TemplateVariable {
     name: &'static str,
     description: &'static str,
 }
 
-async fn variables(Auth(_): Auth) -> Json<Items<Variable>> {
+#[utoipa::path(
+    get, path = "/email-templates/variables", tag = "email",
+    responses((status = 200, body = Items<TemplateVariable>))
+)]
+async fn variables(Auth(_): Auth) -> Json<Items<TemplateVariable>> {
     Items::new(
         VARIABLES
             .iter()
-            .map(|(name, description)| Variable { name, description })
+            .map(|(name, description)| TemplateVariable { name, description })
             .collect(),
     )
 }
@@ -179,7 +216,7 @@ fn check_variables(subject: &str, body: &str) -> AppResult<()> {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct CreateTemplate {
     key: String,
     name: String,
@@ -187,6 +224,11 @@ struct CreateTemplate {
     body: String,
 }
 
+#[utoipa::path(
+    post, path = "/email-templates", tag = "email",
+    request_body = CreateTemplate,
+    responses((status = 201, body = EmailTemplate))
+)]
 async fn create_template(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -224,13 +266,19 @@ async fn create_template(
     Ok((StatusCode::CREATED, Json(template)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct PatchTemplate {
     name: Option<String>,
     subject: Option<String>,
     body: Option<String>,
 }
 
+#[utoipa::path(
+    patch, path = "/email-templates/{id}", tag = "email",
+    params(("id" = i64, Path)),
+    request_body = PatchTemplate,
+    responses((status = 200, body = EmailTemplate))
+)]
 async fn update_template(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -269,6 +317,10 @@ async fn update_template(
     Ok(Json(updated))
 }
 
+#[utoipa::path(
+    get, path = "/email-suppressions", tag = "email",
+    responses((status = 200, body = Items<Suppression>))
+)]
 async fn list_suppressions(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -277,12 +329,17 @@ async fn list_suppressions(
     Ok(Items::new(emails::list_suppressions(&state.db).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 struct AddSuppression {
     email: String,
     reason: Option<String>,
 }
 
+#[utoipa::path(
+    post, path = "/email-suppressions", tag = "email",
+    request_body = AddSuppression,
+    responses((status = 204, description = "Added"))
+)]
 async fn add_suppression(
     State(state): State<AppState>,
     Auth(me): Auth,
@@ -296,6 +353,11 @@ async fn add_suppression(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete, path = "/email-suppressions/{email}", tag = "email",
+    params(("email" = String, Path)),
+    responses((status = 204, description = "Removed"))
+)]
 async fn remove_suppression(
     State(state): State<AppState>,
     Auth(me): Auth,

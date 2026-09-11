@@ -1,5 +1,5 @@
 import { formatMoney } from '@/lib/utils/format';
-import type { Currency } from '@/types/api';
+import type { Currency } from '@/lib/api/types';
 
 export function Money({
   minor,

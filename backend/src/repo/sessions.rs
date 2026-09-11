@@ -4,7 +4,9 @@ use sqlx::PgExecutor;
 
 use crate::domain::role::Role;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, utoipa::ToSchema,
+)]
 #[sqlx(type_name = "session_kind", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum SessionKind {
@@ -110,7 +112,7 @@ pub async fn revoke_all(
     Ok(r.rows_affected())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SessionInfo {
     pub id: i64,
     pub kind: SessionKind,

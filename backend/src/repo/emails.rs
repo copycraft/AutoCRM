@@ -7,7 +7,7 @@ use sqlx::PgExecutor;
 
 use crate::domain::email::EmailStatus;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct EmailMessage {
     pub id: i64,
     pub order_id: Option<i64>,
@@ -25,6 +25,7 @@ pub struct EmailMessage {
     pub subject: String,
     pub body_html: String,
     pub body_text: String,
+    #[schema(value_type = Vec<crate::service::email::AttachmentRef>)]
     pub attachments: Value,
     pub status: EmailStatus,
     pub provider_id: Option<String>,
@@ -39,7 +40,7 @@ pub struct EmailMessage {
 }
 
 /// List view: everything except the bodies.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct EmailSummary {
     pub id: i64,
     pub order_id: Option<i64>,
@@ -307,7 +308,7 @@ pub async fn is_suppressed(db: impl PgExecutor<'_>, address: &str) -> sqlx::Resu
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Suppression {
     pub email: String,
     pub reason: Option<String>,

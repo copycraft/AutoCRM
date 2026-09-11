@@ -10,10 +10,11 @@ use sqlx::PgExecutor;
 /// Must exceed the longest job's runtime.
 pub const LEASE: TimeDelta = TimeDelta::minutes(15);
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Job {
     pub id: i64,
     pub kind: String,
+    #[schema(value_type = Object)]
     pub payload: Value,
     pub dedupe_key: Option<String>,
     pub run_at: DateTime<Utc>,

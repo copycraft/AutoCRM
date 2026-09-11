@@ -125,7 +125,7 @@ pub async fn insert_stage_definition(
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ProjectType {
     pub id: i64,
     pub key: String,
@@ -181,7 +181,7 @@ pub async fn update_project_type(
     .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct Settings {
     pub automatic_email_enabled: bool,
     pub max_auto_emails_per_recipient_day: i32,
