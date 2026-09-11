@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { errorMessage } from '@/lib/api/errors';
-import type { CreatePartner, Partner, PatchPartner } from '@/lib/api/types';
+import type { CreatePartner, Partner, PartnerKind, PatchPartner } from '@/lib/api/types';
 
 const schema = z.object({
   kind: z.enum(['business', 'person']),
@@ -26,9 +26,9 @@ const schema = z.object({
 
 export type PartnerFormValues = z.infer<typeof schema>;
 
-function toForm(p?: Partner): PartnerFormValues {
+function toForm(p?: Partner, initialKind?: PartnerKind): PartnerFormValues {
   return {
-    kind: p?.kind ?? 'business',
+    kind: p?.kind ?? initialKind ?? 'business',
     name: p?.name ?? '',
     tax_number: p?.tax_number ?? '',
     eu_tax_number: p?.eu_tax_number ?? '',
@@ -90,10 +90,13 @@ export function partnerCreateBody(v: PartnerFormValues): CreatePartner {
 
 export function PartnerForm({
   initial,
+  initialKind,
   onSubmit,
   submitLabel,
 }: {
   initial?: Partner;
+  /** Preset kind for create (from the menu the user came from); still changeable. */
+  initialKind?: PartnerKind;
   onSubmit: (v: PartnerFormValues) => Promise<void>;
   submitLabel: string;
 }) {
@@ -106,7 +109,7 @@ export function PartnerForm({
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<PartnerFormValues>({ resolver: zodResolver(schema), defaultValues: toForm(initial) });
+  } = useForm<PartnerFormValues>({ resolver: zodResolver(schema), defaultValues: toForm(initial, initialKind) });
 
   return (
     <form

@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   LayoutDashboard,
-  Users,
+  User,
+  Building2,
   Target,
   Package,
   OctagonAlert,
@@ -21,7 +22,8 @@ import { useAuth, canAdmin } from '@/lib/auth/context';
 
 const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: boolean }[] = [
   { href: '', icon: LayoutDashboard, key: 'dashboard' },
-  { href: '/partners', icon: Users, key: 'partners' },
+  { href: '/partners/consumers', icon: User, key: 'consumers' },
+  { href: '/partners/business', icon: Building2, key: 'business' },
   { href: '/leads', icon: Target, key: 'leads' },
   { href: '/orders', icon: Package, key: 'orders' },
   { href: '/blockers', icon: OctagonAlert, key: 'blockers' },
