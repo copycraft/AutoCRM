@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -75,71 +76,79 @@ export function LeadConvertDialog({
   const canConvert = title.trim() !== '' && partnerId !== undefined && !convert.isPending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4" role="dialog" aria-modal="true" aria-label={t('convertTitle')} onClick={onClose}>
-      <div className="card w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <h2 className="text-section font-semibold">{t('convertTitle')}</h2>
-          <p className="text-sm text-steel-500">{t('wonOnlyViaConvert')}</p>
-        </div>
-        <div className="card-content space-y-4">
-          <div>
-            <label className="label" htmlFor="lc-title">{t('title')} *</label>
-            <input id="lc-title" className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+    <Dialog.Root
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-steel-900/40" />
+        <Dialog.Content className="card fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
+          <div className="card-header">
+            <Dialog.Title className="text-section font-semibold">{t('convertTitle')}</Dialog.Title>
+            <Dialog.Description className="text-sm text-steel-500">{t('wonOnlyViaConvert')}</Dialog.Description>
           </div>
-          <div>
-            <span className="label">{t('convertPartner')}</span>
-            <p className="rounded-lg border border-steel-200 bg-panel px-3 py-2 text-sm">
-              {partnerQuery.data?.partner.name ?? '—'}
-            </p>
-            {!partnerId && (
-              <p className="mt-1 text-xs text-steel-900">{t('noPartnerForConvert')}</p>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="card-content space-y-4">
             <div>
-              <label className="label" htmlFor="lc-currency">{t('convertCurrency')}</label>
-              <select
-                id="lc-currency"
-                className="input"
-                value={effectiveCurrency}
-                onChange={(e) => setCurrencyOverride(toCurrency(e.target.value))}
-              >
-                <option value="HUF">HUF</option>
-                <option value="EUR">EUR</option>
-              </select>
-              {partnerQuery.data && currencyOverride === null && (
-                <p className="mt-1 text-xs text-steel-500">{t('partnerCurrencyHint')}</p>
+              <label className="label" htmlFor="lc-title">{t('title')} *</label>
+              <input id="lc-title" className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+            <div>
+              <span className="label">{t('convertPartner')}</span>
+              <p className="rounded-lg border border-steel-200 bg-panel px-3 py-2 text-sm">
+                {partnerQuery.data?.partner.name ?? '—'}
+              </p>
+              {!partnerId && (
+                <p className="mt-1 text-xs text-steel-900">{t('noPartnerForConvert')}</p>
               )}
             </div>
-            <div>
-              <label className="label" htmlFor="lc-pt">{tof('projectType')}</label>
-              <select id="lc-pt" className="input" value={projectTypeId} onChange={(e) => setProjectTypeId(e.target.value)}>
-                <option value="">—</option>
-                {(projectTypes.data?.items ?? [])
-                  .filter((p) => p.is_active)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label_hu}
-                    </option>
-                  ))}
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label" htmlFor="lc-currency">{t('convertCurrency')}</label>
+                <select
+                  id="lc-currency"
+                  className="input"
+                  value={effectiveCurrency}
+                  onChange={(e) => setCurrencyOverride(toCurrency(e.target.value))}
+                >
+                  <option value="HUF">HUF</option>
+                  <option value="EUR">EUR</option>
+                </select>
+                {partnerQuery.data && currencyOverride === null && (
+                  <p className="mt-1 text-xs text-steel-500">{t('partnerCurrencyHint')}</p>
+                )}
+              </div>
+              <div>
+                <label className="label" htmlFor="lc-pt">{tof('projectType')}</label>
+                <select id="lc-pt" className="input" value={projectTypeId} onChange={(e) => setProjectTypeId(e.target.value)}>
+                  <option value="">—</option>
+                  {(projectTypes.data?.items ?? [])
+                    .filter((p) => p.is_active)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label_hu}
+                      </option>
+                    ))}
+                </select>
+              </div>
             </div>
+            <div>
+              <label className="label" htmlFor="lc-desc">{t('description')}</label>
+              <textarea id="lc-desc" rows={3} className="input" value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
+            {error && (
+              <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
+            )}
           </div>
-          <div>
-            <label className="label" htmlFor="lc-desc">{t('description')}</label>
-            <textarea id="lc-desc" rows={3} className="input" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <div className="card-footer justify-end">
+            <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
+            <button className="btn-primary" disabled={!canConvert} onClick={() => convert.mutate()}>
+              {convert.isPending ? t('converting') : t('convert')}
+            </button>
           </div>
-          {error && (
-            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
-          )}
-        </div>
-        <div className="card-footer justify-end">
-          <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
-          <button className="btn-primary" disabled={!canConvert} onClick={() => convert.mutate()}>
-            {convert.isPending ? t('converting') : t('convert')}
-          </button>
-        </div>
-      </div>
-    </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

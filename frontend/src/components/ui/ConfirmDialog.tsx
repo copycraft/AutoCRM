@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslations } from 'next-intl';
 
 export function ConfirmDialog({
@@ -25,45 +25,36 @@ export function ConfirmDialog({
   const tc = useTranslations('common');
   const okLabel = confirmLabel ?? tc('confirm');
   const noLabel = cancelLabel ?? tc('cancel');
-  const confirmRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    confirmRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      onClick={onClose}
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <div className="card w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <h2 className="text-section font-semibold">{title}</h2>
-        </div>
-        {body && (
-          <div className="card-content">
-            <p className="text-sm">{body}</p>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-steel-900/40" />
+        <Dialog.Content className="card fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
+          <div className="card-header">
+            <Dialog.Title className="text-section font-semibold">{title}</Dialog.Title>
           </div>
-        )}
-        <div className="card-footer justify-end">
-          <button className="btn-ghost" onClick={onClose} disabled={busy}>
-            {noLabel}
-          </button>
-          <button ref={confirmRef} className="btn-primary" onClick={onConfirm} disabled={busy}>
-            {busy ? tc('processing') : okLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          {body && (
+            <Dialog.Description asChild>
+              <div className="card-content">
+                <p className="text-sm">{body}</p>
+              </div>
+            </Dialog.Description>
+          )}
+          <div className="card-footer justify-end">
+            <button className="btn-ghost" onClick={onClose} disabled={busy}>
+              {noLabel}
+            </button>
+            <button className="btn-primary" onClick={onConfirm} disabled={busy}>
+              {busy ? tc('processing') : okLabel}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
@@ -143,25 +144,26 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             }
           />
 
-          <div className="flex gap-1 border-b border-steel-200" role="tablist" aria-label={t('tabsLabel')}>
-            {tabs.map((tb) => (
-              <button
-                key={tb.key}
-                role="tab"
-                aria-selected={tab === tb.key}
-                onClick={() => setTab(tb.key)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                  tab === tb.key
-                    ? 'border-steel-900 text-steel-900'
-                    : 'border-transparent text-steel-500 hover:text-steel-900'
-                }`}
-              >
-                {tb.label}
-              </button>
-            ))}
-          </div>
+          <Tabs.Root
+            value={tab}
+            onValueChange={(v) => {
+              const next = tabs.find((tb) => tb.key === v);
+              if (next) setTab(next.key);
+            }}
+          >
+            <Tabs.List className="flex gap-1 border-b border-steel-200" aria-label={t('tabsLabel')}>
+              {tabs.map((tb) => (
+                <Tabs.Trigger
+                  key={tb.key}
+                  value={tb.key}
+                  className="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors border-transparent text-steel-500 hover:text-steel-900 data-[state=active]:border-steel-900 data-[state=active]:text-steel-900"
+                >
+                  {tb.label}
+                </Tabs.Trigger>
+              ))}
+            </Tabs.List>
 
-          {tab === 'data' && (
+          <Tabs.Content value="data">
             editing ? (
               <OrderForm
                 initial={order}
@@ -239,9 +241,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 </section>
               </div>
             )
-          )}
+          </Tabs.Content>
 
-          {tab === 'items' && (
+          <Tabs.Content value="items">
             canEdit ? (
               <ItemsSection orderId={id} items={items} currency={currency} />
             ) : (
@@ -268,9 +270,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 </table>
               </div>
             )
-          )}
+          </Tabs.Content>
 
-          {tab === 'stages' && (
+          <Tabs.Content value="stages">
             <section className="card">
               <div className="card-content">
                 {history.isLoading ? (
@@ -282,9 +284,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 )}
               </div>
             </section>
-          )}
+          </Tabs.Content>
 
-          {tab === 'blockers' && (
+          <Tabs.Content value="blockers">
             <section className="card">
               <div className="card-header flex items-center justify-between">
                 <h2 className="text-section font-semibold">{t('tabsBlockers')} ({openBlockers.length})</h2>
@@ -324,9 +326,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 })}
               </div>
             </section>
-          )}
+          </Tabs.Content>
 
-          {tab === 'audit' && (
+          <Tabs.Content value="audit">
             <section className="card">
               <div className="card-header">
                 <h2 className="text-section font-semibold">{t('tabsAudit')}</h2>
@@ -358,7 +360,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 )}
               </div>
             </section>
-          )}
+          </Tabs.Content>
+          </Tabs.Root>
         </div>
 
         <aside className="hidden w-[280px] shrink-0 lg:block">

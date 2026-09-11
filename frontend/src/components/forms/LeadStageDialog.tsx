@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { leadsApi } from '@/lib/api/endpoints';
@@ -54,54 +55,62 @@ export function LeadStageDialog({
   const valid = effective !== '' && (!needsNote || note.trim() !== '');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4" role="dialog" aria-modal="true" aria-label={t('stageChange')} onClick={onClose}>
-      <div className="card w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <h2 className="text-section font-semibold">{t('stageChange')}</h2>
-          <p className="text-sm text-steel-500">
-            {t('currentStage')}: {currentLabel}
-          </p>
-        </div>
-        <div className="card-content space-y-4">
-          {transitions.isLoading ? (
-            <p className="text-sm text-steel-500">{tc('loading')}</p>
-          ) : transitions.isError ? (
-            <ErrorState error={transitions.error} onRetry={() => void transitions.refetch()} />
-          ) : options.length === 0 ? (
-            <p className="text-sm text-steel-500">{t('noOtherStage')}</p>
-          ) : (
-            <>
-              <div>
-                <label className="label" htmlFor="ls-target">{t('targetStage')}</label>
-                <select id="ls-target" className="input" value={effective} onChange={(e) => setTarget(e.target.value)}>
-                  {options.map((o) => (
-                    <option key={o.stage_key} value={o.stage_key}>
-                      {o.label_hu}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label" htmlFor="ls-note">
-                  {t('note')}{needsNote ? ' *' : ''}
-                </label>
-                <textarea id="ls-note" rows={3} className="input" value={note} onChange={(e) => setNote(e.target.value)} />
-                <p className="mt-1 text-xs text-steel-500">{t('noteHint')}</p>
-              </div>
-            </>
-          )}
-          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-xs text-steel-900">{t('wonOnlyViaConvert')}</p>
-          {error && (
-            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
-          )}
-        </div>
-        <div className="card-footer justify-end">
-          <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
-          <button className="btn-primary" disabled={!valid || change.isPending || options.length === 0} onClick={() => change.mutate()}>
-            {change.isPending ? tc('saving') : tc('save')}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Dialog.Root
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-steel-900/40" />
+        <Dialog.Content className="card fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
+          <div className="card-header">
+            <Dialog.Title className="text-section font-semibold">{t('stageChange')}</Dialog.Title>
+            <Dialog.Description className="text-sm text-steel-500">
+              {t('currentStage')}: {currentLabel}
+            </Dialog.Description>
+          </div>
+          <div className="card-content space-y-4">
+            {transitions.isLoading ? (
+              <p className="text-sm text-steel-500">{tc('loading')}</p>
+            ) : transitions.isError ? (
+              <ErrorState error={transitions.error} onRetry={() => void transitions.refetch()} />
+            ) : options.length === 0 ? (
+              <p className="text-sm text-steel-500">{t('noOtherStage')}</p>
+            ) : (
+              <>
+                <div>
+                  <label className="label" htmlFor="ls-target">{t('targetStage')}</label>
+                  <select id="ls-target" className="input" value={effective} onChange={(e) => setTarget(e.target.value)}>
+                    {options.map((o) => (
+                      <option key={o.stage_key} value={o.stage_key}>
+                        {o.label_hu}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label" htmlFor="ls-note">
+                    {t('note')}{needsNote ? ' *' : ''}
+                  </label>
+                  <textarea id="ls-note" rows={3} className="input" value={note} onChange={(e) => setNote(e.target.value)} />
+                  <p className="mt-1 text-xs text-steel-500">{t('noteHint')}</p>
+                </div>
+              </>
+            )}
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-xs text-steel-900">{t('wonOnlyViaConvert')}</p>
+            {error && (
+              <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
+            )}
+          </div>
+          <div className="card-footer justify-end">
+            <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
+            <button className="btn-primary" disabled={!valid || change.isPending || options.length === 0} onClick={() => change.mutate()}>
+              {change.isPending ? tc('saving') : tc('save')}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
