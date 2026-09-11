@@ -11,6 +11,7 @@ import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
 import { Money } from '@/components/ui/Money';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { minorToMajorString, parseMajorToMinor } from '@/lib/utils/format';
 import type { AddItem, Currency, ItemView, PatchItem } from '@/lib/api/types';
 
 const schema = z.object({
@@ -21,9 +22,9 @@ const schema = z.object({
 
 type Values = z.infer<typeof schema>;
 
-function parseUnitPrice(s: string): number | null {
-  const n = Number(s.replace(/\s/g, '').replace(',', '.'));
-  return Number.isInteger(n) && n >= 0 ? n : null;
+/** Display symbol for the order currency. Symbols, not words — no catalogue entry. */
+function currencySymbol(currency: Currency): string {
+  return currency === 'EUR' ? '€' : 'Ft';
 }
 
 function ItemForm({
@@ -48,7 +49,7 @@ function ItemForm({
     defaultValues: {
       description: initial?.description ?? '',
       quantity: initial?.quantity ?? '1',
-      unit_price: initial ? String(initial.unit_price) : '',
+      unit_price: initial ? minorToMajorString(initial.unit_price) : '',
     },
   });
 
@@ -58,7 +59,9 @@ function ItemForm({
       noValidate
       onSubmit={handleSubmit(async (v) => {
         setServerError(null);
-        const unit = parseUnitPrice(v.unit_price);
+        // Major units in the user's own notation → minor units, exactly.
+        // Negatives allowed: the backend permits discount lines.
+        const unit = parseMajorToMinor(v.unit_price);
         if (unit === null) {
           setServerError(tv('numeric'));
           return;
@@ -90,8 +93,14 @@ function ItemForm({
           <input id="it-qty" className="input font-mono" inputMode="decimal" placeholder="2.5" {...register('quantity')} />
         </div>
         <div>
-          <label className="label" htmlFor="it-price">{t('unitPrice')} ({currency}) *</label>
-          <input id="it-price" className="input font-mono" inputMode="numeric" placeholder="Ft / cent" {...register('unit_price')} />
+          <label className="label" htmlFor="it-price">{t('unitPrice')} ({currencySymbol(currency)}) *</label>
+          <input
+            id="it-price"
+            className="input font-mono"
+            inputMode="decimal"
+            placeholder={currency === 'EUR' ? '12 400,50' : '4 850 000'}
+            {...register('unit_price')}
+          />
         </div>
       </div>
       <p className="mt-2 text-xs text-steel-500">{t('currencySharedNote')}</p>

@@ -5,24 +5,70 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Format integer minor units for display using integer arithmetic only —
+ * never divide into floating point. Whole-part grouping comes from Intl;
+ * the fractional part is appended as a string.
+ *
+ * HUF fillér are shown when nonzero (the backend stores HUF with exponent 2
+ * and conversions can leave nonzero fillér); whole-forint amounts render
+ * the Hungarian way, without decimals.
+ */
 export function formatMoney(minorUnits: number, currency: 'HUF' | 'EUR', locale: 'hu-HU' | 'en-US' = 'hu-HU'): string {
-  const majorUnits = minorUnits / 100;
-  
-  if (currency === 'HUF') {
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: 'HUF',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(majorUnits);
+  const negative = minorUnits < 0;
+  const abs = negative ? -minorUnits : minorUnits;
+  const frac = abs % 100;
+  const whole = (abs - frac) / 100;
+  const grouped = new Intl.NumberFormat(locale, { useGrouping: true }).format(whole);
+  const sign = negative ? '-' : '';
+  if (locale === 'hu-HU') {
+    if (currency === 'HUF') {
+      const amount = frac === 0 ? grouped : `${grouped},${String(frac).padStart(2, '0')}`;
+      return `${sign}${amount} Ft`;
+    }
+    return `${sign}${grouped},${String(frac).padStart(2, '0')} €`;
   }
-  
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(majorUnits);
+  if (currency === 'HUF') {
+    const amount = frac === 0 ? grouped : `${grouped}.${String(frac).padStart(2, '0')}`;
+    return `${sign}HUF ${amount}`;
+  }
+  return `${sign}€${grouped}.${String(frac).padStart(2, '0')}`;
+}
+
+/**
+ * Parse user-typed major units ("4 850 000", "4850000", "12 400,50", "-99,99")
+ * to minor units exactly: split on the separator, pad or truncate the
+ * fractional part to 2 digits, combine as integers. Never multiply by 100
+ * in floating point. Negative values are allowed (discount lines).
+ * Returns null when the input is not a number or exceeds safe-integer range.
+ */
+export function parseMajorToMinor(input: string): number | null {
+  const s = input.trim().replace(/\s/g, '').replace(',', '.');
+  const m = /^(-)?(?:(\d+)(?:\.(\d*))?|\.(\d+))$/.exec(s);
+  if (!m) return null;
+  const negative = m[1] === '-';
+  const whole = m[2] ?? '0';
+  const frac = (m[3] ?? m[4] ?? '').slice(0, 2).padEnd(2, '0');
+  const minor = BigInt(whole) * BigInt(100) + BigInt(frac);
+  const signed = negative ? -minor : minor;
+  if (
+    signed > BigInt(Number.MAX_SAFE_INTEGER) ||
+    signed < BigInt(-Number.MAX_SAFE_INTEGER)
+  ) {
+    return null;
+  }
+  return Number(signed);
+}
+
+/** Minor units to an exact major-unit string for editing (4850000 → "48500", 366 → "3,66"). */
+export function minorToMajorString(minorUnits: number): string {
+  if (!Number.isInteger(minorUnits)) return '';
+  const negative = minorUnits < 0;
+  const abs = negative ? -minorUnits : minorUnits;
+  const frac = abs % 100;
+  const whole = (abs - frac) / 100;
+  const body = frac === 0 ? String(whole) : `${whole},${String(frac).padStart(2, '0')}`;
+  return negative ? `-${body}` : body;
 }
 
 export function formatDate(date: string | Date, locale: 'hu-HU' | 'en-US' = 'hu-HU'): string {
@@ -45,33 +91,6 @@ export function formatDateTime(date: string | Date, locale: 'hu-HU' | 'en-US' = 
   }).format(d);
 }
 
-export function formatNumber(value: number, locale: 'hu-HU' | 'en-US' = 'hu-HU'): string {
-  return new Intl.NumberFormat(locale).format(value);
-}
-
-export function parseDecimalString(value: string): number {
-  return parseFloat(value.replace(',', '.'));
-}
-
-export function toDecimalString(value: number): string {
-  return value.toFixed(2).replace('.', ',');
-}
-
-export function generateId(): string {
-  return Math.random().toString(36).substring(2, 15);
-}
-
-export function debounce<T extends (...args: unknown[]) => unknown>(
-  fn: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn(...args), delay);
-  };
-}
-
 /** Whole days since an ISO timestamp — lead age, days-in-stage display. */
 export function daysSince(iso: string, now: number = Date.now()): number {
   const diff = now - new Date(iso).getTime();
@@ -84,24 +103,7 @@ export function formatAgeDays(iso: string, now?: number): string {
   return `${d} nap`;
 }
 
-export function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 export function truncate(str: string, length: number): string {
   if (str.length <= length) return str;
   return `${str.slice(0, length)}…`;
-}
-
-export function isEmpty(value: unknown): boolean {
-  if (value === null || value === undefined) return true;
-  if (typeof value === 'string') return value.trim() === '';
-  if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === 'object') return Object.keys(value).length === 0;
-  return false;
 }
