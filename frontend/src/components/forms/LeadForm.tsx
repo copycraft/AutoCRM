@@ -117,14 +117,14 @@ export function LeadForm({
     >
       {serverError && (
         <div className="card-content pb-0">
-          <p className="rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">{serverError}</p>
+          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{serverError}</p>
         </div>
       )}
       <div className="card-content grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
           <label className="label" htmlFor="lf-title">{t('title')} *</label>
           <input id="lf-title" className="input" {...register('title')} />
-          {formState.errors.title && <p className="mt-1 text-xs text-signal">{tv('required')}</p>}
+          {formState.errors.title && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
         </div>
         <Controller
           control={control}

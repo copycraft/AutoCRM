@@ -22,21 +22,21 @@
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-signal ring-offset-2 ring-offset-surface;
+    @apply outline-none ring-2 ring-steel-900 ring-offset-2 ring-offset-surface;
   }
 
   ::selection {
-    @apply bg-signal/20 text-steel-900;
+    @apply bg-steel-200 text-steel-900;
   }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-steel-900 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .btn-primary {
-    @apply btn bg-signal text-white hover:bg-signal/90 active:bg-signal/80;
+    @apply btn bg-steel-900 text-surface hover:bg-steel-900/80 active:bg-steel-900/70;
   }
 
   .btn-secondary {
@@ -48,7 +48,7 @@
   }
 
   .btn-danger {
-    @apply btn bg-signal/10 text-signal hover:bg-signal/20 active:bg-signal/30;
+    @apply btn border border-steel-900 bg-surface text-steel-900 hover:bg-steel-200/50 active:bg-steel-200;
   }
 
   .btn-sm {
@@ -60,7 +60,7 @@
   }
 
   .input {
-    @apply w-full rounded-lg border border-steel-200 bg-surface px-3 py-2 text-sm text-steel-900 placeholder-steel-500 transition-colors focus:border-signal focus:outline-none focus:ring-2 focus:ring-signal/20 disabled:bg-panel disabled:cursor-not-allowed;
+    @apply w-full rounded-lg border border-steel-200 bg-surface px-3 py-2 text-sm text-steel-900 placeholder-steel-500 transition-colors focus:border-steel-900 focus:outline-none focus:ring-2 focus:ring-steel-900/20 disabled:bg-panel disabled:cursor-not-allowed;
   }
 
   .label {
@@ -103,6 +103,10 @@
     @apply badge bg-steel-200 text-steel-900;
   }
 
+  .badge-muted {
+    @apply badge bg-steel-200/60 text-steel-500;
+  }
+
   .table-container {
     @apply overflow-x-auto rounded-lg border border-steel-200 bg-surface;
   }
@@ -128,7 +132,7 @@
   }
 
   .table tbody tr.selected {
-    @apply bg-signal/5;
+    @apply bg-steel-200/40;
   }
 }
 

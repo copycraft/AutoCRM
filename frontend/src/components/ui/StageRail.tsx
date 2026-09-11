@@ -1,7 +1,7 @@
 // StageRail — signature traveller component (FRONTEND_PLAN.md §12).
 // Renders BACKEND stage definitions + history. Never hardcodes stages.
 
-import { Check, Circle, CircleDot } from 'lucide-react';
+import { Check, Circle } from 'lucide-react';
 import { cn, formatDateTime } from '@/lib/utils/format';
 import type { StageDefinition, StageEntry } from '@/lib/api/types';
 
@@ -36,7 +36,9 @@ export function StageRail({
               {done ? (
                 <Check className="h-[19px] w-[19px] text-done" aria-label="Kész" />
               ) : current ? (
-                <CircleDot className="h-[19px] w-[19px] text-signal" aria-label="Aktuális" />
+                <span className="flex h-[19px] w-[19px] items-center justify-center" role="img" aria-label="Aktuális">
+                  <span className="h-2.5 w-2.5 rounded-full bg-steel-900" aria-hidden />
+                </span>
               ) : (
                 <Circle className="h-[19px] w-[19px] text-steel-200" aria-hidden />
               )}

@@ -63,7 +63,7 @@ function ContactForm({
         <div>
           <label className="label" htmlFor="c-name">Név *</label>
           <input id="c-name" className="input" {...register('name')} />
-          {formState.errors.name && <p className="mt-1 text-xs text-signal">{tv('required')}</p>}
+          {formState.errors.name && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="c-position">Beosztás</label>
@@ -83,7 +83,7 @@ function ContactForm({
         </div>
       </div>
       {serverError && (
-        <p className="rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">{serverError}</p>
+        <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{serverError}</p>
       )}
       <div className="flex justify-end gap-2">
         <button type="button" className="btn-ghost btn-sm" onClick={onCancel}>{tc('cancel')}</button>

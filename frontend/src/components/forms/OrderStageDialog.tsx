@@ -81,7 +81,7 @@ export function OrderStageDialog({
                   ))}
                 </select>
                 {targetDef && gateText(targetDef) && (
-                  <p className="mt-1 text-xs text-cold">{t('gateRequires')}: {gateText(targetDef)}</p>
+                  <p className="mt-1 text-xs text-steel-900">{t('gateRequires')}: {gateText(targetDef)}</p>
                 )}
               </div>
               <div>
@@ -93,9 +93,9 @@ export function OrderStageDialog({
               </div>
             </>
           )}
-          <p className="rounded-lg bg-cold/10 px-3 py-2 text-xs text-cold">{t('gateHint')}</p>
+          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-xs text-steel-900">{t('gateHint')}</p>
           {error && (
-            <p className="rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">{error}</p>
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
           )}
         </div>
         <div className="card-footer justify-end">

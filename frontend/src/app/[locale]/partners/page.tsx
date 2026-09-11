@@ -32,7 +32,7 @@ const columns: ColumnDef<Partner>[] = [
       <span className="flex items-center gap-2">
         <Link
           href={`./partners/${row.original.id}`}
-          className="font-medium text-cold hover:underline"
+          className="font-medium text-steel-900 underline"
         >
           {row.original.name}
         </Link>
@@ -123,7 +123,7 @@ export default function PartnersPage() {
         <label className="flex items-center gap-2 pb-2 text-sm">
           <input
             type="checkbox"
-            className="rounded border-steel-200"
+            className="rounded border-steel-200 accent-steel-900"
             checked={includeArchived}
             onChange={(e) => {
               setIncludeArchived(e.target.checked);

@@ -82,9 +82,9 @@ export function LeadStageDialog({
               </div>
             </>
           )}
-          <p className="rounded-lg bg-cold/10 px-3 py-2 text-xs text-cold">{t('wonOnlyViaConvert')}</p>
+          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-xs text-steel-900">{t('wonOnlyViaConvert')}</p>
           {error && (
-            <p className="rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">{error}</p>
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
           )}
         </div>
         <div className="card-footer justify-end">

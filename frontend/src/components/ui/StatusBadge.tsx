@@ -1,8 +1,8 @@
 import { cn } from '@/lib/utils/format';
 
-type Tone = 'signal' | 'cold' | 'done' | 'steel';
+export type StatusTone = 'signal' | 'cold' | 'done' | 'steel' | 'muted';
 
-export function StatusBadge({ tone, children }: { tone: Tone; children: React.ReactNode }) {
+export function StatusBadge({ tone, children }: { tone: StatusTone; children: React.ReactNode }) {
   return (
     <span
       className={cn(
@@ -11,6 +11,7 @@ export function StatusBadge({ tone, children }: { tone: Tone; children: React.Re
         tone === 'cold' && 'bg-cold/10 text-cold',
         tone === 'done' && 'bg-done/10 text-done',
         tone === 'steel' && 'bg-steel-200 text-steel-900',
+        tone === 'muted' && 'badge-muted',
       )}
     >
       {children}

@@ -88,7 +88,7 @@ export function LeadConvertDialog({
               {partnerQuery.data?.partner.name ?? '—'}
             </p>
             {!partnerId && (
-              <p className="mt-1 text-xs text-signal">{t('noPartnerForConvert')}</p>
+              <p className="mt-1 text-xs text-steel-900">{t('noPartnerForConvert')}</p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -124,7 +124,7 @@ export function LeadConvertDialog({
             <textarea id="lc-desc" rows={3} className="input" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
           {error && (
-            <p className="rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">{error}</p>
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
           )}
         </div>
         <div className="card-footer justify-end">

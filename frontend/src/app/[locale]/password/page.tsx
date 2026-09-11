@@ -49,7 +49,7 @@ export default function PasswordPage() {
             <label className="label" htmlFor="nxt">{t('newPassword')}</label>
             <input id="nxt" type="password" className="input" value={next} onChange={(e) => setNext(e.target.value)} required minLength={12} />
           </div>
-          {error && <p className="rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">{error}</p>}
+          {error && <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>}
           <button className="btn-primary w-full" disabled={busy}>{busy ? 'Mentés…' : t('changePassword')}</button>
         </div>
       </form>

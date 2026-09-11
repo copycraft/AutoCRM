@@ -38,7 +38,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-panel px-4">
       <div className="card w-full max-w-md">
         <div className="card-header flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-steel-900 text-white">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-steel-900 text-surface">
             <Snowflake className="h-5 w-5" aria-hidden />
           </span>
           <div>
@@ -50,14 +50,14 @@ export default function LoginPage() {
           <div>
             <label className="label" htmlFor="email">{t('emailLabel')}</label>
             <input id="email" type="email" autoComplete="username" className="input" {...register('email')} />
-            {formState.errors.email && <p className="mt-1 text-xs text-signal">Érvénytelen e-mail formátum</p>}
+            {formState.errors.email && <p className="mt-1 text-xs text-steel-900">Érvénytelen e-mail formátum</p>}
           </div>
           <div>
             <label className="label" htmlFor="password">{t('passwordLabel')}</label>
             <input id="password" type="password" autoComplete="current-password" className="input" {...register('password')} />
           </div>
           {serverError && (
-            <p className="rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">{serverError}</p>
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{serverError}</p>
           )}
           <button className="btn-primary w-full" type="submit" disabled={formState.isSubmitting}>
             {formState.isSubmitting ? t('loggingIn') : t('loginButton')}

@@ -70,7 +70,7 @@ export default function LeadsPage() {
         accessorKey: 'title',
         cell: ({ row }) => (
           <span className="flex items-center gap-2">
-            <Link href={`./leads/${row.original.id}`} className="font-medium text-cold hover:underline">
+            <Link href={`./leads/${row.original.id}`} className="font-medium text-steel-900 underline">
               {row.original.title}
             </Link>
             {row.original.order_number && (
@@ -181,7 +181,7 @@ export default function LeadsPage() {
         <label className="flex items-center gap-2 pb-2 text-sm">
           <input
             type="checkbox"
-            className="rounded border-steel-200"
+            className="rounded border-steel-200 accent-steel-900"
             checked={openOnly}
             onChange={(e) => {
               setOpenOnly(e.target.checked);

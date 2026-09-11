@@ -116,7 +116,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     </span>
                   )}
                   {converted && order && (
-                    <Link href={`/${locale}/orders/${order.id}`} className="text-sm text-cold hover:underline">
+                    <Link href={`/${locale}/orders/${order.id}`} className="text-sm text-steel-900 underline">
                       {t('convertedOrder')}: <span className="font-mono">{order.number}</span>
                     </Link>
                   )}

@@ -122,7 +122,7 @@ export function PartnerForm({
     >
       {serverError && (
         <div className="card-content pb-0">
-          <p className="rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">
+          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">
             {serverError}
           </p>
         </div>
@@ -138,7 +138,7 @@ export function PartnerForm({
         <div>
           <label className="label" htmlFor="name">{tc('name')} *</label>
           <input id="name" className="input" {...register('name')} />
-          {errors.name && <p className="mt-1 text-xs text-signal">{tv('required')}</p>}
+          {errors.name && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="tax_number">{t('taxNumber')}</label>
@@ -151,7 +151,7 @@ export function PartnerForm({
         <div>
           <label className="label" htmlFor="country">{t('country')}</label>
           <input id="country" className="input font-mono" maxLength={2} {...register('country')} />
-          {errors.country && <p className="mt-1 text-xs text-signal">{tv('required')}</p>}
+          {errors.country && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="default_currency">{t('defaultCurrency')}</label>

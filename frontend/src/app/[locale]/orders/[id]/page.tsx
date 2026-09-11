@@ -132,7 +132,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 onClick={() => setTab(tb.key)}
                 className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   tab === tb.key
-                    ? 'border-signal text-steel-900'
+                    ? 'border-steel-900 text-steel-900'
                     : 'border-transparent text-steel-500 hover:text-steel-900'
                 }`}
               >
@@ -188,7 +188,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         {value.total_huf_minor != null ? (
                           <Money minor={value.total_huf_minor} currency="HUF" />
                         ) : (
-                          <StatusBadge tone="signal">{t('missingFx')}</StatusBadge>
+                          <StatusBadge tone="steel">{t('missingFx')}</StatusBadge>
                         )}
                       </p>
                     </div>
@@ -282,7 +282,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         {b.what}
                         {!open && <StatusBadge tone="done">{t('blockerResolved')}</StatusBadge>}
                         {open && overdue && <StatusBadge tone="signal">{t('blockerOverdue')}</StatusBadge>}
-                        {open && !overdue && <StatusBadge tone="cold">{t('blockerOpen')}</StatusBadge>}
+                        {open && !overdue && <StatusBadge tone="steel">{t('blockerOpen')}</StatusBadge>}
                       </p>
                       <p className="mt-1 font-mono text-metadata text-steel-500">
                         {[b.responsible_partner_name, b.responsible_email].filter(Boolean).join(' · ') || '—'}

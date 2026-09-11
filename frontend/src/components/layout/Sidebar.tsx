@@ -41,7 +41,7 @@ export function Sidebar() {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-steel-200 bg-surface">
       <Link href={`/${locale}`} className="flex items-center gap-3 px-5 py-4 border-b border-steel-200">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-steel-900 text-white">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-steel-900 text-surface">
           <Snowflake className="h-5 w-5" aria-hidden />
         </span>
         <span className="leading-tight">
@@ -62,7 +62,7 @@ export function Sidebar() {
               aria-current={active ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                active ? 'bg-steel-900 text-white' : 'text-steel-900 hover:bg-panel',
+                active ? 'bg-steel-900 text-surface' : 'text-steel-900 hover:bg-panel',
               )}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />

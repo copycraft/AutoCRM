@@ -86,7 +86,7 @@ function ItemForm({
         <div className="md:col-span-2">
           <label className="label" htmlFor="it-desc">{t('description')} *</label>
           <input id="it-desc" className="input" {...register('description')} />
-          {formState.errors.description && <p className="mt-1 text-xs text-signal">{tv('required')}</p>}
+          {formState.errors.description && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="it-qty">{t('quantity')} *</label>
@@ -105,7 +105,7 @@ function ItemForm({
       </div>
       <p className="mt-2 text-xs text-steel-500">{t('currencySharedNote')}</p>
       {serverError && (
-        <p className="mt-2 rounded-lg bg-signal/10 px-3 py-2 text-sm text-signal" role="alert">{serverError}</p>
+        <p className="mt-2 rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{serverError}</p>
       )}
       <div className="mt-3 flex justify-end gap-2">
         <button type="button" className="btn-ghost btn-sm" onClick={onCancel}>

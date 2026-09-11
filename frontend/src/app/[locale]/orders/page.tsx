@@ -83,7 +83,7 @@ export default function OrdersPage() {
         header: t('number'),
         accessorKey: 'number',
         cell: ({ row }) => (
-          <Link href={`./orders/${row.original.id}`} className="font-mono font-medium text-cold hover:underline">
+          <Link href={`./orders/${row.original.id}`} className="font-mono font-medium text-steel-900 underline">
             {row.original.number}
           </Link>
         ),
@@ -94,6 +94,7 @@ export default function OrdersPage() {
         cell: ({ row }) => (
           <span className="flex items-center gap-2">
             <span className="font-medium">{row.original.title}</span>
+            {/* Signal is reserved for blocked/overdue: an order with open blockers is blocked. */}
             {row.original.open_blockers > 0 && (
               <StatusBadge tone="signal">
                 {row.original.open_blockers} {t('openBlockers')}
@@ -210,7 +211,7 @@ export default function OrdersPage() {
         <label className="flex items-center gap-2 pb-2 text-sm">
           <input
             type="checkbox"
-            className="rounded border-steel-200"
+            className="rounded border-steel-200 accent-steel-900"
             checked={openOnly}
             onChange={(e) => {
               setOpenOnly(e.target.checked);

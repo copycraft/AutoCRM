@@ -43,8 +43,11 @@ const config: Config = {
       },
     },
   },
+  // Forms plugin on class strategy: no global element restyles, so its
+  // blue focus/checkbox colours never reach the built CSS. Checkboxes are
+  // styled explicitly with accent-steel-900.
   plugins: [
-    require('@tailwindcss/forms'),
+    require('@tailwindcss/forms')({ strategy: 'class' }),
     require('@tailwindcss/typography'),
   ],
 };
