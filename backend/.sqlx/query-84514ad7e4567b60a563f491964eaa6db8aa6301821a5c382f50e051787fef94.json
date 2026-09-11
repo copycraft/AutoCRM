@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ls.id, ls.stage_key, sd.label_hu, ls.entered_at,\n                  lead(ls.entered_at) OVER (ORDER BY ls.entered_at, ls.id) AS left_at,\n                  ls.entered_by, u.display_name AS \"entered_by_name?\", ls.note\n           FROM lead_stages ls\n           JOIN stage_definitions sd ON sd.entity = ls.stage_entity AND sd.key = ls.stage_key\n           LEFT JOIN users u ON u.id = ls.entered_by\n           WHERE ls.lead_id = $1\n           ORDER BY ls.entered_at, ls.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "stage_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "label_hu",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "entered_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "left_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "entered_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "entered_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "note",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "84514ad7e4567b60a563f491964eaa6db8aa6301821a5c382f50e051787fef94"
+}

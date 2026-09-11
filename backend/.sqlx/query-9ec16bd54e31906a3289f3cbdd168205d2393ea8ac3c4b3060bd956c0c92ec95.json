@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, entity, key, label_hu, position, min_images,\n                  required_image_category AS \"required_image_category: ImageCategory\",\n                  is_terminal, is_exit, stall_after_days, is_active\n           FROM stage_definitions WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "entity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "label_hu",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "min_images",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "required_image_category: ImageCategory",
+        "type_info": {
+          "Custom": {
+            "name": "image_category",
+            "kind": {
+              "Enum": [
+                "intake",
+                "production",
+                "completion",
+                "marketing"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "is_terminal",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_exit",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "stall_after_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_active",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "9ec16bd54e31906a3289f3cbdd168205d2393ea8ac3c4b3060bd956c0c92ec95"
+}

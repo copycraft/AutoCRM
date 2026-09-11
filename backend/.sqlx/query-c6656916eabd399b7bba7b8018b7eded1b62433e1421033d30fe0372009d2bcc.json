@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.stage_key AS \"stage_key!\", sd.label_hu AS \"label!\", sd.position AS \"position!\",\n                  count(*) AS \"visits!\",\n                  count(*) FILTER (WHERE i.left_at IS NULL) AS \"currently_in_stage!\",\n                  (avg(extract(epoch FROM i.duration)) FILTER (WHERE i.left_at IS NOT NULL) / 86400)::float8 AS avg_days,\n                  (percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM i.duration)) FILTER (WHERE i.left_at IS NOT NULL) / 86400)::float8 AS median_days,\n                  (percentile_cont(0.9) WITHIN GROUP (ORDER BY extract(epoch FROM i.duration)) FILTER (WHERE i.left_at IS NOT NULL) / 86400)::float8 AS p90_days\n           FROM order_stage_intervals i\n           JOIN orders o ON o.id = i.order_id\n           JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = i.stage_key\n           WHERE i.entered_at >= $1 AND i.entered_at < $2 AND NOT sd.is_terminal\n             AND ($3::bigint IS NULL OR o.project_type_id = $3)\n           GROUP BY i.stage_key, sd.label_hu, sd.position\n           ORDER BY sd.position",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stage_key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "label!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "position!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "visits!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "currently_in_stage!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "avg_days",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "median_days",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "p90_days",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "c6656916eabd399b7bba7b8018b7eded1b62433e1421033d30fe0372009d2bcc"
+}

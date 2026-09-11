@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE blockers\n         SET what = $2, responsible_partner_id = $3, responsible_email = $4, due_date = $5, notes = $6, nudge_enabled = $7\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8",
+        "Text",
+        "Date",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "154b5a72241415011367eb40acb91f0e415666e7cdc4dcb06909fb356ea13227"
+}

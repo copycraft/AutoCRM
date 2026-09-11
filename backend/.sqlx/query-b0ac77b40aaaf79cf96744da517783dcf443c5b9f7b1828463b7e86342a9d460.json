@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT stage_key, entered_at FROM lead_stages WHERE lead_id = $1 ORDER BY entered_at DESC, id DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stage_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "entered_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b0ac77b40aaaf79cf96744da517783dcf443c5b9f7b1828463b7e86342a9d460"
+}

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT category AS \"category: ImageCategory\", count(*) AS \"n!\"\n           FROM images WHERE order_id = $1 AND deleted_at IS NULL\n           GROUP BY category",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "category: ImageCategory",
+        "type_info": {
+          "Custom": {
+            "name": "image_category",
+            "kind": {
+              "Enum": [
+                "intake",
+                "production",
+                "completion",
+                "marketing"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "n!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "56e59915481fa9650313b81bc440c0f8768cfe5b4de5382abf4a5551bb53912c"
+}

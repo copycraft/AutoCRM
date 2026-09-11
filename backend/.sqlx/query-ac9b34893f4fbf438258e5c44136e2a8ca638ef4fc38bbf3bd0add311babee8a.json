@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT max(split_part(number, '-', 2)::int) FROM orders WHERE number ~ ('^' || $1::text || '-[0-9]{4,9}$')",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "max",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ac9b34893f4fbf438258e5c44136e2a8ca638ef4fc38bbf3bd0add311babee8a"
+}

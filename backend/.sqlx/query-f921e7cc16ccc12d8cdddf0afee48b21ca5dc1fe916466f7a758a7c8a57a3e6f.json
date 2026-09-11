@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.minicrm_id AS \"minicrm_id!\",\n                  (SELECT count(*) FROM images i WHERE i.order_id = o.id AND i.source_ref IS NOT NULL AND i.deleted_at IS NULL)\n                + (SELECT count(*) FROM documents d WHERE d.order_id = o.id AND d.source_ref IS NOT NULL AND d.deleted_at IS NULL) AS \"files!\"\n           FROM orders o WHERE o.minicrm_id IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "minicrm_id!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "files!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      null
+    ]
+  },
+  "hash": "f921e7cc16ccc12d8cdddf0afee48b21ca5dc1fe916466f7a758a7c8a57a3e6f"
+}

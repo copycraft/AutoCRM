@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id::text AS \"key!\", p.name AS \"label!\",\n                  count(*) AS \"orders!\",\n                  coalesce(sum(ov.total_minor) FILTER (WHERE o.currency = 'HUF'), 0)::bigint AS \"huf_minor!\",\n                  coalesce(sum(ov.total_minor) FILTER (WHERE o.currency = 'EUR'), 0)::bigint AS \"eur_minor!\",\n                  coalesce(sum(ov.total_huf_minor), 0)::bigint AS \"normalized_huf_minor!\",\n                  count(*) FILTER (WHERE ov.total_huf_minor IS NULL) AS \"missing_fx!\"\n           FROM orders o\n           JOIN partners p ON p.id = o.partner_id\n           JOIN order_values ov ON ov.order_id = o.id\n           JOIN order_current_stage cs ON cs.order_id = o.id\n           JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = cs.stage_key\n           WHERE o.valuation_date BETWEEN $1 AND $2 AND ($3 OR NOT sd.is_exit)\n           GROUP BY p.id, p.name ORDER BY 6 DESC, 2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "label!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "orders!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "huf_minor!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "eur_minor!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "normalized_huf_minor!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "missing_fx!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Date",
+        "Date",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "cc05a27c49a7775653e6776b4713087390b8c35ef7afc0d25c9c3a05e054a039"
+}

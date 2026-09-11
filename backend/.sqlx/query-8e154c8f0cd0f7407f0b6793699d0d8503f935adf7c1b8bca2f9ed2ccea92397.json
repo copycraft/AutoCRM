@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"n!\" FROM orders o WHERE NOT EXISTS (SELECT 1 FROM order_stages s WHERE s.order_id = o.id)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8e154c8f0cd0f7407f0b6793699d0d8503f935adf7c1b8bca2f9ed2ccea92397"
+}

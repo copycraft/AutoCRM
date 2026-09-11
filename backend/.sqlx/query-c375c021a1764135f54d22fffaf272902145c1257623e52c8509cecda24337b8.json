@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE email_messages SET status = 'sent', sent_at = now(), provider_id = $2, attachments = $3, error = NULL WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c375c021a1764135f54d22fffaf272902145c1257623e52c8509cecda24337b8"
+}

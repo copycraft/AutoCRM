@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE images\n         SET display_key = $2, thumb_key = $3, width = $4, height = $5, captured_at = coalesce($6, captured_at),\n             processed_at = now(), processing_error = NULL\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0a31a04871438e8565ec010c1ec806109c8efdcc3293e830c1c3082938a7db86"
+}

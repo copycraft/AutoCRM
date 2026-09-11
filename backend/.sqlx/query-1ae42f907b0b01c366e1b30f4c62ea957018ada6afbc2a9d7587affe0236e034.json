@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO order_items (order_id, position, description, quantity, unit_price, currency)\n                             SELECT $1, 10, 'MiniCRM érték', 1, $2, currency FROM orders\n                             WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM order_items WHERE order_id = $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1ae42f907b0b01c366e1b30f4c62ea957018ada6afbc2a9d7587affe0236e034"
+}

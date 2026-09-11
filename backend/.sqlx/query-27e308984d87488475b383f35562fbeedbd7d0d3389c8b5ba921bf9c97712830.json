@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.responsible_partner_id AS partner_id,\n                  coalesce(p.name, b.responsible_email, '(nincs felelős)') AS \"responsible!\",\n                  count(*) AS \"blockers!\",\n                  count(*) FILTER (WHERE b.resolved_at IS NULL) AS \"open!\",\n                  count(*) FILTER (WHERE b.resolved_at IS NULL AND b.due_date < $3) AS \"overdue!\",\n                  coalesce(sum(b.nudge_count), 0)::bigint AS \"nudges!\",\n                  (sum(extract(epoch FROM coalesce(b.resolved_at, now()) - b.created_at)) / 86400)::float8 AS \"waiting_days!\"\n           FROM blockers b\n           LEFT JOIN partners p ON p.id = b.responsible_partner_id\n           WHERE b.created_at >= $1 AND b.created_at < $2\n           GROUP BY b.responsible_partner_id, coalesce(p.name, b.responsible_email, '(nincs felelős)')\n           ORDER BY 7 DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "partner_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "responsible!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "blockers!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "open!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "overdue!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "nudges!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "waiting_days!",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Date"
+      ]
+    },
+    "nullable": [
+      true,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "27e308984d87488475b383f35562fbeedbd7d0d3389c8b5ba921bf9c97712830"
+}

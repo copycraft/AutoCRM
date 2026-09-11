@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.id, b.order_id, b.due_date, b.nudge_enabled, b.last_nudged_at, b.nudge_count,\n                  coalesce(b.responsible_email, p.email) AS recipient\n           FROM blockers b\n           LEFT JOIN partners p ON p.id = b.responsible_partner_id\n           WHERE b.resolved_at IS NULL AND b.nudge_enabled AND b.due_date < $1\n           ORDER BY b.due_date, b.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "due_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "nudge_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_nudged_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "nudge_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "recipient",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "b9ecc32f4de4cdb43be3db52776f2e67f9adcf38a11df4310a2e3afa7acb19e5"
+}

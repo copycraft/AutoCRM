@@ -1,0 +1,93 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, order_id, kind AS \"kind: DocumentKind\", filename, content_type, storage_key, content_hash,\n                  byte_size, uploaded_at, uploaded_by, deleted_at\n           FROM documents WHERE order_id = $1 AND deleted_at IS NULL\n           ORDER BY uploaded_at DESC, id DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind: DocumentKind",
+        "type_info": {
+          "Custom": {
+            "name": "document_kind",
+            "kind": {
+              "Enum": [
+                "design",
+                "cad",
+                "other"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "filename",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "content_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "storage_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "content_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "byte_size",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "uploaded_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "uploaded_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "deleted_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "1d8d07b445c10edb15491260461dd9285d2fe09b8084f86b2278d390d8903a77"
+}

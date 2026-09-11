@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"n!\" FROM email_messages\n           WHERE is_automatic AND lower(to_address) = lower($1) AND status IN ('sent', 'sending')\n             AND coalesce(sent_at, sending_started_at) > now() - interval '24 hours'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "79c520d16fb462ee8950d8e239c50e2856c0d53e168b1ddd01abebcdf285cdec"
+}

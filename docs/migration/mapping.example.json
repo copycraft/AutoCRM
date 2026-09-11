@@ -1,0 +1,34 @@
+{
+  "categories": {
+    "12": "order",
+    "15": "lead",
+    "20": "skip"
+  },
+  "order_statuses": {
+    "3001": "intake",
+    "3002": "design",
+    "3003": "production",
+    "3004": "meo",
+    "3005": "completed",
+    "3006": "cancelled"
+  },
+  "lead_statuses": {
+    "2001": "new",
+    "2002": "contacted",
+    "2003": "quoted",
+    "2004": "won",
+    "2005": "lost"
+  },
+  "default_order_stage": "completed",
+  "default_lead_stage": "lost",
+  "image_fields": {
+    "$.Atveteli_fotok[]": "intake",
+    "$.Gyartasi_fotok[]": "production",
+    "$.MEO_fotok[]": "completion",
+    "$.Referencia_kepek[]": "marketing"
+  },
+  "default_image_category": "production",
+  "default_currency": "HUF",
+  "order_currency_field": "Penznem",
+  "order_value_field": "Osszeg"
+}

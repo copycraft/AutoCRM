@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sessions (user_id, token_hash, kind, device_label, user_agent, ip, expires_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea",
+        {
+          "Custom": {
+            "name": "session_kind",
+            "kind": {
+              "Enum": [
+                "web",
+                "mobile"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fcc9d40abbbf53c86c2a4276a6fb19307e9197950e79d12ab63db3f6bbcffd4b"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO lead_stages (lead_id, stage_key, entered_at, note)\n                 SELECT $1, $2, coalesce($3, now()), 'MiniCRM import'\n                 WHERE NOT EXISTS (SELECT 1 FROM lead_stages WHERE lead_id = $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a973bd14773eadbf0266bc55a42897af34a0f7a0ac8f664bd854b55f9f67bf34"
+}

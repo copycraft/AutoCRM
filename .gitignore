@@ -1,0 +1,13 @@
+/backend/target/
+/target/
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+.env
+*.log
+/logs/
+/migration-data/
+/backend/migration-data/
+.DS_Store
+Thumbs.db
+*.tsbuildinfo

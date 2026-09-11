@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT currency AS \"currency!\", total_minor AS \"total_minor!\", valuation_date AS \"valuation_date!\",\n                  fx_day, fx_rate, total_huf_minor\n           FROM order_values WHERE order_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "currency!",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "total_minor!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "valuation_date!",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "fx_day",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "fx_rate",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "total_huf_minor",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "890a65edd7bc97b950ffe12e6e547c01cf2ef39d990e90702673eedb08486bb3"
+}

@@ -1,0 +1,109 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE leads\n         SET title = $2, partner_id = $3, contact_id = $4, contact_name = $5, contact_email = $6, contact_phone = $7,\n             source = $8, description = $9, assigned_to = $10\n         WHERE id = $1\n         RETURNING id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,\n                   assigned_to, created_by, minicrm_id, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "partner_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "contact_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "contact_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "contact_email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "contact_phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "source",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "assigned_to",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "minicrm_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "a39c358d20b1d593b2191f1e8bc6c45564a1bb87449293e6ebdcefe0a52e191e"
+}

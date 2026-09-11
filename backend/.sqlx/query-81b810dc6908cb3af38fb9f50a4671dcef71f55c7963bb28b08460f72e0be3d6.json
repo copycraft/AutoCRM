@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT extract(year FROM ov.valuation_date)::int AS \"year!\", ov.currency AS \"currency!\",\n                  count(*) AS \"orders!\", coalesce(sum(ov.total_minor), 0)::bigint AS \"total_minor!\"\n           FROM order_values ov JOIN orders o ON o.id = ov.order_id\n           WHERE o.minicrm_id IS NOT NULL\n           GROUP BY 1, 2 ORDER BY 1, 2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "year!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "currency!",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "orders!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "total_minor!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "81b810dc6908cb3af38fb9f50a4671dcef71f55c7963bb28b08460f72e0be3d6"
+}

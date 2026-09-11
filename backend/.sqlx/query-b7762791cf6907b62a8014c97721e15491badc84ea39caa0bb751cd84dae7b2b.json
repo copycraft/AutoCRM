@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO partners (kind, name, email, phone, website, minicrm_id, raw_import)\n             VALUES ($1, $2, $3, $4, $5, $6, $7)\n             ON CONFLICT (minicrm_id) DO UPDATE\n             SET kind = EXCLUDED.kind, name = EXCLUDED.name, email = EXCLUDED.email, phone = EXCLUDED.phone,\n                 website = EXCLUDED.website, raw_import = EXCLUDED.raw_import\n             RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "partner_kind",
+            "kind": {
+              "Enum": [
+                "business",
+                "person"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b7762791cf6907b62a8014c97721e15491badc84ea39caa0bb751cd84dae7b2b"
+}

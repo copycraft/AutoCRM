@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE email_messages SET status = 'sending', attempts = attempts + 1, sending_started_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8ceefa16bc915c71976fb38a2031b1f572d3b83c4a0d242504f2859b14ae8a75"
+}

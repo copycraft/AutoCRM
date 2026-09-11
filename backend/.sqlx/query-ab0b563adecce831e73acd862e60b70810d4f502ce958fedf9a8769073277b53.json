@@ -1,0 +1,163 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO images (order_id, category, storage_key, content_type, original_filename, content_hash,\n                               byte_size, uploaded_by, source_ref, immutable)\n           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n           ON CONFLICT (order_id, content_hash) WHERE deleted_at IS NULL DO NOTHING\n           RETURNING id, order_id, category AS \"category: ImageCategory\", storage_key, display_key, thumb_key, content_type,\n                     original_filename, content_hash, byte_size, width, height, captured_at, processed_at, processing_error,\n                     uploaded_at, uploaded_by, immutable, deleted_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "category: ImageCategory",
+        "type_info": {
+          "Custom": {
+            "name": "image_category",
+            "kind": {
+              "Enum": [
+                "intake",
+                "production",
+                "completion",
+                "marketing"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "storage_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "display_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "thumb_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "content_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "original_filename",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "content_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 9,
+        "name": "byte_size",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "width",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "height",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "captured_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "processed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "processing_error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "uploaded_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "uploaded_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "immutable",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
+        "name": "deleted_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        {
+          "Custom": {
+            "name": "image_category",
+            "kind": {
+              "Enum": [
+                "intake",
+                "production",
+                "completion",
+                "marketing"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Text",
+        "Bytea",
+        "Int8",
+        "Int8",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "ab0b563adecce831e73acd862e60b70810d4f502ce958fedf9a8769073277b53"
+}

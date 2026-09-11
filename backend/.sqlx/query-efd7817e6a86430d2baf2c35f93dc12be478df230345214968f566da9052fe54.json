@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE email_messages SET status = $2, error = $3 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        {
+          "Custom": {
+            "name": "email_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "sending",
+                "sent",
+                "failed",
+                "cancelled",
+                "needs_review"
+              ]
+            }
+          }
+        },
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "efd7817e6a86430d2baf2c35f93dc12be478df230345214968f566da9052fe54"
+}

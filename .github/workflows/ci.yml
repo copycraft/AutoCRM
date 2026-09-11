@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: autocrm
+          POSTGRES_PASSWORD: autocrm
+          POSTGRES_DB: autocrm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U autocrm"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # Compile-time query checking against the committed .sqlx metadata;
+      # the live database is used by #[sqlx::test] integration tests.
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://autocrm:autocrm@localhost:5432/autocrm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all-targets

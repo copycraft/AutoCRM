@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO fx_rates (day, base, quote, rate, source) VALUES ($1, $2, $3, $4, $5)\n         ON CONFLICT (day, base, quote) DO UPDATE SET rate = EXCLUDED.rate, source = EXCLUDED.source, fetched_at = now()\n         WHERE fx_rates.rate IS DISTINCT FROM EXCLUDED.rate",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Date",
+        "Bpchar",
+        "Bpchar",
+        "Numeric",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ed4245af05a3c88422b1496f210d7357188a4d5d5f7d3b9cb4e9fabcd58a4345"
+}

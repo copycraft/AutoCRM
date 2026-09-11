@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-plex-sans: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-plex-mono: 'IBM Plex Mono', monospace;
+  }
+
+  * {
+    @apply border-steel-200;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-panel text-steel-900 font-sans text-body antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-signal ring-offset-2 ring-offset-surface;
+  }
+
+  ::selection {
+    @apply bg-signal/20 text-steel-900;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primary {
+    @apply btn bg-signal text-white hover:bg-signal/90 active:bg-signal/80;
+  }
+
+  .btn-secondary {
+    @apply btn bg-steel-200 text-steel-900 hover:bg-steel-200/80 active:bg-steel-200/60;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-steel-900 hover:bg-steel-200/50 active:bg-steel-200/30;
+  }
+
+  .btn-danger {
+    @apply btn bg-signal/10 text-signal hover:bg-signal/20 active:bg-signal/30;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-steel-200 bg-surface px-3 py-2 text-sm text-steel-900 placeholder-steel-500 transition-colors focus:border-signal focus:outline-none focus:ring-2 focus:ring-signal/20 disabled:bg-panel disabled:cursor-not-allowed;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-steel-900 mb-1;
+  }
+
+  .card {
+    @apply bg-surface rounded-xl border border-steel-200 shadow-card;
+  }
+
+  .card-header {
+    @apply px-5 py-4 border-b border-steel-200;
+  }
+
+  .card-content {
+    @apply p-5;
+  }
+
+  .card-footer {
+    @apply px-5 py-4 border-t border-steel-200 flex items-center gap-3;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .badge-signal {
+    @apply badge bg-signal/10 text-signal;
+  }
+
+  .badge-cold {
+    @apply badge bg-cold/10 text-cold;
+  }
+
+  .badge-done {
+    @apply badge bg-done/10 text-done;
+  }
+
+  .badge-steel {
+    @apply badge bg-steel-200 text-steel-900;
+  }
+
+  .table-container {
+    @apply overflow-x-auto rounded-lg border border-steel-200 bg-surface;
+  }
+
+  .table {
+    @apply w-full caption-bottom text-sm;
+  }
+
+  .table th {
+    @apply h-10 px-3 text-left align-middle font-medium text-steel-500 bg-panel border-b border-steel-200;
+  }
+
+  .table td {
+    @apply p-3 align-middle border-b border-steel-200/50;
+  }
+
+  .table tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .table tbody tr {
+    @apply transition-colors hover:bg-steel-200/30;
+  }
+
+  .table tbody tr.selected {
+    @apply bg-signal/5;
+  }
+}
+
+@layer utilities {
+  .text-money {
+    @apply font-mono tabular-nums;
+  }
+
+  .text-id {
+    @apply font-mono text-metadata;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.steel.200') transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: theme('colors.steel.200');
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: theme('colors.steel.500');
+  }
+}

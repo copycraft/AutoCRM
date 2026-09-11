@@ -1,0 +1,55 @@
+# Local development services. Production runs the same three things on one host:
+# the autocrm binary, Postgres, and an S3-compatible object store.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: autocrm
+      POSTGRES_PASSWORD: autocrm
+      POSTGRES_DB: autocrm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autocrm"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: autocrm
+      MINIO_ROOT_PASSWORD: autocrm-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  # Creates the bucket with object locking enabled (required for write-once intake photos).
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 autocrm autocrm-dev-secret; do sleep 1; done;
+      mc mb --ignore-existing --with-lock local/autocrm;
+      mc version enable local/autocrm;
+      exit 0;
+      "
+
+  # Local SMTP sink for testing EMAIL_MODE=smtp without reaching real inboxes. UI on :8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    profiles: ["mail"]
+
+volumes:
+  pgdata:
+  miniodata:

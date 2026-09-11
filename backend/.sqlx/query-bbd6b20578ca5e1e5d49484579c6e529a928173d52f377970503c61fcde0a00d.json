@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE email_messages SET status = 'cancelled', error = $2, cancelled_at = now(), cancelled_by = $3\n         WHERE id = $1 AND status IN ('queued', 'failed', 'needs_review')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bbd6b20578ca5e1e5d49484579c6e529a928173d52f377970503c61fcde0a00d"
+}

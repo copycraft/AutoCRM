@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO leads (title, partner_id, contact_id, contact_name, source, minicrm_id, raw_import, created_at)\n                 VALUES ($1, $2, $3, $4, 'minicrm', $5, $6, coalesce($7, now()))\n                 ON CONFLICT (minicrm_id) DO UPDATE\n                 SET title = EXCLUDED.title, partner_id = EXCLUDED.partner_id, contact_id = EXCLUDED.contact_id,\n                     contact_name = EXCLUDED.contact_name, raw_import = EXCLUDED.raw_import\n                 RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8",
+        "Text",
+        "Int8",
+        "Jsonb",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3d7710b7d71c171ddf55d9e3bfeb9f992f570d5c7a40766f3bd982f8fc32ec84"
+}

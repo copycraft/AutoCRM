@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, kind AS \"kind: SessionKind\", device_label, user_agent, ip, created_at, last_seen_at, expires_at\n           FROM sessions\n           WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()\n           ORDER BY last_seen_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind: SessionKind",
+        "type_info": {
+          "Custom": {
+            "name": "session_kind",
+            "kind": {
+              "Enum": [
+                "web",
+                "mobile"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "device_label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_agent",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "ip",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_seen_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7342c0b1eecd9addcff219d3e809abcd0f2a50635f72bb2e99d0352fa4d02c00"
+}

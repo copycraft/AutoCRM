@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobs SET locked_at = NULL, locked_by = NULL, run_at = $2, attempts = greatest(attempts - 1, 0) WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8c164c7168a731262d9268f051521335d5af4b8016c936ae9e36681a741c5f98"
+}

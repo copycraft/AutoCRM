@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.id, o.number, o.valuation_date, o.raw_import, p.name AS partner, c.name AS \"contact?\",\n                  (SELECT stage_key FROM order_stages s WHERE s.order_id = o.id) AS \"stage!\",\n                  (SELECT unit_price FROM order_items i WHERE i.order_id = o.id) AS \"unit_price!\"\n           FROM orders o JOIN partners p ON p.id = o.partner_id LEFT JOIN contacts c ON c.id = o.contact_id\n           WHERE o.minicrm_id = 500",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "valuation_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "raw_import",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "partner",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "contact?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "stage!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "unit_price!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "455c06d8ae2ae647fc04e49ea7622894328026d65491db05f80bb2a5e4b2000a"
+}

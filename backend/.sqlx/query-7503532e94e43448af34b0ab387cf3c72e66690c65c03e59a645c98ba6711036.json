@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE blockers SET resolved_at = NULL, resolved_by = NULL, resolution_note = NULL\n         WHERE id = $1 AND resolved_at IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7503532e94e43448af34b0ab387cf3c72e66690c65c03e59a645c98ba6711036"
+}

@@ -1,0 +1,136 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,\n                vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,\n                created_by, minicrm_id, created_at, updated_at\n         FROM orders WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "partner_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "contact_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "lead_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "project_type_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "valuation_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "vehicle_make",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "vehicle_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "vehicle_plate",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "vehicle_vin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "due_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 15,
+        "name": "assigned_to",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "minicrm_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "08a8a778e43209626f766cb1f1f26cc4a0f87b7619e5db6c8994a53fdafe1032"
+}

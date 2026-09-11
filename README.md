@@ -1,0 +1,107 @@
+# AutoCRM
+
+Project lifecycle system for Autotherm's refrigerated vehicle conversions:
+
+```
+Lead → Order → Design → Production → MEO documentation → Done
+```
+
+One Rust binary, one Postgres, one S3-compatible object store. Built for correctness,
+longevity and low operational burden, not scale (60 leads/month, <20 users).
+
+- Architecture decisions and deviations from the original plan: [docs/DECISIONS.md](docs/DECISIONS.md)
+- API reference: [docs/API.md](docs/API.md)
+
+## Explicitly out of scope
+
+Inventory, invoicing, cost tracking, purchase orders, time tracking, inbox integration,
+customer portal. If it isn't in `backend/migrations/`, it isn't part of the system.
+
+## Local development (Windows, native Rust)
+
+Prerequisites: Rust (stable, MSVC), Docker Desktop (for Postgres + MinIO only), `sqlx-cli`.
+
+```bash
+docker compose up -d postgres minio minio-init
+```
+
+```bash
+cd backend && cp .env.example .env
+```
+
+```bash
+cd backend && cargo run -- migrate
+```
+
+```bash
+cd backend && AUTOCRM_ADMIN_PASSWORD='choose-a-long-password' cargo run -- create-admin --email you@autotherm.hu --name "Your Name"
+```
+
+```bash
+cd backend && cargo run
+```
+
+The API listens on http://127.0.0.1:8080 (`/health`, `/api/...`). The background worker
+runs in the same process.
+
+| Service | URL | Credentials (dev only) |
+|---|---|---|
+| Postgres | `localhost:5432/autocrm` | `autocrm` / `autocrm` |
+| MinIO console | http://localhost:9001 | `autocrm` / `autocrm-dev-secret` |
+| Mailpit (optional, `docker compose --profile mail up -d mailpit`) | http://localhost:8025 | — |
+
+Email is **dry-run** outside production: rows are written and bodies logged, nothing is
+sent. To see real messages locally, run Mailpit and set `EMAIL_MODE=smtp`; the config
+refuses any non-local SMTP host outside production.
+
+### Exchange rates
+
+The worker fetches MNB rates daily after 12:30 Budapest time. Before migrating historical
+orders, backfill:
+
+```bash
+cd backend && cargo run -- fx-backfill --from 2010-01-01 --to 2026-09-11
+```
+
+## Tests
+
+```bash
+cd backend && cargo test
+```
+
+Unit tests cover the domain rules (money, stages, templates, send policy, nudges), auth
+primitives, upload tickets, MNB parsing and the image pipeline. Integration tests
+(`backend/tests/`) run against a real Postgres via `#[sqlx::test]` and need `DATABASE_URL`.
+
+SQL is checked at compile time against the database in `DATABASE_URL`. For builds without
+a database (CI), refresh the offline metadata after changing queries:
+
+```bash
+cd backend && cargo sqlx prepare -- --all-targets
+```
+
+## Layout
+
+```
+backend/
+  migrations/     forward-only SQL migrations (the schema is the source of truth)
+  src/
+    domain/       pure types and business rules — no async, no IO
+    repo/         SQL, one module per aggregate
+    service/      use cases: auth, orders, stages, leads, media, email, automation
+    api/          thin Axum handlers
+    jobs/         Postgres-backed worker and scheduler
+    integrations/ SMTP mailer, MNB exchange rates
+    media/        object storage, upload tickets, image pipeline
+docs/
+docker-compose.yml  dev Postgres, MinIO (object lock enabled), Mailpit
+```
+
+## Production outline
+
+- Build: `cargo build --release` → `backend/target/release/autocrm`
+- Behind Caddy (TLS), serving the Next.js app and `/api` from one origin so cookies stay first-party
+- systemd unit with `Restart=on-failure`; `APP_ENV=production`, `COOKIE_SECURE=true`, `LOG_FORMAT=json`, `LOG_DIR=/var/log/autocrm`
+- Postgres: nightly `pg_dump` + WAL archiving off-site; object storage with versioning and replication
+- Test a restore before go-live, and yearly after
+- Sending domain: SPF, DKIM, DMARC (`p=none` first) before automatic email is switched on

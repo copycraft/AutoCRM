@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO contacts (partner_id, name, email, phone, position, minicrm_id, raw_import)\n             VALUES ($1, $2, $3, $4, $5, $6, $7)\n             ON CONFLICT (minicrm_id) DO UPDATE\n             SET partner_id = EXCLUDED.partner_id, name = EXCLUDED.name, email = EXCLUDED.email,\n                 phone = EXCLUDED.phone, position = EXCLUDED.position, raw_import = EXCLUDED.raw_import\n             RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0408bf95849b0e8ae08822724a0ab8da954a02ae5a44c74c54b2c6cd723ff9f2"
+}

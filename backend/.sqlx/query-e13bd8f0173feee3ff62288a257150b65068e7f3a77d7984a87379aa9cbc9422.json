@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO lead_stages (lead_id, stage_key, entered_at, entered_by, note)\n         VALUES ($1, $2, clock_timestamp(), $3, $4) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e13bd8f0173feee3ff62288a257150b65068e7f3a77d7984a87379aa9cbc9422"
+}

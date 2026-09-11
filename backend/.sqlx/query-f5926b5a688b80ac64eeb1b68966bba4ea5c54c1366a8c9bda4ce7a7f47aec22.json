@@ -1,0 +1,148 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, kind AS \"kind: PartnerKind\", name, tax_number, eu_tax_number, country, default_currency,\n                  email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at\n           FROM partners\n           WHERE ($1::text IS NULL OR name ILIKE $1 OR tax_number ILIKE $1 OR eu_tax_number ILIKE $1\n                  OR email ILIKE $1 OR city ILIKE $1)\n             AND ($2::partner_kind IS NULL OR kind = $2)\n             AND ($3 OR archived_at IS NULL)\n           ORDER BY name, id\n           LIMIT $4 OFFSET $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind: PartnerKind",
+        "type_info": {
+          "Custom": {
+            "name": "partner_kind",
+            "kind": {
+              "Enum": [
+                "business",
+                "person"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "tax_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "eu_tax_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "country",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "default_currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "website",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "postal_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "address_line",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "minicrm_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "archived_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "partner_kind",
+            "kind": {
+              "Enum": [
+                "business",
+                "person"
+              ]
+            }
+          }
+        },
+        "Bool",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f5926b5a688b80ac64eeb1b68966bba4ea5c54c1366a8c9bda4ce7a7f47aec22"
+}

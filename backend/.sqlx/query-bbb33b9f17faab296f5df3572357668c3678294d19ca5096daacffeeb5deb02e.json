@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT coalesce(pt.key, 'unassigned') AS \"key!\", coalesce(pt.label_hu, '(nincs megadva)') AS \"label!\",\n                  count(*) AS \"orders!\",\n                  coalesce(sum(ov.total_minor) FILTER (WHERE o.currency = 'HUF'), 0)::bigint AS \"huf_minor!\",\n                  coalesce(sum(ov.total_minor) FILTER (WHERE o.currency = 'EUR'), 0)::bigint AS \"eur_minor!\",\n                  coalesce(sum(ov.total_huf_minor), 0)::bigint AS \"normalized_huf_minor!\",\n                  count(*) FILTER (WHERE ov.total_huf_minor IS NULL) AS \"missing_fx!\"\n           FROM orders o\n           LEFT JOIN project_types pt ON pt.id = o.project_type_id\n           JOIN order_values ov ON ov.order_id = o.id\n           JOIN order_current_stage cs ON cs.order_id = o.id\n           JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = cs.stage_key\n           WHERE o.valuation_date BETWEEN $1 AND $2 AND ($3 OR NOT sd.is_exit)\n           GROUP BY pt.key, pt.label_hu ORDER BY 6 DESC, 2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "label!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "orders!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "huf_minor!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "eur_minor!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "normalized_huf_minor!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "missing_fx!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Date",
+        "Date",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "bbb33b9f17faab296f5df3572357668c3678294d19ca5096daacffeeb5deb02e"
+}

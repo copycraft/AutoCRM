@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE settings\n         SET automatic_email_enabled = $1, max_auto_emails_per_recipient_day = $2, send_window_start = $3,\n             send_window_end = $4, send_window_weekdays_only = $5, nudge_interval_days = $6, nudge_escalate_after = $7,\n             stage_change_notifications = $8, stalled_alert_recipients = $9, updated_by = $10\n         RETURNING automatic_email_enabled, max_auto_emails_per_recipient_day, send_window_start, send_window_end,\n                   send_window_weekdays_only, nudge_interval_days, nudge_escalate_after, stage_change_notifications,\n                   stalled_alert_recipients, updated_at, updated_by",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "automatic_email_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "max_auto_emails_per_recipient_day",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "send_window_start",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "send_window_end",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "send_window_weekdays_only",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "nudge_interval_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "nudge_escalate_after",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "stage_change_notifications",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "stalled_alert_recipients",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_by",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Int4",
+        "Time",
+        "Time",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Bool",
+        "TextArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "59fadd35b3566cf12f620aeb451c71ad01460afaf63d6e057da59e38147c0558"
+}
