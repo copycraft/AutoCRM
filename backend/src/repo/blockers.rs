@@ -22,6 +22,9 @@ pub struct Blocker {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Past due date and still open, measured against the caller's business day
+    /// (not UTC midnight — the whole point of this flag).
+    pub is_overdue: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -34,36 +37,48 @@ pub struct BlockerInput {
     pub nudge_enabled: bool,
 }
 
-pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Blocker>> {
+pub async fn find(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    today: NaiveDate,
+) -> sqlx::Result<Option<Blocker>> {
     sqlx::query_as!(
         Blocker,
         r#"SELECT b.id, b.order_id, o.number AS order_number, b.what, b.responsible_partner_id,
                   p.name AS "responsible_partner_name?", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,
                   b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,
-                  b.created_by, b.created_at, b.updated_at
+                  b.created_by, b.created_at, b.updated_at,
+                  (b.due_date < $2 AND b.resolved_at IS NULL) AS "is_overdue!"
            FROM blockers b
            JOIN orders o ON o.id = b.order_id
            LEFT JOIN partners p ON p.id = b.responsible_partner_id
            WHERE b.id = $1"#,
-        id
+        id,
+        today
     )
     .fetch_optional(db)
     .await
 }
 
-pub async fn list_for_order(db: impl PgExecutor<'_>, order_id: i64) -> sqlx::Result<Vec<Blocker>> {
+pub async fn list_for_order(
+    db: impl PgExecutor<'_>,
+    order_id: i64,
+    today: NaiveDate,
+) -> sqlx::Result<Vec<Blocker>> {
     sqlx::query_as!(
         Blocker,
         r#"SELECT b.id, b.order_id, o.number AS order_number, b.what, b.responsible_partner_id,
                   p.name AS "responsible_partner_name?", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,
                   b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,
-                  b.created_by, b.created_at, b.updated_at
+                  b.created_by, b.created_at, b.updated_at,
+                  (b.due_date < $2 AND b.resolved_at IS NULL) AS "is_overdue!"
            FROM blockers b
            JOIN orders o ON o.id = b.order_id
            LEFT JOIN partners p ON p.id = b.responsible_partner_id
            WHERE b.order_id = $1
            ORDER BY b.resolved_at NULLS FIRST, b.due_date NULLS LAST, b.id"#,
-        order_id
+        order_id,
+        today
     )
     .fetch_all(db)
     .await
@@ -74,13 +89,15 @@ pub async fn list_open(
     responsible_partner_id: Option<i64>,
     limit: i64,
     offset: i64,
+    today: NaiveDate,
 ) -> sqlx::Result<Vec<Blocker>> {
     sqlx::query_as!(
         Blocker,
         r#"SELECT b.id, b.order_id, o.number AS order_number, b.what, b.responsible_partner_id,
                   p.name AS "responsible_partner_name?", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,
                   b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,
-                  b.created_by, b.created_at, b.updated_at
+                  b.created_by, b.created_at, b.updated_at,
+                  (b.due_date < $4 AND b.resolved_at IS NULL) AS "is_overdue!"
            FROM blockers b
            JOIN orders o ON o.id = b.order_id
            LEFT JOIN partners p ON p.id = b.responsible_partner_id
@@ -89,7 +106,8 @@ pub async fn list_open(
            LIMIT $2 OFFSET $3"#,
         responsible_partner_id,
         limit,
-        offset
+        offset,
+        today
     )
     .fetch_all(db)
     .await

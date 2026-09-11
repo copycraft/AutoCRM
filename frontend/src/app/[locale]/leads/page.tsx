@@ -17,7 +17,8 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { configApi, leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditLeads, useAuth } from '@/lib/auth/context';
-import { daysSince, formatDate } from '@/lib/utils/format';
+import { daysSince } from '@/lib/utils/format';
+import { DateDisplay } from '@/components/ui/DateDisplay';
 import { stageTone } from '@/lib/utils/stages';
 import type { LeadSummary, StageDefinition } from '@/lib/api/types';
 
@@ -114,7 +115,7 @@ export default function LeadsPage() {
       {
         header: t('createdAt'),
         accessorKey: 'created_at',
-        cell: ({ getValue }) => <span className="font-mono">{formatDate(getValue<string>())}</span>,
+        cell: ({ getValue }) =>           <DateDisplay value={getValue<string>()} />,
       },
     ],
     [defs, locale, t, tc],

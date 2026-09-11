@@ -68,6 +68,8 @@ export const leadsApi = {
     request(`/leads/${id}`, s.zLeadsUpdateResponse, { method: 'PATCH', body }),
   stage: (id: number, body: S['StageBody']): Promise<S['StageChange']> =>
     request(`/leads/${id}/stage`, s.zLeadsChangeStageResponse, { method: 'POST', body }),
+  transitions: (id: number): Promise<S['Items_TransitionOption']> =>
+    request(`/leads/${id}/transitions`, s.zLeadsTransitionsResponse),
   convert: (id: number, body: S['OrderBody']): Promise<S['Order']> =>
     request(`/leads/${id}/convert`, s.zLeadsConvertResponse, { method: 'POST', body }),
 };
@@ -83,6 +85,8 @@ export const ordersApi = {
     request(`/orders/${id}`, s.zOrdersUpdateResponse, { method: 'PATCH', body }),
   stage: (id: number, body: S['StageBody']): Promise<S['StageChange']> =>
     request(`/orders/${id}/stage`, s.zOrdersChangeStageResponse, { method: 'POST', body }),
+  transitions: (id: number): Promise<S['Items_TransitionOption']> =>
+    request(`/orders/${id}/transitions`, s.zOrdersTransitionsResponse),
   stages: (id: number): Promise<S['Items_StageEntry']> =>
     request(`/orders/${id}/stages`, s.zOrdersStageHistoryResponse),
   audit: (id: number, search: QueryOf<'orders_audit_trail'> = {}): Promise<S['Items_AuditEntry']> =>

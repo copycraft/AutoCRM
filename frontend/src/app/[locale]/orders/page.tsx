@@ -20,7 +20,7 @@ import { configApi, ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditOrders, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
-import { formatDate } from '@/lib/utils/format';
+import { DateDisplay } from '@/components/ui/DateDisplay';
 import type { OrderSummary, StageDefinition } from '@/lib/api/types';
 
 const PAGE_SIZE = 50;
@@ -132,9 +132,8 @@ export default function OrdersPage() {
       {
         header: t('dueDate'),
         accessorKey: 'due_date',
-        cell: ({ getValue }) => (
-          <span className="font-mono">{getValue<string | null>() ? formatDate(getValue<string>()) : '—'}</span>
-        ),
+        cell: ({ getValue }) =>
+          getValue<string | null>() ? <DateDisplay value={getValue<string>()} /> : <span>—</span>,
       },
     ],
     [defs, t, tc],

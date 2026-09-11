@@ -63,7 +63,8 @@ export const zBlocker = z.object({
     resolution_note: z.string().nullish(),
     created_by: z.number().int().nullish(),
     created_at: z.string().datetime(),
-    updated_at: z.string().datetime()
+    updated_at: z.string().datetime(),
+    is_overdue: z.boolean()
 });
 
 /**
@@ -368,7 +369,8 @@ export const zItemsBlocker = z.object({
         resolution_note: z.string().nullish(),
         created_by: z.number().int().nullish(),
         created_at: z.string().datetime(),
-        updated_at: z.string().datetime()
+        updated_at: z.string().datetime(),
+        is_overdue: z.boolean()
     }))
 });
 
@@ -630,6 +632,19 @@ export const zItemsTemplateVariable = z.object({
     items: z.array(z.object({
         name: z.string(),
         description: z.string()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsTransitionOption = z.object({
+    items: z.array(z.object({
+        stage_key: z.string(),
+        label_hu: z.string(),
+        manual: z.boolean(),
+        requires_note: z.boolean(),
+        gates_met: z.boolean()
     }))
 });
 
@@ -1275,6 +1290,20 @@ export const zStageChange = z.object({
     kind: zTransitionKind
 });
 
+/**
+ * One manual stage target, with everything the UI needs to present it
+ * without reimplementing the transition rules: whether a hand move there is
+ * allowed at all, whether it needs a note, and whether its image gates pass.
+ * Computed from the same `check_transition` the move itself goes through.
+ */
+export const zTransitionOption = z.object({
+    stage_key: z.string(),
+    label_hu: z.string(),
+    manual: z.boolean(),
+    requires_note: z.boolean(),
+    gates_met: z.boolean()
+});
+
 export const zUpdateUser = z.object({
     display_name: z.string().nullish(),
     role: zRole.nullish(),
@@ -1561,6 +1590,15 @@ export const zLeadsChangeStagePath = z.object({
 
 export const zLeadsChangeStageResponse = zStageChange;
 
+export const zLeadsTransitionsPath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * Manual stage targets with note requirements; `won` is listed with `manual: false`
+ */
+export const zLeadsTransitionsResponse = zItemsTransitionOption;
+
 /**
  * `partner_id` may be omitted when the lead has one; `title` defaults to the lead's.
  */
@@ -1613,6 +1651,15 @@ export const zOrdersChangeStagePath = z.object({
 });
 
 export const zOrdersChangeStageResponse = zStageChange;
+
+export const zOrdersTransitionsPath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * Manual stage targets with note and gate requirements
+ */
+export const zOrdersTransitionsResponse = zItemsTransitionOption;
 
 export const zOrdersStageHistoryPath = z.object({
     id: z.number().int()

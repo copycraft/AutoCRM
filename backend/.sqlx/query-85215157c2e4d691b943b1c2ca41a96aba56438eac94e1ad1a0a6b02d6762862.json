@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT b.id, b.order_id, o.number AS order_number, b.what, b.responsible_partner_id,\n                  p.name AS \"responsible_partner_name?\", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,\n                  b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,\n                  b.created_by, b.created_at, b.updated_at\n           FROM blockers b\n           JOIN orders o ON o.id = b.order_id\n           LEFT JOIN partners p ON p.id = b.responsible_partner_id\n           WHERE b.order_id = $1\n           ORDER BY b.resolved_at NULLS FIRST, b.due_date NULLS LAST, b.id",
+  "query": "SELECT b.id, b.order_id, o.number AS order_number, b.what, b.responsible_partner_id,\n                  p.name AS \"responsible_partner_name?\", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,\n                  b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,\n                  b.created_by, b.created_at, b.updated_at,\n                  (b.due_date < $2 AND b.resolved_at IS NULL) AS \"is_overdue!\"\n           FROM blockers b\n           JOIN orders o ON o.id = b.order_id\n           LEFT JOIN partners p ON p.id = b.responsible_partner_id\n           WHERE b.order_id = $1\n           ORDER BY b.resolved_at NULLS FIRST, b.due_date NULLS LAST, b.id",
   "describe": {
     "columns": [
       {
@@ -92,11 +92,17 @@
         "ordinal": 17,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "is_overdue!",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Date"
       ]
     },
     "nullable": [
@@ -117,8 +123,9 @@
       true,
       true,
       false,
-      false
+      false,
+      null
     ]
   },
-  "hash": "062d503480d3313ca21cd95da11217aba35dfdeb7ff59cd6422471d9919cc812"
+  "hash": "85215157c2e4d691b943b1c2ca41a96aba56438eac94e1ad1a0a6b02d6762862"
 }

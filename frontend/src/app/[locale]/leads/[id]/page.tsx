@@ -17,7 +17,8 @@ import { stageTone } from '@/lib/utils/stages';
 import { configApi, leadsApi, partnersApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canAdmin, canEditLeads, useAuth } from '@/lib/auth/context';
-import { daysSince, formatDate, formatDateTime } from '@/lib/utils/format';
+import { daysSince } from '@/lib/utils/format';
+import { DateDisplay } from '@/components/ui/DateDisplay';
 
 export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
@@ -111,8 +112,8 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     {currentDef?.label_hu ?? stage?.stage_key ?? '—'}
                   </StatusBadge>
                   {stage && (
-                    <span className="font-mono text-metadata text-steel-500">
-                      {t('since')} {formatDateTime(stage.entered_at)}
+                    <span className="text-metadata text-steel-500">
+                      {t('since')} <DateDisplay withTime value={stage.entered_at} />
                     </span>
                   )}
                   {converted && order && (
@@ -149,7 +150,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     <Info label={t('contactEmail')} value={lead.contact_email ?? '—'} />
                     <Info label={t('contactPhone')} value={lead.contact_phone ?? '—'} />
                     <Info label={t('description')} value={lead.description ?? '—'} />
-                    <Info label={t('createdAt')} value={formatDate(lead.created_at)} mono />
+                    <Info label={t('createdAt')} value={<DateDisplay value={lead.created_at} />} />
                   </div>
                 </section>
               )}
@@ -164,7 +165,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
               </section>
 
               {stageOpen && (
-                <LeadStageDialog leadId={id} detail={detail.data} definitions={defs} onClose={() => setStageOpen(false)} />
+                <LeadStageDialog leadId={id} detail={detail.data} onClose={() => setStageOpen(false)} />
               )}
               {convertOpen && (
                 <LeadConvertDialog leadId={id} detail={detail.data} onClose={() => setConvertOpen(false)} />
@@ -177,7 +178,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
   );
 }
 
-function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Info({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-metadata font-medium text-steel-500">{label}</dt>

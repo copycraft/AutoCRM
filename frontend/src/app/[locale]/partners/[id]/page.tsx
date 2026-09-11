@@ -15,10 +15,10 @@ import { Money } from '@/components/ui/Money';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditPartners, useAuth } from '@/lib/auth/context';
-import { formatDate } from '@/lib/utils/format';
+import { DateDisplay } from '@/components/ui/DateDisplay';
 import { useState } from 'react';
 
-function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function DetailRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-metadata font-medium text-steel-500">{label}</dt>
@@ -125,7 +125,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                       value={[partner.postal_code, partner.city, partner.address_line].filter(Boolean).join(' · ') || '—'}
                     />
                     <DetailRow label={t('notes')} value={partner.notes ?? '—'} />
-                    <DetailRow label={t('createdAt')} value={formatDate(partner.created_at)} mono />
+                    <DetailRow label={t('createdAt')} value={<DateDisplay value={partner.created_at} />} />
                   </div>
                 </section>
               )}

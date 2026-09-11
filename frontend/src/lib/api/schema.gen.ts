@@ -404,6 +404,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leads/{id}/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["leads_transitions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leads/{id}/convert": {
         parameters: {
             query?: never;
@@ -462,6 +478,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["orders_change_stage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orders_transitions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1185,6 +1217,11 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            /**
+             * @description Past due date and still open, measured against the caller's business day
+             *     (not UTC midnight — the whole point of this flag).
+             */
+            is_overdue: boolean;
         };
         /** @description Create requires `what`. On PATCH every field is optional; `null` clears. */
         BlockerBody: {
@@ -1587,6 +1624,11 @@ export interface components {
                 created_at: string;
                 /** Format: date-time */
                 updated_at: string;
+                /**
+                 * @description Past due date and still open, measured against the caller's business day
+                 *     (not UTC midnight — the whole point of this flag).
+                 */
+                is_overdue: boolean;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -1933,6 +1975,19 @@ export interface components {
             items: {
                 name: string;
                 description: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_TransitionOption: {
+            items: {
+                stage_key: string;
+                label_hu: string;
+                /** @description False for targets unreachable by a manual move (lead `won`: conversion only). */
+                manual: boolean;
+                /** @description True when the move needs a note (backward or reopen). */
+                requires_note: boolean;
+                /** @description False when an image gate between current and target is unmet. */
+                gates_met: boolean;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -2565,6 +2620,22 @@ export interface components {
         };
         /** @enum {string} */
         TransitionKind: "forward" | "backward" | "exit" | "reopen";
+        /**
+         * @description One manual stage target, with everything the UI needs to present it
+         *     without reimplementing the transition rules: whether a hand move there is
+         *     allowed at all, whether it needs a note, and whether its image gates pass.
+         *     Computed from the same `check_transition` the move itself goes through.
+         */
+        TransitionOption: {
+            stage_key: string;
+            label_hu: string;
+            /** @description False for targets unreachable by a manual move (lead `won`: conversion only). */
+            manual: boolean;
+            /** @description True when the move needs a note (backward or reopen). */
+            requires_note: boolean;
+            /** @description False when an image gate between current and target is unmet. */
+            gates_met: boolean;
+        };
         UpdateUser: {
             display_name?: string | null;
             role?: null | components["schemas"]["Role"];
@@ -4025,6 +4096,46 @@ export interface operations {
             };
         };
     };
+    leads_transitions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Manual stage targets with note requirements; `won` is listed with `manual: false` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_TransitionOption"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     leads_convert: {
         parameters: {
             query?: never;
@@ -4263,6 +4374,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StageChange"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    orders_transitions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Manual stage targets with note and gate requirements */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_TransitionOption"];
                 };
             };
             /** @description Client error; see `error.code` */

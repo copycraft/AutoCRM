@@ -32,7 +32,8 @@ export function LeadConvertDialog({
   const lead = detail.lead;
 
   const [title, setTitle] = useState(lead.title);
-  const [currency, setCurrency] = useState<Currency>('HUF');
+  // Explicit user choice; null means "follow the partner default".
+  const [currencyOverride, setCurrencyOverride] = useState<Currency | null>(null);
   const [projectTypeId, setProjectTypeId] = useState('');
   const [description, setDescription] = useState(lead.description ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -47,9 +48,10 @@ export function LeadConvertDialog({
     queryFn: () => configApi.projectTypes(),
   });
 
-  // Default currency from the lead's partner; falls back to HUF.
-  const defaultCurrency: Currency = partnerQuery.data?.partner.default_currency ?? 'HUF';
-  const effectiveCurrency = partnerQuery.data ? defaultCurrency : currency;
+  // Prefilled from the lead's partner default, but always changeable —
+  // an EUR job for a HUF-default partner must be possible.
+  const partnerDefault: Currency = partnerQuery.data?.partner.default_currency ?? 'HUF';
+  const effectiveCurrency = currencyOverride ?? partnerDefault;
 
   const convert = useMutation({
     mutationFn: () =>
@@ -96,15 +98,17 @@ export function LeadConvertDialog({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label" htmlFor="lc-currency">{t('convertCurrency')}</label>
-              {partnerQuery.data ? (
-                <p className="rounded-lg border border-steel-200 bg-panel px-3 py-2 font-mono text-sm">
-                  {defaultCurrency} <span className="text-steel-500">(partner)</span>
-                </p>
-              ) : (
-                <select id="lc-currency" className="input" value={currency} onChange={(e) => setCurrency(toCurrency(e.target.value))}>
-                  <option value="HUF">HUF</option>
-                  <option value="EUR">EUR</option>
-                </select>
+              <select
+                id="lc-currency"
+                className="input"
+                value={effectiveCurrency}
+                onChange={(e) => setCurrencyOverride(toCurrency(e.target.value))}
+              >
+                <option value="HUF">HUF</option>
+                <option value="EUR">EUR</option>
+              </select>
+              {partnerQuery.data && currencyOverride === null && (
+                <p className="mt-1 text-xs text-steel-500">{t('partnerCurrencyHint')}</p>
               )}
             </div>
             <div>

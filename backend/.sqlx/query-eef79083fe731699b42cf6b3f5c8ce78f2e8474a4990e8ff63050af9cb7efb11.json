@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT b.id, b.order_id, o.number AS order_number, b.what, b.responsible_partner_id,\n                  p.name AS \"responsible_partner_name?\", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,\n                  b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,\n                  b.created_by, b.created_at, b.updated_at\n           FROM blockers b\n           JOIN orders o ON o.id = b.order_id\n           LEFT JOIN partners p ON p.id = b.responsible_partner_id\n           WHERE b.resolved_at IS NULL AND ($1::bigint IS NULL OR b.responsible_partner_id = $1)\n           ORDER BY b.due_date NULLS LAST, b.id\n           LIMIT $2 OFFSET $3",
+  "query": "SELECT b.id, b.order_id, o.number AS order_number, b.what, b.responsible_partner_id,\n                  p.name AS \"responsible_partner_name?\", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,\n                  b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,\n                  b.created_by, b.created_at, b.updated_at,\n                  (b.due_date < $2 AND b.resolved_at IS NULL) AS \"is_overdue!\"\n           FROM blockers b\n           JOIN orders o ON o.id = b.order_id\n           LEFT JOIN partners p ON p.id = b.responsible_partner_id\n           WHERE b.id = $1",
   "describe": {
     "columns": [
       {
@@ -92,13 +92,17 @@
         "ordinal": 17,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "is_overdue!",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
         "Int8",
-        "Int8",
-        "Int8"
+        "Date"
       ]
     },
     "nullable": [
@@ -119,8 +123,9 @@
       true,
       true,
       false,
-      false
+      false,
+      null
     ]
   },
-  "hash": "b7014af54fd6ef303c5e8c0245aa8b149368a8c7c652b884557c327ee57fe6a8"
+  "hash": "eef79083fe731699b42cf6b3f5c8ce78f2e8474a4990e8ff63050af9cb7efb11"
 }

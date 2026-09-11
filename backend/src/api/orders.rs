@@ -29,16 +29,18 @@ use crate::repo::stages::StageEntry;
 use crate::repo::{
     audit, blockers, config, images, like_pattern, order_items, orders, partners, stages,
 };
+use crate::service;
 use crate::service::orders::{
     NewItem, create_in_tx, items_total, order_currency, validate_references,
 };
-use crate::service::{self, stages::StageChange};
+use crate::service::stages::{StageChange, TransitionOption};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(search, create))
         .routes(routes!(detail, update))
         .routes(routes!(change_stage))
+        .routes(routes!(transitions))
         .routes(routes!(stage_history))
         .routes(routes!(audit_trail))
         .routes(routes!(list_items, add_item))
@@ -300,7 +302,12 @@ async fn detail(
         },
         items: items.into_iter().map(item_view).collect::<AppResult<_>>()?,
         value,
-        blockers: blockers::list_for_order(&state.db, id).await?,
+        blockers: blockers::list_for_order(
+            &state.db,
+            id,
+            service::business_today(state.config.business_tz),
+        )
+        .await?,
         image_counts: images::count_by_category(&state.db, id).await?,
         order,
     }))
@@ -467,6 +474,21 @@ async fn change_stage(
         service::stages::change_order_stage(&state, &me, id, b.stage.trim(), note.as_deref())
             .await?;
     Ok(Json(change))
+}
+
+#[utoipa::path(
+    get, path = "/orders/{id}/transitions", tag = "orders",
+    params(("id" = i64, Path)),
+    responses((status = 200, description = "Manual stage targets with note and gate requirements", body = Items<TransitionOption>))
+)]
+async fn transitions(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<Items<TransitionOption>>> {
+    Ok(Items::new(
+        service::stages::order_transitions(&state, id).await?,
+    ))
 }
 
 #[utoipa::path(

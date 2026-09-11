@@ -18,13 +18,15 @@ use crate::repo::leads::{Lead, LeadInput, LeadSummary};
 use crate::repo::orders::Order;
 use crate::repo::stages::{CurrentStage, StageEntry};
 use crate::repo::{audit, leads, like_pattern, orders, stages};
-use crate::service::{self, stages::StageChange};
+use crate::service;
+use crate::service::stages::{StageChange, TransitionOption};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(search, create))
         .routes(routes!(detail, update))
         .routes(routes!(change_stage))
+        .routes(routes!(transitions))
         .routes(routes!(convert))
 }
 
@@ -271,6 +273,21 @@ async fn change_stage(
         service::stages::change_lead_stage(&state.db, &me, id, b.stage.trim(), note.as_deref())
             .await?;
     Ok(Json(change))
+}
+
+#[utoipa::path(
+    get, path = "/leads/{id}/transitions", tag = "leads",
+    params(("id" = i64, Path)),
+    responses((status = 200, description = "Manual stage targets with note requirements; `won` is listed with `manual: false`", body = Items<TransitionOption>))
+)]
+async fn transitions(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<Items<TransitionOption>>> {
+    Ok(Items::new(
+        service::stages::lead_transitions(&state.db, id).await?,
+    ))
 }
 
 #[utoipa::path(

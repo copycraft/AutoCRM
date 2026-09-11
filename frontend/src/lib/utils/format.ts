@@ -71,26 +71,6 @@ export function minorToMajorString(minorUnits: number): string {
   return negative ? `-${body}` : body;
 }
 
-export function formatDate(date: string | Date, locale: 'hu-HU' | 'en-US' = 'hu-HU'): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return new Intl.DateTimeFormat(locale, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d);
-}
-
-export function formatDateTime(date: string | Date, locale: 'hu-HU' | 'en-US' = 'hu-HU'): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return new Intl.DateTimeFormat(locale, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(d);
-}
-
 /** Whole days since an ISO timestamp — lead age, days-in-stage display. */
 export function daysSince(iso: string, now: number = Date.now()): number {
   const diff = now - new Date(iso).getTime();

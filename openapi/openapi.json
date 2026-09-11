@@ -1785,6 +1785,57 @@
         }
       }
     },
+    "/leads/{id}/transitions": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_transitions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manual stage targets with note requirements; `won` is listed with `manual: false`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_TransitionOption"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/leads/{id}/convert": {
       "post": {
         "tags": [
@@ -2154,6 +2205,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StageChange"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/transitions": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "orders_transitions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manual stage targets with note and gate requirements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_TransitionOption"
                 }
               }
             }
@@ -4816,7 +4918,8 @@
           "nudge_enabled",
           "nudge_count",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "is_overdue"
         ],
         "properties": {
           "id": {
@@ -4913,6 +5016,10 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "is_overdue": {
+            "type": "boolean",
+            "description": "Past due date and still open, measured against the caller's business day\n(not UTC midnight — the whole point of this flag)."
           }
         }
       },
@@ -6261,7 +6368,8 @@
                 "nudge_enabled",
                 "nudge_count",
                 "created_at",
-                "updated_at"
+                "updated_at",
+                "is_overdue"
               ],
               "properties": {
                 "id": {
@@ -6358,6 +6466,10 @@
                 "updated_at": {
                   "type": "string",
                   "format": "date-time"
+                },
+                "is_overdue": {
+                  "type": "boolean",
+                  "description": "Past due date and still open, measured against the caller's business day\n(not UTC midnight — the whole point of this flag)."
                 }
               }
             }
@@ -7634,6 +7746,49 @@
                 },
                 "description": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_TransitionOption": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "One manual stage target, with everything the UI needs to present it\nwithout reimplementing the transition rules: whether a hand move there is\nallowed at all, whether it needs a note, and whether its image gates pass.\nComputed from the same `check_transition` the move itself goes through.",
+              "required": [
+                "stage_key",
+                "label_hu",
+                "manual",
+                "requires_note",
+                "gates_met"
+              ],
+              "properties": {
+                "stage_key": {
+                  "type": "string"
+                },
+                "label_hu": {
+                  "type": "string"
+                },
+                "manual": {
+                  "type": "boolean",
+                  "description": "False for targets unreachable by a manual move (lead `won`: conversion only)."
+                },
+                "requires_note": {
+                  "type": "boolean",
+                  "description": "True when the move needs a note (backward or reopen)."
+                },
+                "gates_met": {
+                  "type": "boolean",
+                  "description": "False when an image gate between current and target is unmet."
                 }
               }
             }
@@ -9932,6 +10087,37 @@
           "exit",
           "reopen"
         ]
+      },
+      "TransitionOption": {
+        "type": "object",
+        "description": "One manual stage target, with everything the UI needs to present it\nwithout reimplementing the transition rules: whether a hand move there is\nallowed at all, whether it needs a note, and whether its image gates pass.\nComputed from the same `check_transition` the move itself goes through.",
+        "required": [
+          "stage_key",
+          "label_hu",
+          "manual",
+          "requires_note",
+          "gates_met"
+        ],
+        "properties": {
+          "stage_key": {
+            "type": "string"
+          },
+          "label_hu": {
+            "type": "string"
+          },
+          "manual": {
+            "type": "boolean",
+            "description": "False for targets unreachable by a manual move (lead `won`: conversion only)."
+          },
+          "requires_note": {
+            "type": "boolean",
+            "description": "True when the move needs a note (backward or reopen)."
+          },
+          "gates_met": {
+            "type": "boolean",
+            "description": "False when an image gate between current and target is unmet."
+          }
+        }
       },
       "UpdateUser": {
         "type": "object",

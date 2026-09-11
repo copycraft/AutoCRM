@@ -65,8 +65,9 @@ export function orderCreateBody(v: OrderFormValues, meId: number | undefined): O
 }
 
 /**
- * PATCH diff with backend semantics. Currency is never sent here — the
- * caller disables it while items exist (422 currency_locked otherwise).
+ * PATCH diff with backend semantics. Currency is sent only when it changed
+ * and the order has no items (the backend answers 422 currency_locked
+ * otherwise — the control is disabled in that case, so this is a backstop).
  * Changing partner without explicitly picking a contact clears the contact,
  * mirroring the backend rule.
  */
@@ -75,9 +76,11 @@ export function orderPatchBody(
   v: OrderFormValues,
   meId: number | undefined,
   contactDirty: boolean,
+  currencyLocked: boolean,
 ): PatchOrder {
   const body: PatchOrder = {};
   if (v.title.trim() !== original.title) body.title = v.title.trim();
+  if (!currencyLocked && v.currency !== original.currency) body.currency = v.currency;
   const newPartner = v.partner?.id ?? null;
   const partnerChanged = newPartner !== original.partner_id;
   if (partnerChanged && newPartner !== null) body.partner_id = newPartner;

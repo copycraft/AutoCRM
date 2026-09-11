@@ -14,17 +14,17 @@ import { StageRail, StageHistoryList } from '@/components/ui/StageRail';
 import { OrderForm, orderPatchBody, type OrderFormValues } from '@/components/forms/OrderForm';
 import { ItemsSection } from '@/components/forms/ItemsSection';
 import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
-import { configApi, ordersApi } from '@/lib/api/endpoints';
+import { configApi, ordersApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { canChangeStage, canEditOrders, useAuth } from '@/lib/auth/context';
+import { canAdmin, canChangeStage, canEditOrders, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
-import { formatDate, formatDateTime } from '@/lib/utils/format';
+import { DateDisplay } from '@/components/ui/DateDisplay';
 import type { PatchOrder } from '@/lib/api/types';
-import { isBlockerOpen, isBlockerOverdue } from '@/lib/utils/blockers';
+import { isBlockerOpen } from '@/lib/utils/blockers';
 
 type Tab = 'data' | 'items' | 'stages' | 'blockers' | 'audit';
 
-function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Info({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-metadata font-medium text-steel-500">{label}</dt>
@@ -52,15 +52,26 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     queryKey: qk.stages('order'),
     queryFn: () => configApi.stages('order'),
   });
+  // Always loaded: the traveller derives reached state from history.
   const history = useQuery({
     queryKey: qk.orderStages(id),
     queryFn: () => ordersApi.stages(id),
-    enabled: tab === 'stages',
   });
   const audit = useQuery({
     queryKey: qk.orderAudit(id),
     queryFn: () => ordersApi.audit(id, { limit: 100 }),
     enabled: tab === 'audit',
+  });
+  const projectTypes = useQuery({
+    queryKey: qk.projectTypes,
+    queryFn: () => configApi.projectTypes(),
+  });
+  // GET /users is admin-only; non-admins see the raw id (backend gap).
+  const usersQuery = useQuery({
+    queryKey: qk.users,
+    queryFn: () => usersApi.list(),
+    enabled: canAdmin(user) && (detail.data?.order.assigned_to ?? null) !== null,
+    retry: false,
   });
 
   const patch = useMutation({
@@ -90,6 +101,14 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
   const { order, partner, stage, items, value, blockers, image_counts } = detail.data;
   const currency = order.currency;
+  const projectTypeName = order.project_type_id
+    ? (projectTypes.data?.items.find((p) => p.id === order.project_type_id)?.label_hu ??
+      `#${order.project_type_id}`)
+    : '—';
+  const assigneeName = order.assigned_to
+    ? (usersQuery.data?.items.find((u) => u.id === order.assigned_to)?.display_name ??
+      `#${order.assigned_to}`)
+    : '—';
   const defs = stagesQuery.data?.items ?? [];
   const auditItems = audit.data?.items ?? [];
   const openBlockers = blockers.filter(isBlockerOpen);
@@ -150,7 +169,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 currencyLocked={items.length > 0}
                 submitLabel={tc('save')}
                 onSubmit={(v: OrderFormValues, contactDirty: boolean) =>
-                  patch.mutateAsync(orderPatchBody(order, v, user?.id, contactDirty)).then(() => undefined)
+                  patch
+                    .mutateAsync(orderPatchBody(order, v, user?.id, contactDirty, items.length > 0))
+                    .then(() => undefined)
                 }
               />
             ) : (
@@ -158,17 +179,17 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 <section className="card">
                   <div className="card-content grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <Info label={tc('partner')} value={`${partner.name} (#${partner.id})`} />
-                    <Info label={t('projectType')} value={order.project_type_id ? `#${order.project_type_id}` : '—'} mono />
+                    <Info label={t('projectType')} value={projectTypeName} mono />
                     <Info label={t('currencyLabel')} value={order.currency} mono />
-                    <Info label={t('valuationDate')} value={formatDate(order.valuation_date)} mono />
+                    <Info label={t('valuationDate')} value={<DateDisplay value={order.valuation_date} />} />
                     <Info label={t('vehicleMake')} value={order.vehicle_make ?? '—'} />
                     <Info label={t('vehicleModel')} value={order.vehicle_model ?? '—'} />
                     <Info label={t('vehiclePlate')} value={order.vehicle_plate ?? '—'} mono />
                     <Info label={t('vehicleVin')} value={order.vehicle_vin ?? '—'} mono />
-                    <Info label={t('dueDate')} value={order.due_date ? formatDate(order.due_date) : '—'} mono />
-                    <Info label={t('assignedTo')} value={order.assigned_to ? `#${order.assigned_to}` : '—'} mono />
+                    <Info label={t('dueDate')} value={order.due_date ? <DateDisplay value={order.due_date} /> : '—'} />
+                    <Info label={t('assignedTo')} value={assigneeName} mono />
                     <Info label={t('description')} value={order.description ?? '—'} />
-                    <Info label={t('createdAt')} value={formatDate(order.created_at)} mono />
+                    <Info label={t('createdAt')} value={<DateDisplay value={order.created_at} />} />
                   </div>
                 </section>
 
@@ -184,7 +205,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       </p>
                     </div>
                     <div>
-                      <p className="text-metadata text-steel-500">HUF (MNB, {formatDate(value.valuation_date)})</p>
+                      <p className="text-metadata text-steel-500">HUF (MNB, <DateDisplay value={value.valuation_date} />)</p>
                       <p className="text-section font-mono font-medium">
                         {value.total_huf_minor != null ? (
                           <Money minor={value.total_huf_minor} currency="HUF" />
@@ -195,7 +216,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     </div>
                     {value.fx_rate != null && value.fx_day && (
                       <p className="text-metadata text-steel-500 font-mono">
-                        {t('fxRate')}: {value.fx_rate} · {t('fxDay')}: {formatDate(value.fx_day)}
+                        {t('fxRate')}: {value.fx_rate} · {t('fxDay')}: <DateDisplay value={value.fx_day} />
                       </p>
                     )}
                   </div>
@@ -276,7 +297,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 {blockers.length === 0 && <p className="text-sm text-steel-500">—</p>}
                 {blockers.map((b) => {
                   const open = isBlockerOpen(b);
-                  const overdue = isBlockerOverdue(b);
+                  const overdue = b.is_overdue;
                   return (
                     <div key={b.id} className="rounded-lg border border-steel-200 p-4">
                       <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
@@ -287,7 +308,13 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       </p>
                       <p className="mt-1 font-mono text-metadata text-steel-500">
                         {[b.responsible_partner_name, b.responsible_email].filter(Boolean).join(' · ') || '—'}
-                        {b.due_date ? ` · ${t('dueOn')}: ${formatDate(b.due_date)}` : ''}
+                        {b.due_date ? (
+                          <>
+                            {' '}· {t('dueOn')}: <DateDisplay value={b.due_date} />
+                          </>
+                        ) : (
+                          ''
+                        )}
                         {b.nudge_count > 0 ? ` · ${b.nudge_count} ${t('nudges')}` : ''}
                       </p>
                       {b.notes && <p className="mt-1 text-sm">{b.notes}</p>}
@@ -319,7 +346,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                           <span className="font-medium">{a.action}</span>{' '}
                           <span className="text-steel-500">
                             · {a.user_name ?? (a.user_id ? `#${a.user_id}` : t('systemUser'))} ·{' '}
-                            <span className="font-mono text-metadata">{formatDateTime(a.at)}</span>
+                            <DateDisplay withTime value={a.at} className="text-metadata" />
                           </span>
                         </p>
                         <pre className="mt-1 overflow-x-auto rounded-lg bg-panel p-2 font-mono text-metadata text-steel-900">
@@ -350,6 +377,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 currentKey={stage.key}
                 daysInStage={stage.days_in_stage}
                 openBlockers={openBlockers.length}
+                history={history.data?.items ?? []}
               />
               <div className="border-t border-steel-200 pt-3 text-metadata text-steel-500">
                 <p>

@@ -107,7 +107,7 @@ pub async fn template_values(
 
     let mut order_id = about.order_id;
     if let Some(blocker_id) = about.blocker_id {
-        let b = blockers::find(&mut *conn, blocker_id)
+        let b = blockers::find(&mut *conn, blocker_id, today)
             .await?
             .ok_or(AppError::NotFound("blocker"))?;
         order_id = order_id.or(Some(b.order_id));
@@ -157,7 +157,7 @@ pub async fn template_values(
                 (Utc::now() - current.entered_at).num_days().to_string(),
             );
         }
-        let open = blockers::list_for_order(&mut *conn, oid)
+        let open = blockers::list_for_order(&mut *conn, oid, today)
             .await?
             .iter()
             .filter(|b| b.resolved_at.is_none())

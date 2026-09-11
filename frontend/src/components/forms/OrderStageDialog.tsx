@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
-import type { OrderDetail, StageDefinition } from '@/lib/api/types';
-
-
+import { ErrorState } from '@/components/ui/ErrorState';
+import type { OrderDetail, StageDefinition, TransitionOption } from '@/lib/api/types';
 
 export function OrderStageDialog({
   orderId,
@@ -18,6 +17,7 @@ export function OrderStageDialog({
 }: {
   orderId: number;
   detail: OrderDetail;
+  /** Stage definitions: labels and gate details only. Transition rules come from the backend. */
   definitions: StageDefinition[];
   onClose: () => void;
 }) {
@@ -26,31 +26,37 @@ export function OrderStageDialog({
   const ter = useTranslations('errors');
   const ti = useTranslations('images');
   const qc = useQueryClient();
-  const current = detail.stage.key;
-  const currentDef = definitions.find((d) => d.key === current);
-  const targets = definitions.filter((d) => d.key !== current && d.is_active);
-  const [target, setTarget] = useState(targets[0]?.key ?? '');
+  const [target, setTarget] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const targetDef = definitions.find((d) => d.key === target);
-  const needsNote =
-    !!targetDef &&
-    !!currentDef &&
-    (targetDef.position < currentDef.position || currentDef.is_terminal);
+  const transitions = useQuery({
+    queryKey: qk.orderTransitions(orderId),
+    queryFn: () => ordersApi.transitions(orderId),
+  });
+  const options = transitions.data?.items.filter((o) => o.manual) ?? [];
+  const selected: TransitionOption | undefined =
+    options.find((o) => o.stage_key === target) ?? options[0];
+  const effective = selected?.stage_key ?? '';
+  const defOf = (key: string) => definitions.find((d) => d.key === key);
+  const selectedDef = effective ? defOf(effective) : undefined;
+  const needsNote = selected?.requires_note ?? false;
+  const gateBlocked = selected ? !selected.gates_met : false;
 
   const change = useMutation({
-    mutationFn: () => ordersApi.stage(orderId, { stage: target, note: note.trim() || undefined }),
+    mutationFn: () =>
+      ordersApi.stage(orderId, { stage: effective, note: note.trim() || undefined }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.order(orderId) });
       void qc.invalidateQueries({ queryKey: qk.orderStages(orderId) });
+      void qc.invalidateQueries({ queryKey: qk.orderTransitions(orderId) });
       void qc.invalidateQueries({ queryKey: ['orders'] });
       onClose();
     },
     onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
   });
 
-  const valid = target !== '' && (!needsNote || note.trim() !== '');
+  const valid = effective !== '' && (!needsNote || note.trim() !== '') && !gateBlocked;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4" role="dialog" aria-modal="true" aria-label={t('changeStage')} onClick={onClose}>
@@ -58,31 +64,39 @@ export function OrderStageDialog({
         <div className="card-header">
           <h2 className="text-section font-semibold">{t('changeStage')}</h2>
           <p className="text-sm text-steel-500">
-            {t('currentStage')}: {detail.stage.label_hu} · {detail.stage.days_in_stage} napja
+            {t('currentStage')}: {detail.stage.label_hu} · {t('daysInStage', { days: detail.stage.days_in_stage })}
           </p>
         </div>
         <div className="card-content space-y-4">
-          {targets.length === 0 ? (
+          {transitions.isLoading ? (
+            <p className="text-sm text-steel-500">{tc('loading')}</p>
+          ) : transitions.isError ? (
+            <ErrorState error={transitions.error} onRetry={() => void transitions.refetch()} />
+          ) : options.length === 0 ? (
             <p className="text-sm text-steel-500">{t('noOtherStage')}</p>
           ) : (
             <>
               <div>
                 <label className="label" htmlFor="os-target">{t('targetStage')}</label>
-                <select id="os-target" className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
-                  {targets.map((d) => (
-                    <option key={d.key} value={d.key}>
-                      {d.label_hu}
-                      {d.is_exit ? ` ${t('exitSuffix')}` : ''}
-                      {d.is_terminal ? ` ${t('terminalSuffix')}` : ''}
-                    </option>
-                  ))}
+                <select id="os-target" className="input" value={effective} onChange={(e) => setTarget(e.target.value)}>
+                  {options.map((o) => {
+                    const d = defOf(o.stage_key);
+                    return (
+                      <option key={o.stage_key} value={o.stage_key} disabled={!o.gates_met}>
+                        {o.label_hu}
+                        {d?.is_exit ? ` ${t('exitSuffix')}` : ''}
+                        {d?.is_terminal ? ` ${t('terminalSuffix')}` : ''}
+                        {!o.gates_met ? ` (${t('gateBlocked')})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
-                {targetDef && targetDef.min_images > 0 && targetDef.required_image_category && (
+                {selectedDef && selectedDef.min_images > 0 && selectedDef.required_image_category && (
                   <p className="mt-1 text-xs text-steel-900">
                     {t('gateRequires')}:{' '}
                     {t('gateRequirement', {
-                      count: targetDef.min_images,
-                      category: ti(targetDef.required_image_category),
+                      count: selectedDef.min_images,
+                      category: ti(selectedDef.required_image_category),
                     })}
                   </p>
                 )}
@@ -103,7 +117,7 @@ export function OrderStageDialog({
         </div>
         <div className="card-footer justify-end">
           <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
-          <button className="btn-primary" disabled={!valid || change.isPending || targets.length === 0} onClick={() => change.mutate()}>
+          <button className="btn-primary" disabled={!valid || change.isPending || options.length === 0} onClick={() => change.mutate()}>
             {change.isPending ? tc('saving') : tc('save')}
           </button>
         </div>

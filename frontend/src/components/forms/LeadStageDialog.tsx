@@ -2,53 +2,56 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
-import type { LeadDetail, StageDefinition } from '@/lib/api/types';
+import { ErrorState } from '@/components/ui/ErrorState';
+import type { LeadDetail, TransitionOption } from '@/lib/api/types';
 
 export function LeadStageDialog({
   leadId,
   detail,
-  definitions,
   onClose,
 }: {
   leadId: number;
   detail: LeadDetail;
-  definitions: StageDefinition[];
   onClose: () => void;
 }) {
   const t = useTranslations('leads');
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
   const qc = useQueryClient();
-  const current = detail.stage?.stage_key;
-  const currentDef = definitions.find((d) => d.key === current);
-  // Backend owns 'won': POSTing it returns 422 use_conversion — filter it
-  // client-side with an explanation instead of letting users hit the error.
-  const targets = definitions.filter((d) => d.key !== current && d.key !== 'won' && d.is_active);
-  const [target, setTarget] = useState(targets[0]?.key ?? '');
+  const [target, setTarget] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const targetDef = definitions.find((d) => d.key === target);
-  const needsNote =
-    !!targetDef &&
-    !!currentDef &&
-    (targetDef.position < currentDef.position || currentDef.is_terminal);
+  const transitions = useQuery({
+    queryKey: qk.leadTransitions(leadId),
+    queryFn: () => leadsApi.transitions(leadId),
+  });
+  // Non-manual targets (lead `won`: conversion only) are not offered; the
+  // note below explains why. Which targets are manual comes from the backend.
+  const options = transitions.data?.items.filter((o) => o.manual) ?? [];
+  const selected: TransitionOption | undefined =
+    options.find((o) => o.stage_key === target) ?? options[0];
+  const effective = selected?.stage_key ?? '';
+  const needsNote = selected?.requires_note ?? false;
+  const currentLabel = detail.history.at(-1)?.label_hu ?? detail.stage?.stage_key ?? '—';
 
   const change = useMutation({
-    mutationFn: () => leadsApi.stage(leadId, { stage: target, note: note.trim() || undefined }),
+    mutationFn: () =>
+      leadsApi.stage(leadId, { stage: effective, note: note.trim() || undefined }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.lead(leadId) });
+      void qc.invalidateQueries({ queryKey: qk.leadTransitions(leadId) });
       void qc.invalidateQueries({ queryKey: ['leads'] });
       onClose();
     },
     onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
   });
 
-  const valid = target !== '' && (!needsNote || note.trim() !== '');
+  const valid = effective !== '' && (!needsNote || note.trim() !== '');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4" role="dialog" aria-modal="true" aria-label={t('stageChange')} onClick={onClose}>
@@ -56,20 +59,24 @@ export function LeadStageDialog({
         <div className="card-header">
           <h2 className="text-section font-semibold">{t('stageChange')}</h2>
           <p className="text-sm text-steel-500">
-            {t('currentStage')}: {currentDef?.label_hu ?? current ?? '—'}
+            {t('currentStage')}: {currentLabel}
           </p>
         </div>
         <div className="card-content space-y-4">
-          {targets.length === 0 ? (
+          {transitions.isLoading ? (
+            <p className="text-sm text-steel-500">{tc('loading')}</p>
+          ) : transitions.isError ? (
+            <ErrorState error={transitions.error} onRetry={() => void transitions.refetch()} />
+          ) : options.length === 0 ? (
             <p className="text-sm text-steel-500">{t('noOtherStage')}</p>
           ) : (
             <>
               <div>
                 <label className="label" htmlFor="ls-target">{t('targetStage')}</label>
-                <select id="ls-target" className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
-                  {targets.map((d) => (
-                    <option key={d.key} value={d.key}>
-                      {d.label_hu}
+                <select id="ls-target" className="input" value={effective} onChange={(e) => setTarget(e.target.value)}>
+                  {options.map((o) => (
+                    <option key={o.stage_key} value={o.stage_key}>
+                      {o.label_hu}
                     </option>
                   ))}
                 </select>
@@ -90,7 +97,7 @@ export function LeadStageDialog({
         </div>
         <div className="card-footer justify-end">
           <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
-          <button className="btn-primary" disabled={!valid || change.isPending || targets.length === 0} onClick={() => change.mutate()}>
+          <button className="btn-primary" disabled={!valid || change.isPending || options.length === 0} onClick={() => change.mutate()}>
             {change.isPending ? tc('saving') : tc('save')}
           </button>
         </div>

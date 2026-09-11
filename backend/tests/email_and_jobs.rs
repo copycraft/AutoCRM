@@ -266,7 +266,14 @@ async fn overdue_blockers_are_nudged_once_per_interval(pool: PgPool) {
         "interval not elapsed"
     );
 
-    let blocker = blockers::find(&pool, blocker_id).await.unwrap().unwrap();
+    let blocker = blockers::find(
+        &pool,
+        blocker_id,
+        autocrm::service::business_today(state.config.business_tz),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     assert_eq!(blocker.nudge_count, 1);
 
     let log = emails::list(

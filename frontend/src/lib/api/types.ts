@@ -45,6 +45,7 @@ export type StageBody = Schemas['StageBody'];
 export type StageChange = Schemas['StageChange'];
 export type StageDefinition = Schemas['StageDefinition'];
 export type StageEntry = Schemas['StageEntry'];
+export type TransitionOption = Schemas['TransitionOption'];
 export type AuditEntry = Schemas['AuditEntry'];
 export type Blocker = Schemas['Blocker'];
 export type ProjectType = Schemas['ProjectType'];
