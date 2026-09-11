@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 export function Pagination({
   offset,
   limit,
@@ -14,20 +16,21 @@ export function Pagination({
   onPrev: () => void;
   onNext: () => void;
 }) {
+  const t = useTranslations('pagination');
   const page = Math.floor(offset / limit) + 1;
   const isLast = loaded < limit;
   return (
     <div className="flex items-center justify-between gap-3">
       <p className="text-metadata text-steel-500 font-mono">
-        {offset + 1}–{offset + loaded} · {limit}/oldal
+        {t('range', { from: offset + 1, to: offset + loaded, limit })}
       </p>
       <div className="flex items-center gap-2">
         <button className="btn-ghost btn-sm" onClick={onPrev} disabled={offset === 0}>
-          ← Előző
+          ← {t('previous')}
         </button>
-        <span className="text-metadata font-mono text-steel-500">{page}. oldal</span>
+        <span className="text-metadata font-mono text-steel-500">{page}. {t('page')}</span>
         <button className="btn-ghost btn-sm" onClick={onNext} disabled={isLast}>
-          Következő →
+          {t('next')} →
         </button>
       </div>
     </div>

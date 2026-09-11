@@ -78,6 +78,7 @@ export function LeadForm({
   const t = useTranslations('leads');
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
+  const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
 
   const { register, handleSubmit, control, watch, formState } = useForm<LeadFormValues>({
@@ -111,7 +112,7 @@ export function LeadForm({
         try {
           await onSubmit(v);
         } catch (e) {
-          setServerError(errorMessage(e, 'Ismeretlen hiba történt.'));
+          setServerError(errorMessage(e, ter, ter('unknownError')));
         }
       })}
     >
@@ -176,7 +177,7 @@ export function LeadForm({
       </div>
       <div className="card-footer justify-end">
         <button className="btn-primary" type="submit" disabled={formState.isSubmitting}>
-          {formState.isSubmitting ? 'Mentés…' : submitLabel}
+          {formState.isSubmitting ? tc('saving') : submitLabel}
         </button>
       </div>
     </form>

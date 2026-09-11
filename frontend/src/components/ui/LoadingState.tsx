@@ -1,8 +1,13 @@
-export function LoadingState({ label = 'Betöltés…' }: { label?: string }) {
+'use client';
+
+import { useTranslations } from 'next-intl';
+
+export function LoadingState({ label }: { label?: string }) {
+  const tc = useTranslations('common');
   return (
     <div className="flex items-center justify-center gap-3 py-10" role="status" aria-live="polite">
       <span className="h-5 w-5 animate-spin rounded-full border-2 border-steel-200 border-t-steel-900" aria-hidden />
-      <span className="text-sm text-steel-500">{label}</span>
+      <span className="text-sm text-steel-500">{label ?? tc('loading')}</span>
     </div>
   );
 }

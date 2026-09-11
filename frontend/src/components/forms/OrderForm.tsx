@@ -119,6 +119,7 @@ export function OrderForm({
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
+  const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
   const [partnerError, setPartnerError] = useState(false);
 
@@ -165,7 +166,7 @@ export function OrderForm({
         try {
           await onSubmit(v, !!formState.dirtyFields.contact_id);
         } catch (e) {
-          setServerError(errorMessage(e, 'Ismeretlen hiba történt.'));
+          setServerError(errorMessage(e, ter, ter('unknownError')));
         }
       })}
     >
@@ -270,7 +271,7 @@ export function OrderForm({
       </div>
       <div className="card-footer justify-end">
         <button className="btn-primary" type="submit" disabled={formState.isSubmitting}>
-          {formState.isSubmitting ? 'Mentés…' : submitLabel}
+          {formState.isSubmitting ? tc('saving') : submitLabel}
         </button>
       </div>
     </form>

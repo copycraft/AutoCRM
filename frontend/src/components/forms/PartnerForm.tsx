@@ -100,6 +100,7 @@ export function PartnerForm({
   const t = useTranslations('partners');
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
+  const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
@@ -116,7 +117,7 @@ export function PartnerForm({
         try {
           await onSubmit(v);
         } catch (e) {
-          setServerError(errorMessage(e, 'Ismeretlen hiba történt.'));
+          setServerError(errorMessage(e, ter, ter('unknownError')));
         }
       })}
     >
@@ -161,37 +162,37 @@ export function PartnerForm({
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="email">E-mail</label>
+          <label className="label" htmlFor="email">{tc('email')}</label>
           <input id="email" type="email" className="input" {...register('email')} />
         </div>
         <div>
-          <label className="label" htmlFor="phone">Telefon</label>
+          <label className="label" htmlFor="phone">{tc('phone')}</label>
           <input id="phone" type="tel" className="input" {...register('phone')} />
         </div>
         <div>
-          <label className="label" htmlFor="website">Weboldal</label>
+          <label className="label" htmlFor="website">{t('website')}</label>
           <input id="website" className="input" {...register('website')} />
         </div>
         <div>
-          <label className="label" htmlFor="postal_code">Irányítószám</label>
+          <label className="label" htmlFor="postal_code">{t('postalCode')}</label>
           <input id="postal_code" className="input font-mono" {...register('postal_code')} />
         </div>
         <div>
-          <label className="label" htmlFor="city">Város</label>
+          <label className="label" htmlFor="city">{t('city')}</label>
           <input id="city" className="input" {...register('city')} />
         </div>
         <div>
-          <label className="label" htmlFor="address_line">Cím</label>
+          <label className="label" htmlFor="address_line">{t('addressLine')}</label>
           <input id="address_line" className="input" {...register('address_line')} />
         </div>
         <div className="md:col-span-2">
-          <label className="label" htmlFor="notes">Megjegyzések</label>
+          <label className="label" htmlFor="notes">{t('notes')}</label>
           <textarea id="notes" rows={3} className="input" {...register('notes')} />
         </div>
       </div>
       <div className="card-footer justify-end">
         <button className="btn-primary" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Mentés…' : submitLabel}
+          {isSubmitting ? tc('saving') : submitLabel}
         </button>
       </div>
     </form>

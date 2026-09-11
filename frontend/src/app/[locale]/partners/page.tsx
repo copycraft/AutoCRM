@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -24,32 +24,7 @@ function toKind(value: string): PartnerKind | '' {
 
 const PAGE_SIZE = 50;
 
-const columns: ColumnDef<Partner>[] = [
-  {
-    header: 'Név',
-    accessorKey: 'name',
-    cell: ({ row }) => (
-      <span className="flex items-center gap-2">
-        <Link
-          href={`./partners/${row.original.id}`}
-          className="font-medium text-steel-900 underline"
-        >
-          {row.original.name}
-        </Link>
-        {row.original.archived_at && <StatusBadge tone="steel">Archivált</StatusBadge>}
-      </span>
-    ),
-  },
-  {
-    header: 'Típus',
-    accessorKey: 'kind',
-    cell: ({ getValue }) => (getValue<string>() === 'business' ? 'Vállalkozás' : 'Személy'),
-  },
-  { header: 'Adószám', accessorKey: 'tax_number', cell: ({ getValue }) => getValue<string>() ?? '—' },
-  { header: 'E-mail', accessorKey: 'email', cell: ({ getValue }) => getValue<string>() ?? '—' },
-  { header: 'Telefon', accessorKey: 'phone', cell: ({ getValue }) => getValue<string>() ?? '—' },
-  { header: 'Város', accessorKey: 'city', cell: ({ getValue }) => getValue<string>() ?? '—' },
-];
+
 
 export default function PartnersPage() {
   const t = useTranslations('partners');
@@ -74,6 +49,36 @@ export default function PartnersPage() {
         offset,
       }),
   });
+
+  const columns = useMemo<ColumnDef<Partner>[]>(
+    () => [
+      {
+        header: tc('name'),
+        accessorKey: 'name',
+        cell: ({ row }) => (
+          <span className="flex items-center gap-2">
+            <Link
+              href={`./partners/${row.original.id}`}
+              className="font-medium text-steel-900 underline"
+            >
+              {row.original.name}
+            </Link>
+            {row.original.archived_at && <StatusBadge tone="steel">{t('archived')}</StatusBadge>}
+          </span>
+        ),
+      },
+      {
+        header: t('kindLabel'),
+        accessorKey: 'kind',
+        cell: ({ getValue }) => (getValue<string>() === 'business' ? t('business') : t('person')),
+      },
+      { header: t('taxNumber'), accessorKey: 'tax_number', cell: ({ getValue }) => getValue<string>() ?? '—' },
+      { header: tc('email'), accessorKey: 'email', cell: ({ getValue }) => getValue<string>() ?? '—' },
+      { header: tc('phone'), accessorKey: 'phone', cell: ({ getValue }) => getValue<string>() ?? '—' },
+      { header: t('city'), accessorKey: 'city', cell: ({ getValue }) => getValue<string>() ?? '—' },
+    ],
+    [t, tc],
+  );
 
   const clear = () => {
     setQ('');

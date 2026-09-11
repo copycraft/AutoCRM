@@ -98,11 +98,6 @@ export function daysSince(iso: string, now: number = Date.now()): number {
   return Math.floor(diff / 86_400_000);
 }
 
-export function formatAgeDays(iso: string, now?: number): string {
-  const d = daysSince(iso, now);
-  return `${d} nap`;
-}
-
 export function truncate(str: string, length: number): string {
   if (str.length <= length) return str;
   return `${str.slice(0, length)}…`;

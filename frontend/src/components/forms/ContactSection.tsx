@@ -33,8 +33,10 @@ function ContactForm({
   submitLabel: string;
   onCancel: () => void;
 }) {
+  const t = useTranslations('partners');
   const tv = useTranslations('validation');
   const tc = useTranslations('common');
+  const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
   const { register, handleSubmit, formState } = useForm<Values>({
     resolver: zodResolver(schema),
@@ -55,30 +57,30 @@ function ContactForm({
         try {
           await onSubmit(v);
         } catch (e) {
-          setServerError(errorMessage(e, 'Ismeretlen hiba.'));
+          setServerError(errorMessage(e, ter, ter('unknownError')));
         }
       })}
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="label" htmlFor="c-name">Név *</label>
+          <label className="label" htmlFor="c-name">{t('contactName')} *</label>
           <input id="c-name" className="input" {...register('name')} />
           {formState.errors.name && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
         </div>
         <div>
-          <label className="label" htmlFor="c-position">Beosztás</label>
+          <label className="label" htmlFor="c-position">{t('contactPosition')}</label>
           <input id="c-position" className="input" {...register('position')} />
         </div>
         <div>
-          <label className="label" htmlFor="c-email">E-mail</label>
+          <label className="label" htmlFor="c-email">{t('contactEmail')}</label>
           <input id="c-email" type="email" className="input" {...register('email')} />
         </div>
         <div>
-          <label className="label" htmlFor="c-phone">Telefon</label>
+          <label className="label" htmlFor="c-phone">{t('contactPhone')}</label>
           <input id="c-phone" type="tel" className="input" {...register('phone')} />
         </div>
         <div className="md:col-span-2">
-          <label className="label" htmlFor="c-notes">Megjegyzések</label>
+          <label className="label" htmlFor="c-notes">{t('contactNotes')}</label>
           <textarea id="c-notes" rows={2} className="input" {...register('notes')} />
         </div>
       </div>
@@ -88,7 +90,7 @@ function ContactForm({
       <div className="flex justify-end gap-2">
         <button type="button" className="btn-ghost btn-sm" onClick={onCancel}>{tc('cancel')}</button>
         <button type="submit" className="btn-primary btn-sm" disabled={formState.isSubmitting}>
-          {formState.isSubmitting ? 'Mentés…' : submitLabel}
+          {formState.isSubmitting ? tc('saving') : submitLabel}
         </button>
       </div>
     </form>
@@ -189,7 +191,7 @@ export function ContactSection({ partnerId, contacts }: { partnerId: number; con
                   <p className="font-medium">
                     {c.name}
                     {c.archived_at && (
-                      <span className="ml-2"><StatusBadge tone="steel">Archivált</StatusBadge></span>
+                      <span className="ml-2"><StatusBadge tone="steel">{t('archived')}</StatusBadge></span>
                     )}
                   </p>
                   <p className="text-sm text-steel-500">

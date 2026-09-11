@@ -117,15 +117,15 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                     <DetailRow label={t('euTaxNumber')} value={partner.eu_tax_number ?? '—'} mono />
                     <DetailRow label={t('country')} value={partner.country} mono />
                     <DetailRow label={t('defaultCurrency')} value={partner.default_currency} mono />
-                    <DetailRow label="E-mail" value={partner.email ?? '—'} />
-                    <DetailRow label="Telefon" value={partner.phone ?? '—'} />
-                    <DetailRow label="Weboldal" value={partner.website ?? '—'} />
+                    <DetailRow label={tc('email')} value={partner.email ?? '—'} />
+                    <DetailRow label={tc('phone')} value={partner.phone ?? '—'} />
+                    <DetailRow label={t('website')} value={partner.website ?? '—'} />
                     <DetailRow
-                      label="Cím"
+                      label={t('addressLine')}
                       value={[partner.postal_code, partner.city, partner.address_line].filter(Boolean).join(' · ') || '—'}
                     />
-                    <DetailRow label="Megjegyzések" value={partner.notes ?? '—'} />
-                    <DetailRow label="Létrehozva" value={formatDate(partner.created_at)} mono />
+                    <DetailRow label={t('notes')} value={partner.notes ?? '—'} />
+                    <DetailRow label={t('createdAt')} value={formatDate(partner.created_at)} mono />
                   </div>
                 </section>
               )}

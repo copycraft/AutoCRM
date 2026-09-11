@@ -24,6 +24,8 @@ export function LeadConvertDialog({
 }) {
   const t = useTranslations('leads');
   const tc = useTranslations('common');
+  const ter = useTranslations('errors');
+  const tof = useTranslations('orders');
   const locale = useLocale();
   const router = useRouter();
   const qc = useQueryClient();
@@ -65,7 +67,7 @@ export function LeadConvertDialog({
       void qc.invalidateQueries({ queryKey: ['orders'] });
       router.push(`/${locale}/orders/${order.id}`);
     },
-    onError: (e) => setError(errorMessage(e, 'Ismeretlen hiba.')),
+    onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
   });
 
   const canConvert = title.trim() !== '' && partnerId !== undefined && !convert.isPending;
@@ -106,7 +108,7 @@ export function LeadConvertDialog({
               )}
             </div>
             <div>
-              <label className="label" htmlFor="lc-pt">Projekttípus</label>
+              <label className="label" htmlFor="lc-pt">{tof('projectType')}</label>
               <select id="lc-pt" className="input" value={projectTypeId} onChange={(e) => setProjectTypeId(e.target.value)}>
                 <option value="">—</option>
                 {(projectTypes.data?.items ?? [])
@@ -130,7 +132,7 @@ export function LeadConvertDialog({
         <div className="card-footer justify-end">
           <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
           <button className="btn-primary" disabled={!canConvert} onClick={() => convert.mutate()}>
-            {convert.isPending ? 'Átalakítás…' : t('convert')}
+            {convert.isPending ? t('converting') : t('convert')}
           </button>
         </div>
       </div>

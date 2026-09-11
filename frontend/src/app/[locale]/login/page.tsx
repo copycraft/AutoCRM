@@ -18,6 +18,8 @@ type Form = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const t = useTranslations('auth');
+  const tv = useTranslations('validation');
+  const ter = useTranslations('errors');
   const locale = useLocale();
   const router = useRouter();
   const { login } = useAuth();
@@ -30,7 +32,7 @@ export default function LoginPage() {
       const res = await login(v.email.trim(), v.password);
       router.replace(res.user.must_change_password ? `/${locale}/password` : `/${locale}`);
     } catch (e) {
-      setServerError(errorMessage(e, t('invalidCredentials')));
+      setServerError(errorMessage(e, ter, t('invalidCredentials')));
     }
   });
 
@@ -50,7 +52,7 @@ export default function LoginPage() {
           <div>
             <label className="label" htmlFor="email">{t('emailLabel')}</label>
             <input id="email" type="email" autoComplete="username" className="input" {...register('email')} />
-            {formState.errors.email && <p className="mt-1 text-xs text-steel-900">Érvénytelen e-mail formátum</p>}
+            {formState.errors.email && <p className="mt-1 text-xs text-steel-900">{tv('email')}</p>}
           </div>
           <div>
             <label className="label" htmlFor="password">{t('passwordLabel')}</label>

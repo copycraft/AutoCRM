@@ -12,12 +12,12 @@ import { canAdmin, useAuth } from '@/lib/auth/context';
 export function AssigneeField({
   value,
   onChange,
-  label = 'Felelős',
+  label,
   allowAll,
 }: {
   value: number | null | 'all' | 'me';
   onChange: (v: number | null | 'all' | 'me') => void;
-  label?: string;
+  label: string;
   allowAll?: boolean;
 }) {
   const { user } = useAuth();

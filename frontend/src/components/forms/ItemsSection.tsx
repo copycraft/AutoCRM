@@ -43,6 +43,7 @@ function ItemForm({
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const tv = useTranslations('validation');
+  const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
   const { register, handleSubmit, formState } = useForm<Values>({
     resolver: zodResolver(schema),
@@ -78,7 +79,7 @@ function ItemForm({
             unit_price: unit,
           });
         } catch (e) {
-          setServerError(errorMessage(e, 'Ismeretlen hiba.'));
+          setServerError(errorMessage(e, ter, ter('unknownError')));
         }
       })}
     >
@@ -112,7 +113,7 @@ function ItemForm({
           {tc('cancel')}
         </button>
         <button type="submit" className="btn-primary btn-sm" disabled={formState.isSubmitting}>
-          {formState.isSubmitting ? 'Mentés…' : submitLabel}
+          {formState.isSubmitting ? tc('saving') : submitLabel}
         </button>
       </div>
     </form>

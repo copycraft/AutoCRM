@@ -17,7 +17,7 @@ import { stageTone } from '@/lib/utils/stages';
 import { configApi, leadsApi, partnersApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canAdmin, canEditLeads, useAuth } from '@/lib/auth/context';
-import { formatAgeDays, formatDate, formatDateTime } from '@/lib/utils/format';
+import { daysSince, formatDate, formatDateTime } from '@/lib/utils/format';
 
 export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
@@ -82,7 +82,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
             <>
               <PageHeader
                 title={lead.title}
-                subtitle={`#${lead.id} · ${t('age')}: ${formatAgeDays(lead.created_at)}`}
+                subtitle={`#${lead.id} · ${t('age')}: ${tc('ageDays', { days: daysSince(lead.created_at) })}`}
                 actions={editable && (
                   <>
                     {!editing && (
@@ -149,7 +149,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     <Info label={t('contactEmail')} value={lead.contact_email ?? '—'} />
                     <Info label={t('contactPhone')} value={lead.contact_phone ?? '—'} />
                     <Info label={t('description')} value={lead.description ?? '—'} />
-                    <Info label="Létrehozva" value={formatDate(lead.created_at)} mono />
+                    <Info label={t('createdAt')} value={formatDate(lead.created_at)} mono />
                   </div>
                 </section>
               )}

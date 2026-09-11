@@ -1,15 +1,17 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 export function FilterBar({ children, onClear }: { children: ReactNode; onClear?: () => void }) {
+  const tc = useTranslations('common');
   return (
     <div className="card">
       <div className="card-content flex flex-wrap items-end gap-3">
         {children}
         {onClear && (
           <button className="btn-ghost btn-sm" onClick={onClear}>
-            Szűrők törlése
+            {tc('clearFilters')}
           </button>
         )}
       </div>

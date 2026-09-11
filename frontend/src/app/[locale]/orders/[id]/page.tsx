@@ -37,6 +37,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const id = Number(params.id);
   const t = useTranslations('orders');
   const tc = useTranslations('common');
+  const ti = useTranslations('images');
   const locale = useLocale();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -106,7 +107,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         <div className="min-w-0 flex-1 space-y-6">
           <PageHeader
             title={`#${order.number} · ${order.title}`}
-            subtitle={`${partner.name} · ${stage.label_hu} · ${stage.days_in_stage} napja`}
+            subtitle={`${partner.name} · ${stage.label_hu} · ${t('daysInStage', { days: stage.days_in_stage })}`}
             actions={
               <>
                 {canEdit && !editing && tab === 'data' && (
@@ -210,7 +211,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     )}
                     {Object.entries(image_counts).map(([cat, n]) => (
                       <StatusBadge key={cat} tone="steel">
-                        {cat}: {n}
+                        {ti(cat)}: {n}
                       </StatusBadge>
                     ))}
                   </div>
@@ -336,7 +337,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         <aside className="hidden w-[280px] shrink-0 lg:block">
           <div className="card sticky top-6">
             <div className="card-header flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Traveller</h2>
+              <h2 className="text-sm font-semibold">{t('traveller')}</h2>
               {canStage && (
                 <button className="btn-secondary btn-sm" onClick={() => setStageOpen(true)}>
                   {t('changeStage')}

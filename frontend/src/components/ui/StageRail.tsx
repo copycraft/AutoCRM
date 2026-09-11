@@ -1,7 +1,10 @@
+'use client';
+
 // StageRail — signature traveller component (FRONTEND_PLAN.md §12).
 // Renders BACKEND stage definitions + history. Never hardcodes stages.
 
 import { Check, Circle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn, formatDateTime } from '@/lib/utils/format';
 import type { StageDefinition, StageEntry } from '@/lib/api/types';
 
@@ -16,11 +19,12 @@ export function StageRail({
   daysInStage: number;
   openBlockers: number;
 }) {
+  const t = useTranslations('stageRail');
   const ordered = [...stages].sort((a, b) => a.position - b.position);
   const currentIdx = ordered.findIndex((s) => s.key === currentKey);
 
   return (
-    <ol className="space-y-0" aria-label="Fázisok">
+    <ol className="space-y-0" aria-label={t('title')}>
       {ordered.map((s, i) => {
         const done = currentIdx >= 0 && i < currentIdx;
         const current = s.key === currentKey;
@@ -34,9 +38,9 @@ export function StageRail({
             )}
             <span className="mt-0.5 shrink-0">
               {done ? (
-                <Check className="h-[19px] w-[19px] text-done" aria-label="Kész" />
+                <Check className="h-[19px] w-[19px] text-done" aria-label={t('done')} />
               ) : current ? (
-                <span className="flex h-[19px] w-[19px] items-center justify-center" role="img" aria-label="Aktuális">
+                <span className="flex h-[19px] w-[19px] items-center justify-center" role="img" aria-label={t('current')}>
                   <span className="h-2.5 w-2.5 rounded-full bg-steel-900" aria-hidden />
                 </span>
               ) : (
@@ -47,8 +51,8 @@ export function StageRail({
               <p className={cn('text-sm', current ? 'font-semibold' : 'font-medium')}>{s.label_hu}</p>
               {current && (
                 <p className="text-metadata text-steel-500">
-                  {daysInStage} napja itt
-                  {openBlockers > 0 && ` · ${openBlockers} nyitott akadály`}
+                  {t('daysInStage', { days: daysInStage })}
+                  {openBlockers > 0 && ` · ${t('openBlockers', { count: openBlockers })}`}
                 </p>
               )}
             </div>
@@ -60,7 +64,8 @@ export function StageRail({
 }
 
 export function StageHistoryList({ history }: { history: StageEntry[] }) {
-  if (history.length === 0) return <p className="text-sm text-steel-500">Nincs fáziselőzmény.</p>;
+  const t = useTranslations('stageRail');
+  if (history.length === 0) return <p className="text-sm text-steel-500">{t('noHistory')}</p>;
   return (
     <ul className="space-y-3">
       {history.map((h) => (

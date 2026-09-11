@@ -8,12 +8,7 @@ import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
 import type { OrderDetail, StageDefinition } from '@/lib/api/types';
 
-function gateText(d: StageDefinition): string | null {
-  if (d.min_images > 0 && d.required_image_category) {
-    return `min. ${d.min_images} db ${d.required_image_category} kép`;
-  }
-  return null;
-}
+
 
 export function OrderStageDialog({
   orderId,
@@ -28,6 +23,8 @@ export function OrderStageDialog({
 }) {
   const t = useTranslations('orders');
   const tc = useTranslations('common');
+  const ter = useTranslations('errors');
+  const ti = useTranslations('images');
   const qc = useQueryClient();
   const current = detail.stage.key;
   const currentDef = definitions.find((d) => d.key === current);
@@ -50,7 +47,7 @@ export function OrderStageDialog({
       void qc.invalidateQueries({ queryKey: ['orders'] });
       onClose();
     },
-    onError: (e) => setError(errorMessage(e, 'Ismeretlen hiba.')),
+    onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
   });
 
   const valid = target !== '' && (!needsNote || note.trim() !== '');
@@ -80,8 +77,14 @@ export function OrderStageDialog({
                     </option>
                   ))}
                 </select>
-                {targetDef && gateText(targetDef) && (
-                  <p className="mt-1 text-xs text-steel-900">{t('gateRequires')}: {gateText(targetDef)}</p>
+                {targetDef && targetDef.min_images > 0 && targetDef.required_image_category && (
+                  <p className="mt-1 text-xs text-steel-900">
+                    {t('gateRequires')}:{' '}
+                    {t('gateRequirement', {
+                      count: targetDef.min_images,
+                      category: ti(targetDef.required_image_category),
+                    })}
+                  </p>
                 )}
               </div>
               <div>
@@ -101,7 +104,7 @@ export function OrderStageDialog({
         <div className="card-footer justify-end">
           <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
           <button className="btn-primary" disabled={!valid || change.isPending || targets.length === 0} onClick={() => change.mutate()}>
-            {change.isPending ? 'Mentés…' : tc('save')}
+            {change.isPending ? tc('saving') : tc('save')}
           </button>
         </div>
       </div>

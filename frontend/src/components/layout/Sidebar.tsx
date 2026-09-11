@@ -50,7 +50,7 @@ export function Sidebar() {
         </span>
       </Link>
 
-      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5" aria-label="Fő navigáció">
+      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5" aria-label={t('main')}>
         {NAV.filter((i) => !i.admin || canAdmin(user)).map((item) => {
           const href = `/${locale}${item.href}`;
           const active = pathname === href || (item.href !== '' && pathname.startsWith(href + '/'));

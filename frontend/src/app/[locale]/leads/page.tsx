@@ -103,7 +103,7 @@ export default function LeadsPage() {
         header: t('age'),
         accessorKey: 'created_at',
         cell: ({ getValue }) => (
-          <span className="font-mono">{daysSince(getValue<string>())} nap</span>
+          <span className="font-mono">{tc('ageDays', { days: daysSince(getValue<string>()) })}</span>
         ),
       },
       {
@@ -112,12 +112,12 @@ export default function LeadsPage() {
         cell: ({ getValue }) => getValue<string | null>() ?? '—',
       },
       {
-        header: 'Létrehozva',
+        header: t('createdAt'),
         accessorKey: 'created_at',
         cell: ({ getValue }) => <span className="font-mono">{formatDate(getValue<string>())}</span>,
       },
     ],
-    [defs, locale, t],
+    [defs, locale, t, tc],
   );
 
   const clear = () => {

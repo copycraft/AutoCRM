@@ -8,6 +8,9 @@ import { errorMessage } from '@/lib/api/errors';
 
 export default function PasswordPage() {
   const t = useTranslations('auth');
+  const tc = useTranslations('common');
+  const tv = useTranslations('validation');
+  const ter = useTranslations('errors');
   const locale = useLocale();
   const router = useRouter();
   const [current, setCurrent] = useState('');
@@ -19,7 +22,7 @@ export default function PasswordPage() {
     e.preventDefault();
     setError(null);
     if (next.length < 12) {
-      setError('A jelszó túl gyenge (min 12 karakter)');
+      setError(tv('weakPassword'));
       return;
     }
     setBusy(true);
@@ -27,7 +30,7 @@ export default function PasswordPage() {
       await authApi.changePassword({ current_password: current, new_password: next });
       router.replace(`/${locale}`);
     } catch (err) {
-      setError(errorMessage(err, 'Hiba történt.'));
+      setError(errorMessage(err, ter, ter('unknownError')));
     } finally {
       setBusy(false);
     }
@@ -42,7 +45,7 @@ export default function PasswordPage() {
         </div>
         <div className="card-content space-y-4">
           <div>
-            <label className="label" htmlFor="cur">Jelenlegi jelszó</label>
+            <label className="label" htmlFor="cur">{t('currentPassword')}</label>
             <input id="cur" type="password" className="input" value={current} onChange={(e) => setCurrent(e.target.value)} required />
           </div>
           <div>
@@ -50,7 +53,7 @@ export default function PasswordPage() {
             <input id="nxt" type="password" className="input" value={next} onChange={(e) => setNext(e.target.value)} required minLength={12} />
           </div>
           {error && <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>}
-          <button className="btn-primary w-full" disabled={busy}>{busy ? 'Mentés…' : t('changePassword')}</button>
+          <button className="btn-primary w-full" disabled={busy}>{busy ? tc('saving') : t('changePassword')}</button>
         </div>
       </form>
     </div>

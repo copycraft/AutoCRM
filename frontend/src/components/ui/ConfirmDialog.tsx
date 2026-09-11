@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 
 export function ConfirmDialog({
   open,
   title,
   body,
-  confirmLabel = 'Megerősítés',
-  cancelLabel = 'Mégse',
+  confirmLabel,
+  cancelLabel,
   onConfirm,
   onClose,
   busy = false,
@@ -21,6 +22,9 @@ export function ConfirmDialog({
   onClose: () => void;
   busy?: boolean;
 }) {
+  const tc = useTranslations('common');
+  const okLabel = confirmLabel ?? tc('confirm');
+  const noLabel = cancelLabel ?? tc('cancel');
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -53,10 +57,10 @@ export function ConfirmDialog({
         )}
         <div className="card-footer justify-end">
           <button className="btn-ghost" onClick={onClose} disabled={busy}>
-            {cancelLabel}
+            {noLabel}
           </button>
           <button ref={confirmRef} className="btn-primary" onClick={onConfirm} disabled={busy}>
-            {busy ? 'Feldolgozás…' : confirmLabel}
+            {busy ? tc('processing') : okLabel}
           </button>
         </div>
       </div>

@@ -21,6 +21,7 @@ export function LeadStageDialog({
 }) {
   const t = useTranslations('leads');
   const tc = useTranslations('common');
+  const ter = useTranslations('errors');
   const qc = useQueryClient();
   const current = detail.stage?.stage_key;
   const currentDef = definitions.find((d) => d.key === current);
@@ -44,7 +45,7 @@ export function LeadStageDialog({
       void qc.invalidateQueries({ queryKey: ['leads'] });
       onClose();
     },
-    onError: (e) => setError(errorMessage(e, 'Ismeretlen hiba.')),
+    onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
   });
 
   const valid = target !== '' && (!needsNote || note.trim() !== '');
@@ -90,7 +91,7 @@ export function LeadStageDialog({
         <div className="card-footer justify-end">
           <button className="btn-ghost" onClick={onClose}>{tc('cancel')}</button>
           <button className="btn-primary" disabled={!valid || change.isPending || targets.length === 0} onClick={() => change.mutate()}>
-            {change.isPending ? 'Mentés…' : tc('save')}
+            {change.isPending ? tc('saving') : tc('save')}
           </button>
         </div>
       </div>
