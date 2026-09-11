@@ -1,15 +1,15 @@
 import { getTranslations } from 'next-intl/server';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { UnavailableState } from '@/components/ui/UnavailableState';
 
 export default async function EmailsPage({ params: { locale } }: { params: { locale: string } }) {
   const t = await getTranslations({ locale, namespace: 'navigation' });
-  const tc = await getTranslations({ locale, namespace: 'emptyStates' });
+  const tu = await getTranslations({ locale, namespace: 'unavailable' });
   return (
     <AppShell>
       <PageHeader title={t('emails')} />
-      <EmptyState title={tc('noEmails')} hint="6. fázis: levelezés, előnézet, küldés, sablonok, tiltások, needs_review megkülönböztetéssel." />
+      <UnavailableState title={tu('title')} body={tu('body')} />
     </AppShell>
   );
 }

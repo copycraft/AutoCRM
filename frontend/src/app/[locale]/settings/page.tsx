@@ -1,14 +1,15 @@
 import { getTranslations } from 'next-intl/server';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { UnavailableState } from '@/components/ui/UnavailableState';
 
 export default async function SettingsPage({ params: { locale } }: { params: { locale: string } }) {
   const t = await getTranslations({ locale, namespace: 'common' });
+  const tu = await getTranslations({ locale, namespace: 'unavailable' });
   return (
     <AppShell>
       <PageHeader title={t('settings')} />
-      <EmptyState title="Beállítások" hint="8. fázis: kill switch, rate limit, küldési ablak, nudge-ritmus, értesítések — GET/PUT /settings." />
+      <UnavailableState title={tu('title')} body={tu('body')} />
     </AppShell>
   );
 }

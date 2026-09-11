@@ -269,7 +269,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 </Link>
               </div>
               <div className="card-content space-y-3">
-                <p className="rounded-lg bg-cold/10 px-3 py-2 text-xs text-cold">{t('blockersPhaseNote')}</p>
+                <p className="text-metadata text-steel-500">{t('blockersReadOnly')}</p>
                 {blockers.length === 0 && <p className="text-sm text-steel-500">—</p>}
                 {blockers.map((b) => {
                   const open = isBlockerOpen(b);

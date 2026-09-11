@@ -16,7 +16,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (!isLoading && !isAuthenticated) router.replace(`/${locale}/login`);
   }, [isLoading, isAuthenticated, router, locale]);
 
-  // Forced password change gate (§14): block app until changed.
+  // Forced password change gate: block app until changed.
   useEffect(() => {
     if (!isLoading && user?.must_change_password) {
       router.replace(`/${locale}/password`);

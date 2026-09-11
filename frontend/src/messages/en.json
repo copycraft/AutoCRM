@@ -87,8 +87,7 @@
     "suppressions": "Suppressions",
     "audit": "Audit",
     "images": "Images",
-    "documents": "Documents",
-    "costs": "Costs"
+    "documents": "Documents"
   },
   "auth": {
     "loginTitle": "Sign in to AutoCRM",
@@ -215,7 +214,7 @@
     "exitSuffix": "(exit)",
     "terminalSuffix": "(terminal)",
     "gateRequires": "Requirement",
-    "blockersPhaseNote": "Blocker management arrives in phase 4.",
+    "blockersReadOnly": "Blockers are read-only here. Creating and resolving them is not available yet.",
     "editItem": "Edit item",
     "deleteItem": "Delete item",
     "deleteItemBody": "The item is deleted permanently.",
@@ -236,6 +235,10 @@
     "tabsLabel": "Order sections",
     "openOnly": "Open only",
     "searchPlaceholder": "Search number, title, partner, VIN, plate…"
+  },
+  "unavailable": {
+    "title": "Not available yet",
+    "body": "This feature is not finished in this version."
   },
   "emptyStates": {
     "noPartners": "No partners yet.",

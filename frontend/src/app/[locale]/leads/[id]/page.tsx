@@ -41,7 +41,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
     queryFn: () => partnersApi.get(detail.data!.lead.partner_id!),
     enabled: detail.data?.lead.partner_id != null,
   });
-  // GET /users is admin-only; non-admins see the raw id (backend gap, §3).
+  // GET /users is admin-only; non-admins see the raw id (backend gap).
   const usersQuery = useQuery({
     queryKey: qk.users,
     queryFn: () => usersApi.list(),

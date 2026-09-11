@@ -25,7 +25,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-// Canonical query keys — used for invalidation after mutations (§90).
+// Canonical query keys — used for invalidation after mutations (FRONTEND_PLAN.md §14).
 export const qk = {
   me: ['me'],
   users: ['users'],

@@ -83,8 +83,7 @@
     "suppressions": "Tiltások",
     "audit": "Napló",
     "images": "Képek",
-    "documents": "Dokumentumok",
-    "costs": "Költségek"
+    "documents": "Dokumentumok"
   },
   "auth": {
     "loginTitle": "Bejelentkezés az AutoCRM-be",
@@ -225,7 +224,7 @@
     "exitSuffix": "(kilépés)",
     "terminalSuffix": "(vég)",
     "gateRequires": "Feltétel",
-    "blockersPhaseNote": "Az akadályok kezelése (létrehozás, megoldás) a 4. fázisban érkezik.",
+    "blockersReadOnly": "Az akadályok itt csak megtekinthetők. Létrehozásuk és lezárásuk még nem érhető el.",
     "editItem": "Tétel szerkesztése",
     "deleteItem": "Tétel törlése",
     "deleteItemBody": "A tétel végleg törlődik. Ez visszavonja az értéket is.",
@@ -248,9 +247,7 @@
       "data": "Adatok",
       "plans": "Tervek",
       "images": "Képek",
-      "costs": "Költségek",
-      "blockers": "Akadályok",
-      "invoices": "Számlák"
+      "blockers": "Akadályok"
     },
     "stageNoteRequired": "Indoklás szükséges a fázis módosításához",
     "stageGate": "A megrendelés nem léphet tovább, mert egy szükséges feltétel még nem teljesült."
@@ -480,6 +477,10 @@
     "searchNoResults": "Nincs találat a keresési feltételekhez.",
     "filterNoResults": "Nincs találat a szűrőfeltételekhez.",
     "permissionDenied": "Nincs jogosultsága megtekinteni ezt az adatot."
+  },
+  "unavailable": {
+    "title": "Még nem érhető el",
+    "body": "Ez a funkció ebben a verzióban még nincs kész."
   },
   "validation": {
     "required": "Ez a mező kötelező",

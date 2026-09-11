@@ -1,6 +1,6 @@
 // Centralised backend error handling.
 // Backend contract: { error: { code, message } } with HTTP status.
-// Maps codes to Hungarian human-readable messages (FRONTEND_PLAN §89).
+// Maps codes to Hungarian human-readable messages (FRONTEND_PLAN.md §14).
 
 import type { ApiErrorBody } from '@/types/api';
 
