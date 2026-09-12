@@ -78,5 +78,37 @@ class ServerStore(private val context: Context) {
         }
 
         private fun defaultPort(scheme: String): Int = if (scheme == "https") 443 else 80
+
+        /**
+         * True when this address sends the password over the open internet in clear.
+         *
+         * The app permits cleartext because a workshop server has no certificate, but that
+         * is a trade made for the local network only. Android's network security config
+         * cannot express "private ranges only", so the narrowing happens here and the setup
+         * screen says so out loud.
+         */
+        fun isUnencryptedAndRemote(url: String): Boolean {
+            val parsed = url.toHttpUrlOrNull() ?: return false
+            if (parsed.scheme != "http") return false
+            return !isPrivateHost(parsed.host)
+        }
+
+        /** RFC 1918, loopback, link-local, and the emulator's view of its host. */
+        private fun isPrivateHost(host: String): Boolean {
+            if (host == "localhost") return true
+            val octets = host.split(".").mapNotNull { it.toIntOrNull() }
+            if (octets.size != 4) return false
+            val (a, b) = octets[0] to octets[1]
+            return when {
+                a == 10 -> true
+                a == 127 -> true
+                a == 192 && b == 168 -> true
+                a == 172 && b in 16..31 -> true
+                a == 169 && b == 254 -> true
+                // Tailscale and other CGNAT-range overlays: private in practice.
+                a == 100 && b in 64..127 -> true
+                else -> false
+            }
+        }
     }
 }

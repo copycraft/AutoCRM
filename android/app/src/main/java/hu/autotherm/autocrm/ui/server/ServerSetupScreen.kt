@@ -54,6 +54,8 @@ class ServerSetupViewModel(
         /** Null before a check, true/false after one. */
         val reachable: Boolean? = null,
         val error: String? = null,
+        /** Cleartext to something that is not on a local network. */
+        val insecureWarning: Boolean = false,
         val saved: Boolean = false,
     )
 
@@ -71,7 +73,13 @@ class ServerSetupViewModel(
     fun setAddress(value: String) {
         // Any edit invalidates the previous verdict: a green tick next to an address that
         // has since been retyped is worse than no tick.
-        _state.value = _state.value.copy(address = value, reachable = null, error = null)
+        _state.value = _state.value.copy(
+            address = value,
+            reachable = null,
+            error = null,
+            insecureWarning = ServerStore.normalize(value)
+                ?.let(ServerStore::isUnencryptedAndRemote) == true,
+        )
     }
 
     /**
@@ -170,6 +178,15 @@ fun ServerSetupScreen(
             state.checking -> StatusLine("Ellenőrzés…", Steel500)
             state.reachable == true -> StatusLine("A szerver válaszol.", Done)
             state.error != null -> StatusLine(state.error!!, Signal)
+        }
+
+        // Helyi hálózaton a titkosítatlan kapcsolat vállalható; az interneten nem.
+        if (state.insecureWarning) {
+            StatusLine(
+                "Ez a cím nem helyi hálózati és titkosítatlan: a jelszó olvashatóan utazik. " +
+                    "Éles szerverhez használj https:// címet.",
+                Signal,
+            )
         }
 
         Spacer(Modifier.height(24.dp))

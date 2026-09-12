@@ -2,6 +2,8 @@ package hu.autotherm.autocrm
 
 import hu.autotherm.autocrm.data.prefs.ServerStore
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -46,6 +48,28 @@ class ServerStoreTest {
         // call into /hu/orders/api/orders and nothing would work.
         assertEquals("http://192.168.1.10:3000", norm("http://192.168.1.10:3000/hu/orders"))
         assertEquals("https://crm.autotherm.hu", norm("https://crm.autotherm.hu/hu/login?x=1"))
+    }
+
+    @Test
+    fun `cleartext is only flagged when it leaves the local network`() {
+        // The app permits cleartext because a workshop server has no certificate. The cost
+        // is only real off the local network, so that is the only case that gets a warning.
+        val private = listOf(
+            "http://192.168.50.224:8080",
+            "http://10.5.0.2:8080",
+            "http://172.16.4.4:8080",
+            "http://127.0.0.1:8080",
+            "http://localhost:8080",
+            "http://100.95.18.113:8080", // Tailscale
+        )
+        for (url in private) {
+            assertFalse(url, ServerStore.isUnencryptedAndRemote(url))
+        }
+
+        assertTrue(ServerStore.isUnencryptedAndRemote("http://crm.autotherm.hu"))
+        assertTrue(ServerStore.isUnencryptedAndRemote("http://93.184.216.34:8080"))
+        // https anywhere is fine, local or not.
+        assertFalse(ServerStore.isUnencryptedAndRemote("https://crm.autotherm.hu"))
     }
 
     @Test

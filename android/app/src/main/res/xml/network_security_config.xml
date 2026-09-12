@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Plain HTTP has to be allowed, and it is worth being explicit about why rather than
+  leaving a future reader to assume it was carelessness.
+
+  The server address is typed in by the user (ServerStore), and in this business it is
+  normally a machine on the workshop network — `192.168.1.10:8080` during the parallel run,
+  a laptop in the yard, the office server before anyone puts a certificate on it. None of
+  those have TLS, and Android has refused cleartext by default since API 28, so without
+  this every LAN address fails with an IOException that reads like the server is down.
+
+  Android's network security config cannot express "private address ranges only" — it
+  matches domains, not CIDR blocks — so this cannot be narrowed declaratively. The
+  narrowing happens in the UI instead: the setup screen warns when the address is http://
+  and not a private address, which is the case where cleartext actually costs something.
+
+  What would remove this: putting a certificate on the production server and having the
+  fitters type https://. Then this file becomes a debug-only override.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
