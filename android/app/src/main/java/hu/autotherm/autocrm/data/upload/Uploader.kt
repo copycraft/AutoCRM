@@ -1,6 +1,5 @@
 package hu.autotherm.autocrm.data.upload
 
-import android.util.Base64
 import hu.autotherm.autocrm.data.api.ApiException
 import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.api.UploadRequest
@@ -170,7 +169,3 @@ fun File.sha256Hex(): String {
     }
     return digest.digest().joinToString("") { "%02x".format(it) }
 }
-
-/** The same digest base64-encoded, the form S3 expects in `x-amz-checksum-sha256`. */
-fun String.hexToBase64(): String =
-    Base64.encodeToString(chunked(2).map { it.toInt(16).toByte() }.toByteArray(), Base64.NO_WRAP)

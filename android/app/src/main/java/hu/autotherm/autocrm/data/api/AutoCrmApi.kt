@@ -5,7 +5,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -251,6 +250,3 @@ class AutoCrmApi(
 }
 
 private val EMPTY: RequestBody = ByteArray(0).toRequestBody(null, 0, 0)
-
-/** Kept for the rare list-of-lists decode; referenced so the import is not dead weight. */
-internal fun <T> listSerializer(of: KSerializer<T>) = ListSerializer(of)

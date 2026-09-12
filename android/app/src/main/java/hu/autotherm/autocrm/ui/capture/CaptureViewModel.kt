@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
@@ -62,9 +63,9 @@ class CaptureViewModel(
             }.collect { _state.value = it }
         }
         viewModelScope.launch {
-            // On arrival, not on every recomposition: the banner is about the state the
-            // fitter is starting in, not about a category they just chose deliberately.
-            if (prefs.category.let { _state.value.category } == CapturePrefs.CATEGORY_INTAKE &&
+            // Once, on arrival: the banner is about the category the fitter is starting in,
+            // not about one they have just chosen deliberately (selectCategory handles that).
+            if (prefs.category.first() == CapturePrefs.CATEGORY_INTAKE &&
                 prefs.needsIntakeConfirmation()
             ) {
                 _state.value = _state.value.copy(intakeWarning = true)

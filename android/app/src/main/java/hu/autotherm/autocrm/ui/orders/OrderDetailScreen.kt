@@ -63,7 +63,6 @@ class OrderDetailViewModel(
         val detail: OrderDetail? = null,
         val stages: List<StageEntry> = emptyList(),
         val notes: List<OrderNote> = emptyList(),
-        val transitions: List<TransitionOption> = emptyList(),
         val canChangeStage: Boolean = false,
         val error: String? = null,
         /** Non-null while the stage dialog is open. */
