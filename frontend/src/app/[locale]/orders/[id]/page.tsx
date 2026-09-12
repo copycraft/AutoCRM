@@ -12,7 +12,13 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Money } from '@/components/ui/Money';
 import { StageRail, StageHistoryList, TravellerStrip } from '@/components/ui/StageRail';
-import { OrderForm, orderPatchBody, type OrderFormValues } from '@/components/forms/OrderForm';
+import {
+  OrderForm,
+  orderPatchBody,
+  orderSpecBody,
+  type OrderFormValues,
+} from '@/components/forms/OrderForm';
+import type { SpecForm } from '@/components/forms/BuildSpecSection';
 import { ItemsSection } from '@/components/forms/ItemsSection';
 import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
 import { configApi, ordersApi, usersApi } from '@/lib/api/endpoints';
@@ -26,6 +32,36 @@ import { isBlockerOpen } from '@/lib/utils/blockers';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
 
 type Tab = 'data' | 'items' | 'stages' | 'blockers' | 'audit';
+
+/** Enum value → message key. Unknown values fall back to the raw value's own key, which
+ *  next-intl renders visibly rather than silently blank. */
+function defrostKey(defrost: string): string {
+  switch (defrost) {
+    case 'automatic':
+      return 'defrostAutomatic';
+    case 'manual':
+      return 'defrostManual';
+    case 'hot_gas':
+      return 'defrostHotGas';
+    default:
+      return 'defrost';
+  }
+}
+
+function fuelKey(fuel: string): string {
+  switch (fuel) {
+    case 'diesel':
+      return 'fuelDiesel';
+    case 'electric':
+      return 'fuelElectric';
+    case 'lpg':
+      return 'fuelLpg';
+    case 'engine_coolant':
+      return 'fuelEngineCoolant';
+    default:
+      return 'fuel';
+  }
+}
 
 /** 'warranty' | 'rework' | 'repeat' — anything else is shown as itself. */
 function relationLabel(relation: string, t: (k: string) => string): string {
@@ -55,6 +91,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const ti = useTranslations('images');
+  const ts = useTranslations('spec');
   const ter = useTranslations('errors');
   const locale = useLocale();
   const { user } = useAuth();
@@ -100,7 +137,19 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   });
 
   const patch = useMutation({
-    mutationFn: (body: PatchOrder) => ordersApi.patch(id, body),
+    // The order and its build spec are two requests: PATCH is a field diff, the spec is a
+    // whole-row replace whose shape depends on the project type. The spec goes second, so
+    // a rejected order edit never writes a spec for a project type that did not stick.
+    mutationFn: async ({
+      body,
+      spec,
+    }: {
+      body: PatchOrder;
+      spec: ReturnType<typeof orderSpecBody>;
+    }) => {
+      await ordersApi.patch(id, body);
+      if (spec) await ordersApi.putSpec(id, spec);
+    },
     onSuccess: () => {
       setEditing(false);
       void qc.invalidateQueries({ queryKey: qk.order(id) });
@@ -124,7 +173,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     );
   }
 
-  const { order, partner, stage, items, value, blockers, image_counts, related, vehicles } =
+  const { order, partner, stage, items, value, blockers, image_counts, related, vehicles, spec } =
     detail.data;
   const currency = order.currency;
   const projectTypeName = order.project_type_id
@@ -202,11 +251,19 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
               <OrderForm
                 initial={order}
                 initialPartner={{ id: partner.id, name: partner.name }}
+                initialSpec={spec}
                 currencyLocked={items.length > 0}
                 submitLabel={tc('save')}
-                onSubmit={(v: OrderFormValues, contactDirty: boolean) =>
+                onSubmit={(
+                  v: OrderFormValues,
+                  contactDirty: boolean,
+                  specForm: SpecForm | null,
+                ) =>
                   patch
-                    .mutateAsync(orderPatchBody(order, v, user?.id, contactDirty, items.length > 0))
+                    .mutateAsync({
+                      body: orderPatchBody(order, v, user?.id, contactDirty, items.length > 0),
+                      spec: orderSpecBody(v, specForm),
+                    })
                     .then(() => undefined)
                 }
               />
@@ -289,6 +346,65 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     ))}
                   </div>
                 </section>
+
+                {spec && (
+                  <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                    <h2 className="text-section font-semibold">
+                      {spec.form === 'cooling' ? ts('coolingTitle') : ts('heatingTitle')}
+                    </h2>
+                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <Info
+                        label={ts('targetTemp')}
+                        value={spec.target_temp_c != null ? `${spec.target_temp_c} °C` : '—'}
+                        mono
+                      />
+                      <Info
+                        label={ts('insulation')}
+                        value={spec.insulation_mm != null ? `${spec.insulation_mm} mm` : '—'}
+                        mono
+                      />
+                      {spec.form === 'cooling' ? (
+                        <>
+                          <Info label={ts('coolingUnitMake')} value={spec.cooling_unit_make ?? '—'} />
+                          <Info
+                            label={ts('coolingUnitModel')}
+                            value={spec.cooling_unit_model ?? '—'}
+                          />
+                          <Info label={ts('atpClass')} value={spec.atp_class ?? '—'} mono />
+                          <Info
+                            label={ts('compartments')}
+                            value={spec.compartments != null ? String(spec.compartments) : '—'}
+                            mono
+                          />
+                          <Info
+                            label={ts('defrost')}
+                            value={spec.defrost ? ts(defrostKey(spec.defrost)) : '—'}
+                          />
+                          <Info
+                            label={ts('electricStandby')}
+                            value={spec.electric_standby ? tc('yes') : tc('no')}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <Info label={ts('heaterMake')} value={spec.heater_make ?? '—'} />
+                          <Info label={ts('heaterModel')} value={spec.heater_model ?? '—'} />
+                          <Info
+                            label={ts('heatOutput')}
+                            value={spec.heat_output_kw != null ? `${spec.heat_output_kw} kW` : '—'}
+                            mono
+                          />
+                          <Info label={ts('fuel')} value={spec.fuel ? ts(fuelKey(spec.fuel)) : '—'} />
+                          <Info
+                            label={ts('thermostat')}
+                            value={spec.thermostat ? tc('yes') : tc('no')}
+                          />
+                        </>
+                      )}
+                      <Info label={ts('notes')} value={spec.notes ?? '—'} />
+                    </div>
+                  </section>
+                )}
 
                 {/* V2.2: a warranty job with no link to the job it repairs is the kind of
                     connection nobody reconstructs later. */}

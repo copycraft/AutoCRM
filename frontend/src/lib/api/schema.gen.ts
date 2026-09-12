@@ -616,6 +616,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orders/{id}/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orders_get_spec"];
+        /**
+         * Replaces the build spec. The form comes from the order's project type, never from the
+         *     request: a cooling order cannot be given a heating spec by sending one.
+         */
+        put: operations["orders_put_spec"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders/{id}/items": {
         parameters: {
             query?: never;
@@ -1579,6 +1599,11 @@ export interface components {
             label_hu: string;
             /** Format: int32 */
             position: number;
+            /**
+             * @description `heating` | `cooling` | omitted. Decides which build-spec section the order form
+             *     shows for this type; omitted means the type has no build spec.
+             */
+            spec_form?: string | null;
         };
         CreateStage: {
             entity: components["schemas"]["StageEntity"];
@@ -2254,6 +2279,12 @@ export interface components {
                 /** Format: int32 */
                 position: number;
                 is_active: boolean;
+                /**
+                 * @description Which build-spec section the order form shows for this type: `heating`,
+                 *     `cooling`, or null for work that has no build spec (repairs). Configuration, so
+                 *     the office can retype a category without a deploy.
+                 */
+                spec_form?: string | null;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -2602,6 +2633,7 @@ export interface components {
             related_order_id?: number | null;
             /** @description `warranty` | `rework` | `repeat`. */
             relation?: string | null;
+            spec?: null | components["schemas"]["SpecBody"];
             items?: components["schemas"]["ItemBody"][];
         };
         OrderDetail: {
@@ -2617,6 +2649,7 @@ export interface components {
              *     enquiry is the case the join table exists for.
              */
             vehicles: components["schemas"]["Vehicle"][];
+            spec?: null | components["schemas"]["OrderSpec"];
             /** @description Image count per category; categories without images are absent. */
             image_counts: {
                 [key: string]: number;
@@ -2659,6 +2692,35 @@ export interface components {
             /** Format: int64 */
             id: number;
             number: string;
+        };
+        OrderSpec: {
+            /** Format: int64 */
+            order_id: number;
+            /** @description `heating` | `cooling`. */
+            form: string;
+            target_temp_c?: string | null;
+            /** Format: int32 */
+            insulation_mm?: number | null;
+            cooling_unit_make?: string | null;
+            cooling_unit_model?: string | null;
+            /** @description ATP classification (FNA, FRC, …). Free text until the real list is confirmed. */
+            atp_class?: string | null;
+            /** Format: int32 */
+            compartments?: number | null;
+            /** @description `automatic` | `manual` | `hot_gas`. */
+            defrost?: string | null;
+            electric_standby?: boolean | null;
+            heater_make?: string | null;
+            heater_model?: string | null;
+            heat_output_kw?: string | null;
+            /** @description `diesel` | `electric` | `lpg` | `engine_coolant`. */
+            fuel?: string | null;
+            thermostat?: boolean | null;
+            notes?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         OrderSummary: {
             /** Format: int64 */
@@ -2817,6 +2879,8 @@ export interface components {
             /** Format: int32 */
             position?: number | null;
             is_active?: boolean | null;
+            /** @description Absent keeps the current form; explicit null removes the build-spec section. */
+            spec_form?: string | null;
         };
         PatchStage: {
             label_hu?: string | null;
@@ -2882,6 +2946,12 @@ export interface components {
             /** Format: int32 */
             position: number;
             is_active: boolean;
+            /**
+             * @description Which build-spec section the order form shows for this type: `heating`,
+             *     `cooling`, or null for work that has no build spec (repairs). Configuration, so
+             *     the office can retype a category without a deploy.
+             */
+            spec_form?: string | null;
         };
         RawImportView: {
             /**
@@ -2992,6 +3062,31 @@ export interface components {
             stalled_alert_recipients?: string[];
             /** @description Email transport overrides; absent keeps everything stored. */
             email?: components["schemas"]["EmailTransportBody"];
+        };
+        /**
+         * @description The build spec as the form sends it. `form` is not taken on trust: it must match what
+         *     the order's project type asks for, or the row would mean something the office did not
+         *     choose.
+         */
+        SpecBody: {
+            target_temp_c?: string | null;
+            /** Format: int32 */
+            insulation_mm?: number | null;
+            cooling_unit_make?: string | null;
+            cooling_unit_model?: string | null;
+            atp_class?: string | null;
+            /** Format: int32 */
+            compartments?: number | null;
+            /** @description `automatic` | `manual` | `hot_gas`. */
+            defrost?: string | null;
+            electric_standby?: boolean | null;
+            heater_make?: string | null;
+            heater_model?: string | null;
+            heat_output_kw?: string | null;
+            /** @description `diesel` | `electric` | `lpg` | `engine_coolant`. */
+            fuel?: string | null;
+            thermostat?: boolean | null;
+            notes?: string | null;
         };
         StageBody: {
             /** @description Target stage key. */
@@ -5286,6 +5381,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Items_OrderNote"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    orders_get_spec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSpec"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    orders_put_spec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSpec"];
                 };
             };
             /** @description Client error; see `error.code` */

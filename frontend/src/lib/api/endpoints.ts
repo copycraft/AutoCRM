@@ -97,6 +97,8 @@ export const ordersApi = {
     request(`/orders/${id}/audit`, s.zOrdersAuditTrailResponse, { search }),
   notes: (id: number): Promise<S['Items_OrderNote']> =>
     request(`/orders/${id}/notes`, s.zOrdersNotesResponse),
+  putSpec: (id: number, body: S['SpecBody']): Promise<S['OrderSpec']> =>
+    request(`/orders/${id}/spec`, s.zOrdersPutSpecResponse, { method: 'PUT', body }),
   items: (orderId: number): Promise<S['Items_ItemView']> =>
     request(`/orders/${orderId}/items`, s.zOrdersListItemsResponse),
   createItem: (orderId: number, body: S['AddItem']): Promise<S['ItemView']> =>

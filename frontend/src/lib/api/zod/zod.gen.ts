@@ -145,7 +145,8 @@ export const zContactBody = z.object({
 export const zCreateProjectType = z.object({
     key: z.string(),
     label_hu: z.string(),
-    position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' })
+    position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    spec_form: z.string().nullish()
 });
 
 export const zCreateTemplate = z.object({
@@ -657,7 +658,8 @@ export const zItemsProjectType = z.object({
         key: z.string(),
         label_hu: z.string(),
         position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
-        is_active: z.boolean()
+        is_active: z.boolean(),
+        spec_form: z.string().nullish()
     }))
 });
 
@@ -850,25 +852,6 @@ export const zOrder = z.object({
     updated_at: z.string().datetime()
 });
 
-export const zOrderBody = z.object({
-    title: z.string().nullish(),
-    partner_id: z.number().int().nullish(),
-    contact_id: z.number().int().nullish(),
-    project_type_id: z.number().int().nullish(),
-    currency: zCurrency,
-    valuation_date: z.string().date().nullish(),
-    vehicle_make: z.string().nullish(),
-    vehicle_model: z.string().nullish(),
-    vehicle_plate: z.string().nullish(),
-    vehicle_vin: z.string().nullish(),
-    description: z.string().nullish(),
-    due_date: z.string().date().nullish(),
-    assigned_to: z.number().int().nullish(),
-    related_order_id: z.number().int().nullish(),
-    relation: z.string().nullish(),
-    items: z.array(zItemBody).optional()
-});
-
 export const zOrderItem = z.object({
     id: z.number().int(),
     order_id: z.number().int(),
@@ -906,6 +889,27 @@ export const zOrderNote = z.object({
 export const zOrderRef = z.object({
     id: z.number().int(),
     number: z.string()
+});
+
+export const zOrderSpec = z.object({
+    order_id: z.number().int(),
+    form: z.string(),
+    target_temp_c: z.string().nullish(),
+    insulation_mm: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    cooling_unit_make: z.string().nullish(),
+    cooling_unit_model: z.string().nullish(),
+    atp_class: z.string().nullish(),
+    compartments: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    defrost: z.string().nullish(),
+    electric_standby: z.boolean().nullish(),
+    heater_make: z.string().nullish(),
+    heater_model: z.string().nullish(),
+    heat_output_kw: z.string().nullish(),
+    fuel: z.string().nullish(),
+    thermostat: z.boolean().nullish(),
+    notes: z.string().nullish(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime()
 });
 
 export const zOrderSummary = z.object({
@@ -1072,7 +1076,8 @@ export const zPatchPartner = z.object({
 export const zPatchProjectType = z.object({
     label_hu: z.string().nullish(),
     position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
-    is_active: z.boolean().nullish()
+    is_active: z.boolean().nullish(),
+    spec_form: z.string().nullish()
 });
 
 export const zPatchStage = z.object({
@@ -1142,7 +1147,8 @@ export const zProjectType = z.object({
     key: z.string(),
     label_hu: z.string(),
     position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
-    is_active: z.boolean()
+    is_active: z.boolean(),
+    spec_form: z.string().nullish()
 });
 
 export const zRawImportView = z.object({
@@ -1288,6 +1294,48 @@ export const zSettingsBody = z.object({
     stage_change_notifications: z.boolean(),
     stalled_alert_recipients: z.array(z.string()).optional(),
     email: zEmailTransportBody.optional()
+});
+
+/**
+ * The build spec as the form sends it. `form` is not taken on trust: it must match what
+ * the order's project type asks for, or the row would mean something the office did not
+ * choose.
+ */
+export const zSpecBody = z.object({
+    target_temp_c: z.string().nullish(),
+    insulation_mm: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    cooling_unit_make: z.string().nullish(),
+    cooling_unit_model: z.string().nullish(),
+    atp_class: z.string().nullish(),
+    compartments: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    defrost: z.string().nullish(),
+    electric_standby: z.boolean().nullish(),
+    heater_make: z.string().nullish(),
+    heater_model: z.string().nullish(),
+    heat_output_kw: z.string().nullish(),
+    fuel: z.string().nullish(),
+    thermostat: z.boolean().nullish(),
+    notes: z.string().nullish()
+});
+
+export const zOrderBody = z.object({
+    title: z.string().nullish(),
+    partner_id: z.number().int().nullish(),
+    contact_id: z.number().int().nullish(),
+    project_type_id: z.number().int().nullish(),
+    currency: zCurrency,
+    valuation_date: z.string().date().nullish(),
+    vehicle_make: z.string().nullish(),
+    vehicle_model: z.string().nullish(),
+    vehicle_plate: z.string().nullish(),
+    vehicle_vin: z.string().nullish(),
+    description: z.string().nullish(),
+    due_date: z.string().date().nullish(),
+    assigned_to: z.number().int().nullish(),
+    related_order_id: z.number().int().nullish(),
+    relation: z.string().nullish(),
+    spec: zSpecBody.nullish(),
+    items: z.array(zItemBody).optional()
 });
 
 export const zStageBody = z.object({
@@ -1533,6 +1581,7 @@ export const zOrderDetail = z.object({
     blockers: z.array(zBlocker),
     related: zRelatedOrder.nullish(),
     vehicles: z.array(zVehicle),
+    spec: zOrderSpec.nullish(),
     image_counts: z.record(z.number().int())
 });
 
@@ -1919,6 +1968,20 @@ export const zOrdersNotesPath = z.object({
 });
 
 export const zOrdersNotesResponse = zItemsOrderNote;
+
+export const zOrdersGetSpecPath = z.object({
+    id: z.number().int()
+});
+
+export const zOrdersGetSpecResponse = zOrderSpec;
+
+export const zOrdersPutSpecBody = zSpecBody;
+
+export const zOrdersPutSpecPath = z.object({
+    id: z.number().int()
+});
+
+export const zOrdersPutSpecResponse = zOrderSpec;
 
 export const zOrdersListItemsPath = z.object({
     id: z.number().int()

@@ -13,6 +13,7 @@ pub mod jobs;
 pub mod leads;
 pub mod order_items;
 pub mod order_notes;
+pub mod order_specs;
 pub mod orders;
 pub mod partners;
 pub mod raw_import;

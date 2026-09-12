@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO project_types (key, label_hu, position) VALUES ($1, $2, $3)\n         RETURNING id, key, label_hu, position, is_active",
+  "query": "INSERT INTO project_types (key, label_hu, position, spec_form) VALUES ($1, $2, $3, $4)\n         RETURNING id, key, label_hu, position, is_active, spec_form",
   "describe": {
     "columns": [
       {
@@ -27,13 +27,19 @@
         "ordinal": 4,
         "name": "is_active",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "spec_form",
+        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
         "Text",
         "Text",
-        "Int4"
+        "Int4",
+        "Text"
       ]
     },
     "nullable": [
@@ -41,8 +47,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "32ba852fb2011f30624bb2f45508dc182781ed4aea8e6e080ae856c7d0a262ea"
+  "hash": "9f3f5e4ecee69def658a3a7445eae1a2703bfb5fab77289467d5317a6baf3334"
 }

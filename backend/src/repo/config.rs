@@ -132,12 +132,17 @@ pub struct ProjectType {
     pub label_hu: String,
     pub position: i32,
     pub is_active: bool,
+    /// Which build-spec section the order form shows for this type: `heating`,
+    /// `cooling`, or null for work that has no build spec (repairs). Configuration, so
+    /// the office can retype a category without a deploy.
+    pub spec_form: Option<String>,
 }
 
 pub async fn project_types(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<ProjectType>> {
     sqlx::query_as!(
         ProjectType,
-        "SELECT id, key, label_hu, position, is_active FROM project_types ORDER BY position, id"
+        "SELECT id, key, label_hu, position, is_active, spec_form
+           FROM project_types ORDER BY position, id"
     )
     .fetch_all(db)
     .await
@@ -148,14 +153,16 @@ pub async fn insert_project_type(
     key: &str,
     label_hu: &str,
     position: i32,
+    spec_form: Option<&str>,
 ) -> sqlx::Result<ProjectType> {
     sqlx::query_as!(
         ProjectType,
-        "INSERT INTO project_types (key, label_hu, position) VALUES ($1, $2, $3)
-         RETURNING id, key, label_hu, position, is_active",
+        "INSERT INTO project_types (key, label_hu, position, spec_form) VALUES ($1, $2, $3, $4)
+         RETURNING id, key, label_hu, position, is_active, spec_form",
         key,
         label_hu,
-        position
+        position,
+        spec_form
     )
     .fetch_one(db)
     .await
@@ -167,15 +174,18 @@ pub async fn update_project_type(
     label_hu: &str,
     position: i32,
     is_active: bool,
+    spec_form: Option<&str>,
 ) -> sqlx::Result<Option<ProjectType>> {
     sqlx::query_as!(
         ProjectType,
-        "UPDATE project_types SET label_hu = $2, position = $3, is_active = $4 WHERE id = $1
-         RETURNING id, key, label_hu, position, is_active",
+        "UPDATE project_types SET label_hu = $2, position = $3, is_active = $4, spec_form = $5
+          WHERE id = $1
+         RETURNING id, key, label_hu, position, is_active, spec_form",
         id,
         label_hu,
         position,
-        is_active
+        is_active,
+        spec_form
     )
     .fetch_optional(db)
     .await

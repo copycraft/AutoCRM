@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, key, label_hu, position, is_active FROM project_types ORDER BY position, id",
+  "query": "UPDATE project_types SET label_hu = $2, position = $3, is_active = $4, spec_form = $5\n          WHERE id = $1\n         RETURNING id, key, label_hu, position, is_active, spec_form",
   "describe": {
     "columns": [
       {
@@ -27,18 +27,30 @@
         "ordinal": 4,
         "name": "is_active",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "spec_form",
+        "type_info": "Text"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8",
+        "Text",
+        "Int4",
+        "Bool",
+        "Text"
+      ]
     },
     "nullable": [
       false,
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "5ff8e32915baa3e4e124d012b035d2bfcf8bc07af526182d1bf3106c797c84df"
+  "hash": "525482d945adc108ececc68fb95a6c5e55d32246126e84a3fa2c4716e4c8e7d8"
 }

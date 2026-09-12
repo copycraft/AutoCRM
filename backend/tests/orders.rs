@@ -11,7 +11,7 @@ use autocrm::domain::media::{DocumentKind, ImageCategory};
 use autocrm::domain::role::Role;
 use autocrm::error::AppError;
 use autocrm::repo::images::{self, NewImage};
-use autocrm::repo::{documents, order_items, orders, partners, stages, vehicles};
+use autocrm::repo::{documents, order_items, order_specs, orders, partners, stages, vehicles};
 use autocrm::service::orders::{NewItem, create_in_tx, items_total, order_currency};
 use autocrm::service::stages::change_order_stage;
 
@@ -354,7 +354,10 @@ async fn a_plate_on_an_order_becomes_a_vehicle(pool: PgPool) {
         .unwrap();
     assert_eq!(history.len(), 2, "both jobs hang off the same vehicle");
     // The VIN the second job supplied fills in a blank without overwriting anything.
-    let v = vehicles::find(&pool, vehicles[0].id).await.unwrap().unwrap();
+    let v = vehicles::find(&pool, vehicles[0].id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(v.vin.as_deref(), Some("WDB9066571S123456"));
     assert!(history.iter().any(|(id, _, _)| *id == second.id));
 }
@@ -535,7 +538,10 @@ async fn a_document_can_belong_to_a_lead(pool: PgPool) {
     assert_eq!(doc.lead_id, Some(lead.id));
     assert_eq!(doc.order_id, None);
     assert_eq!(
-        documents::list_for_lead(&pool, lead.id).await.unwrap().len(),
+        documents::list_for_lead(&pool, lead.id)
+            .await
+            .unwrap()
+            .len(),
         1
     );
 
@@ -655,4 +661,90 @@ async fn the_supplier_filter_keeps_customers_visible(pool: PgPool) {
         .unwrap();
     assert_eq!(suppliers.len(), 1);
     assert_eq!(suppliers[0].id, supplier.id);
+}
+
+/// The build spec follows the project type, not the request: a cooling order cannot be
+/// given heater fields, and a project type with no spec form has no spec at all.
+#[sqlx::test(migrations = "./migrations")]
+async fn the_spec_form_comes_from_the_project_type(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::order(&pool, &user, "HUF", vec![]).await;
+
+    let cooling_type: i64 =
+        sqlx::query_scalar("SELECT id FROM project_types WHERE key = 'refrigerated_body'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let repair_type: i64 = sqlx::query_scalar("SELECT id FROM project_types WHERE key = 'repair'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        order_specs::form_for_project_type(&pool, cooling_type)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("cooling")
+    );
+    assert_eq!(
+        order_specs::form_for_project_type(&pool, repair_type)
+            .await
+            .unwrap(),
+        None,
+        "a repair has no build spec section"
+    );
+
+    // Heater fields sent on a cooling order are dropped, not written: `for_form` blanks
+    // them, and the CHECK constraint would refuse the row if it did not.
+    let fields = order_specs::SpecFields {
+        form: "cooling".into(),
+        target_temp_c: Some(dec("-18.0")),
+        insulation_mm: Some(80),
+        cooling_unit_make: Some("Carrier".into()),
+        atp_class: Some("FRC".into()),
+        heater_make: Some("Webasto".into()),
+        heat_output_kw: Some(dec("5.0")),
+        ..Default::default()
+    }
+    .for_form();
+    assert_eq!(fields.heater_make, None);
+    assert_eq!(fields.heat_output_kw, None);
+
+    let written = order_specs::upsert(&pool, order.id, &fields).await.unwrap();
+    assert_eq!(written.form, "cooling");
+    assert_eq!(written.target_temp_c, Some(dec("-18.0")));
+    assert_eq!(written.atp_class.as_deref(), Some("FRC"));
+    assert_eq!(written.heater_make, None);
+
+    // Switching the order to a heating type replaces the spec cleanly rather than leaving
+    // a row that means two things at once.
+    let heating = order_specs::SpecFields {
+        form: "heating".into(),
+        target_temp_c: Some(dec("20.0")),
+        heater_make: Some("Webasto".into()),
+        heat_output_kw: Some(dec("5.0")),
+        fuel: Some("diesel".into()),
+        thermostat: Some(true),
+        cooling_unit_make: Some("Carrier".into()),
+        ..Default::default()
+    }
+    .for_form();
+    let written = order_specs::upsert(&pool, order.id, &heating)
+        .await
+        .unwrap();
+    assert_eq!(written.form, "heating");
+    assert_eq!(written.cooling_unit_make, None);
+    assert_eq!(written.heater_make.as_deref(), Some("Webasto"));
+
+    // The database refuses a mismatched row even if a future code path builds one.
+    let refused =
+        sqlx::query("UPDATE order_specs SET cooling_unit_make = 'Carrier' WHERE order_id = $1")
+            .bind(order.id)
+            .execute(&pool)
+            .await;
+    assert!(
+        refused.is_err(),
+        "a heating spec must not hold cooling fields"
+    );
 }

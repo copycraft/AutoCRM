@@ -2723,6 +2723,120 @@
         }
       }
     },
+    "/orders/{id}/spec": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "orders_get_spec",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderSpec"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Replaces the build spec. The form comes from the order's project type, never from the\nrequest: a cooling order cannot be given a heating spec by sending one.",
+        "operationId": "orders_put_spec",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpecBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderSpec"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/orders/{id}/items": {
       "get": {
         "tags": [
@@ -6539,6 +6653,13 @@
           "position": {
             "type": "integer",
             "format": "int32"
+          },
+          "spec_form": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`heating` | `cooling` | omitted. Decides which build-spec section the order form\nshows for this type; omitted means the type has no build spec."
           }
         }
       },
@@ -8842,6 +8963,13 @@
                 },
                 "is_active": {
                   "type": "boolean"
+                },
+                "spec_form": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Which build-spec section the order form shows for this type: `heating`,\n`cooling`, or null for work that has no build spec (repairs). Configuration, so\nthe office can retype a category without a deploy."
                 }
               }
             }
@@ -10064,6 +10192,17 @@
             ],
             "description": "`warranty` | `rework` | `repeat`."
           },
+          "spec": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SpecBody",
+                "description": "The build specification, when the chosen project type asks for one. Written in the\nsame transaction as the order so a failed second request cannot leave a build with\nno spec."
+              }
+            ]
+          },
           "items": {
             "type": "array",
             "items": {
@@ -10126,6 +10265,17 @@
               "$ref": "#/components/schemas/Vehicle"
             },
             "description": "V2.1: the vans this job covers. Usually one; three identical Sprinters from one\nenquiry is the case the join table exists for."
+          },
+          "spec": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrderSpec",
+                "description": "The build specification, when the project type asks for one."
+              }
+            ]
           },
           "image_counts": {
             "type": "object",
@@ -10243,6 +10393,122 @@
           },
           "number": {
             "type": "string"
+          }
+        }
+      },
+      "OrderSpec": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "form",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "form": {
+            "type": "string",
+            "description": "`heating` | `cooling`."
+          },
+          "target_temp_c": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "insulation_mm": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "cooling_unit_make": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cooling_unit_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "atp_class": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ATP classification (FNA, FRC, …). Free text until the real list is confirmed."
+          },
+          "compartments": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "defrost": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`automatic` | `manual` | `hot_gas`."
+          },
+          "electric_standby": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "heater_make": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "heater_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "heat_output_kw": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fuel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`diesel` | `electric` | `lpg` | `engine_coolant`."
+          },
+          "thermostat": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -10852,6 +11118,13 @@
               "boolean",
               "null"
             ]
+          },
+          "spec_form": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absent keeps the current form; explicit null removes the build-spec section."
           }
         }
       },
@@ -11107,6 +11380,13 @@
           },
           "is_active": {
             "type": "boolean"
+          },
+          "spec_form": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Which build-spec section the order form shows for this type: `heating`,\n`cooling`, or null for work that has no build spec (repairs). Configuration, so\nthe office can retype a category without a deploy."
           }
         }
       },
@@ -11471,6 +11751,100 @@
           "email": {
             "$ref": "#/components/schemas/EmailTransportBody",
             "description": "Email transport overrides; absent keeps everything stored."
+          }
+        }
+      },
+      "SpecBody": {
+        "type": "object",
+        "description": "The build spec as the form sends it. `form` is not taken on trust: it must match what\nthe order's project type asks for, or the row would mean something the office did not\nchoose.",
+        "properties": {
+          "target_temp_c": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "insulation_mm": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "cooling_unit_make": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cooling_unit_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "atp_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "compartments": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "defrost": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`automatic` | `manual` | `hot_gas`."
+          },
+          "electric_standby": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "heater_make": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "heater_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "heat_output_kw": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fuel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`diesel` | `electric` | `lpg` | `engine_coolant`."
+          },
+          "thermostat": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

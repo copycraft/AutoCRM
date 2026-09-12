@@ -11,7 +11,15 @@ import { configApi, partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { PartnerPicker, type PartnerOption } from './PartnerPicker';
 import { AssigneeField } from './AssigneeField';
-import type { Order, OrderBody, PatchOrder } from '@/lib/api/types';
+import { BuildSpecSection, type SpecForm } from './BuildSpecSection';
+import type {
+  Order,
+  OrderBody,
+  OrderSpec,
+  PatchOrder,
+  ProjectType,
+  SpecBody,
+} from '@/lib/api/types';
 
 const schema = z.object({
   title: z.string().trim().min(1),
@@ -29,6 +37,22 @@ const schema = z.object({
   description: z.string().trim().optional(),
   due_date: z.string(),
   assigned_to: z.custom<number | null | 'me'>(() => true),
+  // Build specification. Which of these the user sees depends on the chosen project type's
+  // spec_form; the ones that do not apply are never sent.
+  target_temp_c: z.string().trim().optional(),
+  insulation_mm: z.string().trim().optional(),
+  cooling_unit_make: z.string().trim().optional(),
+  cooling_unit_model: z.string().trim().optional(),
+  atp_class: z.string().trim().optional(),
+  compartments: z.string().trim().optional(),
+  defrost: z.string().trim().optional(),
+  electric_standby: z.boolean().optional(),
+  heater_make: z.string().trim().optional(),
+  heater_model: z.string().trim().optional(),
+  heat_output_kw: z.string().trim().optional(),
+  fuel: z.string().trim().optional(),
+  thermostat: z.boolean().optional(),
+  spec_notes: z.string().trim().optional(),
 });
 
 export type OrderFormValues = z.infer<typeof schema>;
@@ -42,7 +66,62 @@ function assignee(v: OrderFormValues['assigned_to'], meId: number | undefined): 
   return v === 'me' ? (meId ?? null) : v;
 }
 
-export function orderCreateBody(v: OrderFormValues, meId: number | undefined): OrderBody {
+/**
+ * The build spec, or undefined when the project type asks for none.
+ *
+ * Only the chosen variant's fields are sent. The backend blanks the other variant's
+ * columns anyway and the database refuses a row that mixes them, but sending a heater
+ * make on a cooling order would still be a lie about what the user filled in.
+ */
+export function orderSpecBody(v: OrderFormValues, form: SpecForm | null): SpecBody | undefined {
+  if (!form) return undefined;
+  const clean = (x: string | undefined) => (x?.trim() ? x.trim() : undefined);
+  const int = (x: string | undefined) => {
+    const n = Number(clean(x));
+    return clean(x) && Number.isFinite(n) ? Math.trunc(n) : undefined;
+  };
+  const shared = {
+    target_temp_c: clean(v.target_temp_c),
+    insulation_mm: int(v.insulation_mm),
+    notes: clean(v.spec_notes),
+  };
+  return form === 'cooling'
+    ? {
+        ...shared,
+        cooling_unit_make: clean(v.cooling_unit_make),
+        cooling_unit_model: clean(v.cooling_unit_model),
+        atp_class: clean(v.atp_class),
+        compartments: int(v.compartments),
+        defrost: clean(v.defrost),
+        electric_standby: v.electric_standby ?? false,
+      }
+    : {
+        ...shared,
+        heater_make: clean(v.heater_make),
+        heater_model: clean(v.heater_model),
+        heat_output_kw: clean(v.heat_output_kw),
+        fuel: clean(v.fuel),
+        thermostat: v.thermostat ?? false,
+      };
+}
+
+/** The spec form a project type asks for, if any. */
+export function specFormOf(
+  projectTypes: ProjectType[] | undefined,
+  projectTypeId: string,
+): SpecForm | null {
+  if (!projectTypeId) return null;
+  const found = projectTypes?.find((p) => p.id === Number(projectTypeId));
+  return found?.spec_form === 'heating' || found?.spec_form === 'cooling'
+    ? found.spec_form
+    : null;
+}
+
+export function orderCreateBody(
+  v: OrderFormValues,
+  meId: number | undefined,
+  specForm: SpecForm | null,
+): OrderBody {
   const clean = (s: string | undefined) => (s?.trim() ? s.trim() : undefined);
   const date = (s: string) => (s ? s : undefined);
   return {
@@ -60,6 +139,7 @@ export function orderCreateBody(v: OrderFormValues, meId: number | undefined): O
     description: clean(v.description),
     due_date: date(v.due_date),
     assigned_to: assignee(v.assigned_to, meId),
+    spec: orderSpecBody(v, specForm),
     items: [],
   };
 }
@@ -108,15 +188,18 @@ export function orderPatchBody(
 export function OrderForm({
   initial,
   initialPartner,
+  initialSpec,
   currencyLocked,
   onSubmit,
   submitLabel,
 }: {
   initial?: Order;
   initialPartner?: PartnerOption | null;
+  /** The order's existing build spec, so editing starts from what was recorded. */
+  initialSpec?: OrderSpec | null;
   /** True while the order has items — currency select disabled. */
   currencyLocked?: boolean;
-  onSubmit: (v: OrderFormValues, contactDirty: boolean) => Promise<void>;
+  onSubmit: (v: OrderFormValues, contactDirty: boolean, specForm: SpecForm | null) => Promise<void>;
   submitLabel: string;
 }) {
   const t = useTranslations('orders');
@@ -142,6 +225,20 @@ export function OrderForm({
       description: initial?.description ?? '',
       due_date: initial?.due_date ?? '',
       assigned_to: initial?.assigned_to ?? null,
+      target_temp_c: initialSpec?.target_temp_c ?? '',
+      insulation_mm: initialSpec?.insulation_mm != null ? String(initialSpec.insulation_mm) : '',
+      cooling_unit_make: initialSpec?.cooling_unit_make ?? '',
+      cooling_unit_model: initialSpec?.cooling_unit_model ?? '',
+      atp_class: initialSpec?.atp_class ?? '',
+      compartments: initialSpec?.compartments != null ? String(initialSpec.compartments) : '',
+      defrost: initialSpec?.defrost ?? '',
+      electric_standby: initialSpec?.electric_standby ?? false,
+      heater_make: initialSpec?.heater_make ?? '',
+      heater_model: initialSpec?.heater_model ?? '',
+      heat_output_kw: initialSpec?.heat_output_kw ?? '',
+      fuel: initialSpec?.fuel ?? '',
+      thermostat: initialSpec?.thermostat ?? false,
+      spec_notes: initialSpec?.notes ?? '',
     },
   });
 
@@ -155,6 +252,9 @@ export function OrderForm({
     queryKey: qk.projectTypes,
     queryFn: () => configApi.projectTypes(),
   });
+  // The section below the vehicle fields changes as this changes: cooling types show the
+  // refrigeration fields, heating types the heater fields, a repair neither.
+  const specForm = specFormOf(projectTypes.data?.items, watch('project_type_id'));
 
   return (
     <form
@@ -167,7 +267,7 @@ export function OrderForm({
           return;
         }
         try {
-          await onSubmit(v, !!formState.dirtyFields.contact_id);
+          await onSubmit(v, !!formState.dirtyFields.contact_id, specForm);
         } catch (e) {
           setServerError(errorMessage(e, ter, ter('unknownError')));
         }
@@ -281,6 +381,8 @@ export function OrderForm({
             <AssigneeField label={t('assignedTo')} value={field.value} onChange={field.onChange} />
           )}
         />
+
+        <BuildSpecSection form={specForm} register={register} />
       </div>
       <div className="card-footer justify-end">
         <button className="btn-primary" type="submit" disabled={formState.isSubmitting}>

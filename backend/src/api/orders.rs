@@ -25,12 +25,13 @@ use crate::repo::audit::AuditEntry;
 use crate::repo::blockers::Blocker;
 use crate::repo::order_items::OrderItem;
 use crate::repo::order_notes::OrderNote;
+use crate::repo::order_specs::{OrderSpec, SpecFields};
 use crate::repo::orders::{Order, OrderFields, OrderFilter, OrderSummary, OrderValue};
 use crate::repo::stages::StageEntry;
 use crate::repo::vehicles::{self, Vehicle};
 use crate::repo::{
-    audit, blockers, config, images, like_pattern, order_items, order_notes, orders, parse_sort,
-    partners, stages,
+    audit, blockers, config, images, like_pattern, order_items, order_notes, order_specs, orders,
+    parse_sort, partners, stages,
 };
 use crate::service;
 use crate::service::orders::{
@@ -47,6 +48,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(stage_history))
         .routes(routes!(audit_trail))
         .routes(routes!(notes))
+        .routes(routes!(get_spec, put_spec))
         .routes(routes!(list_items, add_item))
         .routes(routes!(update_item, delete_item))
 }
@@ -153,8 +155,93 @@ pub struct OrderBody {
     pub related_order_id: Option<i64>,
     /// `warranty` | `rework` | `repeat`.
     pub relation: Option<String>,
+    /// The build specification, when the chosen project type asks for one. Written in the
+    /// same transaction as the order so a failed second request cannot leave a build with
+    /// no spec.
+    pub spec: Option<SpecBody>,
     #[serde(default)]
     pub items: Vec<ItemBody>,
+}
+
+/// The build spec as the form sends it. `form` is not taken on trust: it must match what
+/// the order's project type asks for, or the row would mean something the office did not
+/// choose.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct SpecBody {
+    pub target_temp_c: Option<String>,
+    pub insulation_mm: Option<i32>,
+    pub cooling_unit_make: Option<String>,
+    pub cooling_unit_model: Option<String>,
+    pub atp_class: Option<String>,
+    pub compartments: Option<i32>,
+    /// `automatic` | `manual` | `hot_gas`.
+    pub defrost: Option<String>,
+    pub electric_standby: Option<bool>,
+    pub heater_make: Option<String>,
+    pub heater_model: Option<String>,
+    pub heat_output_kw: Option<String>,
+    /// `diesel` | `electric` | `lpg` | `engine_coolant`.
+    pub fuel: Option<String>,
+    pub thermostat: Option<bool>,
+    pub notes: Option<String>,
+}
+
+fn decimal_field(name: &str, value: Option<String>) -> AppResult<Option<Decimal>> {
+    match optional(value) {
+        // Hungarian keyboards produce a comma; refusing it would be a UI bug, not a rule.
+        Some(s) => Ok(Some(s.replace(',', ".").parse::<Decimal>().map_err(
+            |_| AppError::validation(format!("{name} must be a number")),
+        )?)),
+        None => Ok(None),
+    }
+}
+
+fn spec_fields(form: &str, b: SpecBody) -> AppResult<SpecFields> {
+    if let Some(d) = optional(b.defrost.clone())
+        && !matches!(d.as_str(), "automatic" | "manual" | "hot_gas")
+    {
+        return Err(AppError::validation(
+            "defrost must be automatic, manual or hot_gas",
+        ));
+    }
+    if let Some(f) = optional(b.fuel.clone())
+        && !matches!(f.as_str(), "diesel" | "electric" | "lpg" | "engine_coolant")
+    {
+        return Err(AppError::validation(
+            "fuel must be diesel, electric, lpg or engine_coolant",
+        ));
+    }
+    Ok(SpecFields {
+        form: form.to_string(),
+        target_temp_c: decimal_field("target_temp_c", b.target_temp_c)?,
+        insulation_mm: b.insulation_mm,
+        cooling_unit_make: optional(b.cooling_unit_make),
+        cooling_unit_model: optional(b.cooling_unit_model),
+        atp_class: optional(b.atp_class).map(|s| s.to_uppercase()),
+        compartments: b.compartments,
+        defrost: optional(b.defrost),
+        electric_standby: b.electric_standby,
+        heater_make: optional(b.heater_make),
+        heater_model: optional(b.heater_model),
+        heat_output_kw: decimal_field("heat_output_kw", b.heat_output_kw)?,
+        fuel: optional(b.fuel),
+        thermostat: b.thermostat,
+        notes: optional(b.notes),
+    }
+    .for_form())
+}
+
+/// The spec form this order's project type asks for. `None` means the type has no build
+/// spec (a repair), and a spec sent for it is a validation error rather than a silent
+/// write nobody can see.
+async fn required_form(
+    conn: &mut sqlx::PgConnection,
+    project_type_id: Option<i64>,
+) -> AppResult<Option<String>> {
+    match project_type_id {
+        Some(id) => Ok(order_specs::form_for_project_type(&mut *conn, id).await?),
+        None => Ok(None),
+    }
 }
 
 pub fn fields_from_body(
@@ -208,9 +295,26 @@ async fn create(
         .partner_id
         .ok_or_else(|| AppError::validation("partner_id is required"))?;
     let today = service::business_today(state.config.business_tz);
+    let spec = b.spec.clone();
+    let project_type_id = b.project_type_id;
     let (fields, items) = fields_from_body(b, partner_id, today, None)?;
     let mut tx = state.db.begin().await?;
     let order = create_in_tx(&mut tx, me.user_id, today, fields, items, None).await?;
+    if let Some(spec) = spec {
+        let form = required_form(&mut tx, project_type_id)
+            .await?
+            .ok_or_else(|| AppError::validation("this project type has no build specification"))?;
+        let written = order_specs::upsert(&mut *tx, order.id, &spec_fields(&form, spec)?).await?;
+        audit::record(
+            &mut *tx,
+            Some(me.user_id),
+            "order",
+            order.id,
+            "spec_set",
+            json!({ "form": written.form }),
+        )
+        .await?;
+    }
     tx.commit().await?;
     Ok((StatusCode::CREATED, Json(order)))
 }
@@ -260,6 +364,8 @@ struct OrderDetail {
     /// V2.1: the vans this job covers. Usually one; three identical Sprinters from one
     /// enquiry is the case the join table exists for.
     vehicles: Vec<Vehicle>,
+    /// The build specification, when the project type asks for one.
+    spec: Option<OrderSpec>,
     /// Image count per category; categories without images are absent.
     #[schema(value_type = HashMap<String, i64>)]
     image_counts: HashMap<ImageCategory, i64>,
@@ -352,6 +458,7 @@ async fn detail(
             _ => None,
         },
         vehicles: vehicles::list_for_order(&state.db, id).await?,
+        spec: order_specs::find(&state.db, id).await?,
         order,
     }))
 }
@@ -572,6 +679,58 @@ async fn notes(
     Ok(Items::new(
         order_notes::list_for_order(&state.db, id).await?,
     ))
+}
+
+#[utoipa::path(
+    get, path = "/orders/{id}/spec", tag = "orders",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = OrderSpec), (status = 404))
+)]
+async fn get_spec(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<OrderSpec>> {
+    order_specs::find(&state.db, id)
+        .await?
+        .map(Json)
+        .ok_or(AppError::NotFound("order spec"))
+}
+
+/// Replaces the build spec. The form comes from the order's project type, never from the
+/// request: a cooling order cannot be given a heating spec by sending one.
+#[utoipa::path(
+    put, path = "/orders/{id}/spec", tag = "orders",
+    params(("id" = i64, Path)),
+    request_body = SpecBody,
+    responses((status = 200, body = OrderSpec))
+)]
+async fn put_spec(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<SpecBody>,
+) -> AppResult<Json<OrderSpec>> {
+    me.require(Capability::EditOrders)?;
+    let mut tx = state.db.begin().await?;
+    let order = orders::lock(&mut *tx, id)
+        .await?
+        .ok_or(AppError::NotFound("order"))?;
+    let form = required_form(&mut tx, order.project_type_id)
+        .await?
+        .ok_or_else(|| AppError::validation("this project type has no build specification"))?;
+    let spec = order_specs::upsert(&mut *tx, id, &spec_fields(&form, b)?).await?;
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "order",
+        id,
+        "spec_set",
+        json!({ "form": spec.form }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Json(spec))
 }
 
 #[derive(Deserialize, IntoParams)]

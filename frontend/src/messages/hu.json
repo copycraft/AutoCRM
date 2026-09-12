@@ -624,5 +624,33 @@
     "fieldCount": "{shown} / {total} mező",
     "field": "Mező",
     "value": "Érték"
+  },
+  "spec": {
+    "coolingTitle": "Hűtési specifikáció",
+    "heatingTitle": "Fűtési specifikáció",
+    "explanation": "A projekttípus dönti el, melyik szakasz jelenik meg. Javításnál egyik sem.",
+    "targetTemp": "Kívánt hőmérséklet (°C)",
+    "insulation": "Szigetelés (mm)",
+    "coolingUnitMake": "Hűtőgép gyártó",
+    "coolingUnitModel": "Hűtőgép típus",
+    "atpClass": "ATP osztály",
+    "compartments": "Hőmérsékleti zónák",
+    "defrost": "Leolvasztás",
+    "defrostAutomatic": "Automatikus",
+    "defrostManual": "Kézi",
+    "defrostHotGas": "Forrógázas",
+    "electricStandby": "Hálózati standby",
+    "heaterMake": "Fűtőkészülék gyártó",
+    "heaterModel": "Fűtőkészülék típus",
+    "heatOutput": "Fűtőteljesítmény (kW)",
+    "fuel": "Energiaforrás",
+    "fuelDiesel": "Dízel",
+    "fuelElectric": "Elektromos",
+    "fuelLpg": "LPG",
+    "fuelEngineCoolant": "Motorhűtőfolyadék",
+    "thermostat": "Termosztát",
+    "notes": "Megjegyzés",
+    "section": "Specifikáció",
+    "none": "Ehhez a projekttípushoz nincs specifikáció."
   }
 }

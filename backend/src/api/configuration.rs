@@ -12,7 +12,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
-use super::{Items, patch as patch_field, required};
+use super::{Items, optional, patch as patch_field, required};
 use crate::AppState;
 use crate::config::{AppEnv, check_smtp_target};
 use crate::domain::email::normalize_address;
@@ -273,6 +273,9 @@ struct CreateProjectType {
     key: String,
     label_hu: String,
     position: i32,
+    /// `heating` | `cooling` | omitted. Decides which build-spec section the order form
+    /// shows for this type; omitted means the type has no build spec.
+    spec_form: Option<String>,
 }
 
 #[utoipa::path(
@@ -291,12 +294,14 @@ async fn create_project_type(
             "key must be lowercase letters, digits and underscores, starting with a letter",
         ));
     }
+    let spec_form = validate_spec_form(b.spec_form)?;
     let mut tx = state.db.begin().await?;
     let created = config::insert_project_type(
         &mut *tx,
         &b.key,
         &required("label_hu", &b.label_hu)?,
         b.position,
+        spec_form.as_deref(),
     )
     .await?;
     audit::record(
@@ -317,6 +322,19 @@ struct PatchProjectType {
     label_hu: Option<String>,
     position: Option<i32>,
     is_active: Option<bool>,
+    /// Absent keeps the current form; explicit null removes the build-spec section.
+    #[serde(default, deserialize_with = "patch_field")]
+    spec_form: Option<Option<String>>,
+}
+
+/// `heating` | `cooling` | none. A typo here would silently hide the spec section on
+/// every order of that type, so it is rejected rather than ignored.
+fn validate_spec_form(value: Option<String>) -> AppResult<Option<String>> {
+    match optional(value) {
+        Some(f) if matches!(f.as_str(), "heating" | "cooling") => Ok(Some(f)),
+        Some(_) => Err(AppError::validation("spec_form must be heating or cooling")),
+        None => Ok(None),
+    }
 }
 
 #[utoipa::path(
@@ -342,12 +360,17 @@ async fn update_project_type(
         "label_hu",
         &p.label_hu.unwrap_or_else(|| current.label_hu.clone()),
     )?;
+    let spec_form = match p.spec_form {
+        Some(v) => validate_spec_form(v)?,
+        None => current.spec_form.clone(),
+    };
     let updated = config::update_project_type(
         &mut *tx,
         id,
         &label,
         p.position.unwrap_or(current.position),
         p.is_active.unwrap_or(current.is_active),
+        spec_form.as_deref(),
     )
     .await?
     .ok_or(AppError::NotFound("project type"))?;

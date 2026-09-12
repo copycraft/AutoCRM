@@ -54,6 +54,8 @@ export interface Items<T> {
 export type AuditEntry = Schemas['AuditEntry'];
 export type OrderNote = Schemas['OrderNote'];
 export type Vehicle = Schemas['Vehicle'];
+export type OrderSpec = Schemas['OrderSpec'];
+export type SpecBody = Schemas['SpecBody'];
 export type Document = Schemas['Document'];
 export type RawImportView = Schemas['RawImportView'];
 export type Blocker = Schemas['Blocker'];

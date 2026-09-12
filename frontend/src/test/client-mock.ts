@@ -19,7 +19,9 @@ const EXACT: Record<string, Handler> = {
   '/emails': () => ({ items: [f.emailSummary] }),
   '/email-templates': () => ({ items: [] }),
   '/email-suppressions': () => ({ items: [] }),
-  '/project-types': () => ({ items: [f.projectType] }),
+  '/project-types': () => ({
+    items: [f.coolingProjectType, f.heatingProjectType, f.plainProjectType],
+  }),
   '/settings': () => f.settings,
 };
 

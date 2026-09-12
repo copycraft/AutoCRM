@@ -17,6 +17,7 @@ import type {
   OrderSummary,
   Partner,
   PartnerDetail,
+  OrderSpec,
   ProjectType,
   RawImportView,
   SessionUser,
@@ -225,6 +226,27 @@ export const vehicle: Vehicle = {
   updated_at: NOW,
 };
 
+export const orderSpec: OrderSpec = {
+  order_id: 3,
+  form: 'cooling',
+  target_temp_c: '-18.0',
+  insulation_mm: 80,
+  cooling_unit_make: 'Carrier',
+  cooling_unit_model: 'Xarios 600',
+  atp_class: 'FRC',
+  compartments: 1,
+  defrost: 'automatic',
+  electric_standby: true,
+  heater_make: null,
+  heater_model: null,
+  heat_output_kw: null,
+  fuel: null,
+  thermostat: null,
+  notes: null,
+  created_at: NOW,
+  updated_at: NOW,
+};
+
 export const orderDetail: OrderDetail = {
   order,
   partner: { id: partner.id, name: partner.name },
@@ -252,6 +274,7 @@ export const orderDetail: OrderDetail = {
     relation: 'warranty',
   },
   vehicles: [vehicle],
+  spec: orderSpec,
   image_counts: { intake: 3, completion: 2 },
 };
 
@@ -379,13 +402,37 @@ export const leadStageDefinitions: StageDefinition[] = [
   },
 ];
 
-export const projectType: ProjectType = {
+/** A type whose orders carry a refrigeration spec. */
+export const coolingProjectType: ProjectType = {
   id: 1,
-  key: 'cooling',
+  key: 'unit_install',
   label_hu: 'Hűtőgép beépítés',
   position: 1,
   is_active: true,
+  spec_form: 'cooling',
 };
+
+/** A type whose orders carry a heater spec. */
+export const heatingProjectType: ProjectType = {
+  id: 2,
+  key: 'heated_body',
+  label_hu: 'Fűtött felépítmény',
+  position: 2,
+  is_active: true,
+  spec_form: 'heating',
+};
+
+/** A type with no build spec at all — a repair. */
+export const plainProjectType: ProjectType = {
+  id: 3,
+  key: 'repair',
+  label_hu: 'Javítás / átalakítás',
+  position: 3,
+  is_active: true,
+  spec_form: null,
+};
+
+export const projectType = coolingProjectType;
 
 export const settings: Settings = {
   automatic_email_enabled: true,
