@@ -44,7 +44,7 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-metadata font-medium text-steel-500">{label}</dt>
-      <dd className="text-sm">{value}</dd>
+      <dd className="text-body">{value}</dd>
     </div>
   );
 }
@@ -113,7 +113,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
         <DetailSkeleton />
       ) : detail.isError || !detail.data ? (
         <>
-          <PageHeader title={t('title')} />
+          <PageHeader size="record" title={t('title')} />
           <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         </>
       ) : (
@@ -121,7 +121,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
           const email = detail.data;
           return (
             <>
-              <PageHeader
+              <PageHeader size="record"
                 title={email.subject}
                 subtitle={email.to_address}
                 actions={
@@ -150,24 +150,24 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
                 )}
               </div>
               {actionError && (
-                <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">
+                <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">
                   {actionError}
                 </p>
               )}
 
               {email.status === 'needs_review' && (
-                <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="note">
+                <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="note">
                   {t('needsReviewWarning')}
                 </p>
               )}
               {email.error && (
-                <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">
+                <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">
                   {t('errorLabel')}: {email.error}
                 </p>
               )}
 
-              <section className="card">
-                <div className="card-content grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Info label={t('to')} value={email.to_address} />
                   <Info label={t('cc')} value={email.cc.length > 0 ? email.cc.join(', ') : '—'} />
                   <Info label={t('sentBy')} value={sentByName} />
@@ -191,12 +191,10 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
                 </div>
               </section>
 
-              <section className="card">
-                <div className="card-header">
-                  <h2 className="text-section font-semibold">{t('body')}</h2>
-                </div>
-                <div className="card-content">
-                  <pre className="whitespace-pre-wrap font-sans text-sm">{email.body_text}</pre>
+              <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                <h2 className="text-section font-semibold">{t('body')}</h2>
+                <div className="mt-3">
+                  <pre className="whitespace-pre-wrap font-sans text-body">{email.body_text}</pre>
                 </div>
               </section>
 

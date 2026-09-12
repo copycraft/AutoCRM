@@ -41,7 +41,7 @@ export function ConfirmDialog({
           {body && (
             <Dialog.Description asChild>
               <div className="card-content">
-                <p className="text-sm">{body}</p>
+                <p className="text-body">{body}</p>
               </div>
             </Dialog.Description>
           )}

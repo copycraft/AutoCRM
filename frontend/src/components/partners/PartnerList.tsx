@@ -114,7 +114,7 @@ export function PartnerList({
             }}
           />
         </FilterField>
-        <label className="flex items-center gap-2 pb-2 text-sm">
+        <label className="flex items-center gap-2 pb-2 text-body">
           <input
             type="checkbox"
             className="rounded border-steel-200 accent-steel-900"

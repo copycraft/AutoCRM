@@ -44,7 +44,7 @@ export function Sidebar() {
           <Snowflake className="h-5 w-5" aria-hidden />
         </span>
         <span className="leading-tight">
-          <span className="block text-sm font-semibold tracking-wide">AUTOTHERM</span>
+          <span className="block text-body font-semibold tracking-wide">AUTOTHERM</span>
           <span className="block text-metadata text-steel-500">AutoCRM</span>
         </span>
       </Link>
@@ -60,7 +60,7 @@ export function Sidebar() {
               href={href}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium transition-colors',
                 active ? 'bg-steel-900 text-surface' : 'text-steel-900 hover:bg-panel',
               )}
             >
@@ -73,7 +73,7 @@ export function Sidebar() {
 
       <div className="border-t border-steel-200 p-3">
         <div className="px-2 pb-2">
-          <p className="text-sm font-medium truncate">{user?.display_name}</p>
+          <p className="text-body font-medium truncate">{user?.display_name}</p>
           <p className="text-metadata text-steel-500 truncate">{user?.email}</p>
         </div>
         <Link href={`/${locale}/preferences`} className="btn-ghost btn-sm w-full justify-start">

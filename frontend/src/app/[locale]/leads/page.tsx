@@ -183,7 +183,7 @@ export default function LeadsPage() {
             ))}
           </select>
           {stagesQuery.isError && (
-            <span className="text-xs text-steel-900" role="alert">
+            <span className="text-metadata text-steel-900" role="alert">
               {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
             </span>
           )}
@@ -198,7 +198,7 @@ export default function LeadsPage() {
             setOffset(0);
           }}
         />
-        <label className="flex items-center gap-2 pb-2 text-sm">
+        <label className="flex items-center gap-2 pb-2 text-body">
           <input
             type="checkbox"
             className="rounded border-steel-200 accent-steel-900"

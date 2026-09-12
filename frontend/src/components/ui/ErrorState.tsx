@@ -19,10 +19,10 @@ export function ErrorState({
       ? te('permissionDenied')
       : errorMessage(error, ter, ter('unknownError'));
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-steel-200 bg-panel px-6 py-12 text-center" role="alert">
+    <div className="flex flex-col items-start justify-center gap-2 rounded-xl border border-steel-200 bg-panel px-6 py-12 text-left" role="alert">
       <TriangleAlert className="h-8 w-8 text-steel-900" aria-hidden />
-      <p className="text-sm font-medium">{ter('title')}</p>
-      <p className="text-sm text-steel-900 max-w-md">{message}</p>
+      <p className="text-body font-medium">{ter('title')}</p>
+      <p className="text-body text-steel-900 max-w-md">{message}</p>
       {onRetry && (
         <button className="btn-secondary btn-sm mt-3" onClick={onRetry}>
           {ter('retry')}

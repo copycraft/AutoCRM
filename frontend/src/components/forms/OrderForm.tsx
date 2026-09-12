@@ -175,14 +175,14 @@ export function OrderForm({
     >
       {serverError && (
         <div className="card-content pb-0">
-          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{serverError}</p>
+          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{serverError}</p>
         </div>
       )}
       <div className="card-content grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
           <label className="label" htmlFor="of-title">{t('fieldTitle')} *</label>
           <input id="of-title" className="input" {...register('title')} />
-          {formState.errors.title && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
+          {formState.errors.title && <p className="mt-1 text-metadata text-steel-900">{tv('required')}</p>}
         </div>
         <Controller
           control={control}
@@ -197,7 +197,7 @@ export function OrderForm({
                 }}
                 label={`${tc('partner')} *`}
               />
-              {partnerError && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
+              {partnerError && <p className="mt-1 text-metadata text-steel-900">{tv('required')}</p>}
             </div>
           )}
         />
@@ -207,7 +207,7 @@ export function OrderForm({
             <option value="HUF">HUF</option>
             <option value="EUR">EUR</option>
           </select>
-          {currencyLocked && <p className="mt-1 text-xs text-steel-500">{t('currencyLocked')}</p>}
+          {currencyLocked && <p className="mt-1 text-metadata text-steel-500">{t('currencyLocked')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="of-contact">{tc('contact')}</label>
@@ -222,11 +222,11 @@ export function OrderForm({
               ))}
           </select>
           {contactsQuery.isError && (
-            <p className="mt-1 text-xs text-steel-900" role="alert">
+            <p className="mt-1 text-metadata text-steel-900" role="alert">
               {errorMessage(contactsQuery.error, ter, ter('unknownError'))}
             </p>
           )}
-          {initial && <p className="mt-1 text-xs text-steel-500">{t('contactClearedNote')}</p>}
+          {initial && <p className="mt-1 text-metadata text-steel-500">{t('contactClearedNote')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="of-pt">{t('projectType')}</label>
@@ -241,7 +241,7 @@ export function OrderForm({
               ))}
           </select>
           {projectTypes.isError && (
-            <p className="mt-1 text-xs text-steel-900" role="alert">
+            <p className="mt-1 text-metadata text-steel-900" role="alert">
               {errorMessage(projectTypes.error, ter, ter('unknownError'))}
             </p>
           )}

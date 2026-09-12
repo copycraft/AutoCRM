@@ -86,7 +86,7 @@ export function PartnerPicker({
       <label className="label" htmlFor={inputId}>{label}</label>
       {value ? (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-steel-200 bg-surface px-3 py-2">
-          <span className="text-sm font-medium truncate">{value.name}</span>
+          <span className="text-body font-medium truncate">{value.name}</span>
           <button type="button" className="btn-ghost btn-sm shrink-0" onClick={() => onChange(null)}>
             {tc('clear')}
           </button>
@@ -113,7 +113,7 @@ export function PartnerPicker({
             onBlur={() => setOpen(false)}
           />
           {search.isError && (
-            <p className="mt-1 text-xs text-steel-900" role="alert">
+            <p className="mt-1 text-metadata text-steel-900" role="alert">
               {errorMessage(search.error, ter, ter('unknownError'))}
             </p>
           )}
@@ -125,7 +125,7 @@ export function PartnerPicker({
               aria-label={label}
               className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-steel-200 bg-surface shadow-card"
             >
-              {search.isLoading && <p className="px-3 py-2 text-sm text-steel-500">{tc('loading')}</p>}
+              {search.isLoading && <p className="px-3 py-2 text-metadata text-steel-500">{tc('loading')}</p>}
               {results.map((p, i) => (
                 <div
                   key={p.id}
@@ -135,7 +135,7 @@ export function PartnerPicker({
                   aria-selected={i === active}
                   tabIndex={-1}
                   className={cn(
-                    'block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-panel',
+                    'block w-full cursor-pointer px-3 py-2 text-left text-body hover:bg-panel',
                     i === active && 'bg-panel',
                   )}
                   onMouseDown={(e) => {
@@ -150,12 +150,12 @@ export function PartnerPicker({
                 </div>
               ))}
               {search.data && results.length === 0 && (
-                <p className="px-3 py-2 text-sm text-steel-500">{te('searchNoResults')}</p>
+                <p className="px-3 py-2 text-metadata text-steel-500">{te('searchNoResults')}</p>
               )}
               <button
                 type="button"
                 tabIndex={-1}
-                className="block w-full px-3 py-2 text-left text-xs text-steel-500 hover:bg-panel"
+                className="block w-full px-3 py-2 text-left text-metadata text-steel-500 hover:bg-panel"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   setOpen(false);

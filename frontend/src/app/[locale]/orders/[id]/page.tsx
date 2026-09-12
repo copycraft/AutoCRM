@@ -11,7 +11,7 @@ import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Money } from '@/components/ui/Money';
-import { StageRail, StageHistoryList } from '@/components/ui/StageRail';
+import { StageRail, StageHistoryList, TravellerStrip } from '@/components/ui/StageRail';
 import { OrderForm, orderPatchBody, type OrderFormValues } from '@/components/forms/OrderForm';
 import { ItemsSection } from '@/components/forms/ItemsSection';
 import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
@@ -30,7 +30,7 @@ function Info({ label, value, mono }: { label: string; value: React.ReactNode; m
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-metadata font-medium text-steel-500">{label}</dt>
-      <dd className={`text-sm ${mono ? 'font-mono' : ''}`}>{value}</dd>
+      <dd className={`text-body ${mono ? 'font-mono' : ''}`}>{value}</dd>
     </div>
   );
 }
@@ -96,7 +96,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   if (detail.isError || !detail.data) {
     return (
       <AppShell>
-        <PageHeader title={t('orderDetails')} />
+        <PageHeader size="record" title={t('orderDetails')} />
         <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />
       </AppShell>
     );
@@ -127,7 +127,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     <AppShell>
       <div className="flex gap-6">
         <div className="min-w-0 flex-1 space-y-6">
-          <PageHeader
+          <PageHeader size="record"
             title={`#${order.number} · ${order.title}`}
             subtitle={`${partner.name} · ${stage.label_hu} · ${t('daysInStage', { days: stage.days_in_stage })}`}
             actions={
@@ -146,6 +146,14 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             }
           />
 
+          <div className="lg:hidden">
+            <TravellerStrip
+              stages={defs}
+              currentKey={stage.key}
+              history={history.data?.items ?? []}
+              blockers={openBlockers}
+            />
+          </div>
           <Tabs.Root
             value={tab}
             onValueChange={(v) => {
@@ -158,7 +166,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 <Tabs.Trigger
                   key={tb.key}
                   value={tb.key}
-                  className="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors border-transparent text-steel-500 hover:text-steel-900 data-[state=active]:border-steel-900 data-[state=active]:text-steel-900"
+                  className="px-4 py-2 text-body font-medium border-b-2 -mb-px transition-colors border-transparent text-steel-500 hover:text-steel-900 data-[state=active]:border-steel-900 data-[state=active]:text-steel-900"
                 >
                   {tb.label}
                 </Tabs.Trigger>
@@ -180,8 +188,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
               />
             ) : (
               <div className="space-y-6">
-                <section className="card">
-                  <div className="card-content grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <Info label={tc('partner')} value={`${partner.name} (#${partner.id})`} />
                     <Info label={t('projectType')} value={projectTypeName} mono />
                     <Info label={t('currencyLabel')} value={order.currency} mono />
@@ -197,11 +205,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                   </div>
                 </section>
 
-                <section className="card">
-                  <div className="card-header">
-                    <h2 className="text-section font-semibold">{t('valueSection')}</h2>
-                  </div>
-                  <div className="card-content flex flex-wrap items-baseline gap-x-8 gap-y-3">
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <h2 className="text-section font-semibold">{t('valueSection')}</h2>
+                  <div className="mt-3 flex flex-wrap items-baseline gap-x-8 gap-y-3">
                     <div>
                       <p className="text-metadata text-steel-500">{t('total')} ({order.currency})</p>
                       <p className="text-page-title font-mono font-semibold">
@@ -226,13 +232,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                   </div>
                 </section>
 
-                <section className="card">
-                  <div className="card-header">
-                    <h2 className="text-section font-semibold">{t('imagesSection')}</h2>
-                  </div>
-                  <div className="card-content flex flex-wrap gap-2">
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <h2 className="text-section font-semibold">{t('imagesSection')}</h2>
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {Object.keys(image_counts).length === 0 && (
-                      <p className="text-sm text-steel-500">—</p>
+                      <p className="text-metadata text-steel-500">—</p>
                     )}
                     {Object.entries(image_counts).map(([cat, n]) => (
                       <StatusBadge key={cat} tone="steel">
@@ -275,10 +279,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
           </Tabs.Content>
 
           <Tabs.Content value="stages">
-            <section className="card">
-              <div className="card-content">
+            <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+              <div>
                 {history.isLoading ? (
-                  <p className="text-sm text-steel-500">{tc('loading')}</p>
+                  <p className="text-metadata text-steel-500">{tc('loading')}</p>
                 ) : history.isError ? (
                   <ErrorState error={history.error} onRetry={() => void history.refetch()} />
                 ) : (
@@ -289,22 +293,22 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
           </Tabs.Content>
 
           <Tabs.Content value="blockers">
-            <section className="card">
-              <div className="card-header flex items-center justify-between">
+            <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+              <div className="flex items-center justify-between">
                 <h2 className="text-section font-semibold">{t('tabsBlockers')} ({openBlockers.length})</h2>
                 <Link href={`/${locale}/blockers`} className="btn-ghost btn-sm">
                   {t('tabsBlockers')} →
                 </Link>
               </div>
-              <div className="card-content space-y-3">
+              <div className="mt-3 space-y-3">
                 <p className="text-metadata text-steel-500">{t('blockersReadOnly')}</p>
-                {blockers.length === 0 && <p className="text-sm text-steel-500">—</p>}
+                {blockers.length === 0 && <p className="text-metadata text-steel-500">—</p>}
                 {blockers.map((b) => {
                   const open = isBlockerOpen(b);
                   const overdue = b.is_overdue;
                   return (
                     <div key={b.id} className="rounded-lg border border-steel-200 p-4">
-                      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                      <p className="flex flex-wrap items-center gap-2 text-body font-medium">
                         {b.what}
                         {!open && <StatusBadge tone="done">{t('blockerResolved')}</StatusBadge>}
                         {open && overdue && <StatusBadge tone="signal">{t('blockerOverdue')}</StatusBadge>}
@@ -321,8 +325,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         )}
                         {b.nudge_count > 0 ? ` · ${b.nudge_count} ${t('nudges')}` : ''}
                       </p>
-                      {b.notes && <p className="mt-1 text-sm">{b.notes}</p>}
-                      {b.resolution_note && <p className="mt-1 text-sm text-steel-500">{b.resolution_note}</p>}
+                      {b.notes && <p className="mt-1 text-body">{b.notes}</p>}
+                      {b.resolution_note && <p className="mt-1 text-metadata text-steel-500">{b.resolution_note}</p>}
                     </div>
                   );
                 })}
@@ -331,21 +335,19 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
           </Tabs.Content>
 
           <Tabs.Content value="audit">
-            <section className="card">
-              <div className="card-header">
-                <h2 className="text-section font-semibold">{t('tabsAudit')}</h2>
-              </div>
-              <div className="card-content">
+            <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+              <h2 className="text-section font-semibold">{t('tabsAudit')}</h2>
+              <div className="mt-3">
                 {audit.isLoading ? (
-                  <p className="text-sm text-steel-500">{tc('loading')}</p>
+                  <p className="text-metadata text-steel-500">{tc('loading')}</p>
                 ) : audit.isError ? (
                   <ErrorState error={audit.error} onRetry={() => void audit.refetch()} />
                 ) : auditItems.length === 0 ? (
-                  <p className="text-sm text-steel-500">{t('auditEmpty')}</p>
+                  <p className="text-metadata text-steel-500">{t('auditEmpty')}</p>
                 ) : (
                   <ul className="space-y-3">
                     {auditItems.map((a) => (
-                      <li key={a.id} className="text-sm">
+                      <li key={a.id} className="text-body">
                         <p>
                           <span className="font-medium">{a.action}</span>{' '}
                           <span className="text-steel-500">
@@ -369,7 +371,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         <aside className="hidden w-[280px] shrink-0 lg:block">
           <div className="card sticky top-6">
             <div className="card-header flex items-center justify-between">
-              <h2 className="text-sm font-semibold">{t('traveller')}</h2>
+              <h2 className="text-body font-semibold">{t('traveller')}</h2>
               {canStage && (
                 <button className="btn-secondary btn-sm" onClick={() => setStageOpen(true)}>
                   {t('changeStage')}
@@ -379,7 +381,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             <div className="card-content space-y-4">
               {stagesQuery.isError || history.isError ? (
                 <div role="alert">
-                  <p className="text-sm text-steel-900">
+                  <p className="text-body text-steel-900">
                     {errorMessage(
                       stagesQuery.error ?? history.error,
                       ter,

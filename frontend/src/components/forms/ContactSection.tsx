@@ -65,7 +65,7 @@ function ContactForm({
         <div>
           <label className="label" htmlFor="c-name">{t('contactName')} *</label>
           <input id="c-name" className="input" {...register('name')} />
-          {formState.errors.name && <p className="mt-1 text-xs text-steel-900">{tv('required')}</p>}
+          {formState.errors.name && <p className="mt-1 text-metadata text-steel-900">{tv('required')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="c-position">{t('contactPosition')}</label>
@@ -85,7 +85,7 @@ function ContactForm({
         </div>
       </div>
       {serverError && (
-        <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{serverError}</p>
+        <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{serverError}</p>
       )}
       <div className="flex justify-end gap-2">
         <button type="button" className="btn-ghost btn-sm" onClick={onCancel}>{tc('cancel')}</button>
@@ -174,7 +174,7 @@ export function ContactSection({ partnerId, contacts }: { partnerId: number; con
           />
         )}
         {contacts.length === 0 && !adding && (
-          <p className="text-sm text-steel-500">{t('noContacts')}</p>
+          <p className="text-metadata text-steel-500">{t('noContacts')}</p>
         )}
         {contacts.map((c) => (
           <div key={c.id} className="rounded-lg border border-steel-200 p-4">
@@ -194,10 +194,10 @@ export function ContactSection({ partnerId, contacts }: { partnerId: number; con
                       <span className="ml-2"><StatusBadge tone="steel">{t('archived')}</StatusBadge></span>
                     )}
                   </p>
-                  <p className="text-sm text-steel-500">
+                  <p className="text-metadata text-steel-500">
                     {[c.position, c.email, c.phone].filter(Boolean).join(' · ') || '—'}
                   </p>
-                  {c.notes && <p className="mt-1 text-sm">{c.notes}</p>}
+                  {c.notes && <p className="mt-1 text-body">{c.notes}</p>}
                 </div>
                 {!c.archived_at && (
                   <div className="flex gap-2">

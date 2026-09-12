@@ -101,17 +101,17 @@ export function LeadStageDialog({
         <Dialog.Content className="card fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
           <div className="card-header">
             <Dialog.Title className="text-section font-semibold">{t('stageChange')}</Dialog.Title>
-            <Dialog.Description className="text-sm text-steel-500">
+            <Dialog.Description className="text-metadata text-steel-500">
               {t('currentStage')}: {currentLabel}
             </Dialog.Description>
           </div>
           <div className="card-content space-y-4">
             {transitions.isLoading ? (
-              <p className="text-sm text-steel-500">{tc('loading')}</p>
+              <p className="text-metadata text-steel-500">{tc('loading')}</p>
             ) : transitions.isError ? (
               <ErrorState error={transitions.error} onRetry={() => void transitions.refetch()} />
             ) : options.length === 0 ? (
-              <p className="text-sm text-steel-500">{t('noOtherStage')}</p>
+              <p className="text-metadata text-steel-500">{t('noOtherStage')}</p>
             ) : (
               <>
                 <div>
@@ -129,13 +129,13 @@ export function LeadStageDialog({
                     {t('note')}{needsNote ? ' *' : ''}
                   </label>
                   <textarea id="ls-note" rows={3} className="input" value={note} onChange={(e) => setNote(e.target.value)} />
-                  <p className="mt-1 text-xs text-steel-500">{t('noteHint')}</p>
+                  <p className="mt-1 text-metadata text-steel-500">{t('noteHint')}</p>
                 </div>
               </>
             )}
-            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-xs text-steel-900">{t('wonOnlyViaConvert')}</p>
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-metadata text-steel-900">{t('wonOnlyViaConvert')}</p>
             {error && (
-              <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
+              <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{error}</p>
             )}
           </div>
           <div className="card-footer justify-end">

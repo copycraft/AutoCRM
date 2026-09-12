@@ -88,7 +88,7 @@ export function AssigneeField({
           ))}
       </select>
       {usersQuery.isError && (
-        <span className="text-xs text-steel-900" role="alert">
+        <span className="text-metadata text-steel-900" role="alert">
           {errorMessage(usersQuery.error, ter, ter('unknownError'))}
         </span>
       )}

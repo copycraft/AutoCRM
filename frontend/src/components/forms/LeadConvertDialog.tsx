@@ -87,7 +87,7 @@ export function LeadConvertDialog({
         <Dialog.Content className="card fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
           <div className="card-header">
             <Dialog.Title className="text-section font-semibold">{t('convertTitle')}</Dialog.Title>
-            <Dialog.Description className="text-sm text-steel-500">{t('wonOnlyViaConvert')}</Dialog.Description>
+            <Dialog.Description className="text-metadata text-steel-500">{t('wonOnlyViaConvert')}</Dialog.Description>
           </div>
           <div className="card-content space-y-4">
             <div>
@@ -96,11 +96,11 @@ export function LeadConvertDialog({
             </div>
             <div>
               <span className="label">{t('convertPartner')}</span>
-              <p className="rounded-lg border border-steel-200 bg-panel px-3 py-2 text-sm">
+              <p className="rounded-lg border border-steel-200 bg-panel px-3 py-2 text-body">
                 {partnerQuery.data?.partner.name ?? '—'}
               </p>
               {!partnerId && (
-                <p className="mt-1 text-xs text-steel-900">{t('noPartnerForConvert')}</p>
+                <p className="mt-1 text-metadata text-steel-900">{t('noPartnerForConvert')}</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -116,7 +116,7 @@ export function LeadConvertDialog({
                   <option value="EUR">EUR</option>
                 </select>
                 {partnerQuery.data && currencyOverride === null && (
-                  <p className="mt-1 text-xs text-steel-500">{t('partnerCurrencyHint')}</p>
+                  <p className="mt-1 text-metadata text-steel-500">{t('partnerCurrencyHint')}</p>
                 )}
               </div>
             <div>
@@ -132,7 +132,7 @@ export function LeadConvertDialog({
                   ))}
               </select>
               {projectTypes.isError && (
-                <p className="mt-1 text-xs text-steel-900" role="alert">
+                <p className="mt-1 text-metadata text-steel-900" role="alert">
                   {errorMessage(projectTypes.error, ter, ter('unknownError'))}
                 </p>
               )}
@@ -143,7 +143,7 @@ export function LeadConvertDialog({
               <textarea id="lc-desc" rows={3} className="input" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
             {error && (
-              <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
+              <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{error}</p>
             )}
           </div>
           <div className="card-footer justify-end">

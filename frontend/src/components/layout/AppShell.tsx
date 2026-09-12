@@ -37,7 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen bg-panel">
       <Sidebar />
       <main className="flex-1 min-w-0">
-        <div className="mx-auto max-w-7xl px-6 py-6 space-y-6">{children}</div>
+        <div className="w-full max-w-[1600px] px-6 py-6 space-y-6">{children}</div>
       </main>
     </div>
   );

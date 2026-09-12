@@ -194,7 +194,7 @@ export default function OrdersPage() {
             ))}
           </select>
           {stagesQuery.isError && (
-            <span className="text-xs text-steel-900" role="alert">
+            <span className="text-metadata text-steel-900" role="alert">
               {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
             </span>
           )}
@@ -214,7 +214,7 @@ export default function OrdersPage() {
               ))}
           </select>
           {projectTypes.isError && (
-            <span className="text-xs text-steel-900" role="alert">
+            <span className="text-metadata text-steel-900" role="alert">
               {errorMessage(projectTypes.error, ter, ter('unknownError'))}
             </span>
           )}
@@ -229,7 +229,7 @@ export default function OrdersPage() {
             resetOffset();
           }}
         />
-        <label className="flex items-center gap-2 pb-2 text-sm">
+        <label className="flex items-center gap-2 pb-2 text-body">
           <input
             type="checkbox"
             className="rounded border-steel-200 accent-steel-900"

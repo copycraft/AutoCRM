@@ -22,7 +22,7 @@ function DetailRow({ label, value, mono }: { label: string; value: React.ReactNo
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-metadata font-medium text-steel-500">{label}</dt>
-      <dd className={`text-sm ${mono ? 'font-mono' : ''}`}>{value}</dd>
+      <dd className={`text-body ${mono ? 'font-mono' : ''}`}>{value}</dd>
     </div>
   );
 }
@@ -66,7 +66,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
         <DetailSkeleton />
       ) : detail.isError || !detail.data ? (
         <>
-          <PageHeader title={t('partnerDetails')} />
+          <PageHeader size="record" title={t('partnerDetails')} />
           <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />
         </>
       ) : (
@@ -75,7 +75,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
           const archived = partner.archived_at !== null;
           return (
             <>
-              <PageHeader
+              <PageHeader size="record"
                 title={partner.name}
                 subtitle={`#${partner.id} · ${partner.kind === 'business' ? t('business') : t('person')}`}
                 actions={editable && (
@@ -111,8 +111,8 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                   }
                 />
               ) : (
-                <section className="card">
-                  <div className="card-content grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <DetailRow label={t('taxNumber')} value={partner.tax_number ?? '—'} mono />
                     <DetailRow label={t('euTaxNumber')} value={partner.eu_tax_number ?? '—'} mono />
                     <DetailRow label={t('country')} value={partner.country} mono />
@@ -133,13 +133,11 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
               {editable ? (
                 <ContactSection partnerId={id} contacts={contacts} />
               ) : (
-                <section className="card">
-                  <div className="card-header">
-                    <h2 className="text-section font-semibold">{t('contacts')} ({contacts.length})</h2>
-                  </div>
-                  <div className="card-content space-y-2">
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <h2 className="text-section font-semibold">{t('contacts')} ({contacts.length})</h2>
+                  <div className="mt-3 space-y-2">
                     {contacts.map((c) => (
-                      <p key={c.id} className="text-sm">
+                      <p key={c.id} className="text-body">
                         <span className="font-medium">{c.name}</span>
                         <span className="text-steel-500">
                           {' '}
@@ -147,25 +145,23 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                         </span>
                       </p>
                     ))}
-                    {contacts.length === 0 && <p className="text-sm text-steel-500">—</p>}
+                    {contacts.length === 0 && <p className="text-metadata text-steel-500">—</p>}
                   </div>
                 </section>
               )}
 
-              <section className="card">
-                <div className="card-header">
-                  <h2 className="text-section font-semibold">
-                    {tn('orders')} ({orders.length})
-                  </h2>
-                </div>
-                <div className="card-content space-y-2">
+              <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                <h2 className="text-section font-semibold">
+                  {tn('orders')} ({orders.length})
+                </h2>
+                <div className="mt-3 space-y-2">
                   {orders.map((o) => (
                     <Link
                       key={o.id}
                       href={`/${locale}/orders/${o.id}`}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-steel-200 px-3 py-2 hover:bg-panel"
                     >
-                      <span className="text-sm">
+                      <span className="text-body">
                         <span className="font-mono font-medium">{o.number}</span>{' '}
                         <span className="font-medium">{o.title}</span>{' '}
                         <span className="text-steel-500">· {o.stage_label}</span>
@@ -174,7 +170,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                     </Link>
                   ))}
                   {orders.length === 0 && (
-                    <p className="text-sm text-steel-500">{t('noOrders')}</p>
+                    <p className="text-metadata text-steel-500">{t('noOrders')}</p>
                   )}
                 </div>
               </section>

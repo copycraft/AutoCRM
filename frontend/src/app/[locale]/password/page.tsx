@@ -41,7 +41,7 @@ export default function PasswordPage() {
       <form className="card w-full max-w-md" onSubmit={submit}>
         <div className="card-header">
           <h1 className="text-section font-semibold">{t('changePassword')}</h1>
-          <p className="text-sm text-steel-500">{t('passwordChangeRequired')}</p>
+          <p className="text-metadata text-steel-500">{t('passwordChangeRequired')}</p>
         </div>
         <div className="card-content space-y-4">
           <div>
@@ -52,7 +52,7 @@ export default function PasswordPage() {
             <label className="label" htmlFor="nxt">{t('newPassword')}</label>
             <input id="nxt" type="password" className="input" value={next} onChange={(e) => setNext(e.target.value)} required minLength={12} />
           </div>
-          {error && <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>}
+          {error && <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{error}</p>}
           <button className="btn-primary w-full" disabled={busy}>{busy ? tc('saving') : t('changePassword')}</button>
         </div>
       </form>

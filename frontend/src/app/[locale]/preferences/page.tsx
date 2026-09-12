@@ -107,10 +107,10 @@ function PreferencesForm({
         </div>
       </div>
       <div className="card-footer flex-wrap justify-between gap-3">
-        <span className="text-sm text-steel-500">{savedTick ? t('saved') : ''}</span>
+        <span className="text-metadata text-steel-500">{savedTick ? t('saved') : ''}</span>
         <div className="flex gap-2">
           {error && (
-            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{error}</p>
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{error}</p>
           )}
           <button
             className="btn-primary"

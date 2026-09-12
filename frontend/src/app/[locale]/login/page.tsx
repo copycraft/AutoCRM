@@ -45,21 +45,21 @@ export default function LoginPage() {
           </span>
           <div>
             <h1 className="text-section font-semibold">{t('loginTitle')}</h1>
-            <p className="text-sm text-steel-500">{t('loginSubtitle')}</p>
+            <p className="text-metadata text-steel-500">{t('loginSubtitle')}</p>
           </div>
         </div>
         <form className="card-content space-y-4" onSubmit={onSubmit} noValidate>
           <div>
             <label className="label" htmlFor="email">{t('emailLabel')}</label>
             <input id="email" type="email" autoComplete="username" className="input" {...register('email')} />
-            {formState.errors.email && <p className="mt-1 text-xs text-steel-900">{tv('email')}</p>}
+            {formState.errors.email && <p className="mt-1 text-metadata text-steel-900">{tv('email')}</p>}
           </div>
           <div>
             <label className="label" htmlFor="password">{t('passwordLabel')}</label>
             <input id="password" type="password" autoComplete="current-password" className="input" {...register('password')} />
           </div>
           {serverError && (
-            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{serverError}</p>
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{serverError}</p>
           )}
           <button className="btn-primary w-full" type="submit" disabled={formState.isSubmitting}>
             {formState.isSubmitting ? t('loggingIn') : t('loginButton')}

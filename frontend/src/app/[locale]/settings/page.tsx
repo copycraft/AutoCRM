@@ -164,7 +164,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           <h2 className="text-section font-semibold">{t('title')}</h2>
         </div>
         <div className="card-content grid grid-cols-1 gap-4 md:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-body">
             <input type="checkbox" className="rounded border-steel-200 accent-steel-900" checked={automatic} onChange={(e) => setAutomatic(e.target.checked)} />
             {t('enabled')}
           </label>
@@ -180,7 +180,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             <label className="label" htmlFor="set-wend">{t('windowEnd')}</label>
             <input id="set-wend" type="time" className="input font-mono" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} />
           </div>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-body">
             <input type="checkbox" className="rounded border-steel-200 accent-steel-900" checked={weekdays} onChange={(e) => setWeekdays(e.target.checked)} />
             {t('weekdaysOnly')}
           </label>
@@ -192,7 +192,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             <label className="label" htmlFor="set-escalate">{t('nudgeEscalate')}</label>
             <input id="set-escalate" className="input font-mono" inputMode="numeric" value={nudgeEscalate} onChange={(e) => setNudgeEscalate(e.target.value)} />
           </div>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-body">
             <input type="checkbox" className="rounded border-steel-200 accent-steel-900" checked={notifyStage} onChange={(e) => setNotifyStage(e.target.checked)} />
             {t('notifyStage')}
           </label>
@@ -213,7 +213,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <div className="card-content grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="md:col-span-2 flex flex-wrap gap-4" role="radiogroup" aria-label={t('modeLabel')}>
             {(['inherit', 'dry_run', 'smtp'] as const).map((m) => (
-              <label key={m} className="flex items-center gap-2 text-sm">
+              <label key={m} className="flex items-center gap-2 text-body">
                 <input
                   type="radio"
                   name="email-mode"
@@ -251,10 +251,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 <label className="label" htmlFor="set-pass">{t('password')}</label>
                 <input id="set-pass" type="password" className="input" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
                 {initial.has_password && !password && !clearPassword && (
-                  <p className="mt-1 text-xs text-steel-500">{t('passwordSaved')}</p>
+                  <p className="mt-1 text-metadata text-steel-500">{t('passwordSaved')}</p>
                 )}
                 {initial.has_password && (
-                  <label className="mt-1 flex items-center gap-2 text-xs">
+                  <label className="mt-1 flex items-center gap-2 text-metadata">
                     <input type="checkbox" className="rounded border-steel-200 accent-steel-900" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} />
                     {t('passwordClear')}
                   </label>
@@ -264,7 +264,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 <label className="label" htmlFor="set-helo">{t('heloName')}</label>
                 <input id="set-helo" className="input font-mono" value={helo} onChange={(e) => setHelo(e.target.value)} />
               </div>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-2 text-body">
                 <input type="checkbox" className="rounded border-steel-200 accent-steel-900" checked={ipv4} onChange={(e) => setIpv4(e.target.checked)} />
                 {t('forceIpv4')}
               </label>
@@ -276,10 +276,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
           )}
         </div>
         <div className="card-footer flex-wrap justify-between gap-3">
-          <span className="text-sm text-steel-500">{savedTick ? t('saved') : ''}</span>
+          <span className="text-metadata text-steel-500">{savedTick ? t('saved') : ''}</span>
           <div className="flex gap-2">
             {saveError && (
-              <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="alert">{saveError}</p>
+              <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{saveError}</p>
             )}
             <button className="btn-primary" disabled={save.isPending} onClick={() => save.mutate()}>
               {save.isPending ? tc('saving') : tc('save')}
@@ -298,7 +298,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             <input id="set-testto" type="email" className="input" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
           </div>
           {testResult && (
-            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-sm text-steel-900" role="status">
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="status">
               <StatusBadge tone={testResult.ok ? 'done' : 'signal'}>
                 {testResult.ok ? t('testOk') : t('testFail')}
               </StatusBadge>{' '}
