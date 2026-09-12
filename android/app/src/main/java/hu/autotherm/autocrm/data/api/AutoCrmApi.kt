@@ -246,6 +246,16 @@ class AutoCrmApi(
             Completed.serializer(),
         )
 
+    // ── Email ───────────────────────────────────────────────────────────────────────
+
+    suspend fun emails(limit: Int = 50): List<EmailSummary> {
+        val u = url("/emails").addQueryParameter("limit", limit.toString())
+        return send(Request.Builder().url(u.build()).get(), Items.serializer(EmailSummary.serializer())).items
+    }
+
+    suspend fun email(id: Long): EmailMessage =
+        send(Request.Builder().url(url("/emails/$id").build()).get(), EmailMessage.serializer())
+
     // ── Partners and leads ──────────────────────────────────────────────────────────
 
     suspend fun partners(query: String? = null, role: String? = null, limit: Int = 50): List<Partner> {

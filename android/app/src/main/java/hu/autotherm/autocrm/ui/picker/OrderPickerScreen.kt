@@ -27,6 +27,7 @@ import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.EmptyState
 import hu.autotherm.autocrm.ui.common.ErrorState
 import hu.autotherm.autocrm.ui.common.LoadingState
+import hu.autotherm.autocrm.ui.common.describeError
 import hu.autotherm.autocrm.ui.common.StatusBadge
 import hu.autotherm.autocrm.ui.common.Tone
 import hu.autotherm.autocrm.ui.theme.MonoSmall
@@ -86,7 +87,7 @@ class OrderPickerViewModel(
                 all = _state.value.includeFinished,
             )
             _state.value = _state.value.copy(loading = false, orders = items)
-        } catch (e: ApiException) {
+        } catch (e: Throwable) {
             _state.value = _state.value.copy(
                 loading = false,
                 error = when (e) {

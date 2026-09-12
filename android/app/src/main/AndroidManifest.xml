@@ -4,7 +4,6 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.CAMERA" />
     <!-- Uploads continue while the phone is in a pocket; without this the system kills the
          worker mid-batch and the photos sit in the queue until the app is opened again. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -12,8 +11,6 @@
     <!-- Only to tell the fitter a batch finished or needs attention. Denied is survivable:
          the queue screen carries the same information. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <uses-feature android:name="android.hardware.camera.any" android:required="true" />
 
     <application
         android:name=".AutoCrmApp"
@@ -30,7 +27,6 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.AutoCRM">
             <intent-filter>
@@ -38,6 +34,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Hands a file:// path to the phone's own camera app as a content:// URI it may
+             write to. The system camera is used rather than an in-app one: it is the app
+             the fitter already knows, and its output is the full-quality original the
+             evidence chain depends on. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- The default WorkManager initialiser is removed and the queue is configured in
              AutoCrmApp instead, so the upload worker can be given the app's OkHttp client

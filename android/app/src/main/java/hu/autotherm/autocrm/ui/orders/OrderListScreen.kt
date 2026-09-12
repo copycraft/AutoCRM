@@ -26,6 +26,7 @@ import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.EmptyState
 import hu.autotherm.autocrm.ui.common.ErrorState
 import hu.autotherm.autocrm.ui.common.LoadingState
+import hu.autotherm.autocrm.ui.common.describeError
 import hu.autotherm.autocrm.ui.common.StatusBadge
 import hu.autotherm.autocrm.ui.common.Tone
 import hu.autotherm.autocrm.ui.theme.MonoSmall
@@ -76,19 +77,10 @@ class OrderListViewModel(private val api: AutoCrmApi) : ViewModel() {
                 openOnly = _state.value.openOnly,
             )
             _state.value = _state.value.copy(loading = false, orders = orders)
-        } catch (e: ApiException) {
-            _state.value = _state.value.copy(loading = false, error = describe(e))
+        } catch (e: Throwable) {
+            _state.value = _state.value.copy(loading = false, error = describeError(e))
         }
     }
-}
-
-internal fun describe(e: ApiException): String = when (e) {
-    is ApiException.Network -> "Nincs kapcsolat a szerverrel."
-    is ApiException.Unauthenticated -> "A munkamenet lejárt."
-    is ApiException.Forbidden -> "Ehhez nincs jogosultságod."
-    is ApiException.NotFound -> "Nem található."
-    is ApiException.Rule -> e.detail ?: e.code
-    is ApiException.Server -> "Szerverhiba (${e.status})."
 }
 
 @Composable

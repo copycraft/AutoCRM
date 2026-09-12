@@ -34,12 +34,14 @@ import hu.autotherm.autocrm.data.api.OrderNote
 import hu.autotherm.autocrm.data.api.StageEntry
 import hu.autotherm.autocrm.data.api.TransitionOption
 import hu.autotherm.autocrm.data.auth.SessionStore
-import hu.autotherm.autocrm.data.prefs.CapturePrefs
 import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.ErrorState
 import hu.autotherm.autocrm.ui.common.Info
 import hu.autotherm.autocrm.ui.common.LoadingState
+import hu.autotherm.autocrm.ui.common.describeError
 import hu.autotherm.autocrm.ui.common.SectionTitle
+import hu.autotherm.autocrm.ui.photos.OrderPhotoSection
+import hu.autotherm.autocrm.ui.photos.OrderPhotoViewModel
 import hu.autotherm.autocrm.ui.common.StatusBadge
 import hu.autotherm.autocrm.ui.common.Tone
 import hu.autotherm.autocrm.ui.theme.MonoSmall
@@ -91,8 +93,8 @@ class OrderDetailViewModel(
                     notes = notes,
                     canChangeStage = account?.canChangeStage == true,
                 )
-            } catch (e: ApiException) {
-                _state.value = _state.value.copy(loading = false, error = describe(e))
+            } catch (e: Throwable) {
+                _state.value = _state.value.copy(loading = false, error = describeError(e))
             }
         }
     }
@@ -105,8 +107,8 @@ class OrderDetailViewModel(
                 // a second implementation here would be a second thing to get wrong.
                 val options = api.orderTransitions(orderId)
                 _state.value = _state.value.copy(stageDialog = options, stageError = null)
-            } catch (e: ApiException) {
-                _state.value = _state.value.copy(stageError = describe(e))
+            } catch (e: Throwable) {
+                _state.value = _state.value.copy(stageError = describeError(e))
             }
         }
     }
@@ -122,7 +124,7 @@ class OrderDetailViewModel(
                 api.changeOrderStage(orderId, stage, note?.takeIf { it.isNotBlank() })
                 _state.value = _state.value.copy(busy = false, stageDialog = null)
                 load(orderId)
-            } catch (e: ApiException) {
+            } catch (e: Throwable) {
                 _state.value = _state.value.copy(
                     busy = false,
                     stageError = when {
@@ -130,7 +132,7 @@ class OrderDetailViewModel(
                             // The single most useful error in the system: it means the MEO
                             // photo is missing, which this app can fix on the spot.
                             e.detail ?: "Hiányzik a kötelező fotó ehhez a fázishoz."
-                        else -> describe(e)
+                        else -> describeError(e)
                     },
                 )
             }
@@ -142,7 +144,8 @@ class OrderDetailViewModel(
 fun OrderDetailScreen(
     orderId: Long,
     viewModel: OrderDetailViewModel,
-    onPhotograph: (OrderDetail) -> Unit,
+    photoViewModel: OrderPhotoViewModel,
+    onOpenOrder: (Long) -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(orderId) { viewModel.load(orderId) }
@@ -173,10 +176,9 @@ fun OrderDetailScreen(
                     }
                 }
 
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { onPhotograph(detail) }) { Text("Fotózás") }
-                        if (state.canChangeStage) {
+                if (state.canChangeStage) {
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { viewModel.openStageDialog(orderId) }) {
                                 Text("Fázisváltás")
                             }
@@ -247,18 +249,12 @@ fun OrderDetailScreen(
                 }
 
                 item {
-                    Card {
-                        SectionTitle("Képek")
-                        if (detail.imageCounts.isEmpty()) {
-                            Text("Nincs fotó.", style = MaterialTheme.typography.bodyLarge, color = Steel500)
-                        } else {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                detail.imageCounts.forEach { (category, count) ->
-                                    StatusBadge("${CapturePrefs.label(category)}: $count", Tone.Steel)
-                                }
-                            }
-                        }
-                    }
+                    OrderPhotoSection(
+                        orderId = orderId,
+                        orderNumber = detail.order.number,
+                        imageCounts = detail.imageCounts,
+                        viewModel = photoViewModel,
+                    )
                 }
 
                 if (detail.blockers.any { it.resolvedAt == null }) {

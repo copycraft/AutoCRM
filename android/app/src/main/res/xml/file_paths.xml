@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the queue's own directory is shared, and only with the camera app we hand the URI
+     to. Nothing else in the app's storage is reachable through this provider. -->
+<paths>
+    <files-path name="pending" path="pending/" />
+</paths>

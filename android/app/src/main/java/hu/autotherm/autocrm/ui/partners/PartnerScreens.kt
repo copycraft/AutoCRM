@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,10 +29,10 @@ import hu.autotherm.autocrm.ui.common.EmptyState
 import hu.autotherm.autocrm.ui.common.ErrorState
 import hu.autotherm.autocrm.ui.common.Info
 import hu.autotherm.autocrm.ui.common.LoadingState
+import hu.autotherm.autocrm.ui.common.describeError
 import hu.autotherm.autocrm.ui.common.SectionTitle
 import hu.autotherm.autocrm.ui.common.StatusBadge
 import hu.autotherm.autocrm.ui.common.Tone
-import hu.autotherm.autocrm.ui.orders.describe
 import hu.autotherm.autocrm.ui.theme.MonoSmall
 import hu.autotherm.autocrm.ui.theme.Steel500
 import hu.autotherm.autocrm.util.formatMoney
@@ -83,8 +82,8 @@ class PartnerListViewModel(private val api: AutoCrmApi) : ViewModel() {
                 role = _state.value.role,
             )
             _state.value = _state.value.copy(loading = false, partners = partners)
-        } catch (e: ApiException) {
-            _state.value = _state.value.copy(loading = false, error = describe(e))
+        } catch (e: Throwable) {
+            _state.value = _state.value.copy(loading = false, error = describeError(e))
         }
     }
 }
@@ -93,7 +92,6 @@ class PartnerListViewModel(private val api: AutoCrmApi) : ViewModel() {
 fun PartnerListScreen(
     viewModel: PartnerListViewModel,
     onOpenPartner: (Long) -> Unit,
-    onOpenLeads: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     val query by viewModel.query.collectAsState()
@@ -113,7 +111,6 @@ fun PartnerListScreen(
             RoleChip("Ügyfelek", state.role == "customer") { viewModel.setRole("customer") }
             RoleChip("Beszállítók", state.role == "supplier") { viewModel.setRole("supplier") }
             RoleChip("Mind", state.role == null) { viewModel.setRole(null) }
-            OutlinedButton(onClick = onOpenLeads) { Text("Leadek") }
         }
 
         when {
@@ -165,8 +162,8 @@ class PartnerDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
             _state.value = State(loading = true)
             try {
                 _state.value = State(loading = false, detail = api.partner(id))
-            } catch (e: ApiException) {
-                _state.value = State(loading = false, error = describe(e))
+            } catch (e: Throwable) {
+                _state.value = State(loading = false, error = describeError(e))
             }
         }
     }

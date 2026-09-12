@@ -2,19 +2,19 @@
 
 The shop-floor client. Kotlin, Jetpack Compose, one Gradle module.
 
-It exists for one thing the web client cannot do: put a camera in the fitter's hand and get
-the photo onto the order **without depending on there being a signal at that moment**. The
-rest of the CRM is here too — orders, stage changes, partners, leads — but the capture tab
-is the first tab because it is the reason the app is worth installing.
+The same work the browser client does, from a phone: orders, stage changes, partners, leads
+and the correspondence log. Plus the one thing the browser cannot do — get photos onto a job
+**without depending on there being a signal at that moment**.
 
 ## What it does
 
 | Screen | What it is for |
 |---|---|
 | **Kiszolgáló** (first run only) | Which AutoCRM this phone talks to. Stored on the device. |
-| **Fotó** (opens here afterwards) | Camera, sticky order, sticky category, one-tap shutter. |
-| **Munkák** | Order list and detail: value, vehicle, build spec, blockers, stage history, MiniCRM notes, stage changes. |
-| **Ügyfelek** | Partners with the customer/supplier filter, contacts, their orders and leads; leads with their quotation. |
+| **Munkák** | Order list and detail: value, vehicle, build spec, blockers, stage history, MiniCRM notes, stage changes, photos. |
+| **Leadek** | Leads with their quotation and stage history. |
+| **Ügyfelek** | Partners with the customer/supplier filter, contacts, their orders and leads. |
+| **E-mailek** | The correspondence log: what was sent, to whom, whether it arrived. |
 | **Sor** | The upload queue: what is waiting, what failed and why, retry or discard. |
 
 ## The upload queue
@@ -38,15 +38,25 @@ seen, and `(order_id, content_hash)` is unique on both sides.
 The behaviours above are covered by `UploadQueueTest` — JVM tests against an in-memory Room
 database and a MockWebServer, no device needed.
 
-## Taps to first photo
+## Photos
 
-The viability review counted at least five and named the two fixes; both are implemented.
-The order is sticky (`CapturePrefs.currentOrder`) and the category is sticky
-(`CapturePrefs.category`), so a returning fitter is one tap — the shutter — from a photo.
+Taken with the **phone's own camera app**, not one built into this one. An in-app
+preview-and-shutter on CameraX does not match what the manufacturer's camera produces — its
+processing, its stabilisation, its full sensor resolution — and MEO photos are evidence of a
+vehicle's condition. Losing quality to save a screen transition is the wrong trade.
 
-The one deliberate interruption: while the sticky category is **Bevétel** (intake), a banner
-appears once an hour. Intake photos can never be deleted or re-filed — the database refuses
-it with a trigger — so silence there would be dangerous rather than efficient.
+Photos are added from inside a job, which is also the right way round: a photo belongs to a
+vehicle, and picking the job afterwards is how photos end up on the wrong one. Two doors,
+both returning a full-quality original:
+
+- **Kamera** hands the system camera app a file inside the queue's own directory.
+- **Galéria** uses the system photo picker — no storage permission at all, and the user
+  exposes only the items they choose.
+
+The category is sticky between visits. The one deliberate interruption: choosing **Bevétel**
+(intake) raises a banner once an hour, because intake photos can never be deleted or
+re-filed — the database refuses both with a trigger — so silence there would be dangerous
+rather than efficient.
 
 ## Building
 
@@ -100,8 +110,10 @@ Three suites:
 
 ## What is deliberately not here
 
-- **Creating or editing orders, partners and leads.** The phone reads and photographs, and
-  changes stages. A 14-field order form on a gloved thumb is how bad data gets in.
+- **Composing email.** The log is readable; writing a body with attachments belongs on a
+  desktop.
+- **Creating or editing orders, partners and leads.** Not yet built — the phone currently
+  reads, photographs and changes stages. This is the next thing to add, not a decision.
 - **Line items.** The number the whole project reports on should not be typed on a phone.
 - **Reports.** A table that needs a wide screen.
 - **Offline caching of orders.** Everything except the queue is read straight from the API.

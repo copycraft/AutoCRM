@@ -121,6 +121,21 @@ class OpenApiContractTest {
     }
 
     @Test
+    fun `the correspondence log still carries what the phone shows`() {
+        assertHasFields(
+            "EmailSummary",
+            "id", "order_id", "to_address", "subject", "status", "queued_at", "sent_at",
+            "is_automatic", "sent_by_name", "error",
+        )
+        assertHasFields(
+            "EmailMessage",
+            "id", "to_address", "cc", "from_address", "subject", "body_text", "attachments",
+            "status", "attempts", "queued_at", "sent_at",
+        )
+        assertHasFields("AttachmentRef", "document_id", "filename", "byte_size")
+    }
+
+    @Test
     fun `imported MiniCRM history is still readable`() {
         assertHasFields("OrderNote", "id", "author_name", "body", "occurred_at")
     }
@@ -135,6 +150,7 @@ class OpenApiContractTest {
             "/orders/{id}/stage", "/orders/{id}/notes", "/orders/{id}/images",
             "/orders/{id}/uploads", "/uploads/complete",
             "/partners", "/partners/{id}", "/leads", "/leads/{id}",
+            "/emails", "/emails/{id}",
         )
         for (path in required) {
             assertTrue("the API no longer serves $path", paths.containsKey(path))

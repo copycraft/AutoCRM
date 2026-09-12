@@ -8,9 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -35,9 +36,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import hu.autotherm.autocrm.data.prefs.CapturePrefs
-import hu.autotherm.autocrm.ui.capture.CaptureScreen
-import hu.autotherm.autocrm.ui.capture.CaptureViewModel
+import hu.autotherm.autocrm.ui.emails.EmailDetailScreen
+import hu.autotherm.autocrm.ui.emails.EmailDetailViewModel
+import hu.autotherm.autocrm.ui.emails.EmailListScreen
+import hu.autotherm.autocrm.ui.emails.EmailListViewModel
 import hu.autotherm.autocrm.ui.leads.LeadDetailScreen
 import hu.autotherm.autocrm.ui.leads.LeadDetailViewModel
 import hu.autotherm.autocrm.ui.leads.LeadListScreen
@@ -52,8 +54,7 @@ import hu.autotherm.autocrm.ui.partners.PartnerDetailScreen
 import hu.autotherm.autocrm.ui.partners.PartnerDetailViewModel
 import hu.autotherm.autocrm.ui.partners.PartnerListScreen
 import hu.autotherm.autocrm.ui.partners.PartnerListViewModel
-import hu.autotherm.autocrm.ui.picker.OrderPickerScreen
-import hu.autotherm.autocrm.ui.picker.OrderPickerViewModel
+import hu.autotherm.autocrm.ui.photos.OrderPhotoViewModel
 import hu.autotherm.autocrm.ui.queue.QueueScreen
 import hu.autotherm.autocrm.ui.queue.QueueViewModel
 import hu.autotherm.autocrm.ui.server.ServerSetupScreen
@@ -70,8 +71,6 @@ class MainActivity : ComponentActivity() {
             AutoCrmTheme {
                 val server by app.serverStore.baseUrl.collectAsState(initial = null)
                 val account by app.sessionStore.account.collectAsState(initial = null)
-                // Reopening the setup screen from the login screen, without forgetting the
-                // address that is already stored.
                 var editingServer by rememberSaveable { mutableStateOf(false) }
 
                 when {
@@ -99,22 +98,23 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * The same sections as the web client's sidebar, minus the ones that need a wide screen.
+ *
+ * Orders first, because that is where the work is. There is no camera tab: photographing
+ * happens inside a job, through the phone's own camera app — a photo belongs to a vehicle,
+ * and choosing the job afterwards is how photos end up on the wrong one.
+ */
 private sealed class Tab(val route: String, val label: String, val icon: ImageVector) {
-    data object Capture : Tab("capture", "Fotó", Icons.Filled.CameraAlt)
     data object Orders : Tab("orders", "Munkák", Icons.Filled.Inventory2)
-    data object People : Tab("people", "Ügyfelek", Icons.Filled.People)
+    data object Leads : Tab("leads", "Leadek", Icons.Filled.TrackChanges)
+    data object Partners : Tab("partners", "Ügyfelek", Icons.Filled.People)
+    data object Emails : Tab("emails", "E-mailek", Icons.Filled.Email)
     data object Queue : Tab("queue", "Sor", Icons.Filled.Upload)
 }
 
-private val TABS = listOf(Tab.Capture, Tab.Orders, Tab.People, Tab.Queue)
+private val TABS = listOf(Tab.Orders, Tab.Leads, Tab.Partners, Tab.Emails, Tab.Queue)
 
-/**
- * Four tabs, and capture is the first one.
- *
- * The order is the argument: this app opens on the camera because that is the job it does
- * that the web client cannot, and every extra tap between launching it and taking a photo is
- * a photo that ends up in a WhatsApp group instead.
- */
 @Composable
 private fun AppScaffold(app: AutoCrmApp) {
     val navController = rememberNavController()
@@ -146,74 +146,65 @@ private fun AppScaffold(app: AutoCrmApp) {
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            NavHost(navController = navController, startDestination = Tab.Capture.route) {
-                composable(Tab.Capture.route) {
-                    CaptureScreen(
-                        viewModel = viewModel { CaptureViewModel(app.uploadQueue, app.capturePrefs) },
-                        onPickOrder = { navController.navigate("picker") },
-                        onOpenQueue = { navController.navigateToTab(Tab.Queue.route) },
-                    )
-                }
-                composable("picker") {
-                    OrderPickerScreen(
-                        viewModel = viewModel { OrderPickerViewModel(app.api, app.capturePrefs) },
-                        onChosen = { navController.popBackStack() },
-                    )
-                }
+            NavHost(navController = navController, startDestination = Tab.Orders.route) {
                 composable(Tab.Orders.route) {
                     OrderListScreen(
                         viewModel = viewModel { OrderListViewModel(app.api) },
-                        onOpen = { id -> navController.navigate("orders/$id") },
+                        onOpen = { id -> navController.navigate("order/$id") },
                     )
                 }
-                composable("orders/{id}") { entry ->
+                // "order/{id}", not "orders/{id}": a detail route sharing a prefix with a tab
+                // route makes the bottom bar's selected-state matching ambiguous.
+                composable("order/{id}") { entry ->
                     val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                     OrderDetailScreen(
                         orderId = id,
                         viewModel = viewModel { OrderDetailViewModel(app.api, app.sessionStore) },
-                        onPhotograph = { detail ->
-                            // "Photograph this one" sets the sticky order, so the capture tab
-                            // is already pointing at the right van when it opens.
-                            app.selectOrderForCapture(
-                                CapturePrefs.CurrentOrder(
-                                    id = detail.order.id,
-                                    number = detail.order.number,
-                                    title = detail.order.title,
-                                    plate = detail.order.vehiclePlate,
-                                ),
-                            )
-                            navController.navigateToTab(Tab.Capture.route)
-                        },
+                        photoViewModel = viewModel { OrderPhotoViewModel(app.uploadQueue, app.capturePrefs) },
+                        onOpenOrder = { other -> navController.navigate("order/$other") },
                     )
                 }
-                composable(Tab.People.route) {
-                    PartnerListScreen(
-                        viewModel = viewModel { PartnerListViewModel(app.api) },
-                        onOpenPartner = { id -> navController.navigate("partners/$id") },
-                        onOpenLeads = { navController.navigate("leads") },
-                    )
-                }
-                composable("partners/{id}") { entry ->
-                    val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
-                    PartnerDetailScreen(
-                        partnerId = id,
-                        viewModel = viewModel { PartnerDetailViewModel(app.api) },
-                        onOpenOrder = { orderId -> navController.navigate("orders/$orderId") },
-                        onOpenLead = { leadId -> navController.navigate("leads/$leadId") },
-                    )
-                }
-                composable("leads") {
+                composable(Tab.Leads.route) {
                     LeadListScreen(
                         viewModel = viewModel { LeadListViewModel(app.api) },
-                        onOpen = { id -> navController.navigate("leads/$id") },
+                        onOpen = { id -> navController.navigate("lead/$id") },
                     )
                 }
-                composable("leads/{id}") { entry ->
+                composable("lead/{id}") { entry ->
                     val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                     LeadDetailScreen(
                         leadId = id,
                         viewModel = viewModel { LeadDetailViewModel(app.api) },
-                        onOpenOrder = { orderId -> navController.navigate("orders/$orderId") },
+                        onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
+                    )
+                }
+                composable(Tab.Partners.route) {
+                    PartnerListScreen(
+                        viewModel = viewModel { PartnerListViewModel(app.api) },
+                        onOpenPartner = { id -> navController.navigate("partner/$id") },
+                    )
+                }
+                composable("partner/{id}") { entry ->
+                    val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                    PartnerDetailScreen(
+                        partnerId = id,
+                        viewModel = viewModel { PartnerDetailViewModel(app.api) },
+                        onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
+                        onOpenLead = { leadId -> navController.navigate("lead/$leadId") },
+                    )
+                }
+                composable(Tab.Emails.route) {
+                    EmailListScreen(
+                        viewModel = viewModel { EmailListViewModel(app.api) },
+                        onOpen = { id -> navController.navigate("email/$id") },
+                    )
+                }
+                composable("email/{id}") { entry ->
+                    val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                    EmailDetailScreen(
+                        emailId = id,
+                        viewModel = viewModel { EmailDetailViewModel(app.api) },
+                        onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
                     )
                 }
                 composable(Tab.Queue.route) {
@@ -224,7 +215,7 @@ private fun AppScaffold(app: AutoCrmApp) {
     }
 }
 
-/** Tab switching that does not stack twenty copies of the camera on the back stack. */
+/** Tab switching that does not stack twenty copies of a list on the back stack. */
 private fun NavHostController.navigateToTab(route: String) {
     navigate(route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
@@ -232,4 +223,3 @@ private fun NavHostController.navigateToTab(route: String) {
         restoreState = true
     }
 }
-

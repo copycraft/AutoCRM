@@ -1,6 +1,8 @@
 package hu.autotherm.autocrm.data.upload
 
 import android.content.Context
+import android.net.Uri
+import androidx.core.content.FileProvider
 import hu.autotherm.autocrm.data.db.PendingUpload
 import hu.autotherm.autocrm.data.db.PendingUploadDao
 import kotlinx.coroutines.Dispatchers
@@ -33,8 +35,10 @@ class UploadQueue(
     /** What [enqueue] did, so the capture screen can say something truthful. */
     sealed class Enqueued {
         data class Queued(val id: Long) : Enqueued()
-        /** These bytes were already queued for this order — a double tap on the shutter. */
+        /** These exact bytes are already queued for this order — the same photo picked twice. */
         data object Duplicate : Enqueued()
+        /** The picked item could not be read: a cloud-only photo, or a revoked permission. */
+        data object Unreadable : Enqueued()
     }
 
     /**
@@ -103,6 +107,39 @@ class UploadQueue(
         dao.delete(id)
     }
 
-    /** A fresh file for the camera to write into, already inside app-private storage. */
-    fun newCaptureFile(): File = File(pendingDir, "capture-${System.currentTimeMillis()}.jpg")
+    /**
+     * Queues a photo the user picked from the gallery, or one the system camera app just
+     * wrote. The bytes are copied into the queue's own directory rather than referenced
+     * where they lie: a gallery item can be deleted by the person who took it while it is
+     * still waiting to upload, and then the evidence is gone.
+     */
+    suspend fun enqueueFromUri(
+        uri: Uri,
+        orderId: Long,
+        orderNumber: String,
+        category: String,
+    ): Enqueued = withContext(Dispatchers.IO) {
+        val contentType = context.contentResolver.getType(uri) ?: "image/jpeg"
+        val staged = File(pendingDir, "staged-${System.currentTimeMillis()}-${uri.hashCode()}")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            staged.outputStream().use { output -> input.copyTo(output) }
+        } ?: return@withContext Enqueued.Unreadable
+
+        if (staged.length() == 0L) {
+            staged.delete()
+            return@withContext Enqueued.Unreadable
+        }
+        enqueue(staged, orderId, orderNumber, category, contentType)
+    }
+
+    /**
+     * A file for the system camera app to write into, already inside app-private storage,
+     * with the content URI to hand it. The camera app gets write access to this one path
+     * and nothing else (see res/xml/file_paths.xml).
+     */
+    fun newCameraTarget(): Pair<File, Uri> {
+        val file = File(pendingDir, "camera-${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        return file to uri
+    }
 }

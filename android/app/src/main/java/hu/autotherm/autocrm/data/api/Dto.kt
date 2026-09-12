@@ -327,6 +327,51 @@ data class Completed(
     @SerialName("created") val created: Boolean = false,
 )
 
+// ── Email ───────────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class EmailSummary(
+    @SerialName("id") val id: Long,
+    @SerialName("order_id") val orderId: Long? = null,
+    @SerialName("trigger") val trigger: String,
+    @SerialName("is_automatic") val isAutomatic: Boolean,
+    @SerialName("sent_by_name") val sentByName: String? = null,
+    @SerialName("to_address") val toAddress: String,
+    @SerialName("subject") val subject: String,
+    @SerialName("status") val status: String,
+    @SerialName("error") val error: String? = null,
+    @SerialName("queued_at") val queuedAt: String,
+    @SerialName("sent_at") val sentAt: String? = null,
+)
+
+@Serializable
+data class AttachmentRef(
+    @SerialName("document_id") val documentId: Long,
+    @SerialName("filename") val filename: String? = null,
+    @SerialName("byte_size") val byteSize: Long? = null,
+)
+
+@Serializable
+data class EmailMessage(
+    @SerialName("id") val id: Long,
+    @SerialName("order_id") val orderId: Long? = null,
+    @SerialName("lead_id") val leadId: Long? = null,
+    @SerialName("trigger") val trigger: String,
+    @SerialName("is_automatic") val isAutomatic: Boolean,
+    @SerialName("to_address") val toAddress: String,
+    @SerialName("cc") val cc: List<String> = emptyList(),
+    @SerialName("from_address") val fromAddress: String,
+    @SerialName("subject") val subject: String,
+    /** The text part, not the HTML: it is what was actually sent, and it reads on a phone. */
+    @SerialName("body_text") val bodyText: String,
+    @SerialName("attachments") val attachments: List<AttachmentRef> = emptyList(),
+    @SerialName("status") val status: String,
+    @SerialName("error") val error: String? = null,
+    @SerialName("attempts") val attempts: Int,
+    @SerialName("queued_at") val queuedAt: String,
+    @SerialName("sent_at") val sentAt: String? = null,
+)
+
 // ── Partners and leads ──────────────────────────────────────────────────────────────
 
 @Serializable

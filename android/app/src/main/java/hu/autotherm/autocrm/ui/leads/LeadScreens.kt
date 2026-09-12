@@ -29,10 +29,10 @@ import hu.autotherm.autocrm.ui.common.EmptyState
 import hu.autotherm.autocrm.ui.common.ErrorState
 import hu.autotherm.autocrm.ui.common.Info
 import hu.autotherm.autocrm.ui.common.LoadingState
+import hu.autotherm.autocrm.ui.common.describeError
 import hu.autotherm.autocrm.ui.common.SectionTitle
 import hu.autotherm.autocrm.ui.common.StatusBadge
 import hu.autotherm.autocrm.ui.common.Tone
-import hu.autotherm.autocrm.ui.orders.describe
 import hu.autotherm.autocrm.ui.theme.MonoSmall
 import hu.autotherm.autocrm.ui.theme.Steel500
 import hu.autotherm.autocrm.util.formatDate
@@ -84,8 +84,8 @@ class LeadListViewModel(private val api: AutoCrmApi) : ViewModel() {
                 openOnly = _state.value.openOnly,
             )
             _state.value = _state.value.copy(loading = false, leads = leads)
-        } catch (e: ApiException) {
-            _state.value = _state.value.copy(loading = false, error = describe(e))
+        } catch (e: Throwable) {
+            _state.value = _state.value.copy(loading = false, error = describeError(e))
         }
     }
 }
@@ -151,8 +151,8 @@ class LeadDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
             _state.value = State(loading = true)
             try {
                 _state.value = State(loading = false, detail = api.lead(id))
-            } catch (e: ApiException) {
-                _state.value = State(loading = false, error = describe(e))
+            } catch (e: Throwable) {
+                _state.value = State(loading = false, error = describeError(e))
             }
         }
     }
