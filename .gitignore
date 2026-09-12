@@ -11,3 +11,6 @@
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+/frontend/e2e-artifacts/
+/frontend/playwright-report/
+/frontend/test-results/

@@ -8,7 +8,14 @@ Issues noticed during remediation that are outside the finding being fixed. Not 
   numbers cited in source comments (`§5`, `§12`, `§13`, `§14`).
 - **Backend test failing before remediation started.**
   `backend/tests/smtp.rs::unreachable_server_fails_the_connection_test_with_a_hint` fails in the
-  baseline commit (`0f049ba`); the other six SMTP tests pass.
+  baseline commit (`0f049ba`); the other six SMTP tests pass. Cause found during the viability
+  remediation: `integrations/email.rs:285` picks the operator hint by substring-matching the
+  transport error text (`"refused"`, `"timed out"`, `"unreachable"`), and Windows returns that
+  text in the OS display language — on a Hungarian host the connection-refused branch never
+  matches, so `test_connection` returns the bare error with no hint. It passes on the English
+  Linux CI runner. The fix is to match on the error *kind* (`std::io::ErrorKind::ConnectionRefused`
+  / `TimedOut`, and lettre's own variants) instead of its rendered message; the hint text is
+  right, the detection is not. Still unfixed — it is outside every VIABILITY.md finding.
 - **Residual `as` casts on API-adjacent data (post-R1).** The 7 non-null assertions are gone,
   but ~28 `as` casts remain (e.g. `(order.currency === 'EUR' ? 'EUR' : 'HUF') as Currency`,
   `JSON.parse(text) as T`-style narrowing in client code, `as const` literals). None were

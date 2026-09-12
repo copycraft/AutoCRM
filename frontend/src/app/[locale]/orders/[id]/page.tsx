@@ -174,7 +174,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             </Tabs.List>
 
           <Tabs.Content value="data">
-            editing ? (
+            {editing ? (
               <OrderForm
                 initial={order}
                 initialPartner={{ id: partner.id, name: partner.name }}
@@ -246,11 +246,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                   </div>
                 </section>
               </div>
-            )
+            )}
           </Tabs.Content>
 
           <Tabs.Content value="items">
-            canEdit ? (
+            {canEdit ? (
               <ItemsSection orderId={id} items={items} currency={currency} />
             ) : (
               <div className="table-container">
@@ -275,7 +275,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                   </tbody>
                 </table>
               </div>
-            )
+            )}
           </Tabs.Content>
 
           <Tabs.Content value="stages">

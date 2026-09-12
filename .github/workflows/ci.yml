@@ -58,4 +58,76 @@ jobs:
       - run: git diff --exit-code -- src/lib/api/schema.gen.ts src/lib/api/zod
       - run: npm run typecheck
       - run: npm run lint
+      # Route smoke tests: `tsc`, `lint` and `build` all passed on a screen that
+      # rendered its own source to the user. Only rendering catches that.
+      - run: npm run test
       - run: npm run build
+
+  e2e:
+    # The browser smoke run (V0.3): the whole stack, a real login, every tab of
+    # an order opened and screenshotted. Artefacts are uploaded on every run.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: autocrm
+          POSTGRES_PASSWORD: autocrm
+          POSTGRES_DB: autocrm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U autocrm"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      minio:
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: autocrm
+          MINIO_ROOT_PASSWORD: autocrm-dev-secret
+          MINIO_DEFAULT_BUCKETS: autocrm
+        ports: ["9000:9000"]
+    env:
+      SQLX_OFFLINE: "true"
+      DATABASE_URL: postgres://autocrm:autocrm@localhost:5432/autocrm
+      E2E_EMAIL: e2e@autotherm.hu
+      E2E_PASSWORD: e2e-smoke-password-1234
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the API
+        working-directory: backend
+        run: cargo build --bin autocrm
+      - name: Migrate and seed
+        working-directory: backend
+        env:
+          AUTOCRM_ADMIN_PASSWORD: ${{ env.E2E_PASSWORD }}
+        run: |
+          cp .env.example .env
+          ./target/debug/autocrm migrate
+          ./target/debug/autocrm create-admin --email "$E2E_EMAIL" --name "E2E Smoke"
+      - name: Start the API
+        working-directory: backend
+        run: |
+          ./target/debug/autocrm serve &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8080/health && break; sleep 1; done
+      - name: Install the frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Smoke run
+        working-directory: frontend
+        run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: frontend/e2e-artifacts/

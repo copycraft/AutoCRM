@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "gen:api": "openapi-typescript ../openapi/openapi.json -o src/lib/api/schema.gen.ts --empty-objects-unknown && openapi-ts"
+    "gen:api": "openapi-typescript ../openapi/openapi.json -o src/lib/api/schema.gen.ts --empty-objects-unknown && openapi-ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.0",
@@ -31,16 +34,23 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/forms": "^0.5.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/node": "^20.12.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.0",
+    "jsdom": "^25.0.1",
     "openapi-typescript": "7.13.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^2.1.9"
   }
 }
