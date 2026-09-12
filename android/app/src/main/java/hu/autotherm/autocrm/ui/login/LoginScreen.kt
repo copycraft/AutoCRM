@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,6 +32,7 @@ import hu.autotherm.autocrm.data.api.ApiException
 import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.ui.common.PrimaryButton
+import hu.autotherm.autocrm.ui.theme.MonoSmall
 import hu.autotherm.autocrm.ui.theme.Signal
 import hu.autotherm.autocrm.ui.theme.Steel500
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,7 +96,12 @@ class LoginViewModel(
 }
 
 @Composable
-fun LoginScreen(viewModel: LoginViewModel, onSignedIn: () -> Unit) {
+fun LoginScreen(
+    viewModel: LoginViewModel,
+    serverAddress: String?,
+    onChangeServer: () -> Unit,
+    onSignedIn: () -> Unit,
+) {
     val state by viewModel.state.collectAsState()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -150,5 +157,16 @@ fun LoginScreen(viewModel: LoginViewModel, onSignedIn: () -> Unit) {
             enabled = !state.busy && email.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         )
+
+        // Which server this phone is pointed at, always visible. A login failing because
+        // the address is stale looks exactly like a wrong password unless the address is
+        // on screen next to the error.
+        Spacer(Modifier.height(24.dp))
+        Text(
+            serverAddress ?: "—",
+            style = MonoSmall,
+            color = Steel500,
+        )
+        TextButton(onClick = onChangeServer) { Text("Kiszolgáló módosítása") }
     }
 }

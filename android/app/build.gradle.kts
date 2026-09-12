@@ -26,14 +26,16 @@ android {
         // the only way to be sure a schema change does not quietly drop queued photos.
         ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 
-        // The API base URL is build configuration, not a setting a user can mistype in the
-        // field. Debug builds point at a developer machine; release builds at production.
+        // Only the value the setup screen prefills. The address the app actually uses is
+        // chosen on that screen and stored on the device (ServerStore), because one APK has
+        // to follow a phone from the workshop Wi-Fi to the office to a customer's site.
         buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl()}\"")
     }
 
     buildTypes {
         debug {
-            // 10.0.2.2 is the host machine as seen from the Android emulator.
+            // 10.0.2.2 is the host machine as seen from the Android emulator, which is the
+            // right guess for a debug build. Overridable on the setup screen like any other.
             buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080\"")
             applicationIdSuffix = ".debug"
         }
@@ -63,7 +65,7 @@ android {
     }
 }
 
-/** Release base URL, overridable from `local.properties` or the environment for staging. */
+/** What the setup screen prefills in release builds; `local.properties` or the environment. */
 fun apiBaseUrl(): String {
     val fromEnv = System.getenv("AUTOCRM_API_URL")
     if (!fromEnv.isNullOrBlank()) return fromEnv

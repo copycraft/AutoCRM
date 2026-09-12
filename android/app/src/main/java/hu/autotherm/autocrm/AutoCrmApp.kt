@@ -10,6 +10,7 @@ import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.db.AutoCrmDatabase
 import hu.autotherm.autocrm.data.prefs.CapturePrefs
+import hu.autotherm.autocrm.data.prefs.ServerStore
 import hu.autotherm.autocrm.data.upload.UploadQueue
 import hu.autotherm.autocrm.data.upload.UploadWorker
 
@@ -26,7 +27,8 @@ class AutoCrmApp : Application(), Configuration.Provider {
     val sessionStore: SessionStore by lazy { SessionStore(this) }
     val capturePrefs: CapturePrefs by lazy { CapturePrefs(this) }
     val database: AutoCrmDatabase by lazy { AutoCrmDatabase.get(this) }
-    val api: AutoCrmApi by lazy { AutoCrmApi(BuildConfig.API_BASE_URL, sessionStore) }
+    val serverStore: ServerStore by lazy { ServerStore(this) }
+    val api: AutoCrmApi by lazy { AutoCrmApi(serverStore, sessionStore) }
     val uploadQueue: UploadQueue by lazy { UploadQueue(this, database.pendingUploads()) }
 
     /**

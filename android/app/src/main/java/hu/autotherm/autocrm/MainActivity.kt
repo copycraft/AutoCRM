@@ -22,6 +22,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -53,6 +56,8 @@ import hu.autotherm.autocrm.ui.picker.OrderPickerScreen
 import hu.autotherm.autocrm.ui.picker.OrderPickerViewModel
 import hu.autotherm.autocrm.ui.queue.QueueScreen
 import hu.autotherm.autocrm.ui.queue.QueueViewModel
+import hu.autotherm.autocrm.ui.server.ServerSetupScreen
+import hu.autotherm.autocrm.ui.server.ServerSetupViewModel
 import hu.autotherm.autocrm.ui.theme.AutoCrmTheme
 
 class MainActivity : ComponentActivity() {
@@ -63,17 +68,31 @@ class MainActivity : ComponentActivity() {
         val app = application as AutoCrmApp
         setContent {
             AutoCrmTheme {
+                val server by app.serverStore.baseUrl.collectAsState(initial = null)
                 val account by app.sessionStore.account.collectAsState(initial = null)
-                // `null` covers both "not signed in" and "DataStore has not answered yet".
-                // The login screen flashing for one frame is better than a screen full of
-                // 401s, which is what the alternative produces.
-                if (account == null) {
-                    LoginScreen(
+                // Reopening the setup screen from the login screen, without forgetting the
+                // address that is already stored.
+                var editingServer by rememberSaveable { mutableStateOf(false) }
+
+                when {
+                    // Nothing can be asked of the user before the app knows where to ask it.
+                    server == null || editingServer -> ServerSetupScreen(
+                        viewModel = viewModel { ServerSetupViewModel(app.serverStore, app.api) },
+                        onSaved = { editingServer = false },
+                        onCancel = if (server != null) ({ editingServer = false }) else null,
+                    )
+
+                    // `null` covers both "not signed in" and "DataStore has not answered
+                    // yet". The login screen flashing for one frame is better than a screen
+                    // full of 401s, which is what the alternative produces.
+                    account == null -> LoginScreen(
                         viewModel = viewModel { LoginViewModel(app.api, app.sessionStore) },
+                        serverAddress = server,
+                        onChangeServer = { editingServer = true },
                         onSignedIn = { /* the account flow re-composes this away */ },
                     )
-                } else {
-                    AppScaffold(app)
+
+                    else -> AppScaffold(app)
                 }
             }
         }

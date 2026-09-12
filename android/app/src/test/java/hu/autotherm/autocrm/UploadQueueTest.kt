@@ -8,9 +8,11 @@ import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.db.AutoCrmDatabase
 import hu.autotherm.autocrm.data.db.PendingUpload
+import hu.autotherm.autocrm.data.prefs.ServerStore
 import hu.autotherm.autocrm.data.upload.Uploader
 import hu.autotherm.autocrm.data.upload.sha256Hex
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -52,15 +54,21 @@ class UploadQueueTest {
             .build()
         server = MockWebServer()
         server.start()
-        // A session store with no token: the API attaches no Authorization header, which is
-        // fine because MockWebServer does not check one.
-        api = AutoCrmApi(server.url("/").toString().trimEnd('/'), SessionStore(context))
+        // The server address is a stored setting, so the test writes one pointing at
+        // MockWebServer. The session store has no token; MockWebServer does not check for
+        // an Authorization header.
+        val serverStore = ServerStore(context)
+        runBlocking { serverStore.save(server.url("/").toString()) }
+        api = AutoCrmApi(serverStore, SessionStore(context))
     }
 
     @After
     fun tearDown() {
         server.shutdown()
         db.close()
+        // DataStore is a process-wide singleton per file name; each test writes a fresh
+        // address, so the stored one must not leak into the next.
+        runBlocking { ServerStore(context).clear() }
     }
 
     private fun photo(name: String = "photo.jpg", content: String = "fake-jpeg-bytes"): File =

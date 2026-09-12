@@ -1,6 +1,7 @@
 package hu.autotherm.autocrm.data.api
 
 import hu.autotherm.autocrm.data.auth.SessionStore
+import hu.autotherm.autocrm.data.prefs.ServerStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -32,7 +33,7 @@ import java.util.concurrent.TimeUnit
  *    returns a null that a screen has to interpret.
  */
 class AutoCrmApi(
-    private val baseUrl: String,
+    private val serverStore: ServerStore,
     private val sessionStore: SessionStore,
     val http: OkHttpClient = defaultClient(),
 ) {
@@ -57,7 +58,29 @@ class AutoCrmApi(
             .build()
     }
 
-    private fun url(path: String): HttpUrl.Builder = (baseUrl.trimEnd('/') + "/api" + path).toHttpUrl().newBuilder()
+    /**
+     * Suspend because the server address is a stored setting rather than a build constant:
+     * the same APK follows the phone from the workshop Wi-Fi to the office. DataStore keeps
+     * the value in memory after the first read, so this is not a disk hit per request.
+     */
+    private suspend fun url(path: String): HttpUrl.Builder =
+        (serverStore.require() + "/api" + path).toHttpUrl().newBuilder()
+
+    /**
+     * Is anything answering at [candidate]? Used by the setup screen, before any address is
+     * saved, so it takes the URL rather than reading the store. `/health` sits outside
+     * `/api` and needs no session, which makes it the one call that can prove reachability
+     * without a login.
+     */
+    suspend fun probe(candidate: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            http.newCall(Request.Builder().url("$candidate/health").get().build())
+                .execute()
+                .use { it.isSuccessful }
+        } catch (e: IOException) {
+            false
+        }
+    }
 
     private suspend fun execute(request: Request.Builder): Response = withContext(Dispatchers.IO) {
         val token = sessionStore.token()

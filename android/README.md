@@ -11,7 +11,8 @@ is the first tab because it is the reason the app is worth installing.
 
 | Screen | What it is for |
 |---|---|
-| **Fotó** (opens here) | Camera, sticky order, sticky category, one-tap shutter. |
+| **Kiszolgáló** (first run only) | Which AutoCRM this phone talks to. Stored on the device. |
+| **Fotó** (opens here afterwards) | Camera, sticky order, sticky category, one-tap shutter. |
 | **Munkák** | Order list and detail: value, vehicle, build spec, blockers, stage history, MiniCRM notes, stage changes. |
 | **Ügyfelek** | Partners with the customer/supplier filter, contacts, their orders and leads; leads with their quotation. |
 | **Sor** | The upload queue: what is waiting, what failed and why, retry or discard. |
@@ -64,9 +65,20 @@ sdk.dir=/path/to/android-sdk
 autocrm.apiUrl=https://crm.autotherm.hu
 ```
 
-The debug build ignores `autocrm.apiUrl` and points at `http://10.0.2.2:8080`, which is the
-host machine as seen from the emulator — run the backend locally and the app talks to it.
-Release builds use `autocrm.apiUrl`, or `AUTOCRM_API_URL` from the environment.
+## Which server the app talks to
+
+**Chosen on the phone, not baked into the build.** On first run the app asks for an address
+before anything else, checks it against `/health`, and stores it on the device. The login
+screen shows the current address with a *Kiszolgáló módosítása* button next to it, because
+the moment someone discovers the address is wrong is when a login will not go through — and
+a stale address looks exactly like a wrong password otherwise.
+
+The address survives sign-out: it belongs to the phone, not to the person holding it.
+
+`autocrm.apiUrl` (or `AUTOCRM_API_URL`) only sets what that screen **prefills**; debug
+builds prefill `http://10.0.2.2:8080`, the emulator's view of the host machine. Typing
+`192.168.1.10:8080` is enough — the scheme is added, default ports and any pasted path are
+stripped, so two spellings of one server end up as one stored string (`ServerStoreTest`).
 
 ## Testing
 
@@ -74,9 +86,12 @@ Release builds use `autocrm.apiUrl`, or `AUTOCRM_API_URL` from the environment.
 ./gradlew testDebugUnitTest
 ```
 
-Two suites:
+Three suites:
 
 - `UploadQueueTest` — the queue, end to end, against a mock server.
+- `ServerStoreTest` — what a thumb types becomes a usable base URL, or is refused. Every
+  request is built by prefixing this string, so a stray path here breaks every endpoint at
+  once and reads as "the server is broken".
 - `OpenApiContractTest` — reads the committed `openapi/openapi.json` and fails if a field
   the phone parses has been renamed or removed. The DTOs are hand-written and partial (a
   generated client would pull every schema in the document into the APK), so this test is
