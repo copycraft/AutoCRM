@@ -1,0 +1,114 @@
+import java.util.Properties
+
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
+}
+
+android {
+    namespace = "hu.autotherm.autocrm"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "hu.autotherm.autocrm"
+        // API 26. Below that there is no adoptOpenJDK time API, no adaptive icons, and no
+        // phone on this shop floor that old.
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // The schema JSON is committed. A future migration is reviewed against it, which is
+        // the only way to be sure a schema change does not quietly drop queued photos.
+        ksp { arg("room.schemaLocation", "$projectDir/schemas") }
+
+        // The API base URL is build configuration, not a setting a user can mistype in the
+        // field. Debug builds point at a developer machine; release builds at production.
+        buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl()}\"")
+    }
+
+    buildTypes {
+        debug {
+            // 10.0.2.2 is the host machine as seen from the Android emulator.
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080\"")
+            applicationIdSuffix = ".debug"
+        }
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+}
+
+/** Release base URL, overridable from `local.properties` or the environment for staging. */
+fun apiBaseUrl(): String {
+    val fromEnv = System.getenv("AUTOCRM_API_URL")
+    if (!fromEnv.isNullOrBlank()) return fromEnv
+    val props = Properties()
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use(props::load)
+    return props.getProperty("autocrm.apiUrl") ?: "https://crm.autotherm.hu"
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.navigation.compose)
+
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.graphics)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons)
+    debugImplementation(libs.compose.ui.tooling)
+
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.datastore.preferences)
+
+    implementation(libs.camera.core)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.coil.compose)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.room.testing)
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hungarian only, like the web client: a half-translated second language is worse than
+     one complete one (frontend/src/routing.ts). -->
+<resources>
+    <string name="app_name">AutoCRM</string>
+</resources>

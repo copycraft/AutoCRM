@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- steel-900, the same square the web client's sidebar mark sits on. -->
+    <color name="ic_launcher_background">#1B2327</color>
+</resources>

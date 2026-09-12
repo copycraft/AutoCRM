@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose owns the colours; this exists only so the window background matches the
+         app's panel colour and the launch does not flash white. -->
+    <style name="Theme.AutoCRM" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/panel</item>
+        <item name="android:statusBarColor">@color/panel</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

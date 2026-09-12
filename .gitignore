@@ -14,3 +14,10 @@ Thumbs.db
 /frontend/e2e-artifacts/
 /frontend/playwright-report/
 /frontend/test-results/
+
+# Android
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/.kotlin/

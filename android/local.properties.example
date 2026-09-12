@@ -1,0 +1,4 @@
+# Copy to local.properties (git-ignored) and set for your machine.
+sdk.dir=C:/Users/you/AppData/Local/Android/Sdk
+# Release builds only; debug builds always use http://10.0.2.2:8080 (the emulator's host).
+autocrm.apiUrl=https://crm.autotherm.hu

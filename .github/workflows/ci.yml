@@ -131,3 +131,31 @@ jobs:
         with:
           name: e2e-screenshots
           path: frontend/e2e-artifacts/
+
+  android:
+    # The phone client builds from the same commit as the API it speaks to, and
+    # OpenApiContractTest fails here if a schema the app parses has moved.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew testDebugUnitTest
+      - run: ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: autocrm-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: android-test-report
+          path: android/app/build/reports/tests/
