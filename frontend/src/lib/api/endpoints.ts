@@ -20,6 +20,10 @@ export const authApi = {
   sessions: (): Promise<S['Items_SessionView']> => request('/auth/sessions', s.zAuthListSessionsResponse),
   revokeSession: (id: number): Promise<void> =>
     requestNoContent(`/auth/sessions/${id}`, { method: 'DELETE' }),
+  preferences: (): Promise<S['UserSettings']> =>
+    request('/auth/preferences', s.zAuthGetPreferencesResponse),
+  savePreferences: (body: S['PreferencesBody']): Promise<S['UserSettings']> =>
+    request('/auth/preferences', s.zAuthPutPreferencesResponse, { method: 'PUT', body }),
 };
 
 // ── Users (admin) ──
@@ -204,4 +208,6 @@ export const adminApi = {
     request('/admin/fx/fetch', s.zAdminFetchFxResponse, { method: 'POST', body }),
   run: (kind: 'nudge_blockers' | 'stalled_orders'): Promise<S['JobQueued']> =>
     request(`/admin/run/${kind}`, s.zAdminRunNowResponse, { method: 'POST' }),
+  testEmail: (body: S['EmailTestBody']): Promise<S['EmailTestResult']> =>
+    request('/admin/email/test', s.zAdminTestEmailResponse, { method: 'POST', body }),
 };

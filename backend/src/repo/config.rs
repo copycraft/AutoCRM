@@ -194,6 +194,17 @@ pub struct Settings {
     pub stalled_alert_recipients: Vec<String>,
     pub updated_at: DateTime<Utc>,
     pub updated_by: Option<i64>,
+    // Email transport overrides. All NULL means "inherit from the environment".
+    // The secret itself is never selected here; see email_secret().
+    pub email_mode: Option<String>,
+    pub smtp_host: Option<String>,
+    pub smtp_port: Option<i32>,
+    pub smtp_security: Option<String>,
+    pub smtp_username: Option<String>,
+    pub has_password: bool,
+    pub smtp_helo_name: Option<String>,
+    pub smtp_force_ipv4: Option<bool>,
+    pub redirect_to: Option<String>,
 }
 
 pub async fn settings(db: impl PgExecutor<'_>) -> sqlx::Result<Settings> {
@@ -201,11 +212,21 @@ pub async fn settings(db: impl PgExecutor<'_>) -> sqlx::Result<Settings> {
         Settings,
         "SELECT automatic_email_enabled, max_auto_emails_per_recipient_day, send_window_start, send_window_end,
                 send_window_weekdays_only, nudge_interval_days, nudge_escalate_after, stage_change_notifications,
-                stalled_alert_recipients, updated_at, updated_by
+                stalled_alert_recipients, updated_at, updated_by,
+                email_mode, smtp_host, smtp_port, smtp_security, smtp_username,
+                (smtp_password IS NOT NULL) AS \"has_password!\",
+                smtp_helo_name, smtp_force_ipv4, redirect_to
          FROM settings"
     )
     .fetch_one(db)
     .await
+}
+
+/// The stored SMTP password, if any. Internal: never serialized to the API.
+pub async fn email_secret(db: impl PgExecutor<'_>) -> sqlx::Result<Option<String>> {
+    sqlx::query_scalar!("SELECT smtp_password FROM settings")
+        .fetch_one(db)
+        .await
 }
 
 pub struct SettingsUpdate {
@@ -218,6 +239,16 @@ pub struct SettingsUpdate {
     pub nudge_escalate_after: i32,
     pub stage_change_notifications: bool,
     pub stalled_alert_recipients: Vec<String>,
+    pub email_mode: Option<String>,
+    pub smtp_host: Option<String>,
+    pub smtp_port: Option<i32>,
+    pub smtp_security: Option<String>,
+    pub smtp_username: Option<String>,
+    /// None keeps the stored secret, Some(None) clears it, Some(Some) replaces it.
+    pub smtp_password: Option<Option<String>>,
+    pub smtp_helo_name: Option<String>,
+    pub smtp_force_ipv4: Option<bool>,
+    pub redirect_to: Option<String>,
 }
 
 pub async fn update_settings(
@@ -225,15 +256,26 @@ pub async fn update_settings(
     s: &SettingsUpdate,
     user_id: i64,
 ) -> sqlx::Result<Settings> {
+    // Tri-state password in a single statement: keep, or replace (None clears).
+    let (keep_password, new_password) = match &s.smtp_password {
+        None => (true, None),
+        Some(v) => (false, v.clone()),
+    };
     sqlx::query_as!(
         Settings,
         "UPDATE settings
          SET automatic_email_enabled = $1, max_auto_emails_per_recipient_day = $2, send_window_start = $3,
              send_window_end = $4, send_window_weekdays_only = $5, nudge_interval_days = $6, nudge_escalate_after = $7,
-             stage_change_notifications = $8, stalled_alert_recipients = $9, updated_by = $10
+             stage_change_notifications = $8, stalled_alert_recipients = $9, updated_by = $10,
+             email_mode = $11, smtp_host = $12, smtp_port = $13, smtp_security = $14, smtp_username = $15,
+             smtp_password = CASE WHEN $19 THEN smtp_password ELSE $20 END,
+             smtp_helo_name = $16, smtp_force_ipv4 = $17, redirect_to = $18
          RETURNING automatic_email_enabled, max_auto_emails_per_recipient_day, send_window_start, send_window_end,
                    send_window_weekdays_only, nudge_interval_days, nudge_escalate_after, stage_change_notifications,
-                   stalled_alert_recipients, updated_at, updated_by",
+                   stalled_alert_recipients, updated_at, updated_by,
+                   email_mode, smtp_host, smtp_port, smtp_security, smtp_username,
+                   (smtp_password IS NOT NULL) AS \"has_password!\",
+                   smtp_helo_name, smtp_force_ipv4, redirect_to",
         s.automatic_email_enabled,
         s.max_auto_emails_per_recipient_day,
         s.send_window_start,
@@ -243,7 +285,57 @@ pub async fn update_settings(
         s.nudge_escalate_after,
         s.stage_change_notifications,
         &s.stalled_alert_recipients,
+        user_id,
+        s.email_mode,
+        s.smtp_host,
+        s.smtp_port,
+        s.smtp_security,
+        s.smtp_username,
+        s.smtp_helo_name,
+        s.smtp_force_ipv4,
+        s.redirect_to,
+        keep_password,
+        new_password
+    )
+    .fetch_one(db)
+    .await
+}
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct UserSettings {
+    pub user_id: i64,
+    pub density: String,
+    pub page_size: i32,
+    pub updated_at: DateTime<Utc>,
+}
+
+pub async fn user_settings(
+    db: impl PgExecutor<'_>,
+    user_id: i64,
+) -> sqlx::Result<Option<UserSettings>> {
+    sqlx::query_as!(
+        UserSettings,
+        "SELECT user_id, density, page_size, updated_at FROM user_settings WHERE user_id = $1",
         user_id
+    )
+    .fetch_optional(db)
+    .await
+}
+
+pub async fn upsert_user_settings(
+    db: impl PgExecutor<'_>,
+    user_id: i64,
+    density: &str,
+    page_size: i32,
+) -> sqlx::Result<UserSettings> {
+    sqlx::query_as!(
+        UserSettings,
+        "INSERT INTO user_settings (user_id, density, page_size) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE SET density = $2, page_size = $3
+         RETURNING user_id, density, page_size, updated_at",
+        user_id,
+        density,
+        page_size
     )
     .fetch_one(db)
     .await

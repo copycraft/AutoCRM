@@ -255,6 +255,52 @@ export const zEmailTemplate = z.object({
     updated_by: z.number().int().nullish()
 });
 
+/**
+ * A candidate transport for the test endpoint. Same validation as saving;
+ * `smtp_password` absent falls back to the saved secret so hosts can be
+ * retried without retyping it. Nothing here is persisted.
+ */
+export const zEmailTestCandidate = z.object({
+    mode: z.string(),
+    smtp_host: z.string().nullish(),
+    smtp_port: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    smtp_security: z.string().nullish(),
+    smtp_username: z.string().nullish(),
+    smtp_password: z.string().nullish(),
+    smtp_helo_name: z.string().nullish(),
+    smtp_force_ipv4: z.boolean().nullish(),
+    redirect_to: z.string().nullish()
+});
+
+export const zEmailTestBody = z.object({
+    to: z.string(),
+    config: zEmailTestCandidate.nullish()
+});
+
+export const zEmailTestResult = z.object({
+    ok: z.boolean(),
+    detail: z.string()
+});
+
+/**
+ * Email transport overrides. Every field is optional: absent keeps the stored
+ * value, explicit null returns it to "inherit from the environment".
+ * `mode: null` clears the whole transport back to environment behaviour.
+ * `smtp_password`: absent keeps, null clears, a value replaces. Blank
+ * strings are treated as absent everywhere (never a destructive surprise).
+ */
+export const zEmailTransportBody = z.object({
+    mode: z.string().nullish(),
+    smtp_host: z.string().nullish(),
+    smtp_port: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    smtp_security: z.string().nullish(),
+    smtp_username: z.string().nullish(),
+    smtp_password: z.string().nullish(),
+    smtp_helo_name: z.string().nullish(),
+    smtp_force_ipv4: z.boolean().nullish(),
+    redirect_to: z.string().nullish()
+});
+
 export const zErrorDetail = z.object({
     code: z.string(),
     message: z.string()
@@ -985,6 +1031,11 @@ export const zPickerOrder = z.object({
     stage_label: z.string()
 });
 
+export const zPreferencesBody = z.object({
+    density: z.string().nullish(),
+    page_size: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish()
+});
+
 /**
  * A request the client must perform exactly as described: every header listed is signed.
  */
@@ -1121,7 +1172,16 @@ export const zSettings = z.object({
     stage_change_notifications: z.boolean(),
     stalled_alert_recipients: z.array(z.string()),
     updated_at: z.string().datetime(),
-    updated_by: z.number().int().nullish()
+    updated_by: z.number().int().nullish(),
+    email_mode: z.string().nullish(),
+    smtp_host: z.string().nullish(),
+    smtp_port: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    smtp_security: z.string().nullish(),
+    smtp_username: z.string().nullish(),
+    has_password: z.boolean(),
+    smtp_helo_name: z.string().nullish(),
+    smtp_force_ipv4: z.boolean().nullish(),
+    redirect_to: z.string().nullish()
 });
 
 export const zSettingsBody = z.object({
@@ -1133,7 +1193,8 @@ export const zSettingsBody = z.object({
     nudge_interval_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
     nudge_escalate_after: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
     stage_change_notifications: z.boolean(),
-    stalled_alert_recipients: z.array(z.string()).optional()
+    stalled_alert_recipients: z.array(z.string()).optional(),
+    email: zEmailTransportBody.optional()
 });
 
 export const zStageBody = z.object({
@@ -1354,6 +1415,13 @@ export const zUser = z.object({
     updated_at: z.string().datetime()
 });
 
+export const zUserSettings = z.object({
+    user_id: z.number().int(),
+    density: z.string(),
+    page_size: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    updated_at: z.string().datetime()
+});
+
 export const zVolumeRow = z.object({
     key: z.string(),
     label: z.string(),
@@ -1402,6 +1470,15 @@ export const zAuthRevokeSessionPath = z.object({
  * Session revoked
  */
 export const zAuthRevokeSessionResponse = z.void();
+
+/**
+ * Own preferences; defaults when never saved
+ */
+export const zAuthGetPreferencesResponse = zUserSettings;
+
+export const zAuthPutPreferencesBody = zPreferencesBody;
+
+export const zAuthPutPreferencesResponse = zUserSettings;
 
 export const zUsersListResponse = zItemsUser;
 
@@ -1977,3 +2054,7 @@ export const zAdminRunNowPath = z.object({
 });
 
 export const zAdminRunNowResponse = zJobQueued;
+
+export const zAdminTestEmailBody = zEmailTestBody;
+
+export const zAdminTestEmailResponse = zEmailTestResult;

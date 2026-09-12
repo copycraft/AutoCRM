@@ -14,6 +14,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { AssigneeField } from '@/components/forms/AssigneeField';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useDensity, usePageSize } from '@/hooks/usePreferences';
 import { configApi, leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditLeads, useAuth } from '@/lib/auth/context';
@@ -22,7 +23,7 @@ import { DateDisplay } from '@/components/ui/DateDisplay';
 import { stageTone } from '@/lib/utils/stages';
 import type { LeadSummary, StageDefinition } from '@/lib/api/types';
 
-const PAGE_SIZE = 50;
+
 
 export default function LeadsPage() {
   const t = useTranslations('leads');
@@ -37,6 +38,8 @@ export default function LeadsPage() {
   const [openOnly, setOpenOnly] = useState(false);
   const [offset, setOffset] = useState(0);
   const debouncedQ = useDebouncedValue(q);
+  const pageSize = usePageSize();
+  const density = useDensity();
 
   const assignedTo =
     assignee === 'me' ? (user?.id ?? null) : assignee === 'all' ? undefined : (assignee ?? undefined);
@@ -52,14 +55,14 @@ export default function LeadsPage() {
   }, [stagesQuery.data]);
 
   const query = useQuery({
-    queryKey: qk.leads({ q: debouncedQ, stage, assignedTo, openOnly, offset }),
+    queryKey: qk.leads({ q: debouncedQ, stage, assignedTo, openOnly, offset, pageSize }),
     queryFn: () =>
       leadsApi.list({
         q: debouncedQ || undefined,
         stage: stage || undefined,
         assigned_to: assignedTo ?? undefined,
         open: openOnly || undefined,
-        limit: PAGE_SIZE,
+        limit: pageSize,
         offset,
       }),
   });
@@ -203,13 +206,14 @@ export default function LeadsPage() {
             isLoading={query.isLoading}
             emptyTitle={te('noLeads')}
             getRowId={(r) => String(r.id)}
+            density={density}
           />
           <Pagination
             offset={offset}
-            limit={PAGE_SIZE}
+            limit={pageSize}
             loaded={query.data?.items.length ?? 0}
-            onPrev={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-            onNext={() => setOffset((o) => o + PAGE_SIZE)}
+            onPrev={() => setOffset((o) => Math.max(0, o - pageSize))}
+            onNext={() => setOffset((o) => o + pageSize)}
           />
         </>
       )}

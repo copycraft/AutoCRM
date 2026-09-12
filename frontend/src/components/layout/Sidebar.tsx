@@ -5,28 +5,25 @@ import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   LayoutDashboard,
-  User,
   Building2,
   Target,
   Package,
-  OctagonAlert,
   Mail,
   BarChart3,
   Settings,
   ShieldCheck,
   LogOut,
   Snowflake,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/format';
 import { useAuth, canAdmin } from '@/lib/auth/context';
 
 const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: boolean }[] = [
   { href: '', icon: LayoutDashboard, key: 'dashboard' },
-  { href: '/partners/consumers', icon: User, key: 'consumers' },
   { href: '/partners/business', icon: Building2, key: 'business' },
   { href: '/leads', icon: Target, key: 'leads' },
   { href: '/orders', icon: Package, key: 'orders' },
-  { href: '/blockers', icon: OctagonAlert, key: 'blockers' },
   { href: '/emails', icon: Mail, key: 'emails' },
   { href: '/reports', icon: BarChart3, key: 'reports' },
   { href: '/admin', icon: ShieldCheck, key: 'admin', admin: true },
@@ -79,6 +76,10 @@ export function Sidebar() {
           <p className="text-sm font-medium truncate">{user?.display_name}</p>
           <p className="text-metadata text-steel-500 truncate">{user?.email}</p>
         </div>
+        <Link href={`/${locale}/preferences`} className="btn-ghost btn-sm w-full justify-start">
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          {t('preferences')}
+        </Link>
         <button onClick={() => void logout()} className="btn-ghost btn-sm w-full justify-start">
           <LogOut className="h-4 w-4" aria-hidden />
           {tc('logout')}

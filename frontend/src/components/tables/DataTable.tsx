@@ -15,12 +15,15 @@ export function DataTable<T>({
   isLoading,
   emptyTitle,
   getRowId,
+  density,
 }: {
   columns: ColumnDef<T, unknown>[];
   data: T[];
   isLoading?: boolean;
   emptyTitle: string;
   getRowId?: (row: T) => string;
+  /** From the user's preferences; compact tightens row padding. */
+  density?: string;
 }) {
   const table = useReactTable({
     data,
@@ -33,7 +36,7 @@ export function DataTable<T>({
   if (data.length === 0) return <EmptyState title={emptyTitle} />;
 
   return (
-    <div className="table-container">
+    <div className={`table-container${density === 'compact' ? ' density-compact' : ''}`}>
       <table className="table">
         <thead>
           {table.getHeaderGroups().map((hg) => (

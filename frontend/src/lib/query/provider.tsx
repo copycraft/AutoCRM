@@ -29,6 +29,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
 // Canonical query keys — used for invalidation after mutations (FRONTEND_PLAN.md §14).
 export const qk = {
   me: ['me'],
+  preferences: ['preferences'],
   users: ['users'],
   partners: (params?: unknown) => ['partners', params],
   partner: (id: number) => ['partner', id],

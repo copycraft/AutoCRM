@@ -134,6 +134,14 @@
   .table tbody tr.selected {
     @apply bg-steel-200/40;
   }
+
+  .density-compact .table th {
+    @apply h-8 px-3;
+  }
+
+  .density-compact .table td {
+    @apply px-3 py-1.5;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

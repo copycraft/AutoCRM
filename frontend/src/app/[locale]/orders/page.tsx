@@ -16,6 +16,7 @@ import { Money } from '@/components/ui/Money';
 import { AssigneeField } from '@/components/forms/AssigneeField';
 import { PartnerPicker, type PartnerOption } from '@/components/forms/PartnerPicker';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useDensity, usePageSize } from '@/hooks/usePreferences';
 import { configApi, ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditOrders, useAuth } from '@/lib/auth/context';
@@ -23,7 +24,7 @@ import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import type { OrderSummary, StageDefinition } from '@/lib/api/types';
 
-const PAGE_SIZE = 50;
+
 
 export default function OrdersPage() {
   const t = useTranslations('orders');
@@ -40,6 +41,8 @@ export default function OrdersPage() {
   const [openOnly, setOpenOnly] = useState(false);
   const [offset, setOffset] = useState(0);
   const debouncedQ = useDebouncedValue(q);
+  const pageSize = usePageSize();
+  const density = useDensity();
 
   const assignedTo =
     assignee === 'me' ? (user?.id ?? null) : assignee === 'all' ? undefined : (assignee ?? undefined);
@@ -60,7 +63,7 @@ export default function OrdersPage() {
 
   const query = useQuery({
     queryKey: qk.orders({
-      q: debouncedQ, stage, partner: partner?.id, projectType, assignedTo, openOnly, offset,
+      q: debouncedQ, stage, partner: partner?.id, projectType, assignedTo, openOnly, offset, pageSize,
     }),
     queryFn: () =>
       ordersApi.list({
@@ -70,7 +73,7 @@ export default function OrdersPage() {
         project_type_id: projectType ? Number(projectType) : undefined,
         assigned_to: assignedTo ?? undefined,
         open: openOnly || undefined,
-        limit: PAGE_SIZE,
+        limit: pageSize,
         offset,
       }),
   });
@@ -231,13 +234,14 @@ export default function OrdersPage() {
             isLoading={query.isLoading}
             emptyTitle={te('noOrders')}
             getRowId={(r) => String(r.id)}
+            density={density}
           />
           <Pagination
             offset={offset}
-            limit={PAGE_SIZE}
+            limit={pageSize}
             loaded={query.data?.items.length ?? 0}
-            onPrev={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-            onNext={() => setOffset((o) => o + PAGE_SIZE)}
+            onPrev={() => setOffset((o) => Math.max(0, o - pageSize))}
+            onNext={() => setOffset((o) => o + pageSize)}
           />
         </>
       )}

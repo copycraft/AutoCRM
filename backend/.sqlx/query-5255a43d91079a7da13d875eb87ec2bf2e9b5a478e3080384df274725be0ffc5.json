@@ -1,0 +1,155 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE settings\n         SET automatic_email_enabled = $1, max_auto_emails_per_recipient_day = $2, send_window_start = $3,\n             send_window_end = $4, send_window_weekdays_only = $5, nudge_interval_days = $6, nudge_escalate_after = $7,\n             stage_change_notifications = $8, stalled_alert_recipients = $9, updated_by = $10,\n             email_mode = $11, smtp_host = $12, smtp_port = $13, smtp_security = $14, smtp_username = $15,\n             smtp_password = CASE WHEN $19 THEN smtp_password ELSE $20 END,\n             smtp_helo_name = $16, smtp_force_ipv4 = $17, redirect_to = $18\n         RETURNING automatic_email_enabled, max_auto_emails_per_recipient_day, send_window_start, send_window_end,\n                   send_window_weekdays_only, nudge_interval_days, nudge_escalate_after, stage_change_notifications,\n                   stalled_alert_recipients, updated_at, updated_by,\n                   email_mode, smtp_host, smtp_port, smtp_security, smtp_username,\n                   (smtp_password IS NOT NULL) AS \"has_password!\",\n                   smtp_helo_name, smtp_force_ipv4, redirect_to",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "automatic_email_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "max_auto_emails_per_recipient_day",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "send_window_start",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "send_window_end",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "send_window_weekdays_only",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "nudge_interval_days",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "nudge_escalate_after",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "stage_change_notifications",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "stalled_alert_recipients",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "email_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "smtp_host",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "smtp_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "smtp_security",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "smtp_username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "has_password!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 17,
+        "name": "smtp_helo_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "smtp_force_ipv4",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 19,
+        "name": "redirect_to",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Int4",
+        "Time",
+        "Time",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Bool",
+        "TextArray",
+        "Int8",
+        "Text",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      null,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "5255a43d91079a7da13d875eb87ec2bf2e9b5a478e3080384df274725be0ffc5"
+}

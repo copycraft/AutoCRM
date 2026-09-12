@@ -16,9 +16,8 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditPartners, useAuth } from '@/lib/auth/context';
+import { useDensity, usePageSize } from '@/hooks/usePreferences';
 import type { Partner, PartnerKind } from '@/lib/api/types';
-
-const PAGE_SIZE = 50;
 
 export function PartnerList({
   kind,
@@ -40,15 +39,17 @@ export function PartnerList({
   const [includeArchived, setIncludeArchived] = useState(false);
   const [offset, setOffset] = useState(0);
   const debouncedQ = useDebouncedValue(q);
+  const pageSize = usePageSize();
+  const density = useDensity();
 
   const query = useQuery({
-    queryKey: qk.partners({ q: debouncedQ, kind, includeArchived, offset }),
+    queryKey: qk.partners({ q: debouncedQ, kind, includeArchived, offset, pageSize }),
     queryFn: () =>
       partnersApi.list({
         q: debouncedQ || undefined,
         kind,
         include_archived: includeArchived || undefined,
-        limit: PAGE_SIZE,
+        limit: pageSize,
         offset,
       }),
   });
@@ -132,13 +133,14 @@ export function PartnerList({
             isLoading={query.isLoading}
             emptyTitle={emptyTitle}
             getRowId={(r) => String(r.id)}
+            density={density}
           />
           <Pagination
             offset={offset}
-            limit={PAGE_SIZE}
+            limit={pageSize}
             loaded={query.data?.items.length ?? 0}
-            onPrev={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-            onNext={() => setOffset((o) => o + PAGE_SIZE)}
+            onPrev={() => setOffset((o) => Math.max(0, o - pageSize))}
+            onNext={() => setOffset((o) => o + pageSize)}
           />
         </>
       )}

@@ -267,6 +267,94 @@
         }
       }
     },
+    "/auth/preferences": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "auth_get_preferences",
+        "responses": {
+          "200": {
+            "description": "Own preferences; defaults when never saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettings"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "auth_put_preferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettings"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/users": {
       "get": {
         "tags": [
@@ -4719,6 +4807,57 @@
           }
         }
       }
+    },
+    "/admin/email/test": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Send one test mail through the saved transport, or through an unsaved\ncandidate (validated first, never persisted). Always 200: delivery failure\nis a diagnostic result, not a request error. Bypasses the queue like the\n`email-test` CLI; in dry_run mode nothing leaves the machine.",
+        "operationId": "admin_test_email",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailTestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTestResult"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6033,6 +6172,165 @@
               "null"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "EmailTestBody": {
+        "type": "object",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "to": {
+            "type": "string"
+          },
+          "config": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EmailTestCandidate"
+              }
+            ]
+          }
+        }
+      },
+      "EmailTestCandidate": {
+        "type": "object",
+        "description": "A candidate transport for the test endpoint. Same validation as saving;\n`smtp_password` absent falls back to the saved secret so hosts can be\nretried without retyping it. Nothing here is persisted.",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "smtp_host": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "smtp_security": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_password": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_helo_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_force_ipv4": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "redirect_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "EmailTestResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "detail"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "False means the mail did not go out; `detail` says why."
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "EmailTransportBody": {
+        "type": "object",
+        "description": "Email transport overrides. Every field is optional: absent keeps the stored\nvalue, explicit null returns it to \"inherit from the environment\".\n`mode: null` clears the whole transport back to environment behaviour.\n`smtp_password`: absent keeps, null clears, a value replaces. Blank\nstrings are treated as absent everywhere (never a destructive surprise).",
+        "properties": {
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_host": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "smtp_security": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_password": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_helo_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_force_ipv4": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "redirect_to": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -9326,6 +9624,24 @@
           }
         }
       },
+      "PreferencesBody": {
+        "type": "object",
+        "properties": {
+          "density": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "page_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "PresignedRequest": {
         "type": "object",
         "description": "A request the client must perform exactly as described: every header listed is signed.",
@@ -9595,7 +9911,8 @@
           "nudge_escalate_after",
           "stage_change_notifications",
           "stalled_alert_recipients",
-          "updated_at"
+          "updated_at",
+          "has_password"
         ],
         "properties": {
           "automatic_email_enabled": {
@@ -9641,6 +9958,58 @@
               "null"
             ],
             "format": "int64"
+          },
+          "email_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_host": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "smtp_security": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_password": {
+            "type": "boolean"
+          },
+          "smtp_helo_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smtp_force_ipv4": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "redirect_to": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -9690,6 +10059,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "email": {
+            "$ref": "#/components/schemas/EmailTransportBody",
+            "description": "Email transport overrides; absent keeps everything stored."
           }
         }
       },
@@ -10313,6 +10686,32 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UserSettings": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "density",
+          "page_size",
+          "updated_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "density": {
+            "type": "string"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int32"
           },
           "updated_at": {
             "type": "string",

@@ -13,6 +13,7 @@ use super::{Items, optional};
 use crate::AppState;
 use crate::domain::role::Role;
 use crate::error::{AppError, AppResult};
+use crate::repo::config::{self, UserSettings};
 use crate::repo::sessions::{self, SessionInfo, SessionKind};
 use crate::repo::users::User;
 use crate::service::auth::{self, AuthUser, LoginRequest};
@@ -25,6 +26,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(change_password))
         .routes(routes!(list_sessions))
         .routes(routes!(revoke_session))
+        .routes(routes!(get_preferences))
+        .routes(routes!(put_preferences))
 }
 
 fn default_client() -> SessionKind {
@@ -246,4 +249,61 @@ async fn revoke_session(
     } else {
         Err(AppError::NotFound("session"))
     }
+}
+
+fn default_preferences(user_id: i64) -> UserSettings {
+    UserSettings {
+        user_id,
+        density: "comfortable".into(),
+        page_size: 50,
+        // Not "now": no row exists, so there is no update time to report.
+        updated_at: DateTime::default(),
+    }
+}
+
+#[utoipa::path(
+    get, path = "/auth/preferences", tag = "auth",
+    responses((status = 200, body = UserSettings, description = "Own preferences; defaults when never saved"))
+)]
+async fn get_preferences(
+    State(state): State<AppState>,
+    Auth(user): Auth,
+) -> AppResult<Json<UserSettings>> {
+    let prefs = config::user_settings(&state.db, user.user_id)
+        .await?
+        .unwrap_or_else(|| default_preferences(user.user_id));
+    Ok(Json(prefs))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct PreferencesBody {
+    density: Option<String>,
+    page_size: Option<i32>,
+}
+
+#[utoipa::path(
+    put, path = "/auth/preferences", tag = "auth",
+    request_body = PreferencesBody,
+    responses((status = 200, body = UserSettings))
+)]
+async fn put_preferences(
+    State(state): State<AppState>,
+    Auth(user): Auth,
+    ApiJson(b): ApiJson<PreferencesBody>,
+) -> AppResult<Json<UserSettings>> {
+    let current = config::user_settings(&state.db, user.user_id)
+        .await?
+        .unwrap_or_else(|| default_preferences(user.user_id));
+    let density = b.density.unwrap_or(current.density);
+    if density != "comfortable" && density != "compact" {
+        return Err(AppError::validation(
+            "density: expected comfortable or compact",
+        ));
+    }
+    let page_size = b.page_size.unwrap_or(current.page_size);
+    if ![25, 50, 100].contains(&page_size) {
+        return Err(AppError::validation("page_size: expected 25, 50 or 100"));
+    }
+    let saved = config::upsert_user_settings(&state.db, user.user_id, &density, page_size).await?;
+    Ok(Json(saved))
 }

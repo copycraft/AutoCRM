@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["auth_get_preferences"];
+        put: operations["auth_put_preferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -1125,6 +1141,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/email/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send one test mail through the saved transport, or through an unsaved
+         *     candidate (validated first, never persisted). Always 200: delivery failure
+         *     is a diagnostic result, not a request error. Bypasses the queue like the
+         *     `email-test` CLI; in dry_run mode nothing leaves the machine.
+         */
+        post: operations["admin_test_email"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1494,6 +1532,51 @@ export interface components {
             updated_at: string;
             /** Format: int64 */
             updated_by?: number | null;
+        };
+        EmailTestBody: {
+            to: string;
+            config?: null | components["schemas"]["EmailTestCandidate"];
+        };
+        /**
+         * @description A candidate transport for the test endpoint. Same validation as saving;
+         *     `smtp_password` absent falls back to the saved secret so hosts can be
+         *     retried without retyping it. Nothing here is persisted.
+         */
+        EmailTestCandidate: {
+            mode: string;
+            smtp_host?: string | null;
+            /** Format: int32 */
+            smtp_port?: number | null;
+            smtp_security?: string | null;
+            smtp_username?: string | null;
+            smtp_password?: string | null;
+            smtp_helo_name?: string | null;
+            smtp_force_ipv4?: boolean | null;
+            redirect_to?: string | null;
+        };
+        EmailTestResult: {
+            /** @description False means the mail did not go out; `detail` says why. */
+            ok: boolean;
+            detail: string;
+        };
+        /**
+         * @description Email transport overrides. Every field is optional: absent keeps the stored
+         *     value, explicit null returns it to "inherit from the environment".
+         *     `mode: null` clears the whole transport back to environment behaviour.
+         *     `smtp_password`: absent keeps, null clears, a value replaces. Blank
+         *     strings are treated as absent everywhere (never a destructive surprise).
+         */
+        EmailTransportBody: {
+            mode?: string | null;
+            smtp_host?: string | null;
+            /** Format: int32 */
+            smtp_port?: number | null;
+            smtp_security?: string | null;
+            smtp_username?: string | null;
+            smtp_password?: string | null;
+            smtp_helo_name?: string | null;
+            smtp_force_ipv4?: boolean | null;
+            redirect_to?: string | null;
         };
         /** @description The body of every non-2xx response. */
         ErrorBody: {
@@ -2393,6 +2476,11 @@ export interface components {
             stage_key: string;
             stage_label: string;
         };
+        PreferencesBody: {
+            density?: string | null;
+            /** Format: int32 */
+            page_size?: number | null;
+        };
         /** @description A request the client must perform exactly as described: every header listed is signed. */
         PresignedRequest: {
             method: string;
@@ -2482,6 +2570,16 @@ export interface components {
             updated_at: string;
             /** Format: int64 */
             updated_by?: number | null;
+            email_mode?: string | null;
+            smtp_host?: string | null;
+            /** Format: int32 */
+            smtp_port?: number | null;
+            smtp_security?: string | null;
+            smtp_username?: string | null;
+            has_password: boolean;
+            smtp_helo_name?: string | null;
+            smtp_force_ipv4?: boolean | null;
+            redirect_to?: string | null;
         };
         SettingsBody: {
             /** @description The kill switch for automatic email. */
@@ -2497,6 +2595,8 @@ export interface components {
             nudge_escalate_after: number;
             stage_change_notifications: boolean;
             stalled_alert_recipients?: string[];
+            /** @description Email transport overrides; absent keeps everything stored. */
+            email?: components["schemas"]["EmailTransportBody"];
         };
         StageBody: {
             /** @description Target stage key. */
@@ -2684,6 +2784,15 @@ export interface components {
             must_change_password: boolean;
             /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        UserSettings: {
+            /** Format: int64 */
+            user_id: number;
+            density: string;
+            /** Format: int32 */
+            page_size: number;
             /** Format: date-time */
             updated_at: string;
         };
@@ -2931,6 +3040,85 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    auth_get_preferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own preferences; defaults when never saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSettings"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    auth_put_preferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSettings"];
+                };
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -6242,6 +6430,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobQueued"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_test_email: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailTestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailTestResult"];
                 };
             };
             /** @description Client error; see `error.code` */

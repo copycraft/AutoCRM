@@ -14,6 +14,7 @@ use utoipa_axum::routes;
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::{Items, patch as patch_field, required};
 use crate::AppState;
+use crate::config::{AppEnv, check_smtp_target};
 use crate::domain::email::normalize_address;
 use crate::domain::media::ImageCategory;
 use crate::domain::role::Capability;
@@ -379,6 +380,132 @@ async fn get_settings(State(state): State<AppState>, Auth(_): Auth) -> AppResult
     Ok(Json(config::settings(&state.db).await?))
 }
 
+/// Email transport overrides. Every field is optional: absent keeps the stored
+/// value, explicit null returns it to "inherit from the environment".
+/// `mode: null` clears the whole transport back to environment behaviour.
+/// `smtp_password`: absent keeps, null clears, a value replaces. Blank
+/// strings are treated as absent everywhere (never a destructive surprise).
+#[derive(Debug, Default, Deserialize, ToSchema)]
+struct EmailTransportBody {
+    #[serde(default, deserialize_with = "patch_field")]
+    mode: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    smtp_host: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    smtp_port: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    smtp_security: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    smtp_username: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    smtp_password: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    smtp_helo_name: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    smtp_force_ipv4: Option<Option<bool>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    redirect_to: Option<Option<String>>,
+}
+
+/// One merged transport field set, ready to validate and store.
+/// `None` everywhere means "inherit from the environment".
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct MergedTransport {
+    pub(crate) mode: Option<String>,
+    pub(crate) host: Option<String>,
+    pub(crate) port: Option<i32>,
+    pub(crate) security: Option<String>,
+    pub(crate) username: Option<String>,
+    pub(crate) helo_name: Option<String>,
+    pub(crate) force_ipv4: Option<bool>,
+    pub(crate) redirect_to: Option<String>,
+}
+
+fn blank_to_none(v: Option<String>) -> Option<String> {
+    v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+fn merge_transport(current: &Settings, b: &EmailTransportBody) -> MergedTransport {
+    if b.mode == Some(None) || matches!(&b.mode, Some(v) if v.as_deref().map(str::trim) == Some(""))
+    {
+        // Back to environment behaviour: siblings are meaningless, drop them.
+        return MergedTransport::default();
+    }
+    let pick = |field: &Option<Option<String>>, cur: &Option<String>| match field {
+        None => cur.clone(),
+        Some(v) => blank_to_none(v.clone()),
+    };
+    MergedTransport {
+        mode: match &b.mode {
+            None => current.email_mode.clone(),
+            // Explicit null was handled above (inherit everything).
+            Some(v) => blank_to_none(v.clone()),
+        },
+        host: pick(&b.smtp_host, &current.smtp_host),
+        port: match &b.smtp_port {
+            None => current.smtp_port,
+            Some(v) => *v,
+        },
+        security: pick(&b.smtp_security, &current.smtp_security),
+        username: pick(&b.smtp_username, &current.smtp_username),
+        helo_name: pick(&b.smtp_helo_name, &current.smtp_helo_name),
+        force_ipv4: match &b.smtp_force_ipv4 {
+            None => current.smtp_force_ipv4,
+            Some(v) => *v,
+        },
+        redirect_to: pick(&b.redirect_to, &current.redirect_to),
+    }
+}
+
+pub(crate) fn validate_transport(m: &MergedTransport, env: AppEnv) -> AppResult<()> {
+    let mode = match m.mode.as_deref() {
+        None => return Ok(()),
+        Some(mode) => mode,
+    };
+    if mode != "dry_run" && mode != "smtp" {
+        return Err(AppError::validation("email_mode: expected dry_run or smtp"));
+    }
+    if mode == "dry_run" {
+        return Ok(());
+    }
+    let host = m.host.as_deref().unwrap_or("");
+    if host.is_empty() {
+        return Err(AppError::validation(
+            "smtp_host is required when email_mode is smtp",
+        ));
+    }
+    if let Some(port) = m.port {
+        if !(1..=65535).contains(&port) {
+            return Err(AppError::validation("smtp_port must be 1-65535"));
+        }
+    }
+    if let Some(security) = m.security.as_deref() {
+        if !["none", "starttls", "tls"].contains(&security) {
+            return Err(AppError::validation(
+                "smtp_security: expected none, starttls or tls",
+            ));
+        }
+    }
+    if let Some(helo) = m.helo_name.as_deref() {
+        if helo.chars().any(char::is_whitespace) {
+            return Err(AppError::validation(
+                "smtp_helo_name must be a bare domain name",
+            ));
+        }
+    }
+    if let Some(redirect) = m.redirect_to.as_deref() {
+        if normalize_address(redirect).is_none() {
+            return Err(AppError::validation(
+                "redirect_to is not a valid email address",
+            ));
+        }
+    }
+    if let Err(e) = check_smtp_target(env, host, m.redirect_to.as_deref()) {
+        return Err(AppError::validation(e));
+    }
+    Ok(())
+}
+
 #[derive(Deserialize, ToSchema)]
 struct SettingsBody {
     /// The kill switch for automatic email.
@@ -392,6 +519,9 @@ struct SettingsBody {
     stage_change_notifications: bool,
     #[serde(default)]
     stalled_alert_recipients: Vec<String>,
+    /// Email transport overrides; absent keeps everything stored.
+    #[serde(default)]
+    email: EmailTransportBody,
 }
 
 #[utoipa::path(
@@ -427,6 +557,8 @@ async fn put_settings(
 
     let mut tx = state.db.begin().await?;
     let before = config::settings(&mut *tx).await?;
+    let email = merge_transport(&before, &b.email);
+    validate_transport(&email, state.config.env)?;
     let after = config::update_settings(
         &mut *tx,
         &SettingsUpdate {
@@ -439,6 +571,15 @@ async fn put_settings(
             nudge_escalate_after: b.nudge_escalate_after,
             stage_change_notifications: b.stage_change_notifications,
             stalled_alert_recipients: recipients,
+            email_mode: email.mode,
+            smtp_host: email.host,
+            smtp_port: email.port,
+            smtp_security: email.security,
+            smtp_username: email.username,
+            smtp_password: b.email.smtp_password.clone(),
+            smtp_helo_name: email.helo_name,
+            smtp_force_ipv4: email.force_ipv4,
+            redirect_to: email.redirect_to,
         },
         me.user_id,
     )
@@ -461,4 +602,86 @@ async fn put_settings(
     .await?;
     tx.commit().await?;
     Ok(Json(after))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repo::config::Settings;
+
+    fn stored() -> Settings {
+        Settings {
+            automatic_email_enabled: false,
+            max_auto_emails_per_recipient_day: 3,
+            send_window_start: NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
+            send_window_end: NaiveTime::from_hms_opt(17, 0, 0).unwrap(),
+            send_window_weekdays_only: true,
+            nudge_interval_days: 3,
+            nudge_escalate_after: 2,
+            stage_change_notifications: false,
+            stalled_alert_recipients: vec![],
+            updated_at: chrono::Utc::now(),
+            updated_by: None,
+            email_mode: Some("smtp".into()),
+            smtp_host: Some("smtp-relay.gmail.com".into()),
+            smtp_port: Some(587),
+            smtp_security: Some("starttls".into()),
+            smtp_username: None,
+            has_password: false,
+            smtp_helo_name: None,
+            smtp_force_ipv4: None,
+            redirect_to: Some("staging@example.hu".into()),
+        }
+    }
+
+    fn body() -> EmailTransportBody {
+        EmailTransportBody::default()
+    }
+
+    #[test]
+    fn absent_fields_keep_stored_values() {
+        let merged = merge_transport(&stored(), &body());
+        assert_eq!(merged.mode.as_deref(), Some("smtp"));
+        assert_eq!(merged.host.as_deref(), Some("smtp-relay.gmail.com"));
+        assert_eq!(merged.redirect_to.as_deref(), Some("staging@example.hu"));
+    }
+
+    #[test]
+    fn explicit_null_mode_clears_the_whole_transport() {
+        let mut b = body();
+        b.mode = Some(None);
+        b.smtp_host = Some(Some("smtp-relay.gmail.com".into()));
+        let merged = merge_transport(&stored(), &b);
+        assert_eq!(merged, MergedTransport::default());
+    }
+
+    #[test]
+    fn explicit_values_replace_stored_ones() {
+        let mut b = body();
+        b.smtp_host = Some(Some("mailpit".into()));
+        b.smtp_port = Some(Some(1025));
+        let merged = merge_transport(&stored(), &b);
+        assert_eq!(merged.host.as_deref(), Some("mailpit"));
+        assert_eq!(merged.port, Some(1025));
+        assert_eq!(merged.mode.as_deref(), Some("smtp"));
+    }
+
+    #[test]
+    fn validation_rejects_bad_transport() {
+        let env = AppEnv::Dev;
+        let mut m = MergedTransport {
+            mode: Some("smtp".into()),
+            ..MergedTransport::default()
+        };
+        assert!(validate_transport(&m, env).is_err());
+        m.host = Some("smtp-relay.gmail.com".into());
+        assert!(validate_transport(&m, env).is_err());
+        m.redirect_to = Some("staging@example.hu".into());
+        assert!(validate_transport(&m, env).is_ok());
+        m.host = Some("localhost".into());
+        m.redirect_to = None;
+        assert!(validate_transport(&m, env).is_ok());
+        m.mode = Some("carrier_pigeon".into());
+        assert!(validate_transport(&m, env).is_err());
+    }
 }

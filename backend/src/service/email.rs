@@ -9,10 +9,12 @@ use lettre::Address;
 use lettre::message::Mailbox;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::PgConnection;
+use sqlx::{PgConnection, PgPool};
 
 use crate::AppState;
-use crate::config::{Config, EmailConfig, domain_of};
+use crate::config::{
+    Config, EmailConfig, EmailTransportConfig, SmtpConfig, SmtpSecurity, domain_of,
+};
 use crate::domain::email::{
     AutoSendContext, AutoSendDecision, EmailStatus, SendWindow, decide_automatic, normalize_address,
 };
@@ -37,6 +39,104 @@ pub mod triggers {
 const MAX_ATTACHMENT_BYTES: i64 = 10 * 1024 * 1024;
 const LINK_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
 const MAX_SEND_ATTEMPTS: i32 = 5;
+
+/// Where the effective email transport came from. Shown in the admin UI so
+/// it is always clear whether the form or the process environment is live.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportSource {
+    Database,
+    Environment,
+}
+
+/// Pure merge of stored transport fields over the environment config.
+/// Returns `None` when nothing is configured here (inherit everything).
+/// Unit-tested below.
+pub(crate) fn transport_from_parts(
+    mode: Option<&str>,
+    host: Option<String>,
+    port: Option<i32>,
+    security: Option<&str>,
+    username: Option<String>,
+    password: Option<String>,
+    helo_name: Option<String>,
+    force_ipv4: Option<bool>,
+    message_id_domain: &str,
+) -> Option<EmailTransportConfig> {
+    match mode {
+        None => None,
+        Some("dry_run") => Some(EmailTransportConfig::DryRun),
+        Some("smtp") => {
+            let host = host.filter(|h| !h.trim().is_empty())?;
+            let security: SmtpSecurity = match security {
+                None => SmtpSecurity::StartTls,
+                Some(v) => v.parse().ok()?,
+            };
+            Some(EmailTransportConfig::Smtp(SmtpConfig {
+                host,
+                port: port.unwrap_or(587) as u16,
+                username,
+                password,
+                security,
+                helo_name: helo_name
+                    .filter(|h| !h.trim().is_empty())
+                    .unwrap_or_else(|| message_id_domain.to_string()),
+                force_ipv4: force_ipv4.unwrap_or(false),
+            }))
+        }
+        Some(other) => {
+            tracing::error!(mode = %other, "stored email_mode is invalid; using environment");
+            None
+        }
+    }
+}
+
+fn resolve_transport(
+    s: &config::Settings,
+    password: Option<String>,
+    env: &EmailConfig,
+) -> Option<EmailTransportConfig> {
+    transport_from_parts(
+        s.email_mode.as_deref(),
+        s.smtp_host.clone(),
+        s.smtp_port,
+        s.smtp_security.as_deref(),
+        s.smtp_username.clone(),
+        password,
+        s.smtp_helo_name.clone(),
+        s.smtp_force_ipv4,
+        &env.message_id_domain,
+    )
+}
+
+/// The transport to actually send with: the admin settings row when it
+/// configures one, else the process environment. Never fails — a broken row
+/// or an unreadable table falls back to the environment with an error log.
+pub async fn effective_email_config(
+    db: &PgPool,
+    env: &EmailConfig,
+) -> (EmailConfig, TransportSource) {
+    let row = match config::settings(db).await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!(error = %e, "email transport settings unreadable; using environment");
+            return (env.clone(), TransportSource::Environment);
+        }
+    };
+    // Same executor borrow discipline as everywhere: one query at a time.
+    let password = config::email_secret(db).await.unwrap_or(None);
+    match resolve_transport(&row, password, env) {
+        Some(transport) => (
+            EmailConfig {
+                transport,
+                redirect_to: row.redirect_to.clone(),
+                ..env.clone()
+            },
+            TransportSource::Database,
+        ),
+        None => (env.clone(), TransportSource::Environment),
+    }
+}
 
 /// What an email is about. Drives both the log's foreign keys and template variables.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
@@ -745,5 +845,70 @@ mod tests {
         assert_eq!(reply_to.as_deref(), Some("janos@gmail.com"));
         let (from, _) = manual_sender(&email_config(&[]), &staff("kovacs@autotherm.hu")).unwrap();
         assert!(from.ends_with("<beszerzes@autotherm.hu>"), "{from}");
+    }
+
+    fn stored_transport(mode: Option<&str>) -> config::Settings {
+        config::Settings {
+            automatic_email_enabled: false,
+            max_auto_emails_per_recipient_day: 3,
+            send_window_start: chrono::NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
+            send_window_end: chrono::NaiveTime::from_hms_opt(17, 0, 0).unwrap(),
+            send_window_weekdays_only: true,
+            nudge_interval_days: 3,
+            nudge_escalate_after: 2,
+            stage_change_notifications: false,
+            stalled_alert_recipients: vec![],
+            updated_at: chrono::Utc::now(),
+            updated_by: None,
+            email_mode: mode.map(str::to_string),
+            smtp_host: Some("smtp-relay.gmail.com".into()),
+            smtp_port: Some(587),
+            smtp_security: Some("starttls".into()),
+            smtp_username: None,
+            has_password: false,
+            smtp_helo_name: None,
+            smtp_force_ipv4: None,
+            redirect_to: None,
+        }
+    }
+
+    #[test]
+    fn unset_mode_inherits_the_environment() {
+        let env = email_config(&[]);
+        assert!(resolve_transport(&stored_transport(None), None, &env).is_none());
+    }
+
+    #[test]
+    fn database_dry_run_wins_over_smtp_environment() {
+        let env = email_config(&[]);
+        let transport = resolve_transport(&stored_transport(Some("dry_run")), None, &env).unwrap();
+        assert!(matches!(
+            transport,
+            crate::config::EmailTransportConfig::DryRun
+        ));
+    }
+
+    #[test]
+    fn smtp_row_builds_with_env_defaults() {
+        let env = email_config(&[]);
+        let transport = resolve_transport(&stored_transport(Some("smtp")), None, &env).unwrap();
+        let crate::config::EmailTransportConfig::Smtp(smtp) = transport else {
+            panic!("expected smtp");
+        };
+        assert_eq!(smtp.host, "smtp-relay.gmail.com");
+        assert_eq!(smtp.port, 587);
+        // helo falls back to the environment identity, not a hardcoded name.
+        assert_eq!(smtp.helo_name, "autotherm.hu");
+    }
+
+    #[test]
+    fn broken_rows_fall_back_to_nothing() {
+        let env = email_config(&[]);
+        let mut row = stored_transport(Some("smtp"));
+        row.smtp_host = Some("   ".into());
+        assert!(resolve_transport(&row, None, &env).is_none());
+        let mut row = stored_transport(Some("smtp"));
+        row.smtp_security = Some("pigeon".into());
+        assert!(resolve_transport(&row, None, &env).is_none());
     }
 }

@@ -38,17 +38,28 @@ enum Outcome {
 }
 
 pub async fn run(state: AppState, mut shutdown: watch::Receiver<bool>) {
-    let mailer = match Mailer::from_config(&state.config.email) {
-        Ok(m) => m,
-        Err(e) => {
-            tracing::error!(error = %e, "email transport is misconfigured; background worker NOT started");
-            return;
-        }
-    };
     let scheduler = tokio::spawn(scheduler_loop(state.clone(), shutdown.clone()));
-    tracing::info!(worker_id = %state.config.worker_id, dry_run = mailer.is_dry_run(), "background worker started");
+    tracing::info!(worker_id = %state.config.worker_id, "background worker started");
 
     while !*shutdown.borrow() {
+        // Rebuilt every cycle from the effective config (admin settings row,
+        // else environment), so transport changes apply without a restart.
+        // Building the client performs no I/O; a broken config only skips
+        // this cycle with an error log, it never stops the worker.
+        let (email_config, source) =
+            email::effective_email_config(&state.db, &state.config.email).await;
+        tracing::debug!(?source, "effective email transport");
+        let mailer = match Mailer::from_config(&email_config) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::error!(error = %e, "email transport is misconfigured; skipping this cycle");
+                tokio::select! {
+                    _ = tokio::time::sleep(POLL_INTERVAL) => {}
+                    _ = shutdown.changed() => {}
+                }
+                continue;
+            }
+        };
         let claimed = match jobs::claim(&state.db, &state.config.worker_id, BATCH).await {
             Ok(jobs) => jobs,
             Err(e) => {
