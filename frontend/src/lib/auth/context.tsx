@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useMemo, type ReactNode } from 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import type { LoginResponse, Role, SessionUser } from '@/lib/api/types';
+import type { LoginResponse, SessionUser } from '@/lib/api/types';
 
 interface AuthState {
   user: SessionUser | null;
@@ -101,8 +101,4 @@ export function canUploadMedia(user: SessionUser | null): boolean {
 
 export function canAdmin(user: SessionUser | null): boolean {
   return !!user && user.role === 'admin';
-}
-
-export function roleLabel(role: Role, t: (key: string) => string): string {
-  return t(`users.roles.${role}`);
 }

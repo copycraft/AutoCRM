@@ -239,7 +239,7 @@ export function ItemsSection({
             )}
             {items.length === 0 && !adding && (
               <tr>
-                <td colSpan={6} className="text-center text-steel-500">
+                <td colSpan={6} className="text-left text-steel-500">
                   {t('noItems')}
                 </td>
               </tr>
