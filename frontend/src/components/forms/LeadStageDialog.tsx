@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
+import { useAuth } from '@/lib/auth/context';
 import { ErrorState } from '@/components/ui/ErrorState';
 import type { LeadDetail, TransitionOption } from '@/lib/api/types';
 
@@ -23,6 +24,7 @@ export function LeadStageDialog({
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [target, setTarget] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -43,13 +45,46 @@ export function LeadStageDialog({
   const change = useMutation({
     mutationFn: () =>
       leadsApi.stage(leadId, { stage: effective, note: note.trim() || undefined }),
-    onSuccess: () => {
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: qk.lead(leadId) });
+      const prev = qc.getQueryData<LeadDetail>(qk.lead(leadId));
+      const now = new Date().toISOString();
+      const trimmedNote = note.trim() || null;
+      if (prev && selected) {
+        qc.setQueryData<LeadDetail>(qk.lead(leadId), {
+          ...prev,
+          stage: { stage_key: selected.stage_key, entered_at: now },
+          history: [
+            ...prev.history.map((h, i, all) =>
+              i === all.length - 1 ? { ...h, left_at: now } : h,
+            ),
+            {
+              id: -Date.now(),
+              stage_key: selected.stage_key,
+              label_hu: selected.label_hu,
+              entered_at: now,
+              left_at: null,
+              entered_by: user?.id ?? null,
+              entered_by_name: user?.display_name ?? null,
+              note: trimmedNote,
+            },
+          ],
+        });
+      }
+      return { prev };
+    },
+    onError: (e, _vars, context) => {
+      if (context?.prev) qc.setQueryData(qk.lead(leadId), context.prev);
+      setError(errorMessage(e, ter, ter('unknownError')));
+    },
+    onSettled: () => {
       void qc.invalidateQueries({ queryKey: qk.lead(leadId) });
       void qc.invalidateQueries({ queryKey: qk.leadTransitions(leadId) });
       void qc.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onSuccess: () => {
       onClose();
     },
-    onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
   });
 
   const valid = effective !== '' && (!needsNote || note.trim() !== '');

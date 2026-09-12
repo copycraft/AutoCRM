@@ -3671,6 +3671,8 @@ export interface operations {
                 q?: string;
                 kind?: components["schemas"]["PartnerKind"];
                 include_archived?: boolean;
+                /** @description Sort key, `-` prefix for descending: name, created_at. */
+                sort?: string;
                 limit?: number;
                 offset?: number;
             };
@@ -4081,6 +4083,8 @@ export interface operations {
                 assigned_to?: number;
                 /** @description Only leads not in a terminal stage. */
                 open?: boolean;
+                /** @description Sort key, `-` prefix for descending: created_at, title. */
+                sort?: string;
                 limit?: number;
                 offset?: number;
             };
@@ -4380,6 +4384,8 @@ export interface operations {
                 assigned_to?: number;
                 /** @description Only orders not in a terminal stage. */
                 open?: boolean;
+                /** @description Sort key, `-` prefix for descending: created_at, due_date, total, number. */
+                sort?: string;
                 limit?: number;
                 offset?: number;
             };

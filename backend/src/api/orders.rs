@@ -27,7 +27,8 @@ use crate::repo::order_items::OrderItem;
 use crate::repo::orders::{Order, OrderFields, OrderFilter, OrderSummary, OrderValue};
 use crate::repo::stages::StageEntry;
 use crate::repo::{
-    audit, blockers, config, images, like_pattern, order_items, orders, partners, stages,
+    audit, blockers, config, images, like_pattern, order_items, orders, parse_sort, partners,
+    stages,
 };
 use crate::service;
 use crate::service::orders::{
@@ -74,6 +75,8 @@ struct SearchQuery {
     /// Only orders not in a terminal stage.
     #[serde(default)]
     open: bool,
+    /// Sort key, `-` prefix for descending: created_at, due_date, total, number.
+    sort: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
@@ -102,10 +105,13 @@ async fn search(
         assigned_to: q.assigned_to,
         open_only: q.open,
     };
+    let sort_key = parse_sort(q.sort.as_deref(), orders::ORDER_SORTS, orders::DEFAULT_SORT)
+        .map_err(AppError::validation)?;
     Ok(Items::new(
         orders::search(
             &state.db,
             &filter,
+            &sort_key,
             page_limit(q.limit),
             page_offset(q.offset),
         )

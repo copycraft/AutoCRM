@@ -1038,6 +1038,15 @@
             }
           },
           {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort key, `-` prefix for descending: name, created_at.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -1602,6 +1611,15 @@
             }
           },
           {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort key, `-` prefix for descending: created_at, title.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -2045,6 +2063,15 @@
             "required": false,
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort key, `-` prefix for descending: created_at, due_date, total, number.",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {

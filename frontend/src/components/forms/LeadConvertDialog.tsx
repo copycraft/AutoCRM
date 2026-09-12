@@ -119,19 +119,24 @@ export function LeadConvertDialog({
                   <p className="mt-1 text-xs text-steel-500">{t('partnerCurrencyHint')}</p>
                 )}
               </div>
-              <div>
-                <label className="label" htmlFor="lc-pt">{tof('projectType')}</label>
-                <select id="lc-pt" className="input" value={projectTypeId} onChange={(e) => setProjectTypeId(e.target.value)}>
-                  <option value="">—</option>
-                  {(projectTypes.data?.items ?? [])
-                    .filter((p) => p.is_active)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label_hu}
-                      </option>
-                    ))}
-                </select>
-              </div>
+            <div>
+              <label className="label" htmlFor="lc-pt">{tof('projectType')}</label>
+              <select id="lc-pt" className="input" value={projectTypeId} disabled={projectTypes.isLoading} onChange={(e) => setProjectTypeId(e.target.value)}>
+                <option value="">—</option>
+                {(projectTypes.data?.items ?? [])
+                  .filter((p) => p.is_active)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label_hu}
+                    </option>
+                  ))}
+              </select>
+              {projectTypes.isError && (
+                <p className="mt-1 text-xs text-steel-900" role="alert">
+                  {errorMessage(projectTypes.error, ter, ter('unknownError'))}
+                </p>
+              )}
+            </div>
             </div>
             <div>
               <label className="label" htmlFor="lc-desc">{t('description')}</label>

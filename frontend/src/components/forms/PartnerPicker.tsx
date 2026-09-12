@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
+import { errorMessage } from '@/lib/api/errors';
 import { partnersApi } from '@/lib/api/endpoints';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { cn } from '@/lib/utils/format';
@@ -28,6 +29,7 @@ export function PartnerPicker({
   const t = useTranslations('partners');
   const tc = useTranslations('common');
   const te = useTranslations('emptyStates');
+  const ter = useTranslations('errors');
   const baseId = useId();
   const inputId = `${baseId}-input`;
   const listId = `${baseId}-list`;
@@ -110,6 +112,11 @@ export function PartnerPicker({
             onKeyDown={onKeyDown}
             onBlur={() => setOpen(false)}
           />
+          {search.isError && (
+            <p className="mt-1 text-xs text-steel-900" role="alert">
+              {errorMessage(search.error, ter, ter('unknownError'))}
+            </p>
+          )}
           {open && (
             <div
               ref={listRef}

@@ -2,7 +2,7 @@
 
 import { TriangleAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { errorMessage } from '@/lib/api/errors';
+import { ApiError, errorMessage } from '@/lib/api/errors';
 
 export function ErrorState({
   error,
@@ -12,7 +12,12 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   const ter = useTranslations('errors');
-  const message = errorMessage(error, ter, ter('unknownError'));
+  const te = useTranslations('emptyStates');
+  // A 403 on a read is "you may not view this", not a generic failure.
+  const message =
+    error instanceof ApiError && error.code === 'forbidden'
+      ? te('permissionDenied')
+      : errorMessage(error, ter, ter('unknownError'));
   return (
     <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-steel-200 bg-panel px-6 py-12 text-center" role="alert">
       <TriangleAlert className="h-8 w-8 text-steel-900" aria-hidden />

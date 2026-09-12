@@ -17,7 +17,7 @@ use crate::error::{AppError, AppResult};
 use crate::repo::leads::{Lead, LeadInput, LeadSummary};
 use crate::repo::orders::Order;
 use crate::repo::stages::{CurrentStage, StageEntry};
-use crate::repo::{audit, leads, like_pattern, orders, stages};
+use crate::repo::{audit, leads, like_pattern, orders, parse_sort, stages};
 use crate::service;
 use crate::service::stages::{StageChange, TransitionOption};
 
@@ -40,6 +40,8 @@ struct SearchQuery {
     /// Only leads not in a terminal stage.
     #[serde(default)]
     open: bool,
+    /// Sort key, `-` prefix for descending: created_at, title.
+    sort: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
@@ -55,12 +57,15 @@ async fn search(
     ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> AppResult<Json<Items<LeadSummary>>> {
     let pattern = q.q.as_deref().and_then(like_pattern);
+    let sort_key = parse_sort(q.sort.as_deref(), leads::LEAD_SORTS, leads::DEFAULT_SORT)
+        .map_err(AppError::validation)?;
     let rows = leads::search(
         &state.db,
         pattern.as_deref(),
         optional(q.stage).as_deref(),
         q.assigned_to,
         q.open,
+        &sort_key,
         page_limit(q.limit),
         page_offset(q.offset),
     )

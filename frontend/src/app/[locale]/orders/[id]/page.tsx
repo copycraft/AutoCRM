@@ -17,6 +17,7 @@ import { ItemsSection } from '@/components/forms/ItemsSection';
 import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
 import { configApi, ordersApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
+import { errorMessage } from '@/lib/api/errors';
 import { canAdmin, canChangeStage, canEditOrders, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
@@ -39,6 +40,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const ti = useTranslations('images');
+  const ter = useTranslations('errors');
   const locale = useLocale();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -375,13 +377,34 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
               )}
             </div>
             <div className="card-content space-y-4">
-              <StageRail
-                stages={defs}
-                currentKey={stage.key}
-                daysInStage={stage.days_in_stage}
-                openBlockers={openBlockers.length}
-                history={history.data?.items ?? []}
-              />
+              {stagesQuery.isError || history.isError ? (
+                <div role="alert">
+                  <p className="text-sm text-steel-900">
+                    {errorMessage(
+                      stagesQuery.error ?? history.error,
+                      ter,
+                      ter('unknownError'),
+                    )}
+                  </p>
+                  <button
+                    className="btn-ghost btn-sm mt-2"
+                    onClick={() => {
+                      void stagesQuery.refetch();
+                      void history.refetch();
+                    }}
+                  >
+                    {ter('retry')}
+                  </button>
+                </div>
+              ) : (
+                <StageRail
+                  stages={defs}
+                  currentKey={stage.key}
+                  daysInStage={stage.days_in_stage}
+                  openBlockers={openBlockers.length}
+                  history={history.data?.items ?? []}
+                />
+              )}
               <div className="border-t border-steel-200 pt-3 text-metadata text-steel-500">
                 <p>
                   <StatusBadge tone={stageTone(defs.find((d) => d.key === stage.key))}>

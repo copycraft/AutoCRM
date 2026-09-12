@@ -211,7 +211,7 @@ export function OrderForm({
         </div>
         <div>
           <label className="label" htmlFor="of-contact">{tc('contact')}</label>
-          <select id="of-contact" className="input" {...register('contact_id')} disabled={!partner}>
+          <select id="of-contact" className="input" {...register('contact_id')} disabled={!partner || contactsQuery.isLoading}>
             <option value="">—</option>
             {contactsQuery.data?.contacts
               .filter((c) => !c.archived_at)
@@ -221,11 +221,16 @@ export function OrderForm({
                 </option>
               ))}
           </select>
+          {contactsQuery.isError && (
+            <p className="mt-1 text-xs text-steel-900" role="alert">
+              {errorMessage(contactsQuery.error, ter, ter('unknownError'))}
+            </p>
+          )}
           {initial && <p className="mt-1 text-xs text-steel-500">{t('contactClearedNote')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="of-pt">{t('projectType')}</label>
-          <select id="of-pt" className="input" {...register('project_type_id')}>
+          <select id="of-pt" className="input" {...register('project_type_id')} disabled={projectTypes.isLoading}>
             <option value="">—</option>
             {(projectTypes.data?.items ?? [])
               .filter((p) => p.is_active)
@@ -235,6 +240,11 @@ export function OrderForm({
                 </option>
               ))}
           </select>
+          {projectTypes.isError && (
+            <p className="mt-1 text-xs text-steel-900" role="alert">
+              {errorMessage(projectTypes.error, ter, ter('unknownError'))}
+            </p>
+          )}
         </div>
         <div>
           <label className="label" htmlFor="of-val">{t('valuationDate')}</label>

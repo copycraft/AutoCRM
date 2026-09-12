@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DataTable } from '@/components/tables/DataTable';
+import { DataTable, nextSort, type TableSort } from '@/components/tables/DataTable';
 import { FilterBar, FilterField } from '@/components/tables/FilterBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -15,6 +15,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { AssigneeField } from '@/components/forms/AssigneeField';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useDensity, usePageSize } from '@/hooks/usePreferences';
+import { errorMessage } from '@/lib/api/errors';
 import { configApi, leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditLeads, useAuth } from '@/lib/auth/context';
@@ -30,6 +31,7 @@ export default function LeadsPage() {
   const tc = useTranslations('common');
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
+  const ter = useTranslations('errors');
   const locale = useLocale();
   const { user } = useAuth();
   const [q, setQ] = useState('');
@@ -37,6 +39,7 @@ export default function LeadsPage() {
   const [assignee, setAssignee] = useState<number | null | 'all' | 'me'>(null);
   const [openOnly, setOpenOnly] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState<TableSort | null>(null);
   const debouncedQ = useDebouncedValue(q);
   const pageSize = usePageSize();
   const density = useDensity();
@@ -55,13 +58,14 @@ export default function LeadsPage() {
   }, [stagesQuery.data]);
 
   const query = useQuery({
-    queryKey: qk.leads({ q: debouncedQ, stage, assignedTo, openOnly, offset, pageSize }),
+    queryKey: qk.leads({ q: debouncedQ, stage, assignedTo, openOnly, offset, pageSize, sort }),
     queryFn: () =>
       leadsApi.list({
         q: debouncedQ || undefined,
         stage: stage || undefined,
         assigned_to: assignedTo ?? undefined,
         open: openOnly || undefined,
+        sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
         limit: pageSize,
         offset,
       }),
@@ -72,6 +76,7 @@ export default function LeadsPage() {
       {
         header: t('title'),
         accessorKey: 'title',
+        meta: { sortKey: 'title' },
         cell: ({ row }) => (
           <span className="flex items-center gap-2">
             <Link href={`./leads/${row.original.id}`} className="font-medium text-steel-900 underline">
@@ -105,7 +110,9 @@ export default function LeadsPage() {
       },
       {
         header: t('age'),
+        id: 'age',
         accessorKey: 'created_at',
+        meta: { align: 'right' },
         cell: ({ getValue }) => (
           <span className="font-mono">{tc('ageDays', { days: daysSince(getValue<string>()) })}</span>
         ),
@@ -118,6 +125,7 @@ export default function LeadsPage() {
       {
         header: t('createdAt'),
         accessorKey: 'created_at',
+        meta: { sortKey: 'created_at', align: 'right' },
         cell: ({ getValue }) =>           <DateDisplay value={getValue<string>()} />,
       },
     ],
@@ -130,6 +138,7 @@ export default function LeadsPage() {
     setAssignee(null);
     setOpenOnly(false);
     setOffset(0);
+    setSort(null);
   };
 
   return (
@@ -160,6 +169,7 @@ export default function LeadsPage() {
           <select
             className="input"
             value={stage}
+            disabled={stagesQuery.isLoading}
             onChange={(e) => {
               setStage(e.target.value);
               setOffset(0);
@@ -172,11 +182,17 @@ export default function LeadsPage() {
               </option>
             ))}
           </select>
+          {stagesQuery.isError && (
+            <span className="text-xs text-steel-900" role="alert">
+              {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
+            </span>
+          )}
         </FilterField>
         <AssigneeField
           label={t('assigneeFilter')}
           value={assignee}
           allowAll
+          allowEmpty={false}
           onChange={(v) => {
             setAssignee(v);
             setOffset(0);
@@ -205,8 +221,20 @@ export default function LeadsPage() {
             data={query.data?.items ?? []}
             isLoading={query.isLoading}
             emptyTitle={te('noLeads')}
+            emptyFilteredTitle={te('filterNoResults')}
+            filtered={
+              debouncedQ.trim() !== '' ||
+              stage !== '' ||
+              openOnly ||
+              (assignee !== null && assignee !== 'all')
+            }
             getRowId={(r) => String(r.id)}
             density={density}
+            sort={sort}
+            onSort={(key) => {
+              setSort(nextSort(sort, key));
+              setOffset(0);
+            }}
           />
           <Pagination
             offset={offset}

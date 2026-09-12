@@ -267,3 +267,48 @@ async fn reporting_view_agrees_with_money_type(pool: PgPool) {
         )
     );
 }
+
+fn priced(description: &str, unit_price: i64) -> NewItem {
+    NewItem {
+        description: description.into(),
+        quantity: dec("1"),
+        unit_price,
+    }
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn search_sorting_orders_results(pool: PgPool) {
+    use autocrm::repo::orders::OrderFilter;
+
+    let user = common::user(&pool, Role::Office).await;
+    let a = common::order(&pool, &user, "HUF", vec![priced("a", 1000)]).await;
+    let b = common::order(&pool, &user, "HUF", vec![priced("b", 3000)]).await;
+    let c = common::order(&pool, &user, "HUF", vec![priced("c", 2000)]).await;
+    let filter = OrderFilter::default();
+
+    let ids = |rows: Vec<autocrm::repo::orders::OrderSummary>| {
+        rows.into_iter().map(|r| r.id).collect::<Vec<_>>()
+    };
+
+    // Default: newest first.
+    let rows = orders::search(&pool, &filter, "-created_at", 10, 0)
+        .await
+        .unwrap();
+    assert_eq!(ids(rows), vec![c.id, b.id, a.id]);
+
+    // Totals both directions.
+    let rows = orders::search(&pool, &filter, "total", 10, 0)
+        .await
+        .unwrap();
+    assert_eq!(ids(rows), vec![a.id, c.id, b.id]);
+    let rows = orders::search(&pool, &filter, "-total", 10, 0)
+        .await
+        .unwrap();
+    assert_eq!(ids(rows), vec![b.id, c.id, a.id]);
+
+    // Numbers follow allocation order.
+    let rows = orders::search(&pool, &filter, "number", 10, 0)
+        .await
+        .unwrap();
+    assert_eq!(ids(rows), vec![a.id, b.id, c.id]);
+}

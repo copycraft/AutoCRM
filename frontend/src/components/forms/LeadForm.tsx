@@ -136,7 +136,7 @@ export function LeadForm({
         />
         <div>
           <label className="label" htmlFor="lf-contact">{t('contact')}</label>
-          <select id="lf-contact" className="input" {...register('contact_id')} disabled={!partner}>
+          <select id="lf-contact" className="input" {...register('contact_id')} disabled={!partner || contactsQuery.isLoading}>
             <option value="">—</option>
             {contactsQuery.data?.contacts
               .filter((c) => !c.archived_at)
@@ -146,6 +146,11 @@ export function LeadForm({
                 </option>
               ))}
           </select>
+          {contactsQuery.isError && (
+            <p className="mt-1 text-xs text-steel-900" role="alert">
+              {errorMessage(contactsQuery.error, ter, ter('unknownError'))}
+            </p>
+          )}
         </div>
         <div>
           <label className="label" htmlFor="lf-cname">{t('contactName')}</label>

@@ -64,7 +64,7 @@ async fn order_picker(
         open_only: !q.all,
         ..Default::default()
     };
-    let rows = orders::search(&state.db, &filter, 200, 0).await?;
+    let rows = orders::search(&state.db, &filter, orders::DEFAULT_SORT, 200, 0).await?;
     let items = rows
         .into_iter()
         .map(|o| PickerOrder {

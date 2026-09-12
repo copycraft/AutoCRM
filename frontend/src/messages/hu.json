@@ -28,6 +28,7 @@
     "mineOnly": "Csak az enyém",
     "saving": "Mentés…",
     "processing": "Feldolgozás…",
+    "configError": "A beállítások betöltése sikertelen.",
     "clearFilters": "Szűrők törlése",
     "ageDays": "{days} nap",
     "details": "Részletek",
@@ -559,7 +560,8 @@
     "previous": "Előző",
     "next": "Következő",
     "page": "oldal",
-    "range": "{from}–{to} · {limit}/oldal"
+    "range": "{from}–{to} · {limit}/oldal",
+    "empty": "0 találat"
   },
   "emptyStates": {
     "noPartners": "Még nincsenek partnerek. Kattintson az \"Új partner\" gombra a kezdéshez.",

@@ -304,9 +304,8 @@ async fn test_email(
         }));
     }
     let random: [u8; 6] = rand::random();
-    let body = format!(
-        "Ez egy teszt üzenet az AutoCRM admin felületéről.\n\nHa megérkezett, a kézbesítés működik."
-    );
+    let body = "Ez egy teszt üzenet az AutoCRM admin felületéről.\n\nHa megérkezett, a kézbesítés működik."
+        .to_string();
     let result = mailer
         .send(OutgoingEmail {
             message_id: format!(

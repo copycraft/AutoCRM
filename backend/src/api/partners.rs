@@ -18,7 +18,7 @@ use crate::error::{AppError, AppResult};
 use crate::repo::contacts::{Contact, ContactInput};
 use crate::repo::orders::{OrderFilter, OrderSummary};
 use crate::repo::partners::{Partner, PartnerInput};
-use crate::repo::{audit, contacts, like_pattern, orders, partners};
+use crate::repo::{audit, contacts, like_pattern, orders, parse_sort, partners};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
@@ -39,6 +39,8 @@ struct SearchQuery {
     kind: Option<PartnerKind>,
     #[serde(default)]
     include_archived: bool,
+    /// Sort key, `-` prefix for descending: name, created_at.
+    sort: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
@@ -54,11 +56,18 @@ async fn search(
     ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> AppResult<Json<Items<Partner>>> {
     let pattern = q.q.as_deref().and_then(like_pattern);
+    let sort_key = parse_sort(
+        q.sort.as_deref(),
+        partners::PARTNER_SORTS,
+        partners::DEFAULT_SORT,
+    )
+    .map_err(AppError::validation)?;
     let rows = partners::search(
         &state.db,
         pattern.as_deref(),
         q.kind,
         q.include_archived,
+        &sort_key,
         page_limit(q.limit),
         page_offset(q.offset),
     )
@@ -202,7 +211,7 @@ async fn detail(
         partner_id: Some(id),
         ..Default::default()
     };
-    let orders = orders::search(&state.db, &filter, 100, 0).await?;
+    let orders = orders::search(&state.db, &filter, orders::DEFAULT_SORT, 100, 0).await?;
     Ok(Json(PartnerDetail {
         partner,
         contacts,

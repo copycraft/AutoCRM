@@ -131,6 +131,7 @@ export default function EmailsPage() {
       {
         header: t('queuedAt'),
         accessorKey: 'queued_at',
+        meta: { align: 'right' },
         cell: ({ getValue }) => <DateDisplay value={getValue<string>()} />,
       },
     ],
@@ -186,6 +187,8 @@ export default function EmailsPage() {
             data={rows}
             isLoading={query.isLoading}
             emptyTitle={te('noEmails')}
+            emptyFilteredTitle={te('filterNoResults')}
+            filtered={debouncedQ.trim() !== '' || status !== ''}
             getRowId={(r) => String(r.id)}
             density={density}
           />

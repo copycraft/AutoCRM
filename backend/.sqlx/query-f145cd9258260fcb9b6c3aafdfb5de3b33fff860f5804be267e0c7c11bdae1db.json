@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT o.id, o.number, o.title, o.partner_id, p.name AS \"partner_name!\",\n                  o.project_type_id, pt.label_hu AS \"project_type_label?\",\n                  o.currency, ov.total_minor AS \"total_minor!\",\n                  o.vehicle_make, o.vehicle_model, o.vehicle_plate, o.due_date,\n                  o.assigned_to, u.display_name AS \"assigned_name?\",\n                  cs.stage_key AS \"stage_key!\", sd.label_hu AS \"stage_label!\", sd.is_terminal AS \"stage_is_terminal!\",\n                  cs.entered_at AS \"stage_entered_at!\",\n                  (SELECT count(*) FROM blockers b WHERE b.order_id = o.id AND b.resolved_at IS NULL) AS \"open_blockers!\",\n                  o.created_at, o.updated_at\n           FROM orders o\n           JOIN partners p ON p.id = o.partner_id\n           JOIN order_current_stage cs ON cs.order_id = o.id\n           JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = cs.stage_key\n           JOIN order_values ov ON ov.order_id = o.id\n           LEFT JOIN project_types pt ON pt.id = o.project_type_id\n           LEFT JOIN users u ON u.id = o.assigned_to\n           WHERE ($1::text IS NULL OR o.number ILIKE $1 OR o.title ILIKE $1 OR p.name ILIKE $1 OR o.vehicle_vin ILIKE $1\n                  OR ($2::text <> '' AND upper(regexp_replace(o.vehicle_plate, '[^A-Za-z0-9]', '', 'g')) LIKE $2))\n             AND ($3::text IS NULL OR cs.stage_key = $3)\n             AND ($4::bigint IS NULL OR o.partner_id = $4)\n             AND ($5::bigint IS NULL OR o.project_type_id = $5)\n             AND ($6::bigint IS NULL OR o.assigned_to = $6)\n             AND (NOT $7 OR NOT sd.is_terminal)\n           ORDER BY o.created_at DESC, o.id DESC\n           LIMIT $8 OFFSET $9",
+  "query": "SELECT o.id, o.number, o.title, o.partner_id, p.name AS \"partner_name!\",\n                  o.project_type_id, pt.label_hu AS \"project_type_label?\",\n                  o.currency, ov.total_minor AS \"total_minor!\",\n                  o.vehicle_make, o.vehicle_model, o.vehicle_plate, o.due_date,\n                  o.assigned_to, u.display_name AS \"assigned_name?\",\n                  cs.stage_key AS \"stage_key!\", sd.label_hu AS \"stage_label!\", sd.is_terminal AS \"stage_is_terminal!\",\n                  cs.entered_at AS \"stage_entered_at!\",\n                  (SELECT count(*) FROM blockers b WHERE b.order_id = o.id AND b.resolved_at IS NULL) AS \"open_blockers!\",\n                  o.created_at, o.updated_at\n           FROM orders o\n           JOIN partners p ON p.id = o.partner_id\n           JOIN order_current_stage cs ON cs.order_id = o.id\n           JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = cs.stage_key\n           JOIN order_values ov ON ov.order_id = o.id\n           LEFT JOIN project_types pt ON pt.id = o.project_type_id\n           LEFT JOIN users u ON u.id = o.assigned_to\n           WHERE ($1::text IS NULL OR o.number ILIKE $1 OR o.title ILIKE $1 OR p.name ILIKE $1 OR o.vehicle_vin ILIKE $1\n                  OR ($2::text <> '' AND upper(regexp_replace(o.vehicle_plate, '[^A-Za-z0-9]', '', 'g')) LIKE $2))\n             AND ($3::text IS NULL OR cs.stage_key = $3)\n             AND ($4::bigint IS NULL OR o.partner_id = $4)\n             AND ($5::bigint IS NULL OR o.project_type_id = $5)\n             AND ($6::bigint IS NULL OR o.assigned_to = $6)\n             AND (NOT $7 OR NOT sd.is_terminal)\n           ORDER BY\n               CASE WHEN $10 = 'created_at' THEN o.created_at END ASC,\n               CASE WHEN $10 = '-created_at' THEN o.created_at END DESC,\n               CASE WHEN $10 = 'due_date' THEN o.due_date END ASC NULLS LAST,\n               CASE WHEN $10 = '-due_date' THEN o.due_date END DESC NULLS LAST,\n               CASE WHEN $10 = 'total' THEN ov.total_minor END ASC,\n               CASE WHEN $10 = '-total' THEN ov.total_minor END DESC,\n               CASE WHEN $10 = 'number' THEN o.number END ASC,\n               CASE WHEN $10 = '-number' THEN o.number END DESC,\n               o.id DESC\n           LIMIT $8 OFFSET $9",
   "describe": {
     "columns": [
       {
@@ -124,7 +124,8 @@
         "Int8",
         "Bool",
         "Int8",
-        "Int8"
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
@@ -152,5 +153,5 @@
       false
     ]
   },
-  "hash": "0d660c2e0b4615e598d1455cd1a835ed54b2ceeca293e0b5a03f272aeada560c"
+  "hash": "f145cd9258260fcb9b6c3aafdfb5de3b33fff860f5804be267e0c7c11bdae1db"
 }

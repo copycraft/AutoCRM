@@ -34,14 +34,51 @@ pub fn like_pattern(q: &str) -> Option<String> {
     Some(format!("%{escaped}%"))
 }
 
+/// Parses a `sort` query value (`name`, `-created_at`) against a whitelist of
+/// allowed keys, returning the validated key (with any `-` prefix intact).
+/// Anything else is an error — column names can never come from user input.
+/// Callers pass the key as a bind parameter; the SQL matches it against
+/// static CASE branches, so list queries stay fully compile-time checked.
+pub fn parse_sort(sort: Option<&str>, allowed: &[&str], default: &str) -> Result<String, String> {
+    let Some(raw) = sort.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(default.to_string());
+    };
+    let key = raw.strip_prefix('-').unwrap_or(raw);
+    if !allowed.contains(&key) || key.is_empty() {
+        return Err(format!("unknown sort '{raw}'"));
+    }
+    Ok(raw.to_string())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::like_pattern;
+    use super::{like_pattern, parse_sort};
+
+    const ALLOWED: &[&str] = &["name", "created_at"];
 
     #[test]
     fn like_patterns_escape_wildcards() {
         assert_eq!(like_pattern("  müller "), Some("%müller%".into()));
         assert_eq!(like_pattern("50%_a\\b"), Some("%50\\%\\_a\\\\b%".into()));
         assert_eq!(like_pattern("   "), None);
+    }
+
+    #[test]
+    fn sort_parsing_defaults_and_rejects() {
+        assert_eq!(parse_sort(None, ALLOWED, "name"), Ok("name".to_string()));
+        assert_eq!(
+            parse_sort(Some(""), ALLOWED, "name"),
+            Ok("name".to_string())
+        );
+        assert_eq!(
+            parse_sort(Some("created_at"), ALLOWED, "name"),
+            Ok("created_at".to_string())
+        );
+        assert_eq!(
+            parse_sort(Some("-created_at"), ALLOWED, "name"),
+            Ok("-created_at".to_string())
+        );
+        assert!(parse_sort(Some("number; DROP TABLE x"), ALLOWED, "name").is_err());
+        assert!(parse_sort(Some("-"), ALLOWED, "name").is_err());
     }
 }

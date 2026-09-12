@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, kind AS \"kind: PartnerKind\", name, tax_number, eu_tax_number, country, default_currency,\n                  email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at\n           FROM partners\n           WHERE ($1::text IS NULL OR name ILIKE $1 OR tax_number ILIKE $1 OR eu_tax_number ILIKE $1\n                  OR email ILIKE $1 OR city ILIKE $1)\n             AND ($2::partner_kind IS NULL OR kind = $2)\n             AND ($3 OR archived_at IS NULL)\n           ORDER BY name, id\n           LIMIT $4 OFFSET $5",
+  "query": "SELECT id, kind AS \"kind: PartnerKind\", name, tax_number, eu_tax_number, country, default_currency,\n                  email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at\n           FROM partners\n           WHERE ($1::text IS NULL OR name ILIKE $1 OR tax_number ILIKE $1 OR eu_tax_number ILIKE $1\n                  OR email ILIKE $1 OR city ILIKE $1)\n             AND ($2::partner_kind IS NULL OR kind = $2)\n             AND ($3 OR archived_at IS NULL)\n           ORDER BY\n               CASE WHEN $6 = 'name' THEN name END ASC,\n               CASE WHEN $6 = '-name' THEN name END DESC,\n               CASE WHEN $6 = 'created_at' THEN created_at END ASC,\n               CASE WHEN $6 = '-created_at' THEN created_at END DESC,\n               id ASC\n           LIMIT $4 OFFSET $5",
   "describe": {
     "columns": [
       {
@@ -120,7 +120,8 @@
         },
         "Bool",
         "Int8",
-        "Int8"
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
@@ -144,5 +145,5 @@
       false
     ]
   },
-  "hash": "f5926b5a688b80ac64eeb1b68966bba4ea5c54c1366a8c9bda4ce7a7f47aec22"
+  "hash": "535da566f06d3bce7ab0cc490b789b82acbe595c09b46e0913621dca812939f0"
 }

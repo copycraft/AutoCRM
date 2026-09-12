@@ -22,7 +22,7 @@ export function Pagination({
   return (
     <div className="flex items-center justify-between gap-3">
       <p className="text-metadata text-steel-500 font-mono">
-        {t('range', { from: offset + 1, to: offset + loaded, limit })}
+        {loaded === 0 ? t('empty') : t('range', { from: offset + 1, to: offset + loaded, limit })}
       </p>
       <div className="flex items-center gap-2">
         <button className="btn-ghost btn-sm" onClick={onPrev} disabled={offset === 0}>

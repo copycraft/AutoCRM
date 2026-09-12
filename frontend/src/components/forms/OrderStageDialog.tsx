@@ -7,8 +7,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
+import { useAuth } from '@/lib/auth/context';
 import { ErrorState } from '@/components/ui/ErrorState';
-import type { OrderDetail, StageDefinition, TransitionOption } from '@/lib/api/types';
+import type {
+  Items,
+  OrderDetail,
+  StageDefinition,
+  StageEntry,
+  TransitionOption,
+} from '@/lib/api/types';
 
 export function OrderStageDialog({
   orderId,
@@ -44,17 +51,65 @@ export function OrderStageDialog({
   const needsNote = selected?.requires_note ?? false;
   const gateBlocked = selected ? !selected.gates_met : false;
 
+  const { user } = useAuth();
+
   const change = useMutation({
     mutationFn: () =>
       ordersApi.stage(orderId, { stage: effective, note: note.trim() || undefined }),
-    onSuccess: () => {
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: qk.order(orderId) });
+      await qc.cancelQueries({ queryKey: qk.orderStages(orderId) });
+      const prevDetail = qc.getQueryData<OrderDetail>(qk.order(orderId));
+      const prevStages = qc.getQueryData<Items<StageEntry>>(qk.orderStages(orderId));
+      const now = new Date().toISOString();
+      const trimmedNote = note.trim() || null;
+      if (prevDetail && selected) {
+        qc.setQueryData<OrderDetail>(qk.order(orderId), {
+          ...prevDetail,
+          stage: {
+            ...prevDetail.stage,
+            key: selected.stage_key,
+            label_hu: selected.label_hu,
+            entered_at: now,
+            days_in_stage: 0,
+          },
+        });
+      }
+      if (prevStages && selected) {
+        qc.setQueryData<Items<StageEntry>>(qk.orderStages(orderId), {
+          items: [
+            ...prevStages.items.map((h, i, all) =>
+              i === all.length - 1 ? { ...h, left_at: now } : h,
+            ),
+            {
+              id: -Date.now(),
+              stage_key: selected.stage_key,
+              label_hu: selected.label_hu,
+              entered_at: now,
+              left_at: null,
+              entered_by: user?.id ?? null,
+              entered_by_name: user?.display_name ?? null,
+              note: trimmedNote,
+            },
+          ],
+        });
+      }
+      return { prevDetail, prevStages };
+    },
+    onError: (e, _vars, context) => {
+      if (context?.prevDetail) qc.setQueryData(qk.order(orderId), context.prevDetail);
+      if (context?.prevStages) qc.setQueryData(qk.orderStages(orderId), context.prevStages);
+      setError(errorMessage(e, ter, ter('unknownError')));
+    },
+    onSettled: () => {
       void qc.invalidateQueries({ queryKey: qk.order(orderId) });
       void qc.invalidateQueries({ queryKey: qk.orderStages(orderId) });
       void qc.invalidateQueries({ queryKey: qk.orderTransitions(orderId) });
       void qc.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onSuccess: () => {
       onClose();
     },
-    onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
   });
 
   const valid = effective !== '' && (!needsNote || note.trim() !== '') && !gateBlocked;

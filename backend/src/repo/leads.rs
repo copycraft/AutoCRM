@@ -135,12 +135,22 @@ pub async fn set_partner(db: impl PgExecutor<'_>, id: i64, partner_id: i64) -> s
     Ok(())
 }
 
+/// Sort keys accepted by lead search (`-` prefix for descending).
+/// The value travels to SQL as a bind parameter matched against static CASE
+/// branches, so the query stays fully compile-time checked.
+pub const LEAD_SORTS: &[&str] = &["created_at", "title"];
+
+pub const DEFAULT_SORT: &str = "-created_at";
+
+// Filter queries take one parameter per filter; bundling would only rename them.
+#[allow(clippy::too_many_arguments)]
 pub async fn search(
     db: impl PgExecutor<'_>,
     pattern: Option<&str>,
     stage_key: Option<&str>,
     assigned_to: Option<i64>,
     open_only: bool,
+    sort_key: &str,
     limit: i64,
     offset: i64,
 ) -> sqlx::Result<Vec<LeadSummary>> {
@@ -160,14 +170,20 @@ pub async fn search(
              AND ($2::text IS NULL OR cs.stage_key = $2)
              AND ($3::bigint IS NULL OR l.assigned_to = $3)
              AND (NOT $4 OR NOT sd.is_terminal)
-           ORDER BY l.created_at DESC, l.id DESC
+           ORDER BY
+               CASE WHEN $7 = 'created_at' THEN l.created_at END ASC,
+               CASE WHEN $7 = '-created_at' THEN l.created_at END DESC,
+               CASE WHEN $7 = 'title' THEN l.title END ASC,
+               CASE WHEN $7 = '-title' THEN l.title END DESC,
+               l.id DESC
            LIMIT $5 OFFSET $6"#,
         pattern,
         stage_key,
         assigned_to,
         open_only,
         limit,
-        offset
+        offset,
+        sort_key
     )
     .fetch_all(db)
     .await

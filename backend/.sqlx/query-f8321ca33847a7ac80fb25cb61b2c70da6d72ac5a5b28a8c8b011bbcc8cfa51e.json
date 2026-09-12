@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT l.id, l.title, l.partner_id, p.name AS \"partner_name?\", l.contact_name, l.contact_email, l.source,\n                  l.assigned_to, u.display_name AS \"assigned_name?\",\n                  cs.stage_key AS \"stage_key!\", sd.label_hu AS \"stage_label!\", cs.entered_at AS \"stage_entered_at!\",\n                  o.id AS \"order_id?\", o.number AS \"order_number?\", l.created_at\n           FROM leads l\n           JOIN lead_current_stage cs ON cs.lead_id = l.id\n           JOIN stage_definitions sd ON sd.entity = 'lead' AND sd.key = cs.stage_key\n           LEFT JOIN partners p ON p.id = l.partner_id\n           LEFT JOIN users u ON u.id = l.assigned_to\n           LEFT JOIN orders o ON o.lead_id = l.id\n           WHERE ($1::text IS NULL OR l.title ILIKE $1 OR l.contact_name ILIKE $1 OR l.contact_email ILIKE $1 OR p.name ILIKE $1)\n             AND ($2::text IS NULL OR cs.stage_key = $2)\n             AND ($3::bigint IS NULL OR l.assigned_to = $3)\n             AND (NOT $4 OR NOT sd.is_terminal)\n           ORDER BY l.created_at DESC, l.id DESC\n           LIMIT $5 OFFSET $6",
+  "query": "SELECT l.id, l.title, l.partner_id, p.name AS \"partner_name?\", l.contact_name, l.contact_email, l.source,\n                  l.assigned_to, u.display_name AS \"assigned_name?\",\n                  cs.stage_key AS \"stage_key!\", sd.label_hu AS \"stage_label!\", cs.entered_at AS \"stage_entered_at!\",\n                  o.id AS \"order_id?\", o.number AS \"order_number?\", l.created_at\n           FROM leads l\n           JOIN lead_current_stage cs ON cs.lead_id = l.id\n           JOIN stage_definitions sd ON sd.entity = 'lead' AND sd.key = cs.stage_key\n           LEFT JOIN partners p ON p.id = l.partner_id\n           LEFT JOIN users u ON u.id = l.assigned_to\n           LEFT JOIN orders o ON o.lead_id = l.id\n           WHERE ($1::text IS NULL OR l.title ILIKE $1 OR l.contact_name ILIKE $1 OR l.contact_email ILIKE $1 OR p.name ILIKE $1)\n             AND ($2::text IS NULL OR cs.stage_key = $2)\n             AND ($3::bigint IS NULL OR l.assigned_to = $3)\n             AND (NOT $4 OR NOT sd.is_terminal)\n           ORDER BY\n               CASE WHEN $7 = 'created_at' THEN l.created_at END ASC,\n               CASE WHEN $7 = '-created_at' THEN l.created_at END DESC,\n               CASE WHEN $7 = 'title' THEN l.title END ASC,\n               CASE WHEN $7 = '-title' THEN l.title END DESC,\n               l.id DESC\n           LIMIT $5 OFFSET $6",
   "describe": {
     "columns": [
       {
@@ -86,7 +86,8 @@
         "Int8",
         "Bool",
         "Int8",
-        "Int8"
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
@@ -107,5 +108,5 @@
       false
     ]
   },
-  "hash": "46b99bd4acb9985316e741db03d954d481932108eea2d960bf4d1ee3aeeb8d22"
+  "hash": "f8321ca33847a7ac80fb25cb61b2c70da6d72ac5a5b28a8c8b011bbcc8cfa51e"
 }

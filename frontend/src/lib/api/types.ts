@@ -46,6 +46,11 @@ export type StageChange = Schemas['StageChange'];
 export type StageDefinition = Schemas['StageDefinition'];
 export type StageEntry = Schemas['StageEntry'];
 export type TransitionOption = Schemas['TransitionOption'];
+
+/** List envelope shared by every collection endpoint. */
+export interface Items<T> {
+  items: T[];
+}
 export type AuditEntry = Schemas['AuditEntry'];
 export type Blocker = Schemas['Blocker'];
 export type ProjectType = Schemas['ProjectType'];

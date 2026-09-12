@@ -57,11 +57,19 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Partn
     .await
 }
 
+/// Sort keys accepted by partner search (`-` prefix for descending).
+/// The value travels to SQL as a bind parameter matched against static CASE
+/// branches, so the query stays fully compile-time checked.
+pub const PARTNER_SORTS: &[&str] = &["name", "created_at"];
+
+pub const DEFAULT_SORT: &str = "name";
+
 pub async fn search(
     db: impl PgExecutor<'_>,
     pattern: Option<&str>,
     kind: Option<PartnerKind>,
     include_archived: bool,
+    sort_key: &str,
     limit: i64,
     offset: i64,
 ) -> sqlx::Result<Vec<Partner>> {
@@ -74,13 +82,19 @@ pub async fn search(
                   OR email ILIKE $1 OR city ILIKE $1)
              AND ($2::partner_kind IS NULL OR kind = $2)
              AND ($3 OR archived_at IS NULL)
-           ORDER BY name, id
+           ORDER BY
+               CASE WHEN $6 = 'name' THEN name END ASC,
+               CASE WHEN $6 = '-name' THEN name END DESC,
+               CASE WHEN $6 = 'created_at' THEN created_at END ASC,
+               CASE WHEN $6 = '-created_at' THEN created_at END DESC,
+               id ASC
            LIMIT $4 OFFSET $5"#,
         pattern,
         kind as Option<PartnerKind>,
         include_archived,
         limit,
-        offset
+        offset,
+        sort_key
     )
     .fetch_all(db)
     .await

@@ -52,6 +52,9 @@ pub enum TransportSource {
 /// Pure merge of stored transport fields over the environment config.
 /// Returns `None` when nothing is configured here (inherit everything).
 /// Unit-tested below.
+// Nine scalar fields is the whole transport config; bundling them would just
+// rename the struct that MergedTransport already is on the API side.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn transport_from_parts(
     mode: Option<&str>,
     host: Option<String>,

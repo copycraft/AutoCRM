@@ -1553,6 +1553,7 @@ export const zPartnersSearchQuery = z.object({
     q: z.string().optional(),
     kind: zPartnerKind.optional(),
     include_archived: z.boolean().optional(),
+    sort: z.string().optional(),
     limit: z.number().int().optional(),
     offset: z.number().int().optional()
 });
@@ -1635,6 +1636,7 @@ export const zLeadsSearchQuery = z.object({
     stage: z.string().optional(),
     assigned_to: z.number().int().optional(),
     open: z.boolean().optional(),
+    sort: z.string().optional(),
     limit: z.number().int().optional(),
     offset: z.number().int().optional()
 });
@@ -1694,6 +1696,7 @@ export const zOrdersSearchQuery = z.object({
     project_type_id: z.number().int().optional(),
     assigned_to: z.number().int().optional(),
     open: z.boolean().optional(),
+    sort: z.string().optional(),
     limit: z.number().int().optional(),
     offset: z.number().int().optional()
 });

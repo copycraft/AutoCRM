@@ -230,9 +230,17 @@ pub struct OrderFilter {
     pub open_only: bool,
 }
 
+/// Sort keys accepted by order search (`-` prefix for descending).
+/// The value travels to SQL as a bind parameter matched against static CASE
+/// branches, so the query stays fully compile-time checked.
+pub const ORDER_SORTS: &[&str] = &["created_at", "due_date", "total", "number"];
+
+pub const DEFAULT_SORT: &str = "-created_at";
+
 pub async fn search(
     db: impl PgExecutor<'_>,
     f: &OrderFilter,
+    sort_key: &str,
     limit: i64,
     offset: i64,
 ) -> sqlx::Result<Vec<OrderSummary>> {
@@ -261,7 +269,16 @@ pub async fn search(
              AND ($5::bigint IS NULL OR o.project_type_id = $5)
              AND ($6::bigint IS NULL OR o.assigned_to = $6)
              AND (NOT $7 OR NOT sd.is_terminal)
-           ORDER BY o.created_at DESC, o.id DESC
+           ORDER BY
+               CASE WHEN $10 = 'created_at' THEN o.created_at END ASC,
+               CASE WHEN $10 = '-created_at' THEN o.created_at END DESC,
+               CASE WHEN $10 = 'due_date' THEN o.due_date END ASC NULLS LAST,
+               CASE WHEN $10 = '-due_date' THEN o.due_date END DESC NULLS LAST,
+               CASE WHEN $10 = 'total' THEN ov.total_minor END ASC,
+               CASE WHEN $10 = '-total' THEN ov.total_minor END DESC,
+               CASE WHEN $10 = 'number' THEN o.number END ASC,
+               CASE WHEN $10 = '-number' THEN o.number END DESC,
+               o.id DESC
            LIMIT $8 OFFSET $9"#,
         f.pattern,
         f.plate_pattern,
@@ -271,7 +288,8 @@ pub async fn search(
         f.assigned_to,
         f.open_only,
         limit,
-        offset
+        offset,
+        sort_key
     )
     .fetch_all(db)
     .await

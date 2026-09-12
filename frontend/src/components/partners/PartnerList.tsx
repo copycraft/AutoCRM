@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DataTable } from '@/components/tables/DataTable';
+import { DataTable, nextSort, type TableSort } from '@/components/tables/DataTable';
 import { FilterBar, FilterField } from '@/components/tables/FilterBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -33,22 +33,25 @@ export function PartnerList({
 }) {
   const t = useTranslations('partners');
   const tc = useTranslations('common');
+  const te = useTranslations('emptyStates');
   const locale = useLocale();
   const { user } = useAuth();
   const [q, setQ] = useState('');
   const [includeArchived, setIncludeArchived] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState<TableSort | null>(null);
   const debouncedQ = useDebouncedValue(q);
   const pageSize = usePageSize();
   const density = useDensity();
 
   const query = useQuery({
-    queryKey: qk.partners({ q: debouncedQ, kind, includeArchived, offset, pageSize }),
+    queryKey: qk.partners({ q: debouncedQ, kind, includeArchived, offset, pageSize, sort }),
     queryFn: () =>
       partnersApi.list({
         q: debouncedQ || undefined,
         kind,
         include_archived: includeArchived || undefined,
+        sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
         limit: pageSize,
         offset,
       }),
@@ -59,6 +62,7 @@ export function PartnerList({
       {
         header: tc('name'),
         accessorKey: 'name',
+        meta: { sortKey: 'name' },
         cell: ({ row }) => (
           <span className="flex items-center gap-2">
             <Link
@@ -83,6 +87,7 @@ export function PartnerList({
     setQ('');
     setIncludeArchived(false);
     setOffset(0);
+    setSort(null);
   };
 
   return (
@@ -132,8 +137,15 @@ export function PartnerList({
             data={query.data?.items ?? []}
             isLoading={query.isLoading}
             emptyTitle={emptyTitle}
+            emptyFilteredTitle={te('filterNoResults')}
+            filtered={debouncedQ.trim() !== '' || includeArchived}
             getRowId={(r) => String(r.id)}
             density={density}
+            sort={sort}
+            onSort={(key) => {
+              setSort(nextSort(sort, key));
+              setOffset(0);
+            }}
           />
           <Pagination
             offset={offset}

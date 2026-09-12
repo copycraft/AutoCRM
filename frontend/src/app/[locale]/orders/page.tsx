@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DataTable } from '@/components/tables/DataTable';
+import { DataTable, nextSort, type TableSort } from '@/components/tables/DataTable';
 import { FilterBar, FilterField } from '@/components/tables/FilterBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -19,6 +19,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useDensity, usePageSize } from '@/hooks/usePreferences';
 import { configApi, ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
+import { errorMessage } from '@/lib/api/errors';
 import { canEditOrders, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
@@ -31,6 +32,7 @@ export default function OrdersPage() {
   const tc = useTranslations('common');
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
+  const ter = useTranslations('errors');
   const locale = useLocale();
   const { user } = useAuth();
   const [q, setQ] = useState('');
@@ -40,6 +42,7 @@ export default function OrdersPage() {
   const [assignee, setAssignee] = useState<number | null | 'all' | 'me'>(null);
   const [openOnly, setOpenOnly] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState<TableSort | null>(null);
   const debouncedQ = useDebouncedValue(q);
   const pageSize = usePageSize();
   const density = useDensity();
@@ -63,7 +66,7 @@ export default function OrdersPage() {
 
   const query = useQuery({
     queryKey: qk.orders({
-      q: debouncedQ, stage, partner: partner?.id, projectType, assignedTo, openOnly, offset, pageSize,
+      q: debouncedQ, stage, partner: partner?.id, projectType, assignedTo, openOnly, offset, pageSize, sort,
     }),
     queryFn: () =>
       ordersApi.list({
@@ -73,6 +76,7 @@ export default function OrdersPage() {
         project_type_id: projectType ? Number(projectType) : undefined,
         assigned_to: assignedTo ?? undefined,
         open: openOnly || undefined,
+        sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
         limit: pageSize,
         offset,
       }),
@@ -85,6 +89,7 @@ export default function OrdersPage() {
       {
         header: t('number'),
         accessorKey: 'number',
+        meta: { sortKey: 'number' },
         cell: ({ row }) => (
           <Link href={`./orders/${row.original.id}`} className="font-mono font-medium text-steel-900 underline">
             {row.original.number}
@@ -123,6 +128,7 @@ export default function OrdersPage() {
       {
         header: t('total'),
         accessorKey: 'total_minor',
+        meta: { sortKey: 'total', align: 'right' },
         cell: ({ row }) => (
           <Money minor={row.original.total_minor} currency={row.original.currency} />
         ),
@@ -135,6 +141,7 @@ export default function OrdersPage() {
       {
         header: t('dueDate'),
         accessorKey: 'due_date',
+        meta: { sortKey: 'due_date', align: 'right' },
         cell: ({ getValue }) =>
           getValue<string | null>() ? <DateDisplay value={getValue<string>()} /> : <span>—</span>,
       },
@@ -150,6 +157,7 @@ export default function OrdersPage() {
     setAssignee(null);
     setOpenOnly(false);
     setOffset(0);
+    setSort(null);
   };
 
   return (
@@ -177,7 +185,7 @@ export default function OrdersPage() {
           />
         </FilterField>
         <FilterField label={t('stageFilter')}>
-          <select className="input" value={stage} onChange={(e) => { setStage(e.target.value); resetOffset(); }}>
+          <select className="input" value={stage} disabled={stagesQuery.isLoading} onChange={(e) => { setStage(e.target.value); resetOffset(); }}>
             <option value="">{tc('all')}</option>
             {(stagesQuery.data?.items ?? []).map((d) => (
               <option key={d.key} value={d.key}>
@@ -185,12 +193,17 @@ export default function OrdersPage() {
               </option>
             ))}
           </select>
+          {stagesQuery.isError && (
+            <span className="text-xs text-steel-900" role="alert">
+              {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
+            </span>
+          )}
         </FilterField>
         <div className="flex min-w-44 flex-col gap-1">
           <PartnerPicker value={partner} onChange={(p) => { setPartner(p); resetOffset(); }} label={t('partnerFilter')} />
         </div>
         <FilterField label={t('projectTypeFilter')}>
-          <select className="input" value={projectType} onChange={(e) => { setProjectType(e.target.value); resetOffset(); }}>
+          <select className="input" value={projectType} disabled={projectTypes.isLoading} onChange={(e) => { setProjectType(e.target.value); resetOffset(); }}>
             <option value="">{tc('all')}</option>
             {(projectTypes.data?.items ?? [])
               .filter((p) => p.is_active)
@@ -200,11 +213,17 @@ export default function OrdersPage() {
                 </option>
               ))}
           </select>
+          {projectTypes.isError && (
+            <span className="text-xs text-steel-900" role="alert">
+              {errorMessage(projectTypes.error, ter, ter('unknownError'))}
+            </span>
+          )}
         </FilterField>
         <AssigneeField
           label={t('assigneeFilter')}
           value={assignee}
           allowAll
+          allowEmpty={false}
           onChange={(v) => {
             setAssignee(v);
             resetOffset();
@@ -233,8 +252,22 @@ export default function OrdersPage() {
             data={query.data?.items ?? []}
             isLoading={query.isLoading}
             emptyTitle={te('noOrders')}
+            emptyFilteredTitle={te('filterNoResults')}
+            filtered={
+              debouncedQ.trim() !== '' ||
+              stage !== '' ||
+              partner !== null ||
+              projectType !== '' ||
+              openOnly ||
+              (assignee !== null && assignee !== 'all')
+            }
             getRowId={(r) => String(r.id)}
             density={density}
+            sort={sort}
+            onSort={(key) => {
+              setSort(nextSort(sort, key));
+              resetOffset();
+            }}
           />
           <Pagination
             offset={offset}
