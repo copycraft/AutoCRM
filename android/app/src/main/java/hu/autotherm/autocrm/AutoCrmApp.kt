@@ -1,6 +1,7 @@
 package hu.autotherm.autocrm
 
 import android.app.Application
+import android.os.StrictMode
 import androidx.work.Configuration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +48,19 @@ class AutoCrmApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // Debug builds fail loudly on main-thread I/O. Without this, reading a response body
+        // on the main thread reached a real phone before anyone noticed: the symptom was a
+        // generic error on every screen, which reads like a server problem.
+        if (BuildConfig.DEBUG) {
+            StrictMode.setThreadPolicy(
+                StrictMode.ThreadPolicy.Builder()
+                    .detectNetwork()
+                    .detectDiskReads()
+                    .detectDiskWrites()
+                    .penaltyLog()
+                    .build(),
+            )
+        }
         // WorkManager initialises on demand: the manifest removes the startup provider and
         // this class supplies the configuration, so the first getInstance() builds it.
         // Calling initialize() here as well would throw if anything reached it first.

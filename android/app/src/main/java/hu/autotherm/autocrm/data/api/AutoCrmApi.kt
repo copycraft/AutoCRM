@@ -14,7 +14,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -85,38 +84,50 @@ class AutoCrmApi(
         }
     }
 
-    private suspend fun execute(request: Request.Builder): Response = withContext(Dispatchers.IO) {
+    /** A finished response: status and body, with the connection already closed. */
+    private data class Raw(val code: Int, val body: String)
+
+    /**
+     * Performs the call **and reads the body**, both on [Dispatchers.IO].
+     *
+     * Reading the body is what makes that one function rather than two. `Response.body.string()`
+     * streams from the socket, so it is network I/O as much as the call is; returning an
+     * open Response from a withContext block and reading it at the call site put that read
+     * back on whatever dispatcher the caller was using — the main thread, by way of
+     * viewModelScope — and every screen died with NetworkOnMainThreadException.
+     */
+    private suspend fun execute(request: Request.Builder): Raw = withContext(Dispatchers.IO) {
         val token = sessionStore.token()
         if (token != null) request.header("Authorization", "Bearer $token")
         request.header("Accept", "application/json")
         try {
-            http.newCall(request.build()).execute()
+            http.newCall(request.build()).execute().use { response ->
+                Raw(response.code, response.body?.string().orEmpty())
+            }
         } catch (e: IOException) {
             throw ApiException.Network(e)
         }
     }
 
-    /** Maps the response to [T], or throws. Closes the body in every path. */
+    /** Maps the response to [T], or throws. */
     private suspend fun <T> send(
         request: Request.Builder,
         serializer: KSerializer<T>,
-    ): T = execute(request).use { response ->
-        val body = response.body?.string().orEmpty()
-        if (!response.isSuccessful) throw errorFor(response.code, body)
-        try {
-            json.decodeFromString(serializer, body)
+    ): T {
+        val raw = execute(request)
+        if (raw.code !in 200..299) throw errorFor(raw.code, raw.body)
+        return try {
+            json.decodeFromString(serializer, raw.body)
         } catch (e: Exception) {
             // A body that does not parse is a contract break, not a user error. Reported as
             // a server fault so the queue retries rather than discarding work.
-            throw ApiException.Server(response.code, "unparseable response: ${e.message}")
+            throw ApiException.Server(raw.code, "unparseable response: ${e.message}")
         }
     }
 
     private suspend fun sendNoContent(request: Request.Builder) {
-        execute(request).use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw errorFor(response.code, body)
-        }
+        val raw = execute(request)
+        if (raw.code !in 200..299) throw errorFor(raw.code, raw.body)
     }
 
     private fun errorFor(status: Int, body: String): ApiException {
