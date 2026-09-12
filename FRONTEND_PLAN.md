@@ -44,7 +44,9 @@ react-hook-form · zod · recharts · next-intl · date-fns
 ```
 
 - **Radix (rule correction).** Components are custom-built. Radix is adopted as unstyled
-  primitives for exactly three patterns — dialog, tabs, select — styled with project tokens.
+  primitives for dialog and tabs, styled with project tokens. `@radix-ui/react-select` was
+  deliberately NOT adopted (R6): the remaining selects are native, labelled and
+  keyboard-operable, and installing an unused package would contradict the dependency rule.
   Everything else stays custom. Do not hand-roll focus traps.
 - **date-fns (rule correction).** Used by `<DateDisplay>` with the `hu` locale.
 - **Approved additions:** `lucide-react` (icons), `clsx` + `tailwind-merge` (`cn()`),

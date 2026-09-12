@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation';
 import { locales, type Locale } from '@/i18n';
 import { QueryProvider } from '@/lib/query/provider';
 import { AuthProvider } from '@/lib/auth/context';
-// Authenticated CRM: every page depends on the session cookie → never prerender.
+// Authenticated CRM: every page depends on the session cookie, so nothing
+// prerenders. No generateStaticParams: with force-dynamic it would be dead
+// configuration suggesting static output that never happens.
 export const dynamic = 'force-dynamic';
 
 import type { Metadata } from 'next';
@@ -12,10 +14,6 @@ import type { Metadata } from 'next';
 export async function generateMetadata({ params: { locale } }: { params: { locale: string } }): Promise<Metadata> {
   const t = await getTranslations({ locale, namespace: 'common' });
   return { title: `AutoCRM — ${t('order')} / ${t('lead')}` };
-}
-
-export function generateStaticParams() {
-  return locales.map((locale) => ({ locale }));
 }
 
 export default async function LocaleLayout({
