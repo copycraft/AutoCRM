@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, order_id, kind AS \"kind: DocumentKind\", filename, content_type, storage_key, content_hash,\n                  byte_size, uploaded_at, uploaded_by, deleted_at\n           FROM documents WHERE order_id = $1 AND deleted_at IS NULL\n           ORDER BY uploaded_at DESC, id DESC",
+  "query": "SELECT id, order_id, lead_id, vehicle_id, kind AS \"kind: DocumentKind\", filename, content_type,\n                  storage_key, content_hash, byte_size, issuer, valid_from, valid_until,\n                  uploaded_at, uploaded_by, deleted_at\n           FROM documents WHERE lead_id = $1 AND deleted_at IS NULL\n           ORDER BY uploaded_at DESC, id DESC",
   "describe": {
     "columns": [
       {
@@ -15,6 +15,16 @@
       },
       {
         "ordinal": 2,
+        "name": "lead_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "vehicle_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
         "name": "kind: DocumentKind",
         "type_info": {
           "Custom": {
@@ -23,49 +33,65 @@
               "Enum": [
                 "design",
                 "cad",
-                "other"
+                "other",
+                "certificate"
               ]
             }
           }
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
         "name": "filename",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "content_type",
         "type_info": "Text"
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "storage_key",
         "type_info": "Text"
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "content_hash",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "byte_size",
         "type_info": "Int8"
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
+        "name": "issuer",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
         "name": "uploaded_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 9,
+        "ordinal": 14,
         "name": "uploaded_by",
         "type_info": "Int8"
       },
       {
-        "ordinal": 10,
+        "ordinal": 15,
         "name": "deleted_at",
         "type_info": "Timestamptz"
       }
@@ -77,8 +103,9 @@
     },
     "nullable": [
       false,
-      false,
-      false,
+      true,
+      true,
+      true,
       false,
       false,
       false,
@@ -86,8 +113,12 @@
       false,
       false,
       true,
+      true,
+      true,
+      false,
+      true,
       true
     ]
   },
-  "hash": "1d8d07b445c10edb15491260461dd9285d2fe09b8084f86b2278d390d8903a77"
+  "hash": "d735df074c00ee5020fc7c1904b5404ab84d420781d639f235c9d2f95c949d72"
 }

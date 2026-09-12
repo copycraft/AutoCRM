@@ -16,9 +16,10 @@ use crate::domain::partner::{PartnerKind, normalize_country, normalize_hu_tax_nu
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::repo::contacts::{Contact, ContactInput};
+use crate::repo::leads::LeadSummary;
 use crate::repo::orders::{OrderFilter, OrderSummary};
 use crate::repo::partners::{Partner, PartnerInput};
-use crate::repo::{audit, contacts, like_pattern, orders, parse_sort, partners};
+use crate::repo::{audit, contacts, leads, like_pattern, orders, parse_sort, partners};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
@@ -37,6 +38,9 @@ struct SearchQuery {
     /// Matches name, tax number, e-mail and city.
     q: Option<String>,
     kind: Option<PartnerKind>,
+    /// V2.6: `customer` or `supplier`. A partner with no role set counts as a customer,
+    /// so the picker never hides someone; `both` matches either filter.
+    role: Option<String>,
     #[serde(default)]
     include_archived: bool,
     /// Sort key, `-` prefix for descending: name, created_at.
@@ -62,10 +66,18 @@ async fn search(
         partners::DEFAULT_SORT,
     )
     .map_err(AppError::validation)?;
+    if let Some(role) = q.role.as_deref()
+        && !matches!(role, "customer" | "supplier" | "both")
+    {
+        return Err(AppError::validation(
+            "role must be customer, supplier or both",
+        ));
+    }
     let rows = partners::search(
         &state.db,
         pattern.as_deref(),
         q.kind,
+        q.role.as_deref(),
         q.include_archived,
         &sort_key,
         page_limit(q.limit),
@@ -90,6 +102,7 @@ struct PartnerDraft {
     city: Option<String>,
     address_line: Option<String>,
     notes: Option<String>,
+    role: Option<String>,
 }
 
 fn validate(d: PartnerDraft) -> AppResult<PartnerInput> {
@@ -122,6 +135,15 @@ fn validate(d: PartnerDraft) -> AppResult<PartnerInput> {
         city: optional(d.city),
         address_line: optional(d.address_line),
         notes: optional(d.notes),
+        role: match optional(d.role) {
+            Some(r) if matches!(r.as_str(), "customer" | "supplier" | "both") => Some(r),
+            Some(_) => {
+                return Err(AppError::validation(
+                    "role must be customer, supplier or both",
+                ));
+            }
+            None => None,
+        },
     })
 }
 
@@ -143,6 +165,9 @@ struct CreatePartner {
     city: Option<String>,
     address_line: Option<String>,
     notes: Option<String>,
+    /// `customer` | `supplier` | `both`. Omitted means unclassified, which the pickers
+    /// treat as a customer.
+    role: Option<String>,
 }
 
 #[utoipa::path(
@@ -170,6 +195,7 @@ async fn create(
         city: b.city,
         address_line: b.address_line,
         notes: b.notes,
+        role: b.role,
     })?;
     let mut tx = state.db.begin().await?;
     let partner = partners::insert(&mut *tx, &input).await?;
@@ -191,6 +217,9 @@ struct PartnerDetail {
     partner: Partner,
     contacts: Vec<Contact>,
     orders: Vec<OrderSummary>,
+    /// Every enquiry from this partner, quoted or not. Without it, someone opening a
+    /// partner cannot see they were quoted eight months ago and never followed up.
+    leads: Vec<LeadSummary>,
 }
 
 #[utoipa::path(
@@ -212,10 +241,12 @@ async fn detail(
         ..Default::default()
     };
     let orders = orders::search(&state.db, &filter, orders::DEFAULT_SORT, 100, 0).await?;
+    let leads = leads::for_partner(&state.db, id).await?;
     Ok(Json(PartnerDetail {
         partner,
         contacts,
         orders,
+        leads,
     }))
 }
 
@@ -235,6 +266,8 @@ struct PatchPartner {
     phone: Option<Option<String>>,
     #[serde(default, deserialize_with = "patch_field")]
     website: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    role: Option<Option<String>>,
     #[serde(default, deserialize_with = "patch_field")]
     postal_code: Option<Option<String>>,
     #[serde(default, deserialize_with = "patch_field")]
@@ -280,6 +313,7 @@ async fn update(
         city: patch_text(&current.city, p.city),
         address_line: patch_text(&current.address_line, p.address_line),
         notes: patch_text(&current.notes, p.notes),
+        role: patch_text(&current.role, p.role),
     })?;
     let updated = partners::update(&mut *tx, id, &input)
         .await?

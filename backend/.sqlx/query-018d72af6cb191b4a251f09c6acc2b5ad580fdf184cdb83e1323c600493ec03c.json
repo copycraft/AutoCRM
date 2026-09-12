@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO partners (kind, name, tax_number, eu_tax_number, country, default_currency,\n                                 email, phone, website, postal_code, city, address_line, notes)\n           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n           RETURNING id, kind AS \"kind: PartnerKind\", name, tax_number, eu_tax_number, country, default_currency,\n                     email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at",
+  "query": "SELECT id, kind AS \"kind: PartnerKind\", name, tax_number, eu_tax_number, country, default_currency,\n                  email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at\n           FROM partners\n           WHERE ($1::text IS NULL OR name ILIKE $1 OR tax_number ILIKE $1 OR eu_tax_number ILIKE $1\n                  OR email ILIKE $1 OR city ILIKE $1)\n             AND ($2::partner_kind IS NULL OR kind = $2)\n             -- An unclassified partner counts as a customer; a supplier filter is exact.\n             AND ($3::text IS NULL\n                  OR (role = $3 OR role = 'both')\n                  OR ($3 = 'customer' AND role IS NULL))\n             AND ($4 OR archived_at IS NULL)\n           ORDER BY\n               CASE WHEN $7 = 'name' THEN name END ASC,\n               CASE WHEN $7 = '-name' THEN name END DESC,\n               CASE WHEN $7 = 'created_at' THEN created_at END ASC,\n               CASE WHEN $7 = '-created_at' THEN created_at END DESC,\n               id ASC\n           LIMIT $5 OFFSET $6",
   "describe": {
     "columns": [
       {
@@ -85,27 +85,33 @@
       },
       {
         "ordinal": 14,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
         "name": "minicrm_id",
         "type_info": "Int8"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "archived_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
+        "Text",
         {
           "Custom": {
             "name": "partner_kind",
@@ -118,16 +124,9 @@
           }
         },
         "Text",
-        "Text",
-        "Text",
-        "Bpchar",
-        "Bpchar",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
+        "Bool",
+        "Int8",
+        "Int8",
         "Text"
       ]
     },
@@ -148,9 +147,10 @@
       true,
       true,
       true,
+      true,
       false,
       false
     ]
   },
-  "hash": "af9e4d75620690b1e2d57402380cdc26aa0f0537eaf905f9108a96a37d1ad65e"
+  "hash": "018d72af6cb191b4a251f09c6acc2b5ad580fdf184cdb83e1323c600493ec03c"
 }

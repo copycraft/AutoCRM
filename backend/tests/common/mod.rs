@@ -113,6 +113,7 @@ pub async fn partner(pool: &PgPool, name: &str, email: Option<&str>) -> i64 {
             city: None,
             address_line: None,
             notes: None,
+            role: None,
         },
     )
     .await
@@ -135,6 +136,8 @@ pub fn fields(partner_id: i64, currency: &str) -> OrderFields {
         description: None,
         due_date: None,
         assigned_to: None,
+        related_order_id: None,
+        relation: None,
     }
 }
 

@@ -32,7 +32,7 @@ use crate::domain::partner::PartnerKind;
 use crate::domain::stage::StageEntity;
 use crate::repo::documents::{self, NewDocument};
 use crate::repo::images::{self, NewImage};
-use crate::repo::{config, jobs};
+use crate::repo::{config, jobs, vehicles};
 
 fn default_image_category() -> String {
     "production".into()
@@ -253,6 +253,8 @@ pub struct LoadSummary {
     pub orders: usize,
     pub leads: usize,
     pub notes: usize,
+    /// Distinct vehicles created or matched from the four order text columns (V2.1).
+    pub vehicles: usize,
     pub skipped_projects: usize,
     pub images: usize,
     pub documents: usize,
@@ -979,6 +981,29 @@ async fn load_projects(
             .fetch_one(&state.db)
             .await?;
 
+            // V2.1: both. The four text columns are the fallback if deduplicating plates
+            // typed by hand over thirty years turns out wrong; the vehicle row is what
+            // plate search and the warranty question actually use.
+            let mut conn = state.db.acquire().await?;
+            if let Some(vehicle) = vehicles::upsert(
+                &mut conn,
+                &vehicles::VehicleFields {
+                    vin: o.vehicle_vin.clone(),
+                    plate: o.vehicle_plate.clone(),
+                    make: o.vehicle_make.clone(),
+                    model: o.vehicle_model.clone(),
+                    year: None,
+                    partner_id: Some(partner_id),
+                    notes: None,
+                },
+            )
+            .await?
+            {
+                vehicles::attach(&mut *conn, order_id, vehicle.id).await?;
+                summary.vehicles += 1;
+            }
+            drop(conn);
+
             sqlx::query!(
                 "INSERT INTO order_stages (order_id, stage_key, entered_at, note)
                  SELECT $1, $2, coalesce($3, now()), 'MiniCRM import'
@@ -1246,7 +1271,8 @@ async fn load_files(
             let (_, created) = documents::insert(
                 &mut conn,
                 &NewDocument {
-                    order_id,
+                    owner: documents::Owner::Order(order_id),
+                    vehicle_id: None,
                     kind: DocumentKind::Other,
                     filename: &filename,
                     content_type: &file.content_type,

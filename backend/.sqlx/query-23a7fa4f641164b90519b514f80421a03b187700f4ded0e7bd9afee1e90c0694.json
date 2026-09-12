@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE vehicles SET vin = $2, plate = $3, make = $4, model = $5, year = $6,\n                             partner_id = $7, notes = $8\n          WHERE id = $1\n         RETURNING id, vin, plate, plate_norm, make, model, year, partner_id, notes, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "vin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "plate",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "plate_norm",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "make",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "year",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "partner_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "23a7fa4f641164b90519b514f80421a03b187700f4ded0e7bd9afee1e90c0694"
+}

@@ -23,12 +23,28 @@ const schema = z.object({
   source: z.string().trim().optional(),
   description: z.string().trim().optional(),
   assigned_to: z.custom<number | null | 'me'>(() => true),
+  // V2.3: the quotation. Major units in the field, minor units on the wire.
+  quoted_value: z.string().trim().optional(),
+  currency: z.string().trim().optional(),
+  quote_valid_until: z.string().trim().optional(),
 });
 
 export type LeadFormValues = z.infer<typeof schema>;
 
 function assignee(v: LeadFormValues['assigned_to'], meId: number | undefined): number | null {
   return v === 'me' ? (meId ?? null) : v;
+}
+
+/** "1 234,56" → 123456 minor units. Blank or unparseable → null. */
+export function toMinor(value: string | undefined): number | null {
+  const cleaned = (value ?? '').replace(/[\s\u00a0]/g, '').replace(',', '.');
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+
+function fromMinor(minor: number | null | undefined): string {
+  return minor == null ? '' : String(minor / 100);
 }
 
 export function leadCreateBody(v: LeadFormValues, meId: number | undefined): LeadBody {
@@ -44,6 +60,9 @@ export function leadCreateBody(v: LeadFormValues, meId: number | undefined): Lea
     source: clean(v.source),
     description: clean(v.description),
     assigned_to: assigned,
+    quoted_value_minor: toMinor(v.quoted_value),
+    currency: (clean(v.currency) as LeadBody['currency']) ?? null,
+    quote_valid_until: clean(v.quote_valid_until) ?? null,
   };
 }
 
@@ -61,6 +80,12 @@ export function leadPatchBody(original: Lead, v: LeadFormValues, meId: number | 
   }
   const assigned = assignee(v.assigned_to, meId);
   if (assigned !== (original.assigned_to ?? null)) body.assigned_to = assigned;
+  const quoted = toMinor(v.quoted_value);
+  if (quoted !== (original.quoted_value_minor ?? null)) body.quoted_value_minor = quoted;
+  const currency = (v.currency?.trim() || null) as LeadBody['currency'];
+  if (currency !== (original.currency ?? null)) body.currency = currency;
+  const until = v.quote_valid_until?.trim() || null;
+  if (until !== (original.quote_valid_until ?? null)) body.quote_valid_until = until;
   return body;
 }
 
@@ -93,6 +118,9 @@ export function LeadForm({
       source: initial?.source ?? '',
       description: initial?.description ?? '',
       assigned_to: initial?.assigned_to ?? null,
+      quoted_value: fromMinor(initial?.quoted_value_minor),
+      currency: initial?.currency ?? '',
+      quote_valid_until: initial?.quote_valid_until ?? '',
     },
   });
 
@@ -179,6 +207,29 @@ export function LeadForm({
             <AssigneeField label={t('assignedTo')} value={field.value} onChange={field.onChange} />
           )}
         />
+
+        {/* V2.3: the quotation. Without somewhere to put the price, the six weeks between
+            "we sent them a number" and "they said yes" are invisible, and the real pipeline
+            stays in one salesperson's mailbox. */}
+        <div className="md:col-span-2 border-t border-steel-200 pt-4">
+          <h3 className="text-section font-semibold">{t('quoteSection')}</h3>
+        </div>
+        <div>
+          <label className="label" htmlFor="lf-quote">{t('quotedValue')}</label>
+          <input id="lf-quote" inputMode="decimal" className="input" {...register('quoted_value')} />
+        </div>
+        <div>
+          <label className="label" htmlFor="lf-currency">{t('quoteCurrency')}</label>
+          <select id="lf-currency" className="input" {...register('currency')}>
+            <option value="">—</option>
+            <option value="HUF">HUF</option>
+            <option value="EUR">EUR</option>
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="lf-valid">{t('quoteValidUntil')}</label>
+          <input id="lf-valid" type="date" className="input" {...register('quote_valid_until')} />
+        </div>
       </div>
       <div className="card-footer justify-end">
         <button className="btn-primary" type="submit" disabled={formState.isSubmitting}>

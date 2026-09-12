@@ -27,6 +27,20 @@ import { RawImportPanel } from '@/components/migration/RawImportPanel';
 
 type Tab = 'data' | 'items' | 'stages' | 'blockers' | 'audit';
 
+/** 'warranty' | 'rework' | 'repeat' — anything else is shown as itself. */
+function relationLabel(relation: string, t: (k: string) => string): string {
+  switch (relation) {
+    case 'warranty':
+      return t('relationWarranty');
+    case 'rework':
+      return t('relationRework');
+    case 'repeat':
+      return t('relationRepeat');
+    default:
+      return relation;
+  }
+}
+
 function Info({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -110,7 +124,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     );
   }
 
-  const { order, partner, stage, items, value, blockers, image_counts } = detail.data;
+  const { order, partner, stage, items, value, blockers, image_counts, related, vehicles } =
+    detail.data;
   const currency = order.currency;
   const projectTypeName = order.project_type_id
     ? (projectTypes.data?.items.find((p) => p.id === order.project_type_id)?.label_hu ??
@@ -254,6 +269,43 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     ))}
                   </div>
                 </section>
+
+                {/* V2.1: the vans this job covers. One order can carry several. */}
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <h2 className="text-section font-semibold">
+                    {t('vehiclesSection')} ({vehicles.length})
+                  </h2>
+                  <div className="mt-3 space-y-2">
+                    {vehicles.length === 0 && (
+                      <p className="text-metadata text-steel-500">{t('noVehicles')}</p>
+                    )}
+                    {vehicles.map((v) => (
+                      <p key={v.id} className="text-body">
+                        <span className="font-mono font-medium">{v.plate ?? v.vin ?? `#${v.id}`}</span>{' '}
+                        <span className="text-steel-500">
+                          · {[v.make, v.model, v.year].filter(Boolean).join(' ') || '—'}
+                        </span>
+                      </p>
+                    ))}
+                  </div>
+                </section>
+
+                {/* V2.2: a warranty job with no link to the job it repairs is the kind of
+                    connection nobody reconstructs later. */}
+                {related && (
+                  <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                    <h2 className="text-section font-semibold">{t('relatedSection')}</h2>
+                    <p className="mt-3 text-body">
+                      <StatusBadge tone="steel">{relationLabel(related.relation, t)}</StatusBadge>{' '}
+                      <Link
+                        href={`/${locale}/orders/${related.id}`}
+                        className="text-steel-900 underline"
+                      >
+                        <span className="font-mono">{related.number}</span> · {related.title}
+                      </Link>
+                    </p>
+                  </section>
+                )}
 
                 {order.minicrm_id != null && <RawImportPanel entity="order" id={id} />}
               </div>

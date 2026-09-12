@@ -21,6 +21,10 @@ pub struct Partner {
     pub city: Option<String>,
     pub address_line: Option<String>,
     pub notes: Option<String>,
+    /// V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is
+    /// treated as a customer by the pickers — the paint shop turning up in the customer
+    /// list is a nuisance, a customer missing from it is a bug.
+    pub role: Option<String>,
     pub minicrm_id: Option<i64>,
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -43,13 +47,14 @@ pub struct PartnerInput {
     pub city: Option<String>,
     pub address_line: Option<String>,
     pub notes: Option<String>,
+    pub role: Option<String>,
 }
 
 pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Partner>> {
     sqlx::query_as!(
         Partner,
         r#"SELECT id, kind AS "kind: PartnerKind", name, tax_number, eu_tax_number, country, default_currency,
-                  email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at
+                  email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at
            FROM partners WHERE id = $1"#,
         id
     )
@@ -64,10 +69,13 @@ pub const PARTNER_SORTS: &[&str] = &["name", "created_at"];
 
 pub const DEFAULT_SORT: &str = "name";
 
+// One parameter per filter; bundling would only rename them.
+#[allow(clippy::too_many_arguments)]
 pub async fn search(
     db: impl PgExecutor<'_>,
     pattern: Option<&str>,
     kind: Option<PartnerKind>,
+    role: Option<&str>,
     include_archived: bool,
     sort_key: &str,
     limit: i64,
@@ -76,21 +84,26 @@ pub async fn search(
     sqlx::query_as!(
         Partner,
         r#"SELECT id, kind AS "kind: PartnerKind", name, tax_number, eu_tax_number, country, default_currency,
-                  email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at
+                  email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at
            FROM partners
            WHERE ($1::text IS NULL OR name ILIKE $1 OR tax_number ILIKE $1 OR eu_tax_number ILIKE $1
                   OR email ILIKE $1 OR city ILIKE $1)
              AND ($2::partner_kind IS NULL OR kind = $2)
-             AND ($3 OR archived_at IS NULL)
+             -- An unclassified partner counts as a customer; a supplier filter is exact.
+             AND ($3::text IS NULL
+                  OR (role = $3 OR role = 'both')
+                  OR ($3 = 'customer' AND role IS NULL))
+             AND ($4 OR archived_at IS NULL)
            ORDER BY
-               CASE WHEN $6 = 'name' THEN name END ASC,
-               CASE WHEN $6 = '-name' THEN name END DESC,
-               CASE WHEN $6 = 'created_at' THEN created_at END ASC,
-               CASE WHEN $6 = '-created_at' THEN created_at END DESC,
+               CASE WHEN $7 = 'name' THEN name END ASC,
+               CASE WHEN $7 = '-name' THEN name END DESC,
+               CASE WHEN $7 = 'created_at' THEN created_at END ASC,
+               CASE WHEN $7 = '-created_at' THEN created_at END DESC,
                id ASC
-           LIMIT $4 OFFSET $5"#,
+           LIMIT $5 OFFSET $6"#,
         pattern,
         kind as Option<PartnerKind>,
+        role,
         include_archived,
         limit,
         offset,
@@ -104,10 +117,10 @@ pub async fn insert(db: impl PgExecutor<'_>, p: &PartnerInput) -> sqlx::Result<P
     sqlx::query_as!(
         Partner,
         r#"INSERT INTO partners (kind, name, tax_number, eu_tax_number, country, default_currency,
-                                 email, phone, website, postal_code, city, address_line, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                 email, phone, website, postal_code, city, address_line, notes, role)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            RETURNING id, kind AS "kind: PartnerKind", name, tax_number, eu_tax_number, country, default_currency,
-                     email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at"#,
+                     email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at"#,
         p.kind as PartnerKind,
         p.name,
         p.tax_number,
@@ -120,7 +133,8 @@ pub async fn insert(db: impl PgExecutor<'_>, p: &PartnerInput) -> sqlx::Result<P
         p.postal_code,
         p.city,
         p.address_line,
-        p.notes
+        p.notes,
+        p.role
     )
     .fetch_one(db)
     .await
@@ -135,10 +149,11 @@ pub async fn update(
         Partner,
         r#"UPDATE partners
            SET kind = $2, name = $3, tax_number = $4, eu_tax_number = $5, country = $6, default_currency = $7,
-               email = $8, phone = $9, website = $10, postal_code = $11, city = $12, address_line = $13, notes = $14
+               email = $8, phone = $9, website = $10, postal_code = $11, city = $12, address_line = $13,
+               notes = $14, role = $15
            WHERE id = $1
            RETURNING id, kind AS "kind: PartnerKind", name, tax_number, eu_tax_number, country, default_currency,
-                     email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at"#,
+                     email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at"#,
         id,
         p.kind as PartnerKind,
         p.name,
@@ -152,7 +167,8 @@ pub async fn update(
         p.postal_code,
         p.city,
         p.address_line,
-        p.notes
+        p.notes,
+        p.role
     )
     .fetch_optional(db)
     .await

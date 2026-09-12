@@ -27,6 +27,7 @@ use crate::repo::order_items::OrderItem;
 use crate::repo::order_notes::OrderNote;
 use crate::repo::orders::{Order, OrderFields, OrderFilter, OrderSummary, OrderValue};
 use crate::repo::stages::StageEntry;
+use crate::repo::vehicles::{self, Vehicle};
 use crate::repo::{
     audit, blockers, config, images, like_pattern, order_items, order_notes, orders, parse_sort,
     partners, stages,
@@ -148,6 +149,10 @@ pub struct OrderBody {
     pub description: Option<String>,
     pub due_date: Option<NaiveDate>,
     pub assigned_to: Option<i64>,
+    /// V2.2: the job this one repairs or repeats. Set with `relation` or not at all.
+    pub related_order_id: Option<i64>,
+    /// `warranty` | `rework` | `repeat`.
+    pub relation: Option<String>,
     #[serde(default)]
     pub items: Vec<ItemBody>,
 }
@@ -173,6 +178,8 @@ pub fn fields_from_body(
         description: optional(b.description),
         due_date: b.due_date,
         assigned_to: b.assigned_to,
+        related_order_id: b.related_order_id,
+        relation: optional(b.relation),
     };
     let items = b
         .items
@@ -232,6 +239,15 @@ pub struct ItemView {
 }
 
 #[derive(Serialize, ToSchema)]
+struct RelatedOrder {
+    id: i64,
+    number: String,
+    title: String,
+    /// 'warranty' | 'rework' | 'repeat'.
+    relation: String,
+}
+
+#[derive(Serialize, ToSchema)]
 struct OrderDetail {
     order: Order,
     partner: PartnerRef,
@@ -239,6 +255,11 @@ struct OrderDetail {
     items: Vec<ItemView>,
     value: OrderValue,
     blockers: Vec<Blocker>,
+    /// V2.2: the job this one repairs or repeats, resolved for display.
+    related: Option<RelatedOrder>,
+    /// V2.1: the vans this job covers. Usually one; three identical Sprinters from one
+    /// enquiry is the case the join table exists for.
+    vehicles: Vec<Vehicle>,
     /// Image count per category; categories without images are absent.
     #[schema(value_type = HashMap<String, i64>)]
     image_counts: HashMap<ImageCategory, i64>,
@@ -317,6 +338,20 @@ async fn detail(
         )
         .await?,
         image_counts: images::count_by_category(&state.db, id).await?,
+        related: match (order.related_order_id, order.relation.clone()) {
+            (Some(related_id), Some(relation)) => {
+                orders::find(&state.db, related_id)
+                    .await?
+                    .map(|r| RelatedOrder {
+                        id: r.id,
+                        number: r.number,
+                        title: r.title,
+                        relation,
+                    })
+            }
+            _ => None,
+        },
+        vehicles: vehicles::list_for_order(&state.db, id).await?,
         order,
     }))
 }
@@ -347,6 +382,10 @@ struct PatchOrder {
     due_date: Option<Option<NaiveDate>>,
     #[serde(default, deserialize_with = "patch_field")]
     assigned_to: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    related_order_id: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    relation: Option<Option<String>>,
 }
 
 #[utoipa::path(
@@ -392,6 +431,8 @@ async fn update(
         description: patch_text(&current.description, p.description),
         due_date: p.due_date.unwrap_or(current.due_date),
         assigned_to: p.assigned_to.unwrap_or(current.assigned_to),
+        related_order_id: p.related_order_id.unwrap_or(current.related_order_id),
+        relation: patch_text(&current.relation, p.relation),
     };
     if fields.currency != current.currency && order_items::count(&mut *tx, id).await? > 0 {
         return Err(AppError::rule(
@@ -404,6 +445,7 @@ async fn update(
     let updated = orders::update(&mut *tx, id, &fields)
         .await?
         .ok_or(AppError::NotFound("order"))?;
+    service::orders::sync_vehicle(&mut tx, id, &fields).await?;
     let changes = audit::diff(&[
         ("title", json!(current.title), json!(updated.title)),
         (

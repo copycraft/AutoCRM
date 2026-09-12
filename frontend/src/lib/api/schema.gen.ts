@@ -744,6 +744,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leads/{id}/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** V2.4: a quotation PDF hangs off the lead it was sent for. */
+        post: operations["media_request_lead_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leads/{id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** V2.4: documents of a lead — the quotation, before any order exists. */
+        get: operations["media_list_lead_documents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The first cross-order document query in the system (V2.5). Without it a certificate is
+         *     reachable only through the one job it happened to be filed under.
+         */
+        get: operations["media_search_documents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["media_delete_document"];
+        options?: never;
+        head?: never;
+        /** Validity and vehicle on an existing document (V2.5, V2.1). The bytes never change. */
+        patch: operations["media_update_document"];
+        trace?: never;
+    };
     "/uploads/complete": {
         parameters: {
             query?: never;
@@ -835,22 +906,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/documents/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete: operations["media_delete_document"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1231,6 +1286,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["vehicles_search"];
+        put?: never;
+        post: operations["vehicles_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vehicles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["vehicles_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["vehicles_update"];
+        trace?: never;
+    };
+    "/orders/{id}/vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["vehicles_list_for_order"];
+        put?: never;
+        /** One job can cover several identical vans, each with its own MEO photos and certificate. */
+        post: operations["vehicles_attach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{order_id}/vehicles/{vehicle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["vehicles_detach"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1269,6 +1389,10 @@ export interface components {
             orders_missing_fx_rate: number;
             /** Format: date */
             latest_eur_rate_day?: string | null;
+        };
+        AttachBody: {
+            /** Format: int64 */
+            vehicle_id: number;
         };
         AttachmentRef: {
             /** Format: int64 */
@@ -1444,6 +1568,11 @@ export interface components {
             city?: string | null;
             address_line?: string | null;
             notes?: string | null;
+            /**
+             * @description `customer` | `supplier` | `both`. Omitted means unclassified, which the pickers
+             *     treat as a customer.
+             */
+            role?: string | null;
         };
         CreateProjectType: {
             key: string;
@@ -1478,6 +1607,14 @@ export interface components {
             role: components["schemas"]["Role"];
             temporary_password: string;
         };
+        CreatedVehicle: components["schemas"]["Vehicle"] & {
+            /**
+             * @description True when this plate or VIN already existed and the stored vehicle was reused
+             *     rather than duplicated. The screen shows it as "this van has been here before",
+             *     which for a warranty job is the most useful thing the system can say.
+             */
+            existing: boolean;
+        };
         /** @enum {string} */
         Currency: "HUF" | "EUR";
         CurrentStage: {
@@ -1488,8 +1625,19 @@ export interface components {
         Document: {
             /** Format: int64 */
             id: number;
+            /**
+             * Format: int64
+             * @description Exactly one of `order_id` and `lead_id` is set (V2.4): a quotation belongs to the
+             *     lead it was sent for, and had nowhere to live before this.
+             */
+            order_id?: number | null;
             /** Format: int64 */
-            order_id: number;
+            lead_id?: number | null;
+            /**
+             * Format: int64
+             * @description Which vehicle on a multi-vehicle order this covers (V2.1). Usually null.
+             */
+            vehicle_id?: number | null;
             kind: components["schemas"]["DocumentKind"];
             filename: string;
             content_type: string;
@@ -1497,6 +1645,12 @@ export interface components {
             content_hash: string;
             /** Format: int64 */
             byte_size: number;
+            /** @description V2.5: an ATP certificate is issued by somebody and expires. */
+            issuer?: string | null;
+            /** Format: date */
+            valid_from?: string | null;
+            /** Format: date */
+            valid_until?: string | null;
             /** Format: date-time */
             uploaded_at: string;
             /** Format: int64 */
@@ -1505,7 +1659,20 @@ export interface components {
             deleted_at?: string | null;
         };
         /** @enum {string} */
-        DocumentKind: "design" | "cad" | "other";
+        DocumentKind: "design" | "cad" | "certificate" | "other";
+        DocumentPatch: {
+            /** @description Who issued it — the ATP inspection body, the designer, the supplier. */
+            issuer?: string | null;
+            /** Format: date */
+            valid_from?: string | null;
+            /** Format: date */
+            valid_until?: string | null;
+            /**
+             * Format: int64
+             * @description Which vehicle on a multi-vehicle order this covers.
+             */
+            vehicle_id?: number | null;
+        };
         DownloadUrl: {
             /** @description Presigned, expires after one hour. */
             url: string;
@@ -1807,8 +1974,19 @@ export interface components {
             items: {
                 /** Format: int64 */
                 id: number;
+                /**
+                 * Format: int64
+                 * @description Exactly one of `order_id` and `lead_id` is set (V2.4): a quotation belongs to the
+                 *     lead it was sent for, and had nowhere to live before this.
+                 */
+                order_id?: number | null;
                 /** Format: int64 */
-                order_id: number;
+                lead_id?: number | null;
+                /**
+                 * Format: int64
+                 * @description Which vehicle on a multi-vehicle order this covers (V2.1). Usually null.
+                 */
+                vehicle_id?: number | null;
                 kind: components["schemas"]["DocumentKind"];
                 filename: string;
                 content_type: string;
@@ -1816,6 +1994,12 @@ export interface components {
                 content_hash: string;
                 /** Format: int64 */
                 byte_size: number;
+                /** @description V2.5: an ATP certificate is issued by somebody and expires. */
+                issuer?: string | null;
+                /** Format: date */
+                valid_from?: string | null;
+                /** Format: date */
+                valid_until?: string | null;
                 /** Format: date-time */
                 uploaded_at: string;
                 /** Format: int64 */
@@ -2030,6 +2214,12 @@ export interface components {
                 city?: string | null;
                 address_line?: string | null;
                 notes?: string | null;
+                /**
+                 * @description V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is
+                 *     treated as a customer by the pickers — the paint shop turning up in the customer
+                 *     list is a nuisance, a customer missing from it is a bug.
+                 */
+                role?: string | null;
                 /** Format: int64 */
                 minicrm_id?: number | null;
                 /** Format: date-time */
@@ -2176,6 +2366,28 @@ export interface components {
                 updated_at: string;
             }[];
         };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_Vehicle: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                vin?: string | null;
+                plate?: string | null;
+                /** @description Plate with spaces, dashes and case removed. Generated column; search matches on it. */
+                plate_norm?: string | null;
+                make?: string | null;
+                model?: string | null;
+                /** Format: int32 */
+                year?: number | null;
+                /** Format: int64 */
+                partner_id?: number | null;
+                notes?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+        };
         Job: {
             /** Format: int64 */
             id: number;
@@ -2221,6 +2433,16 @@ export interface components {
             description?: string | null;
             /** Format: int64 */
             assigned_to?: number | null;
+            /**
+             * Format: int64
+             * @description V2.3: what we quoted, in minor units. Not a `quotes` table with versions — at 60
+             *     leads a month that is more machinery than the business justifies. Changes are
+             *     written to audit_log, so a revised price still leaves a trail.
+             */
+            quoted_value_minor?: number | null;
+            currency?: null | components["schemas"]["Currency"];
+            /** Format: date */
+            quote_valid_until?: string | null;
             /** Format: int64 */
             created_by?: number | null;
             /** Format: int64 */
@@ -2244,12 +2466,26 @@ export interface components {
             description?: string | null;
             /** Format: int64 */
             assigned_to?: number | null;
+            /**
+             * Format: int64
+             * @description V2.3: the quoted price in minor units (fillér / eurocent).
+             */
+            quoted_value_minor?: number | null;
+            currency?: null | components["schemas"]["Currency"];
+            /** Format: date */
+            quote_valid_until?: string | null;
         };
         LeadDetail: {
             lead: components["schemas"]["Lead"];
             stage?: null | components["schemas"]["CurrentStage"];
             history: components["schemas"]["StageEntry"][];
-            order?: null | components["schemas"]["OrderRef"];
+            /**
+             * @description V2.7: every order this enquiry became. Three identical Sprinters from one enquiry
+             *     are three orders, and all three point back here.
+             */
+            orders: components["schemas"]["OrderRef"][];
+            /** @description V2.4: the quotation and anything else filed against the enquiry itself. */
+            documents: components["schemas"]["Document"][];
         };
         LeadSummary: {
             /** Format: int64 */
@@ -2319,6 +2555,14 @@ export interface components {
             due_date?: string | null;
             /** Format: int64 */
             assigned_to?: number | null;
+            /**
+             * Format: int64
+             * @description V2.2: the job this one repairs or repeats. Warranty and rework work is otherwise
+             *     unlinkable to the job it fixes, and nobody reconstructs that afterwards.
+             */
+            related_order_id?: number | null;
+            /** @description 'warranty' | 'rework' | 'repeat'. Set together with related_order_id or not at all. */
+            relation?: string | null;
             /** Format: int64 */
             created_by?: number | null;
             /** Format: int64 */
@@ -2351,6 +2595,13 @@ export interface components {
             due_date?: string | null;
             /** Format: int64 */
             assigned_to?: number | null;
+            /**
+             * Format: int64
+             * @description V2.2: the job this one repairs or repeats. Set with `relation` or not at all.
+             */
+            related_order_id?: number | null;
+            /** @description `warranty` | `rework` | `repeat`. */
+            relation?: string | null;
             items?: components["schemas"]["ItemBody"][];
         };
         OrderDetail: {
@@ -2360,6 +2611,12 @@ export interface components {
             items: components["schemas"]["ItemView"][];
             value: components["schemas"]["OrderValue"];
             blockers: components["schemas"]["Blocker"][];
+            related?: null | components["schemas"]["RelatedOrder"];
+            /**
+             * @description V2.1: the vans this job covers. Usually one; three identical Sprinters from one
+             *     enquiry is the case the join table exists for.
+             */
+            vehicles: components["schemas"]["Vehicle"][];
             /** @description Image count per category; categories without images are absent. */
             image_counts: {
                 [key: string]: number;
@@ -2471,6 +2728,12 @@ export interface components {
             city?: string | null;
             address_line?: string | null;
             notes?: string | null;
+            /**
+             * @description V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is
+             *     treated as a customer by the pickers — the paint shop turning up in the customer
+             *     list is a nuisance, a customer missing from it is a bug.
+             */
+            role?: string | null;
             /** Format: int64 */
             minicrm_id?: number | null;
             /** Format: date-time */
@@ -2484,6 +2747,11 @@ export interface components {
             partner: components["schemas"]["Partner"];
             contacts: components["schemas"]["Contact"][];
             orders: components["schemas"]["OrderSummary"][];
+            /**
+             * @description Every enquiry from this partner, quoted or not. Without it, someone opening a
+             *     partner cannot see they were quoted eight months ago and never followed up.
+             */
+            leads: components["schemas"]["LeadSummary"][];
         };
         /** @enum {string} */
         PartnerKind: "business" | "person";
@@ -2524,6 +2792,9 @@ export interface components {
             due_date?: string | null;
             /** Format: int64 */
             assigned_to?: number | null;
+            /** Format: int64 */
+            related_order_id?: number | null;
+            relation?: string | null;
         };
         PatchPartner: {
             kind?: null | components["schemas"]["PartnerKind"];
@@ -2535,6 +2806,7 @@ export interface components {
             email?: string | null;
             phone?: string | null;
             website?: string | null;
+            role?: string | null;
             postal_code?: string | null;
             city?: string | null;
             address_line?: string | null;
@@ -2622,6 +2894,14 @@ export interface components {
              *     AutoCRM — the screen shows nothing rather than an empty panel.
              */
             raw_import?: Record<string, unknown> | null;
+        };
+        RelatedOrder: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            title: string;
+            /** @description 'warranty' | 'rework' | 'repeat'. */
+            relation: string;
         };
         ResetPassword: {
             temporary_password: string;
@@ -2910,6 +3190,47 @@ export interface components {
             page_size: number;
             /** Format: date-time */
             updated_at: string;
+        };
+        Vehicle: {
+            /** Format: int64 */
+            id: number;
+            vin?: string | null;
+            plate?: string | null;
+            /** @description Plate with spaces, dashes and case removed. Generated column; search matches on it. */
+            plate_norm?: string | null;
+            make?: string | null;
+            model?: string | null;
+            /** Format: int32 */
+            year?: number | null;
+            /** Format: int64 */
+            partner_id?: number | null;
+            notes?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        VehicleBody: {
+            vin?: string | null;
+            plate?: string | null;
+            make?: string | null;
+            model?: string | null;
+            /** Format: int32 */
+            year?: number | null;
+            /** Format: int64 */
+            partner_id?: number | null;
+            notes?: string | null;
+        };
+        VehicleDetail: {
+            vehicle: components["schemas"]["Vehicle"];
+            /** @description Every job this van has been through, newest first. */
+            orders: components["schemas"]["VehicleOrder"][];
+        };
+        VehicleOrder: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            title: string;
         };
         VolumeReport: {
             period: components["schemas"]["Period"];
@@ -3785,6 +4106,11 @@ export interface operations {
                 /** @description Matches name, tax number, e-mail and city. */
                 q?: string;
                 kind?: components["schemas"]["PartnerKind"];
+                /**
+                 * @description V2.6: `customer` or `supplier`. A partner with no role set counts as a customer,
+                 *     so the picker never hides someone; `both` matches either filter.
+                 */
+                role?: string;
                 include_archived?: boolean;
                 /** @description Sort key, `-` prefix for descending: name, created_at. */
                 sort?: string;
@@ -5437,6 +5763,216 @@ export interface operations {
             };
         };
     };
+    media_request_lead_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResponse"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    media_list_lead_documents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Document"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    media_search_documents: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["DocumentKind"];
+                /**
+                 * @description Certificates whose validity ends on or before this date. The question this query
+                 *     exists for: "which ATP certificates expire next quarter".
+                 */
+                expiring_before?: string;
+                vehicle_id?: number;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Document"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    media_delete_document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    media_update_document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     media_complete_upload: {
         parameters: {
             query?: never;
@@ -5663,44 +6199,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DownloadUrl"];
                 };
-            };
-            /** @description Client error; see `error.code` */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Server error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    media_delete_document: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -6749,6 +7247,289 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EmailTestResult"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vehicles_search: {
+        parameters: {
+            query?: {
+                /** @description Plate (ignoring spaces, dashes and case), VIN, make, model or notes. */
+                q?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Vehicle"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vehicles_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedVehicle"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vehicles_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleDetail"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vehicles_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Vehicle"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vehicles_list_for_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Vehicle"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vehicles_attach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vehicles_detach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+                vehicle_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {

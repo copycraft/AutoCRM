@@ -27,6 +27,10 @@ export const zAdminStatus = z.object({
     latest_eur_rate_day: z.string().date().nullish()
 });
 
+export const zAttachBody = z.object({
+    vehicle_id: z.number().int()
+});
+
 export const zAttachmentRef = z.object({
     document_id: z.number().int(),
     filename: z.string().nullish(),
@@ -161,20 +165,33 @@ export const zCurrentStage = z.object({
 export const zDocumentKind = z.enum([
     'design',
     'cad',
+    'certificate',
     'other'
 ]);
 
 export const zDocument = z.object({
     id: z.number().int(),
-    order_id: z.number().int(),
+    order_id: z.number().int().nullish(),
+    lead_id: z.number().int().nullish(),
+    vehicle_id: z.number().int().nullish(),
     kind: zDocumentKind,
     filename: z.string(),
     content_type: z.string(),
     content_hash: z.string(),
     byte_size: z.number().int(),
+    issuer: z.string().nullish(),
+    valid_from: z.string().date().nullish(),
+    valid_until: z.string().date().nullish(),
     uploaded_at: z.string().datetime(),
     uploaded_by: z.number().int().nullish(),
     deleted_at: z.string().datetime().nullish()
+});
+
+export const zDocumentPatch = z.object({
+    issuer: z.string().nullish(),
+    valid_from: z.string().date().nullish(),
+    valid_until: z.string().date().nullish(),
+    vehicle_id: z.number().int().nullish()
 });
 
 export const zDownloadUrl = z.object({
@@ -444,12 +461,17 @@ export const zItemsContact = z.object({
 export const zItemsDocument = z.object({
     items: z.array(z.object({
         id: z.number().int(),
-        order_id: z.number().int(),
+        order_id: z.number().int().nullish(),
+        lead_id: z.number().int().nullish(),
+        vehicle_id: z.number().int().nullish(),
         kind: zDocumentKind,
         filename: z.string(),
         content_type: z.string(),
         content_hash: z.string(),
         byte_size: z.number().int(),
+        issuer: z.string().nullish(),
+        valid_from: z.string().date().nullish(),
+        valid_until: z.string().date().nullish(),
         uploaded_at: z.string().datetime(),
         uploaded_by: z.number().int().nullish(),
         deleted_at: z.string().datetime().nullish()
@@ -708,6 +730,25 @@ export const zItemsTransitionOption = z.object({
     }))
 });
 
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsVehicle = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        vin: z.string().nullish(),
+        plate: z.string().nullish(),
+        plate_norm: z.string().nullish(),
+        make: z.string().nullish(),
+        model: z.string().nullish(),
+        year: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+        partner_id: z.number().int().nullish(),
+        notes: z.string().nullish(),
+        created_at: z.string().datetime(),
+        updated_at: z.string().datetime()
+    }))
+});
+
 export const zJob = z.object({
     id: z.number().int(),
     kind: z.string(),
@@ -739,6 +780,9 @@ export const zLead = z.object({
     source: z.string().nullish(),
     description: z.string().nullish(),
     assigned_to: z.number().int().nullish(),
+    quoted_value_minor: z.number().int().nullish(),
+    currency: zCurrency.nullish(),
+    quote_valid_until: z.string().date().nullish(),
     created_by: z.number().int().nullish(),
     minicrm_id: z.number().int().nullish(),
     created_at: z.string().datetime(),
@@ -757,7 +801,10 @@ export const zLeadBody = z.object({
     contact_phone: z.string().nullish(),
     source: z.string().nullish(),
     description: z.string().nullish(),
-    assigned_to: z.number().int().nullish()
+    assigned_to: z.number().int().nullish(),
+    quoted_value_minor: z.number().int().nullish(),
+    currency: zCurrency.nullish(),
+    quote_valid_until: z.string().date().nullish()
 });
 
 export const zLeadSummary = z.object({
@@ -795,6 +842,8 @@ export const zOrder = z.object({
     description: z.string().nullish(),
     due_date: z.string().date().nullish(),
     assigned_to: z.number().int().nullish(),
+    related_order_id: z.number().int().nullish(),
+    relation: z.string().nullish(),
     created_by: z.number().int().nullish(),
     minicrm_id: z.number().int().nullish(),
     created_at: z.string().datetime(),
@@ -815,6 +864,8 @@ export const zOrderBody = z.object({
     description: z.string().nullish(),
     due_date: z.string().date().nullish(),
     assigned_to: z.number().int().nullish(),
+    related_order_id: z.number().int().nullish(),
+    relation: z.string().nullish(),
     items: z.array(zItemBody).optional()
 });
 
@@ -911,7 +962,8 @@ export const zCreatePartner = z.object({
     postal_code: z.string().nullish(),
     city: z.string().nullish(),
     address_line: z.string().nullish(),
-    notes: z.string().nullish()
+    notes: z.string().nullish(),
+    role: z.string().nullish()
 });
 
 /**
@@ -933,6 +985,7 @@ export const zItemsPartner = z.object({
         city: z.string().nullish(),
         address_line: z.string().nullish(),
         notes: z.string().nullish(),
+        role: z.string().nullish(),
         minicrm_id: z.number().int().nullish(),
         archived_at: z.string().datetime().nullish(),
         created_at: z.string().datetime(),
@@ -955,6 +1008,7 @@ export const zPartner = z.object({
     city: z.string().nullish(),
     address_line: z.string().nullish(),
     notes: z.string().nullish(),
+    role: z.string().nullish(),
     minicrm_id: z.number().int().nullish(),
     archived_at: z.string().datetime().nullish(),
     created_at: z.string().datetime(),
@@ -964,7 +1018,8 @@ export const zPartner = z.object({
 export const zPartnerDetail = z.object({
     partner: zPartner,
     contacts: z.array(zContact),
-    orders: z.array(zOrderSummary)
+    orders: z.array(zOrderSummary),
+    leads: z.array(zLeadSummary)
 });
 
 export const zPartnerRef = z.object({
@@ -992,7 +1047,9 @@ export const zPatchOrder = z.object({
     vehicle_vin: z.string().nullish(),
     description: z.string().nullish(),
     due_date: z.string().date().nullish(),
-    assigned_to: z.number().int().nullish()
+    assigned_to: z.number().int().nullish(),
+    related_order_id: z.number().int().nullish(),
+    relation: z.string().nullish()
 });
 
 export const zPatchPartner = z.object({
@@ -1005,6 +1062,7 @@ export const zPatchPartner = z.object({
     email: z.string().nullish(),
     phone: z.string().nullish(),
     website: z.string().nullish(),
+    role: z.string().nullish(),
     postal_code: z.string().nullish(),
     city: z.string().nullish(),
     address_line: z.string().nullish(),
@@ -1090,6 +1148,13 @@ export const zProjectType = z.object({
 export const zRawImportView = z.object({
     minicrm_id: z.number().int().nullish(),
     raw_import: z.record(z.unknown()).nullish()
+});
+
+export const zRelatedOrder = z.object({
+    id: z.number().int(),
+    number: z.string(),
+    title: z.string(),
+    relation: z.string()
 });
 
 export const zResetPassword = z.object({
@@ -1308,7 +1373,8 @@ export const zLeadDetail = z.object({
     lead: zLead,
     stage: zCurrentStage.nullish(),
     history: z.array(zStageEntry),
-    order: zOrderRef.nullish()
+    orders: z.array(zOrderRef),
+    documents: z.array(zDocument)
 });
 
 export const zStageView = z.object({
@@ -1317,16 +1383,6 @@ export const zStageView = z.object({
     entered_at: z.string().datetime(),
     days_in_stage: z.number().int(),
     is_terminal: z.boolean()
-});
-
-export const zOrderDetail = z.object({
-    order: zOrder,
-    partner: zPartnerRef,
-    stage: zStageView,
-    items: z.array(zItemView),
-    value: zOrderValue,
-    blockers: z.array(zBlocker),
-    image_counts: z.record(z.number().int())
 });
 
 export const zStalledOrder = z.object({
@@ -1448,6 +1504,57 @@ export const zUserSettings = z.object({
     density: z.string(),
     page_size: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
     updated_at: z.string().datetime()
+});
+
+export const zVehicle = z.object({
+    id: z.number().int(),
+    vin: z.string().nullish(),
+    plate: z.string().nullish(),
+    plate_norm: z.string().nullish(),
+    make: z.string().nullish(),
+    model: z.string().nullish(),
+    year: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    partner_id: z.number().int().nullish(),
+    notes: z.string().nullish(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime()
+});
+
+export const zCreatedVehicle = zVehicle.and(z.object({
+    existing: z.boolean()
+}));
+
+export const zOrderDetail = z.object({
+    order: zOrder,
+    partner: zPartnerRef,
+    stage: zStageView,
+    items: z.array(zItemView),
+    value: zOrderValue,
+    blockers: z.array(zBlocker),
+    related: zRelatedOrder.nullish(),
+    vehicles: z.array(zVehicle),
+    image_counts: z.record(z.number().int())
+});
+
+export const zVehicleBody = z.object({
+    vin: z.string().nullish(),
+    plate: z.string().nullish(),
+    make: z.string().nullish(),
+    model: z.string().nullish(),
+    year: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    partner_id: z.number().int().nullish(),
+    notes: z.string().nullish()
+});
+
+export const zVehicleOrder = z.object({
+    id: z.number().int(),
+    number: z.string(),
+    title: z.string()
+});
+
+export const zVehicleDetail = z.object({
+    vehicle: zVehicle,
+    orders: z.array(zVehicleOrder)
 });
 
 export const zVolumeRow = z.object({
@@ -1580,6 +1687,7 @@ export const zConfigurationPutSettingsResponse = zSettings;
 export const zPartnersSearchQuery = z.object({
     q: z.string().optional(),
     kind: zPartnerKind.optional(),
+    role: z.string().optional(),
     include_archived: z.boolean().optional(),
     sort: z.string().optional(),
     limit: z.number().int().optional(),
@@ -1898,6 +2006,47 @@ export const zMediaRequestUploadPath = z.object({
 
 export const zMediaRequestUploadResponse = zUploadResponse;
 
+export const zMediaRequestLeadUploadBody = zUploadRequest;
+
+export const zMediaRequestLeadUploadPath = z.object({
+    id: z.number().int()
+});
+
+export const zMediaRequestLeadUploadResponse = zUploadResponse;
+
+export const zMediaListLeadDocumentsPath = z.object({
+    id: z.number().int()
+});
+
+export const zMediaListLeadDocumentsResponse = zItemsDocument;
+
+export const zMediaSearchDocumentsQuery = z.object({
+    kind: zDocumentKind.optional(),
+    expiring_before: z.string().date().optional(),
+    vehicle_id: z.number().int().optional(),
+    limit: z.number().int().optional(),
+    offset: z.number().int().optional()
+});
+
+export const zMediaSearchDocumentsResponse = zItemsDocument;
+
+export const zMediaDeleteDocumentPath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * Deleted
+ */
+export const zMediaDeleteDocumentResponse = z.void();
+
+export const zMediaUpdateDocumentBody = zDocumentPatch;
+
+export const zMediaUpdateDocumentPath = z.object({
+    id: z.number().int()
+});
+
+export const zMediaUpdateDocumentResponse = zDocument;
+
 export const zMediaCompleteUploadBody = zCompleteBody;
 
 /**
@@ -1941,15 +2090,6 @@ export const zMediaDocumentUrlPath = z.object({
 });
 
 export const zMediaDocumentUrlResponse = zDownloadUrl;
-
-export const zMediaDeleteDocumentPath = z.object({
-    id: z.number().int()
-});
-
-/**
- * Deleted
- */
-export const zMediaDeleteDocumentResponse = z.void();
 
 export const zMobileOrderPickerQuery = z.object({
     q: z.string().optional(),
@@ -2113,3 +2253,50 @@ export const zAdminRunNowResponse = zJobQueued;
 export const zAdminTestEmailBody = zEmailTestBody;
 
 export const zAdminTestEmailResponse = zEmailTestResult;
+
+export const zVehiclesSearchQuery = z.object({
+    q: z.string().optional(),
+    limit: z.number().int().optional(),
+    offset: z.number().int().optional()
+});
+
+export const zVehiclesSearchResponse = zItemsVehicle;
+
+export const zVehiclesCreateBody = zVehicleBody;
+
+export const zVehiclesCreateResponse = zCreatedVehicle;
+
+export const zVehiclesDetailPath = z.object({
+    id: z.number().int()
+});
+
+export const zVehiclesDetailResponse = zVehicleDetail;
+
+export const zVehiclesUpdateBody = zVehicleBody;
+
+export const zVehiclesUpdatePath = z.object({
+    id: z.number().int()
+});
+
+export const zVehiclesUpdateResponse = zVehicle;
+
+export const zVehiclesListForOrderPath = z.object({
+    id: z.number().int()
+});
+
+export const zVehiclesListForOrderResponse = zItemsVehicle;
+
+export const zVehiclesAttachBody = zAttachBody;
+
+export const zVehiclesAttachPath = z.object({
+    id: z.number().int()
+});
+
+export const zVehiclesAttachResponse = z.void();
+
+export const zVehiclesDetachPath = z.object({
+    order_id: z.number().int(),
+    vehicle_id: z.number().int()
+});
+
+export const zVehiclesDetachResponse = z.void();

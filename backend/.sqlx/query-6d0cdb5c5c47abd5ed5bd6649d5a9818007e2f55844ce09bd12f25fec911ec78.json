@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, number FROM orders WHERE lead_id = $1",
+  "query": "SELECT id, number FROM orders WHERE lead_id = $1 ORDER BY id",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "dd4242da741f0bd0243f7d40560fb2607b4324051fa5ab4f126bb19a1dcd4468"
+  "hash": "6d0cdb5c5c47abd5ed5bd6649d5a9818007e2f55844ce09bd12f25fec911ec78"
 }

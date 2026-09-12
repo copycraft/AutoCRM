@@ -13,14 +13,14 @@ use sha2::{Digest, Sha256};
 use crate::AppState;
 use crate::domain::media::{
     MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, document_extension, document_storage_key, image_extension,
-    image_storage_key,
+    image_storage_key, lead_document_storage_key,
 };
 use crate::error::{AppError, AppResult};
 use crate::media::storage::PresignedRequest;
 use crate::media::upload_token::{self, UploadClaims, UploadTarget};
-use crate::repo::documents::{self, Document, NewDocument};
+use crate::repo::documents::{self, Document, NewDocument, Owner};
 use crate::repo::images::{self, Image, NewImage};
-use crate::repo::{audit, jobs, orders};
+use crate::repo::{audit, jobs, leads, orders};
 use crate::service::auth::AuthUser;
 
 const TICKET_TTL: TimeDelta = TimeDelta::hours(2);
@@ -92,12 +92,21 @@ fn validate_content_type(ct: &str) -> AppResult<()> {
 pub async fn request_upload(
     state: &AppState,
     _user: &AuthUser,
-    order_id: i64,
+    owner: Owner,
     req: UploadRequest,
 ) -> AppResult<UploadResponse> {
-    orders::find(&state.db, order_id)
-        .await?
-        .ok_or(AppError::NotFound("order"))?;
+    match owner {
+        Owner::Order(id) => {
+            orders::find(&state.db, id)
+                .await?
+                .ok_or(AppError::NotFound("order"))?;
+        }
+        Owner::Lead(id) => {
+            leads::find(&state.db, id)
+                .await?
+                .ok_or(AppError::NotFound("lead"))?;
+        }
+    }
     let hash = parse_sha256(&req.sha256)?;
     let hash_hex = hex::encode(&hash);
     validate_content_type(&req.content_type)?;
@@ -113,6 +122,12 @@ pub async fn request_upload(
 
     let (key, lock_until) = match &req.target {
         UploadTarget::Image { category } => {
+            // Evidence is tied to the job, not the enquiry: a lead has no MEO photos.
+            let Owner::Order(order_id) = owner else {
+                return Err(AppError::validation(
+                    "images belong to an order, not a lead",
+                ));
+            };
             if req.byte_size > MAX_IMAGE_BYTES {
                 return Err(AppError::validation("image is too large"));
             }
@@ -141,13 +156,17 @@ pub async fn request_upload(
                 .ok_or_else(|| AppError::validation("filename is required for documents"))?;
             let ext = document_extension(name)
                 .ok_or_else(|| AppError::validation("document needs a permitted file extension"))?;
-            if let Some(existing) = documents::find_by_hash(&state.db, order_id, &hash).await? {
+            if let Some(existing) = documents::find_by_hash(&state.db, owner, &hash).await? {
                 return Ok(UploadResponse::AlreadyUploaded {
                     image_id: None,
                     document_id: Some(existing.id),
                 });
             }
-            (document_storage_key(order_id, &hash_hex, &ext), None)
+            let key = match owner {
+                Owner::Order(id) => document_storage_key(id, &hash_hex, &ext),
+                Owner::Lead(id) => lead_document_storage_key(id, &hash_hex, &ext),
+            };
+            (key, None)
         }
     };
 
@@ -163,9 +182,14 @@ pub async fn request_upload(
         )
         .await?;
     let expires_at = now + TICKET_TTL;
+    let (order_id, lead_id) = match owner {
+        Owner::Order(id) => (Some(id), None),
+        Owner::Lead(id) => (None, Some(id)),
+    };
     let claims = UploadClaims {
         target: req.target,
         order_id,
+        lead_id,
         user_id: _user.user_id,
         storage_key: key,
         sha256_hex: hash_hex,
@@ -230,16 +254,29 @@ pub async fn complete_upload(
         }
     }
 
+    let owner = match (claims.order_id, claims.lead_id) {
+        (Some(id), None) => Owner::Order(id),
+        (None, Some(id)) => Owner::Lead(id),
+        _ => return Err(AppError::rule("invalid_ticket", "ticket names no owner")),
+    };
     let mut tx = state.db.begin().await?;
-    orders::lock(&mut *tx, claims.order_id)
-        .await?
-        .ok_or(AppError::NotFound("order"))?;
+    if let Owner::Order(order_id) = owner {
+        orders::lock(&mut *tx, order_id)
+            .await?
+            .ok_or(AppError::NotFound("order"))?;
+    }
     let completed = match claims.target {
         UploadTarget::Image { category } => {
+            let Owner::Order(order_id) = owner else {
+                return Err(AppError::rule(
+                    "invalid_ticket",
+                    "images belong to an order",
+                ));
+            };
             let (image, created) = images::insert(
                 &mut tx,
                 &NewImage {
-                    order_id: claims.order_id,
+                    order_id,
                     category,
                     storage_key: &claims.storage_key,
                     content_type: &claims.content_type,
@@ -256,7 +293,7 @@ pub async fn complete_upload(
                     &mut *tx,
                     Some(user.user_id),
                     "order",
-                    claims.order_id,
+                    order_id,
                     "image_add",
                     json!({ "image_id": image.id, "category": category, "sha256": claims.sha256_hex }),
                 )
@@ -280,7 +317,8 @@ pub async fn complete_upload(
             let (document, created) = documents::insert(
                 &mut tx,
                 &NewDocument {
-                    order_id: claims.order_id,
+                    owner,
+                    vehicle_id: None,
                     kind,
                     filename: &filename,
                     content_type: &claims.content_type,
@@ -293,11 +331,15 @@ pub async fn complete_upload(
             )
             .await?;
             if created {
+                let (entity, entity_id) = match owner {
+                    Owner::Order(id) => ("order", id),
+                    Owner::Lead(id) => ("lead", id),
+                };
                 audit::record(
                     &mut *tx,
                     Some(user.user_id),
-                    "order",
-                    claims.order_id,
+                    entity,
+                    entity_id,
                     "document_add",
                     json!({ "document_id": document.id, "filename": filename, "sha256": claims.sha256_hex }),
                 )

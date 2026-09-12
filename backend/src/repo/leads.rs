@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use sqlx::PgExecutor;
 
@@ -14,6 +14,13 @@ pub struct Lead {
     pub source: Option<String>,
     pub description: Option<String>,
     pub assigned_to: Option<i64>,
+    /// V2.3: what we quoted, in minor units. Not a `quotes` table with versions — at 60
+    /// leads a month that is more machinery than the business justifies. Changes are
+    /// written to audit_log, so a revised price still leaves a trail.
+    pub quoted_value_minor: Option<i64>,
+    #[schema(value_type = Option<crate::domain::money::Currency>)]
+    pub currency: Option<String>,
+    pub quote_valid_until: Option<NaiveDate>,
     pub created_by: Option<i64>,
     pub minicrm_id: Option<i64>,
     pub created_at: DateTime<Utc>,
@@ -31,6 +38,9 @@ pub struct LeadInput {
     pub source: Option<String>,
     pub description: Option<String>,
     pub assigned_to: Option<i64>,
+    pub quoted_value_minor: Option<i64>,
+    pub currency: Option<String>,
+    pub quote_valid_until: Option<NaiveDate>,
 }
 
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
@@ -56,7 +66,8 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Lead>
     sqlx::query_as!(
         Lead,
         "SELECT id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,
-                assigned_to, created_by, minicrm_id, created_at, updated_at
+                assigned_to, quoted_value_minor, currency, quote_valid_until,
+                created_by, minicrm_id, created_at, updated_at
          FROM leads WHERE id = $1",
         id
     )
@@ -69,7 +80,8 @@ pub async fn lock(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Lead>
     sqlx::query_as!(
         Lead,
         "SELECT id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,
-                assigned_to, created_by, minicrm_id, created_at, updated_at
+                assigned_to, quoted_value_minor, currency, quote_valid_until,
+                created_by, minicrm_id, created_at, updated_at
          FROM leads WHERE id = $1 FOR UPDATE",
         id
     )
@@ -81,10 +93,11 @@ pub async fn insert(db: impl PgExecutor<'_>, l: &LeadInput, created_by: i64) -> 
     sqlx::query_as!(
         Lead,
         "INSERT INTO leads (title, partner_id, contact_id, contact_name, contact_email, contact_phone, source,
-                            description, assigned_to, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                            description, assigned_to, quoted_value_minor, currency, quote_valid_until, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,
-                   assigned_to, created_by, minicrm_id, created_at, updated_at",
+                   assigned_to, quoted_value_minor, currency, quote_valid_until,
+                   created_by, minicrm_id, created_at, updated_at",
         l.title,
         l.partner_id,
         l.contact_id,
@@ -94,6 +107,9 @@ pub async fn insert(db: impl PgExecutor<'_>, l: &LeadInput, created_by: i64) -> 
         l.source,
         l.description,
         l.assigned_to,
+        l.quoted_value_minor,
+        l.currency,
+        l.quote_valid_until,
         created_by
     )
     .fetch_one(db)
@@ -105,10 +121,12 @@ pub async fn update(db: impl PgExecutor<'_>, id: i64, l: &LeadInput) -> sqlx::Re
         Lead,
         "UPDATE leads
          SET title = $2, partner_id = $3, contact_id = $4, contact_name = $5, contact_email = $6, contact_phone = $7,
-             source = $8, description = $9, assigned_to = $10
+             source = $8, description = $9, assigned_to = $10, quoted_value_minor = $11, currency = $12,
+             quote_valid_until = $13
          WHERE id = $1
          RETURNING id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,
-                   assigned_to, created_by, minicrm_id, created_at, updated_at",
+                   assigned_to, quoted_value_minor, currency, quote_valid_until,
+                   created_by, minicrm_id, created_at, updated_at",
         id,
         l.title,
         l.partner_id,
@@ -118,7 +136,10 @@ pub async fn update(db: impl PgExecutor<'_>, id: i64, l: &LeadInput) -> sqlx::Re
         l.contact_phone,
         l.source,
         l.description,
-        l.assigned_to
+        l.assigned_to,
+        l.quoted_value_minor,
+        l.currency,
+        l.quote_valid_until
     )
     .fetch_optional(db)
     .await
@@ -165,7 +186,9 @@ pub async fn search(
            JOIN stage_definitions sd ON sd.entity = 'lead' AND sd.key = cs.stage_key
            LEFT JOIN partners p ON p.id = l.partner_id
            LEFT JOIN users u ON u.id = l.assigned_to
-           LEFT JOIN orders o ON o.lead_id = l.id
+           -- V2.7: a lead converts as many times as the enquiry had vehicles, so this is a
+           -- LATERAL taking the first order rather than a join that would duplicate the lead.
+           LEFT JOIN LATERAL (SELECT id, number FROM orders WHERE lead_id = l.id ORDER BY id LIMIT 1) o ON true
            WHERE ($1::text IS NULL OR l.title ILIKE $1 OR l.contact_name ILIKE $1 OR l.contact_email ILIKE $1 OR p.name ILIKE $1)
              AND ($2::text IS NULL OR cs.stage_key = $2)
              AND ($3::bigint IS NULL OR l.assigned_to = $3)
@@ -184,6 +207,32 @@ pub async fn search(
         limit,
         offset,
         sort_key
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// Every lead of one partner, newest first (V6). One more query on the partner detail, so
+/// that opening a customer shows the quotations that never became orders.
+pub async fn for_partner(
+    db: impl PgExecutor<'_>,
+    partner_id: i64,
+) -> sqlx::Result<Vec<LeadSummary>> {
+    sqlx::query_as!(
+        LeadSummary,
+        r#"SELECT l.id, l.title, l.partner_id, p.name AS "partner_name?", l.contact_name, l.contact_email, l.source,
+                  l.assigned_to, u.display_name AS "assigned_name?",
+                  cs.stage_key AS "stage_key!", sd.label_hu AS "stage_label!", cs.entered_at AS "stage_entered_at!",
+                  o.id AS "order_id?", o.number AS "order_number?", l.created_at
+           FROM leads l
+           JOIN lead_current_stage cs ON cs.lead_id = l.id
+           JOIN stage_definitions sd ON sd.entity = 'lead' AND sd.key = cs.stage_key
+           LEFT JOIN partners p ON p.id = l.partner_id
+           LEFT JOIN users u ON u.id = l.assigned_to
+           LEFT JOIN LATERAL (SELECT id, number FROM orders WHERE lead_id = l.id ORDER BY id LIMIT 1) o ON true
+           WHERE l.partner_id = $1
+           ORDER BY l.created_at DESC, l.id DESC"#,
+        partner_id
     )
     .fetch_all(db)
     .await

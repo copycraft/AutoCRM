@@ -39,6 +39,10 @@ impl ImageCategory {
 pub enum DocumentKind {
     Design,
     Cad,
+    /// V2.5: an ATP certificate belongs to the vehicle for its life and expires. Kept
+    /// distinct from Other so `GET /documents?kind=certificate&expiring_before=…` can be
+    /// asked at all.
+    Certificate,
     Other,
 }
 
@@ -90,6 +94,11 @@ pub fn image_derived_key(
 
 pub fn document_storage_key(order_id: i64, hash_hex: &str, ext: &str) -> String {
     format!("orders/{order_id}/documents/{hash_hex}.{ext}")
+}
+
+/// V2.4: a quotation belongs to the lead it was sent for, before any order exists.
+pub fn lead_document_storage_key(lead_id: i64, hash_hex: &str, ext: &str) -> String {
+    format!("leads/{lead_id}/documents/{hash_hex}.{ext}")
 }
 
 #[cfg(test)]

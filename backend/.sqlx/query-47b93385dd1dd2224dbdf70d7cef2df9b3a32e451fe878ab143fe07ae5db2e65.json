@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, kind AS \"kind: PartnerKind\", name, tax_number, eu_tax_number, country, default_currency,\n                  email, phone, website, postal_code, city, address_line, notes, minicrm_id, archived_at, created_at, updated_at\n           FROM partners WHERE id = $1",
+  "query": "SELECT id, kind AS \"kind: PartnerKind\", name, tax_number, eu_tax_number, country, default_currency,\n                  email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at\n           FROM partners WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -85,21 +85,26 @@
       },
       {
         "ordinal": 14,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
         "name": "minicrm_id",
         "type_info": "Int8"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "archived_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -126,9 +131,10 @@
       true,
       true,
       true,
+      true,
       false,
       false
     ]
   },
-  "hash": "dffbb12c52906cb6b56b7ba41fc299e82c5df37003ef6737f368872d4c109009"
+  "hash": "47b93385dd1dd2224dbdf70d7cef2df9b3a32e451fe878ab143fe07ae5db2e65"
 }

@@ -26,7 +26,10 @@ pub enum UploadTarget {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UploadClaims {
     pub target: UploadTarget,
-    pub order_id: i64,
+    /// Exactly one of these is set. Images are always order-scoped; only documents can
+    /// belong to a lead (V2.4).
+    pub order_id: Option<i64>,
+    pub lead_id: Option<i64>,
     pub user_id: i64,
     pub storage_key: String,
     pub sha256_hex: String,
@@ -91,7 +94,8 @@ mod tests {
             target: UploadTarget::Image {
                 category: ImageCategory::Intake,
             },
-            order_id: 7,
+            order_id: Some(7),
+            lead_id: None,
             user_id: 3,
             storage_key: "orders/7/intake/ab.jpg".into(),
             sha256_hex: "ab".into(),
@@ -118,7 +122,7 @@ mod tests {
     fn tampering_rejected() {
         let t = sign(KEY, &claims());
         let mut other = claims();
-        other.order_id = 8;
+        other.order_id = Some(8);
         let forged_payload = sign(KEY, &other).split_once('.').unwrap().0.to_string();
         let original_sig = t.split_once('.').unwrap().1;
         assert_eq!(

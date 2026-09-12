@@ -384,15 +384,15 @@ async fn prepare(
 
     let mut attachments = Vec::new();
     if !req.attachment_document_ids.is_empty() {
-        let order_id = about
-            .order_id
-            .ok_or_else(|| AppError::validation("attachments require an order"))?;
+        // V2.4: attachments used to require an order outright, which is why a quotation
+        // could not be emailed from this system at all — the whole point of a lead is that
+        // no order exists yet.
+        let owner = documents::Owner::from_about(about.order_id, about.lead_id)
+            .ok_or_else(|| AppError::validation("attachments require an order or a lead"))?;
         let docs = documents::find_many(&mut *conn, &req.attachment_document_ids).await?;
-        if docs.len() != req.attachment_document_ids.len()
-            || docs.iter().any(|d| d.order_id != order_id)
-        {
+        if docs.len() != req.attachment_document_ids.len() || docs.iter().any(|d| !owner.owns(d)) {
             return Err(AppError::validation(
-                "attachments must be documents of this order",
+                "attachments must be documents of this order or lead",
             ));
         }
         attachments = docs

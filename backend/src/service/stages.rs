@@ -170,10 +170,15 @@ pub async fn change_lead_stage(
     leads::lock(&mut *tx, lead_id)
         .await?
         .ok_or(AppError::NotFound("lead"))?;
-    if let Some((_, number)) = orders::find_by_lead(&mut *tx, lead_id).await? {
+    let converted = orders::find_by_lead(&mut *tx, lead_id).await?;
+    if !converted.is_empty() {
+        let numbers: Vec<&str> = converted.iter().map(|(_, n)| n.as_str()).collect();
         return Err(AppError::rule(
             "lead_converted",
-            format!("this lead was converted to order {number}; work on the order instead"),
+            format!(
+                "this lead was converted to order {}; work on the order instead",
+                numbers.join(", ")
+            ),
         ));
     }
 

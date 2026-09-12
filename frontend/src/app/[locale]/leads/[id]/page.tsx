@@ -20,6 +20,12 @@ import { canAdmin, canEditLeads, useAuth } from '@/lib/auth/context';
 import { daysSince } from '@/lib/utils/format';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
+import { Money } from '@/components/ui/Money';
+
+/** A quote whose validity has passed. Dates are plain YYYY-MM-DD, compared as such. */
+function expired(validUntil: string): boolean {
+  return validUntil < new Date().toISOString().slice(0, 10);
+}
 
 export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
@@ -76,10 +82,12 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
         </>
       ) : (
         (() => {
-          const { lead, stage, history, order } = detail.data;
+          const { lead, stage, history, orders, documents } = detail.data;
           const defs = stagesQuery.data?.items ?? [];
           const currentDef = defs.find((d) => d.key === stage?.stage_key);
-          const converted = order !== null;
+          // V2.7: one enquiry for three vans is three orders; converting again is allowed
+          // and every order keeps its origin.
+          const converted = orders.length > 0;
           return (
             <>
               <PageHeader size="record"
@@ -117,11 +125,15 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                       {t('since')} <DateDisplay withTime value={stage.entered_at} />
                     </span>
                   )}
-                  {converted && order && (
-                    <Link href={`/${locale}/orders/${order.id}`} className="text-body text-steel-900 underline">
-                      {t('convertedOrder')}: <span className="font-mono">{order.number}</span>
+                  {orders.map((o) => (
+                    <Link
+                      key={o.id}
+                      href={`/${locale}/orders/${o.id}`}
+                      className="text-body text-steel-900 underline"
+                    >
+                      {t('convertedOrder')}: <span className="font-mono">{o.number}</span>
                     </Link>
-                  )}
+                  ))}
                 </div>
               </section>
 
@@ -152,6 +164,61 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     <Info label={t('contactPhone')} value={lead.contact_phone ?? '—'} />
                     <Info label={t('description')} value={lead.description ?? '—'} />
                     <Info label={t('createdAt')} value={<DateDisplay value={lead.created_at} />} />
+                  </div>
+
+                  {/* V2.3: the quotation — the six weeks between "we sent them a price"
+                      and "they said yes" were invisible before this. */}
+                  <div className="mt-5 border-t border-steel-200 pt-5">
+                    <h2 className="text-section font-semibold">{t('quoteSection')}</h2>
+                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <Info
+                        label={t('quotedValue')}
+                        value={
+                          lead.quoted_value_minor != null && lead.currency ? (
+                            <Money minor={lead.quoted_value_minor} currency={lead.currency} />
+                          ) : (
+                            '—'
+                          )
+                        }
+                        mono
+                      />
+                      <Info
+                        label={t('quoteValidUntil')}
+                        value={
+                          lead.quote_valid_until ? (
+                            <span className="flex flex-wrap items-center gap-2">
+                              <DateDisplay value={lead.quote_valid_until} />
+                              {expired(lead.quote_valid_until) && (
+                                <StatusBadge tone="signal">{t('quoteExpired')}</StatusBadge>
+                              )}
+                            </span>
+                          ) : (
+                            '—'
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {/* V2.4: documents can hang off the lead, so the quotation itself has
+                      somewhere to live and can be attached to an email. */}
+                  <div className="mt-5 border-t border-steel-200 pt-5">
+                    <h2 className="text-section font-semibold">
+                      {t('documents')} ({documents.length})
+                    </h2>
+                    <div className="mt-3 space-y-2">
+                      {documents.length === 0 && (
+                        <p className="text-metadata text-steel-500">{t('noDocuments')}</p>
+                      )}
+                      {documents.map((d) => (
+                        <p key={d.id} className="text-body">
+                          <span className="font-medium">{d.filename}</span>{' '}
+                          <span className="text-metadata text-steel-500">
+                            · <DateDisplay value={d.uploaded_at} />
+                          </span>
+                        </p>
+                      ))}
+                    </div>
                   </div>
                 </section>
               )}

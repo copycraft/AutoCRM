@@ -8,7 +8,7 @@ use crate::domain::stage::{StageEntity, initial_stage, keys};
 use crate::error::{AppError, AppResult};
 use crate::repo::leads::{Lead, LeadInput};
 use crate::repo::orders::{Order, OrderFields};
-use crate::repo::{audit, config, contacts, leads, orders, partners, stages};
+use crate::repo::{audit, config, contacts, leads, partners, stages};
 use crate::service::auth::AuthUser;
 use crate::service::orders::{NewItem, create_in_tx};
 
@@ -66,12 +66,9 @@ pub async fn convert(
     let lead = leads::lock(&mut *tx, lead_id)
         .await?
         .ok_or(AppError::NotFound("lead"))?;
-    if let Some((_, number)) = orders::find_by_lead(&mut *tx, lead_id).await? {
-        return Err(AppError::conflict(
-            "already_converted",
-            format!("lead already converted to order {number}"),
-        ));
-    }
+    // V2.7: one enquiry for three identical Sprinters becomes three orders, and each keeps
+    // its origin. Refusing the second conversion left the other two as orphans with no
+    // record of where they came from.
 
     let partner_id = conversion.partner_id.or(lead.partner_id).ok_or_else(|| {
         AppError::validation("choose or create a partner before converting the lead")

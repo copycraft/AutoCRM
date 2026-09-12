@@ -7,11 +7,11 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 
-use autocrm::domain::media::ImageCategory;
+use autocrm::domain::media::{DocumentKind, ImageCategory};
 use autocrm::domain::role::Role;
 use autocrm::error::AppError;
 use autocrm::repo::images::{self, NewImage};
-use autocrm::repo::{order_items, orders, stages};
+use autocrm::repo::{documents, order_items, orders, partners, stages, vehicles};
 use autocrm::service::orders::{NewItem, create_in_tx, items_total, order_currency};
 use autocrm::service::stages::change_order_stage;
 
@@ -311,4 +311,348 @@ async fn search_sorting_orders_results(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(ids(rows), vec![a.id, b.id, c.id]);
+}
+
+/// V2.1: the vehicle becomes a real row the moment an order names a plate, and the same
+/// van coming back years later matches the existing record rather than duplicating it.
+#[sqlx::test(migrations = "./migrations")]
+async fn a_plate_on_an_order_becomes_a_vehicle(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    let first = common::order(&pool, &user, "HUF", vec![]).await;
+
+    let vehicles = vehicles::list_for_order(&pool, first.id).await.unwrap();
+    assert_eq!(vehicles.len(), 1);
+    assert_eq!(vehicles[0].plate.as_deref(), Some("ABC-123"));
+    assert_eq!(vehicles[0].plate_norm.as_deref(), Some("ABC123"));
+    assert_eq!(vehicles[0].make.as_deref(), Some("Iveco"));
+
+    // The same van, plate written differently, on a later job.
+    let partner_id = common::partner(&pool, "Második ügyfél", None).await;
+    let mut fields = common::fields(partner_id, "HUF");
+    fields.vehicle_plate = Some("abc 123".into());
+    fields.vehicle_vin = Some("WDB9066571S123456".into());
+    let mut tx = pool.begin().await.unwrap();
+    let second = create_in_tx(
+        &mut tx,
+        user.user_id,
+        NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+        fields,
+        vec![],
+        None,
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM vehicles")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(total, 1, "one van, however the plate was typed");
+    let history = vehicles::orders_for_vehicle(&pool, vehicles[0].id)
+        .await
+        .unwrap();
+    assert_eq!(history.len(), 2, "both jobs hang off the same vehicle");
+    // The VIN the second job supplied fills in a blank without overwriting anything.
+    let v = vehicles::find(&pool, vehicles[0].id).await.unwrap().unwrap();
+    assert_eq!(v.vin.as_deref(), Some("WDB9066571S123456"));
+    assert!(history.iter().any(|(id, _, _)| *id == second.id));
+}
+
+/// V2.1: a plate search has to reach the vehicle, not only the order's own text column —
+/// that column is empty on every migrated order until the mapping fills it in.
+#[sqlx::test(migrations = "./migrations")]
+async fn plate_search_matches_through_the_vehicle(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::order(&pool, &user, "HUF", vec![]).await;
+    // Clear the order's own columns: the vehicle row is now the only place the plate lives.
+    sqlx::query("UPDATE orders SET vehicle_plate = NULL, vehicle_vin = NULL WHERE id = $1")
+        .bind(order.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let filter = orders::OrderFilter {
+        pattern: Some("%abc123%".into()),
+        plate_pattern: "%ABC123%".into(),
+        ..Default::default()
+    };
+    let found = orders::search(&pool, &filter, orders::DEFAULT_SORT, 20, 0)
+        .await
+        .unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].id, order.id);
+}
+
+/// V2.7: three identical Sprinters from one enquiry are three orders, and all three keep
+/// their origin. Before this the second conversion was refused and the other two vans
+/// became orphan orders with no record of where they came from.
+#[sqlx::test(migrations = "./migrations")]
+async fn a_lead_converts_as_many_times_as_it_has_vehicles(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    let partner_id = common::partner(&pool, "Müller Kühltransporte GmbH", None).await;
+    let lead = autocrm::service::leads::create(
+        &pool,
+        &user,
+        autocrm::repo::leads::LeadInput {
+            title: "Három Sprinter".into(),
+            partner_id: Some(partner_id),
+            contact_id: None,
+            contact_name: None,
+            contact_email: None,
+            contact_phone: None,
+            source: None,
+            description: None,
+            assigned_to: None,
+            quoted_value_minor: Some(4_500_000),
+            currency: Some("EUR".into()),
+            quote_valid_until: NaiveDate::from_ymd_opt(2026, 12, 31),
+        },
+    )
+    .await
+    .unwrap();
+
+    let today = NaiveDate::from_ymd_opt(2026, 9, 10).unwrap();
+    let mut numbers = Vec::new();
+    for plate in ["AAA-111", "BBB-222", "CCC-333"] {
+        let mut fields = common::fields(partner_id, "EUR");
+        fields.vehicle_plate = Some(plate.into());
+        let order = autocrm::service::leads::convert(
+            &pool,
+            &user,
+            lead.id,
+            today,
+            autocrm::service::leads::Conversion {
+                partner_id: Some(partner_id),
+                fields,
+                items: vec![],
+            },
+        )
+        .await
+        .unwrap();
+        numbers.push(order.number);
+    }
+    assert_eq!(numbers.len(), 3);
+
+    let from_lead = orders::find_by_lead(&pool, lead.id).await.unwrap();
+    assert_eq!(from_lead.len(), 3, "every order keeps its origin");
+    let vehicles_total: i64 = sqlx::query_scalar("SELECT count(*) FROM vehicles")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(vehicles_total, 3, "three vans, not one");
+}
+
+/// V2.2: the relation and its target are set together, and never point at the order itself.
+#[sqlx::test(migrations = "./migrations")]
+async fn a_warranty_job_points_at_the_job_it_repairs(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    let original = common::order(&pool, &user, "HUF", vec![]).await;
+
+    let mut fields = common::fields(original.partner_id, "HUF");
+    fields.related_order_id = Some(original.id);
+    fields.relation = Some("warranty".into());
+    let mut tx = pool.begin().await.unwrap();
+    let warranty = create_in_tx(
+        &mut tx,
+        user.user_id,
+        NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+        fields,
+        vec![],
+        None,
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(warranty.related_order_id, Some(original.id));
+    assert_eq!(warranty.relation.as_deref(), Some("warranty"));
+
+    // A target with no relation says nothing, and is refused before it reaches the database.
+    let mut half = common::fields(original.partner_id, "HUF");
+    half.related_order_id = Some(original.id);
+    let mut tx = pool.begin().await.unwrap();
+    let error = create_in_tx(
+        &mut tx,
+        user.user_id,
+        NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+        half,
+        vec![],
+        None,
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(&error, AppError::Validation(m) if m.contains("set together")),
+        "{error:?}"
+    );
+}
+
+/// V2.4: a quotation PDF hangs off the lead. `documents.order_id` used to be NOT NULL,
+/// which is why a quotation could not be filed or emailed from this system at all.
+#[sqlx::test(migrations = "./migrations")]
+async fn a_document_can_belong_to_a_lead(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    let lead = autocrm::service::leads::create(
+        &pool,
+        &user,
+        autocrm::repo::leads::LeadInput {
+            title: "Árajánlat".into(),
+            partner_id: None,
+            contact_id: None,
+            contact_name: None,
+            contact_email: None,
+            contact_phone: None,
+            source: None,
+            description: None,
+            assigned_to: None,
+            quoted_value_minor: None,
+            currency: None,
+            quote_valid_until: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut conn = pool.acquire().await.unwrap();
+    let (doc, created) = documents::insert(
+        &mut conn,
+        &documents::NewDocument {
+            owner: documents::Owner::Lead(lead.id),
+            vehicle_id: None,
+            kind: DocumentKind::Other,
+            filename: "arajanlat.pdf",
+            content_type: "application/pdf",
+            storage_key: &format!("leads/{}/documents/ab.pdf", lead.id),
+            content_hash: &[9u8; 32],
+            byte_size: 2048,
+            uploaded_by: Some(user.user_id),
+            source_ref: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(created);
+    assert_eq!(doc.lead_id, Some(lead.id));
+    assert_eq!(doc.order_id, None);
+    assert_eq!(
+        documents::list_for_lead(&pool, lead.id).await.unwrap().len(),
+        1
+    );
+
+    // Exactly one owner, enforced by the database rather than by a handler.
+    let bad = sqlx::query(
+        "INSERT INTO documents (order_id, lead_id, kind, filename, content_type, storage_key,
+                                content_hash, byte_size)
+         VALUES (NULL, NULL, 'other', 'x.pdf', 'application/pdf', 'k', $1, 1)",
+    )
+    .bind(&[1u8; 32][..])
+    .execute(&pool)
+    .await;
+    assert!(bad.is_err(), "a document with no owner must be refused");
+}
+
+/// V2.5: "which ATP certificates expire next quarter" is a cross-order question, and had
+/// no answer at any layer before this.
+#[sqlx::test(migrations = "./migrations")]
+async fn certificates_can_be_found_by_expiry_across_orders(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::order(&pool, &user, "HUF", vec![]).await;
+    let mut conn = pool.acquire().await.unwrap();
+    let (doc, _) = documents::insert(
+        &mut conn,
+        &documents::NewDocument {
+            owner: documents::Owner::Order(order.id),
+            vehicle_id: None,
+            kind: DocumentKind::Certificate,
+            filename: "atp.pdf",
+            content_type: "application/pdf",
+            storage_key: "orders/1/documents/atp.pdf",
+            content_hash: &[3u8; 32],
+            byte_size: 1024,
+            uploaded_by: Some(user.user_id),
+            source_ref: None,
+        },
+    )
+    .await
+    .unwrap();
+    documents::set_validity(
+        &pool,
+        doc.id,
+        &documents::Validity {
+            issuer: Some("NKH".into()),
+            valid_from: NaiveDate::from_ymd_opt(2020, 1, 1),
+            valid_until: NaiveDate::from_ymd_opt(2026, 12, 1),
+        },
+        None,
+    )
+    .await
+    .unwrap();
+
+    let expiring = documents::search(
+        &pool,
+        Some(DocumentKind::Certificate),
+        NaiveDate::from_ymd_opt(2026, 12, 31),
+        None,
+        50,
+        0,
+    )
+    .await
+    .unwrap();
+    assert_eq!(expiring.len(), 1);
+    assert_eq!(expiring[0].issuer.as_deref(), Some("NKH"));
+
+    let not_yet = documents::search(
+        &pool,
+        Some(DocumentKind::Certificate),
+        NaiveDate::from_ymd_opt(2026, 6, 30),
+        None,
+        50,
+        0,
+    )
+    .await
+    .unwrap();
+    assert!(not_yet.is_empty());
+}
+
+/// V2.6: the paint shop stops appearing in the customer picker, and a partner nobody has
+/// classified yet still counts as a customer.
+#[sqlx::test(migrations = "./migrations")]
+async fn the_supplier_filter_keeps_customers_visible(pool: PgPool) {
+    let unclassified = common::partner(&pool, "Régi ügyfél", None).await;
+    let supplier = partners::insert(
+        &pool,
+        &partners::PartnerInput {
+            kind: autocrm::domain::partner::PartnerKind::Business,
+            name: "Fényező Kft.".into(),
+            tax_number: None,
+            eu_tax_number: None,
+            country: "HU".into(),
+            default_currency: "HUF".into(),
+            email: None,
+            phone: None,
+            website: None,
+            postal_code: None,
+            city: None,
+            address_line: None,
+            notes: None,
+            role: Some("supplier".into()),
+        },
+    )
+    .await
+    .unwrap();
+
+    let customers = partners::search(&pool, None, None, Some("customer"), false, "name", 50, 0)
+        .await
+        .unwrap();
+    assert!(customers.iter().any(|p| p.id == unclassified));
+    assert!(
+        !customers.iter().any(|p| p.id == supplier.id),
+        "a supplier is not a customer"
+    );
+
+    let suppliers = partners::search(&pool, None, None, Some("supplier"), false, "name", 50, 0)
+        .await
+        .unwrap();
+    assert_eq!(suppliers.len(), 1);
+    assert_eq!(suppliers[0].id, supplier.id);
 }

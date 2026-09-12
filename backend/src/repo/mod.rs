@@ -21,6 +21,7 @@ pub mod sessions;
 pub mod stages;
 pub mod templates;
 pub mod users;
+pub mod vehicles;
 
 /// Turns free-text search input into an ILIKE pattern, escaping the wildcard characters
 /// so a search for "50%" matches "50%" rather than everything starting with "50".

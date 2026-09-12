@@ -10,13 +10,41 @@ use crate::domain::order::validate_line_item;
 use crate::domain::stage::{StageEntity, initial_stage};
 use crate::error::{AppError, AppResult};
 use crate::repo::orders::{Order, OrderFields};
-use crate::repo::{audit, config, contacts, order_items, orders, partners, stages};
+use crate::repo::{audit, config, contacts, order_items, orders, partners, stages, vehicles};
 
 #[derive(Debug, Clone)]
 pub struct NewItem {
     pub description: String,
     pub quantity: Decimal,
     pub unit_price: i64,
+}
+
+/// V2.1: the four text columns stay the entry point, but every plate or VIN typed on an
+/// order also becomes a `vehicles` row linked through `order_vehicles`. Doing it here
+/// rather than in a screen means the entity is populated from the first order and from the
+/// migration alike, and "has this van been here before" has an answer without a new form.
+pub async fn sync_vehicle(
+    conn: &mut PgConnection,
+    order_id: i64,
+    f: &OrderFields,
+) -> AppResult<Option<i64>> {
+    let vehicle = vehicles::upsert(
+        conn,
+        &vehicles::VehicleFields {
+            vin: f.vehicle_vin.clone(),
+            plate: f.vehicle_plate.clone(),
+            make: f.vehicle_make.clone(),
+            model: f.vehicle_model.clone(),
+            year: None,
+            partner_id: Some(f.partner_id),
+            notes: None,
+        },
+    )
+    .await?;
+    if let Some(v) = &vehicle {
+        vehicles::attach(&mut *conn, order_id, v.id).await?;
+    }
+    Ok(vehicle.map(|v| v.id))
 }
 
 /// Checks that referenced records exist and belong together. Foreign keys would catch
@@ -37,6 +65,25 @@ pub async fn validate_references(conn: &mut PgConnection, f: &OrderFields) -> Ap
                 "contact belongs to a different partner",
             ));
         }
+    }
+    // V2.2: the related order must exist. The self-reference is refused by the database
+    // (orders_relation_not_self); this catches the typo before it gets there.
+    if let Some(related) = f.related_order_id {
+        orders::find(&mut *conn, related)
+            .await?
+            .ok_or_else(|| AppError::validation("related order does not exist"))?;
+    }
+    if f.related_order_id.is_some() != f.relation.is_some() {
+        return Err(AppError::validation(
+            "related_order_id and relation are set together or not at all",
+        ));
+    }
+    if let Some(relation) = &f.relation
+        && !matches!(relation.as_str(), "warranty" | "rework" | "repeat")
+    {
+        return Err(AppError::validation(
+            "relation must be warranty, rework or repeat",
+        ));
     }
     Ok(())
 }
@@ -81,6 +128,8 @@ pub async fn create_in_tx(
         )
         .await?;
     }
+
+    sync_vehicle(&mut *conn, order.id, &fields).await?;
 
     let definitions = config::stage_definitions(&mut *conn, StageEntity::Order).await?;
     let initial = initial_stage(&definitions)

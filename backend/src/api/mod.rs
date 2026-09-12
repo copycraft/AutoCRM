@@ -19,6 +19,7 @@ pub mod partners;
 pub mod raw_import;
 pub mod reports;
 pub mod users;
+pub mod vehicles;
 
 use std::time::Duration;
 
@@ -54,6 +55,7 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(email::routes())
         .merge(reports::routes())
         .merge(admin::routes())
+        .merge(vehicles::routes())
 }
 
 pub fn router(state: AppState) -> Router {

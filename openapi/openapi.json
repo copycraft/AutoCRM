@@ -1030,6 +1030,15 @@
             }
           },
           {
+            "name": "role",
+            "in": "query",
+            "description": "V2.6: `customer` or `supplier`. A partner with no role set counts as a customer,\nso the picker never hides someone; `both` matches either filter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -3340,6 +3349,312 @@
         }
       }
     },
+    "/leads/{id}/uploads": {
+      "post": {
+        "tags": [
+          "media"
+        ],
+        "summary": "V2.4: a quotation PDF hangs off the lead it was sent for.",
+        "operationId": "media_request_lead_upload",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/documents": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "V2.4: documents of a lead — the quotation, before any order exists.",
+        "operationId": "media_list_lead_documents",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Document"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "The first cross-order document query in the system (V2.5). Without it a certificate is\nreachable only through the one job it happened to be filed under.",
+        "operationId": "media_search_documents",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/DocumentKind"
+            }
+          },
+          {
+            "name": "expiring_before",
+            "in": "query",
+            "description": "Certificates whose validity ends on or before this date. The question this query\nexists for: \"which ATP certificates expire next quarter\".",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "vehicle_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Document"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}": {
+      "delete": {
+        "tags": [
+          "media"
+        ],
+        "operationId": "media_delete_document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Validity and vehicle on an existing document (V2.5, V2.1). The bytes never change.",
+        "operationId": "media_update_document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/uploads/complete": {
       "post": {
         "tags": [
@@ -3632,50 +3947,6 @@
                 }
               }
             }
-          },
-          "4XX": {
-            "description": "Client error; see `error.code`",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/documents/{id}": {
-      "delete": {
-        "tags": [
-          "media"
-        ],
-        "operationId": "media_delete_document",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Deleted"
           },
           "4XX": {
             "description": "Client error; see `error.code`",
@@ -5090,6 +5361,390 @@
           }
         }
       }
+    },
+    "/vehicles": {
+      "get": {
+        "tags": [
+          "vehicles"
+        ],
+        "operationId": "vehicles_search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Plate (ignoring spaces, dashes and case), VIN, make, model or notes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Vehicle"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "vehicles"
+        ],
+        "operationId": "vehicles_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedVehicle"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vehicles/{id}": {
+      "get": {
+        "tags": [
+          "vehicles"
+        ],
+        "operationId": "vehicles_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "vehicles"
+        ],
+        "operationId": "vehicles_update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/vehicles": {
+      "get": {
+        "tags": [
+          "vehicles"
+        ],
+        "operationId": "vehicles_list_for_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Vehicle"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "vehicles"
+        ],
+        "summary": "One job can cover several identical vans, each with its own MEO photos and certificate.",
+        "operationId": "vehicles_attach",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{order_id}/vehicles/{vehicle_id}": {
+      "delete": {
+        "tags": [
+          "vehicles"
+        ],
+        "operationId": "vehicles_detach",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "vehicle_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5197,6 +5852,18 @@
               "null"
             ],
             "format": "date"
+          }
+        }
+      },
+      "AttachBody": {
+        "type": "object",
+        "required": [
+          "vehicle_id"
+        ],
+        "properties": {
+          "vehicle_id": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -5845,6 +6512,13 @@
               "string",
               "null"
             ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`customer` | `supplier` | `both`. Omitted means unclassified, which the pickers\ntreat as a customer."
           }
         }
       },
@@ -5966,6 +6640,25 @@
           }
         }
       },
+      "CreatedVehicle": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Vehicle"
+          },
+          {
+            "type": "object",
+            "required": [
+              "existing"
+            ],
+            "properties": {
+              "existing": {
+                "type": "boolean",
+                "description": "True when this plate or VIN already existed and the stored vehicle was reused\nrather than duplicated. The screen shows it as \"this van has been here before\",\nwhich for a warranty job is the most useful thing the system can say."
+              }
+            }
+          }
+        ]
+      },
       "Currency": {
         "type": "string",
         "enum": [
@@ -5993,7 +6686,6 @@
         "type": "object",
         "required": [
           "id",
-          "order_id",
           "kind",
           "filename",
           "content_type",
@@ -6007,8 +6699,27 @@
             "format": "int64"
           },
           "order_id": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Exactly one of `order_id` and `lead_id` is set (V2.4): a quotation belongs to the\nlead it was sent for, and had nowhere to live before this."
+          },
+          "lead_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int64"
+          },
+          "vehicle_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Which vehicle on a multi-vehicle order this covers (V2.1). Usually null."
           },
           "kind": {
             "$ref": "#/components/schemas/DocumentKind"
@@ -6026,6 +6737,27 @@
           "byte_size": {
             "type": "integer",
             "format": "int64"
+          },
+          "issuer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "V2.5: an ATP certificate is issued by somebody and expires."
+          },
+          "valid_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
           },
           "uploaded_at": {
             "type": "string",
@@ -6052,8 +6784,43 @@
         "enum": [
           "design",
           "cad",
+          "certificate",
           "other"
         ]
+      },
+      "DocumentPatch": {
+        "type": "object",
+        "properties": {
+          "issuer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who issued it — the ATP inspection body, the designer, the supplier."
+          },
+          "valid_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "vehicle_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Which vehicle on a multi-vehicle order this covers."
+          }
+        }
       },
       "DownloadUrl": {
         "type": "object",
@@ -7093,7 +7860,6 @@
               "type": "object",
               "required": [
                 "id",
-                "order_id",
                 "kind",
                 "filename",
                 "content_type",
@@ -7107,8 +7873,27 @@
                   "format": "int64"
                 },
                 "order_id": {
-                  "type": "integer",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Exactly one of `order_id` and `lead_id` is set (V2.4): a quotation belongs to the\nlead it was sent for, and had nowhere to live before this."
+                },
+                "lead_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "format": "int64"
+                },
+                "vehicle_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Which vehicle on a multi-vehicle order this covers (V2.1). Usually null."
                 },
                 "kind": {
                   "$ref": "#/components/schemas/DocumentKind"
@@ -7126,6 +7911,27 @@
                 "byte_size": {
                   "type": "integer",
                   "format": "int64"
+                },
+                "issuer": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "V2.5: an ATP certificate is issued by somebody and expires."
+                },
+                "valid_from": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "valid_until": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
                 },
                 "uploaded_at": {
                   "type": "string",
@@ -7911,6 +8717,13 @@
                     "null"
                   ]
                 },
+                "role": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is\ntreated as a customer by the pickers — the paint shop turning up in the customer\nlist is a nuisance, a customer missing from it is a bug."
+                },
                 "minicrm_id": {
                   "type": [
                     "integer",
@@ -8432,6 +9245,91 @@
           }
         }
       },
+      "Items_Vehicle": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "vin": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "plate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "plate_norm": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Plate with spaces, dashes and case removed. Generated column; search matches on it."
+                },
+                "make": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "model": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "year": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "partner_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Job": {
         "type": "object",
         "required": [
@@ -8591,6 +9489,31 @@
             ],
             "format": "int64"
           },
+          "quoted_value_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "V2.3: what we quoted, in minor units. Not a `quotes` table with versions — at 60\nleads a month that is more machinery than the business justifies. Changes are\nwritten to audit_log, so a revised price still leaves a trail."
+          },
+          "currency": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Currency"
+              }
+            ]
+          },
+          "quote_valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "created_by": {
             "type": [
               "integer",
@@ -8675,6 +9598,31 @@
               "null"
             ],
             "format": "int64"
+          },
+          "quoted_value_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "V2.3: the quoted price in minor units (fillér / eurocent)."
+          },
+          "currency": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Currency"
+              }
+            ]
+          },
+          "quote_valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
           }
         }
       },
@@ -8682,7 +9630,9 @@
         "type": "object",
         "required": [
           "lead",
-          "history"
+          "history",
+          "orders",
+          "documents"
         ],
         "properties": {
           "lead": {
@@ -8704,15 +9654,19 @@
               "$ref": "#/components/schemas/StageEntry"
             }
           },
-          "order": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/OrderRef"
-              }
-            ]
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderRef"
+            },
+            "description": "V2.7: every order this enquiry became. Three identical Sprinters from one enquiry\nare three orders, and all three point back here."
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "description": "V2.4: the quotation and anything else filed against the enquiry itself."
           }
         }
       },
@@ -8968,6 +9922,21 @@
             ],
             "format": "int64"
           },
+          "related_order_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "V2.2: the job this one repairs or repeats. Warranty and rework work is otherwise\nunlinkable to the job it fixes, and nobody reconstructs that afterwards."
+          },
+          "relation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "'warranty' | 'rework' | 'repeat'. Set together with related_order_id or not at all."
+          },
           "created_by": {
             "type": [
               "integer",
@@ -9080,6 +10049,21 @@
             ],
             "format": "int64"
           },
+          "related_order_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "V2.2: the job this one repairs or repeats. Set with `relation` or not at all."
+          },
+          "relation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`warranty` | `rework` | `repeat`."
+          },
           "items": {
             "type": "array",
             "items": {
@@ -9097,6 +10081,7 @@
           "items",
           "value",
           "blockers",
+          "vehicles",
           "image_counts"
         ],
         "properties": {
@@ -9123,6 +10108,24 @@
             "items": {
               "$ref": "#/components/schemas/Blocker"
             }
+          },
+          "related": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RelatedOrder",
+                "description": "V2.2: the job this one repairs or repeats, resolved for display."
+              }
+            ]
+          },
+          "vehicles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Vehicle"
+            },
+            "description": "V2.1: the vans this job covers. Usually one; three identical Sprinters from one\nenquiry is the case the join table exists for."
           },
           "image_counts": {
             "type": "object",
@@ -9504,6 +10507,13 @@
               "null"
             ]
           },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is\ntreated as a customer by the pickers — the paint shop turning up in the customer\nlist is a nuisance, a customer missing from it is a bug."
+          },
           "minicrm_id": {
             "type": [
               "integer",
@@ -9533,7 +10543,8 @@
         "required": [
           "partner",
           "contacts",
-          "orders"
+          "orders",
+          "leads"
         ],
         "properties": {
           "partner": {
@@ -9550,6 +10561,13 @@
             "items": {
               "$ref": "#/components/schemas/OrderSummary"
             }
+          },
+          "leads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeadSummary"
+            },
+            "description": "Every enquiry from this partner, quoted or not. Without it, someone opening a\npartner cannot see they were quoted eight months ago and never followed up."
           }
         }
       },
@@ -9700,6 +10718,19 @@
               "null"
             ],
             "format": "int64"
+          },
+          "related_order_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "relation": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -9763,6 +10794,12 @@
             ]
           },
           "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
             "type": [
               "string",
               "null"
@@ -10090,6 +11127,31 @@
               "null"
             ],
             "description": "The complete source record as MiniCRM returned it. Null for records created in\nAutoCRM — the screen shows nothing rather than an empty panel."
+          }
+        }
+      },
+      "RelatedOrder": {
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "title",
+          "relation"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string",
+            "description": "'warranty' | 'rework' | 'repeat'."
           }
         }
       },
@@ -11062,6 +12124,167 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "Vehicle": {
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plate_norm": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Plate with spaces, dashes and case removed. Generated column; search matches on it."
+          },
+          "make": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "partner_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VehicleBody": {
+        "type": "object",
+        "properties": {
+          "vin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "make": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "partner_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "VehicleDetail": {
+        "type": "object",
+        "required": [
+          "vehicle",
+          "orders"
+        ],
+        "properties": {
+          "vehicle": {
+            "$ref": "#/components/schemas/Vehicle"
+          },
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VehicleOrder"
+            },
+            "description": "Every job this van has been through, newest first."
+          }
+        }
+      },
+      "VehicleOrder": {
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "title"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },

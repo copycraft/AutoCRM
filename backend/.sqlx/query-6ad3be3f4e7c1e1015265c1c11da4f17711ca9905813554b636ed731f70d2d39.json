@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,\n                vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,\n                created_by, minicrm_id, created_at, updated_at\n         FROM orders WHERE id = $1",
+  "query": "UPDATE orders\n         SET title = $2, partner_id = $3, contact_id = $4, project_type_id = $5, currency = $6, valuation_date = $7,\n             vehicle_make = $8, vehicle_model = $9, vehicle_plate = $10, vehicle_vin = $11, description = $12,\n             due_date = $13, assigned_to = $14, related_order_id = $15, relation = $16\n         WHERE id = $1\n         RETURNING id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,\n                   vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,\n                   related_order_id, relation, created_by, minicrm_id, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -85,28 +85,53 @@
       },
       {
         "ordinal": 16,
-        "name": "created_by",
+        "name": "related_order_id",
         "type_info": "Int8"
       },
       {
         "ordinal": 17,
+        "name": "relation",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
         "name": "minicrm_id",
         "type_info": "Int8"
       },
       {
-        "ordinal": 18,
+        "ordinal": 20,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 19,
+        "ordinal": 21,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Text",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Bpchar",
+        "Date",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Date",
+        "Int8",
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
@@ -128,9 +153,11 @@
       true,
       true,
       true,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "9c49256189a5e57cbecb56cd4c3bfcbd4a3d7e437a13b9d5e76fe8be1e1c5cfd"
+  "hash": "6ad3be3f4e7c1e1015265c1c11da4f17711ca9905813554b636ed731f70d2d39"
 }

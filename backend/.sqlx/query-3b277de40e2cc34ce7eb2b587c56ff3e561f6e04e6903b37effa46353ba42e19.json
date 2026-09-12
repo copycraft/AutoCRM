@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT v.id, v.vin, v.plate, v.plate_norm, v.make, v.model, v.year, v.partner_id, v.notes,\n                v.created_at, v.updated_at\n           FROM vehicles v JOIN order_vehicles ov ON ov.vehicle_id = v.id\n          WHERE ov.order_id = $1\n          ORDER BY v.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "vin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "plate",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "plate_norm",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "make",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "year",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "partner_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "3b277de40e2cc34ce7eb2b587c56ff3e561f6e04e6903b37effa46353ba42e19"
+}

@@ -1,6 +1,7 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use utoipa::{IntoParams, ToSchema};
@@ -12,8 +13,10 @@ use super::orders::{OrderBody, fields_from_body};
 use super::{Items, optional, page_limit, page_offset, patch as patch_field, patch_text, required};
 use crate::AppState;
 use crate::domain::email::normalize_address;
+use crate::domain::money::Currency;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
+use crate::repo::documents::{self, Document};
 use crate::repo::leads::{Lead, LeadInput, LeadSummary};
 use crate::repo::orders::Order;
 use crate::repo::stages::{CurrentStage, StageEntry};
@@ -93,6 +96,13 @@ struct LeadBody {
     description: Option<Option<String>>,
     #[serde(default, deserialize_with = "patch_field")]
     assigned_to: Option<Option<i64>>,
+    /// V2.3: the quoted price in minor units (fillér / eurocent).
+    #[serde(default, deserialize_with = "patch_field")]
+    quoted_value_minor: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    currency: Option<Option<Currency>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    quote_valid_until: Option<Option<NaiveDate>>,
 }
 
 fn merge(current: Option<&Lead>, b: LeadBody) -> AppResult<LeadInput> {
@@ -128,6 +138,18 @@ fn merge(current: Option<&Lead>, b: LeadBody) -> AppResult<LeadInput> {
         source: patch_text(&current.and_then(|l| l.source.clone()), b.source),
         description: patch_text(&current.and_then(|l| l.description.clone()), b.description),
         assigned_to: keep(current.and_then(|l| l.assigned_to), b.assigned_to),
+        quoted_value_minor: keep(
+            current.and_then(|l| l.quoted_value_minor),
+            b.quoted_value_minor,
+        ),
+        currency: match b.currency {
+            Some(v) => v.map(|c| c.code().to_string()),
+            None => current.and_then(|l| l.currency.clone()),
+        },
+        quote_valid_until: match b.quote_valid_until {
+            Some(v) => v,
+            None => current.and_then(|l| l.quote_valid_until),
+        },
     })
 }
 
@@ -158,7 +180,11 @@ struct LeadDetail {
     lead: Lead,
     stage: Option<CurrentStage>,
     history: Vec<StageEntry>,
-    order: Option<OrderRef>,
+    /// V2.7: every order this enquiry became. Three identical Sprinters from one enquiry
+    /// are three orders, and all three point back here.
+    orders: Vec<OrderRef>,
+    /// V2.4: the quotation and anything else filed against the enquiry itself.
+    documents: Vec<Document>,
 }
 
 #[utoipa::path(
@@ -176,14 +202,18 @@ async fn detail(
         .ok_or(AppError::NotFound("lead"))?;
     let stage = stages::current_lead_stage(&state.db, id).await?;
     let history = stages::lead_history(&state.db, id).await?;
-    let order = orders::find_by_lead(&state.db, id)
+    let orders = orders::find_by_lead(&state.db, id)
         .await?
-        .map(|(id, number)| OrderRef { id, number });
+        .into_iter()
+        .map(|(id, number)| OrderRef { id, number })
+        .collect();
+    let documents = documents::list_for_lead(&state.db, id).await?;
     Ok(Json(LeadDetail {
         lead,
         stage,
         history,
-        order,
+        orders,
+        documents,
     }))
 }
 
@@ -245,6 +275,19 @@ async fn update(
             "assigned_to",
             json!(current.assigned_to),
             json!(updated.assigned_to),
+        ),
+        // V2.3: the number the sales pipeline is made of. A revised price before
+        // acceptance is the case the audit entry exists for.
+        (
+            "quoted_value_minor",
+            json!(current.quoted_value_minor),
+            json!(updated.quoted_value_minor),
+        ),
+        ("currency", json!(current.currency), json!(updated.currency)),
+        (
+            "quote_valid_until",
+            json!(current.quote_valid_until),
+            json!(updated.quote_valid_until),
         ),
     ]);
     audit::record(&mut *tx, Some(me.user_id), "lead", id, "update", changes).await?;

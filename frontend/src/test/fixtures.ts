@@ -23,6 +23,7 @@ import type {
   Settings,
   StageDefinition,
   StageEntry,
+  Vehicle,
   User,
   UserSettings,
 } from '@/lib/api/types';
@@ -210,6 +211,20 @@ export const rawImportView: RawImportView = {
   raw_import: { Id: 1001, Name: 'Sprinter', Rendszam: 'ABC-123' },
 };
 
+export const vehicle: Vehicle = {
+  id: 91,
+  vin: 'WDB9066571S123456',
+  plate: 'ABC-123',
+  plate_norm: 'ABC123',
+  make: 'Mercedes-Benz',
+  model: 'Sprinter',
+  year: 2019,
+  partner_id: 7,
+  notes: null,
+  created_at: NOW,
+  updated_at: NOW,
+};
+
 export const orderDetail: OrderDetail = {
   order,
   partner: { id: partner.id, name: partner.name },
@@ -230,13 +245,14 @@ export const orderDetail: OrderDetail = {
     total_huf_minor: 493900000,
   },
   blockers: [blocker],
+  related: {
+    id: 2,
+    number: 'MC-0900',
+    title: 'Sprinter hűtőgép beépítés (eredeti)',
+    relation: 'warranty',
+  },
+  vehicles: [vehicle],
   image_counts: { intake: 3, completion: 2 },
-};
-
-export const partnerDetail: PartnerDetail = {
-  partner,
-  contacts: [contact],
-  orders: [orderSummary],
 };
 
 export const lead: Lead = {
@@ -251,6 +267,9 @@ export const lead: Lead = {
   description: 'Három azonos Sprinter hűtőgéppel.',
   assigned_to: 1,
   created_by: 1,
+  quoted_value_minor: 4500000,
+  currency: "EUR",
+  quote_valid_until: "2026-04-30",
   minicrm_id: 900,
   created_at: NOW,
   updated_at: NOW,
@@ -278,7 +297,15 @@ export const leadDetail: LeadDetail = {
   lead,
   stage: { stage_key: 'quoted', entered_at: NOW },
   history: [{ ...stageEntry, stage_key: 'quoted', label_hu: 'Árajánlat kiadva' }],
-  order: { id: 3, number: 'MC-1001' },
+  orders: [{ id: 3, number: 'MC-1001' }],
+  documents: [],
+};
+
+export const partnerDetail: PartnerDetail = {
+  partner,
+  contacts: [contact],
+  orders: [orderSummary],
+  leads: [leadSummary],
 };
 
 export const orderStageDefinitions: StageDefinition[] = [

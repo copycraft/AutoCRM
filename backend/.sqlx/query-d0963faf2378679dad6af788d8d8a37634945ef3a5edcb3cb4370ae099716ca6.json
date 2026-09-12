@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM order_vehicles WHERE order_id = $1 AND vehicle_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d0963faf2378679dad6af788d8d8a37634945ef3a5edcb3cb4370ae099716ca6"
+}

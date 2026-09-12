@@ -24,6 +24,11 @@ pub struct Order {
     pub description: Option<String>,
     pub due_date: Option<NaiveDate>,
     pub assigned_to: Option<i64>,
+    /// V2.2: the job this one repairs or repeats. Warranty and rework work is otherwise
+    /// unlinkable to the job it fixes, and nobody reconstructs that afterwards.
+    pub related_order_id: Option<i64>,
+    /// 'warranty' | 'rework' | 'repeat'. Set together with related_order_id or not at all.
+    pub relation: Option<String>,
     pub created_by: Option<i64>,
     pub minicrm_id: Option<i64>,
     pub created_at: DateTime<Utc>,
@@ -45,6 +50,8 @@ pub struct OrderFields {
     pub description: Option<String>,
     pub due_date: Option<NaiveDate>,
     pub assigned_to: Option<i64>,
+    pub related_order_id: Option<i64>,
+    pub relation: Option<String>,
 }
 
 impl From<&Order> for OrderFields {
@@ -63,6 +70,8 @@ impl From<&Order> for OrderFields {
             description: o.description.clone(),
             due_date: o.due_date,
             assigned_to: o.assigned_to,
+            related_order_id: o.related_order_id,
+            relation: o.relation.clone(),
         }
     }
 }
@@ -72,7 +81,7 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Order
         Order,
         "SELECT id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                 vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                created_by, minicrm_id, created_at, updated_at
+                related_order_id, relation, created_by, minicrm_id, created_at, updated_at
          FROM orders WHERE id = $1",
         id
     )
@@ -87,7 +96,7 @@ pub async fn lock(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Order
         Order,
         "SELECT id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                 vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                created_by, minicrm_id, created_at, updated_at
+                related_order_id, relation, created_by, minicrm_id, created_at, updated_at
          FROM orders WHERE id = $1 FOR UPDATE",
         id
     )
@@ -95,14 +104,19 @@ pub async fn lock(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Order
     .await
 }
 
+/// Every order converted from this lead (V2.7). Plural since one enquiry for three
+/// identical vans becomes three orders, each keeping its origin.
 pub async fn find_by_lead(
     db: impl PgExecutor<'_>,
     lead_id: i64,
-) -> sqlx::Result<Option<(i64, String)>> {
-    let row = sqlx::query!("SELECT id, number FROM orders WHERE lead_id = $1", lead_id)
-        .fetch_optional(db)
-        .await?;
-    Ok(row.map(|r| (r.id, r.number)))
+) -> sqlx::Result<Vec<(i64, String)>> {
+    let rows = sqlx::query!(
+        "SELECT id, number FROM orders WHERE lead_id = $1 ORDER BY id",
+        lead_id
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.id, r.number)).collect())
 }
 
 /// Next `YYYY-NNNN` number. Takes a transaction-scoped advisory lock so two orders created
@@ -130,11 +144,12 @@ pub async fn insert(
     sqlx::query_as!(
         Order,
         "INSERT INTO orders (number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
-                             vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                             vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
+                             related_order_id, relation, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
          RETURNING id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                    vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                   created_by, minicrm_id, created_at, updated_at",
+                   related_order_id, relation, created_by, minicrm_id, created_at, updated_at",
         number,
         f.title,
         f.partner_id,
@@ -150,6 +165,8 @@ pub async fn insert(
         f.description,
         f.due_date,
         f.assigned_to,
+        f.related_order_id,
+        f.relation,
         created_by
     )
     .fetch_one(db)
@@ -166,11 +183,11 @@ pub async fn update(
         "UPDATE orders
          SET title = $2, partner_id = $3, contact_id = $4, project_type_id = $5, currency = $6, valuation_date = $7,
              vehicle_make = $8, vehicle_model = $9, vehicle_plate = $10, vehicle_vin = $11, description = $12,
-             due_date = $13, assigned_to = $14
+             due_date = $13, assigned_to = $14, related_order_id = $15, relation = $16
          WHERE id = $1
          RETURNING id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                    vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                   created_by, minicrm_id, created_at, updated_at",
+                   related_order_id, relation, created_by, minicrm_id, created_at, updated_at",
         id,
         f.title,
         f.partner_id,
@@ -184,7 +201,9 @@ pub async fn update(
         f.vehicle_vin,
         f.description,
         f.due_date,
-        f.assigned_to
+        f.assigned_to,
+        f.related_order_id,
+        f.relation
     )
     .fetch_optional(db)
     .await
@@ -263,7 +282,12 @@ pub async fn search(
            LEFT JOIN project_types pt ON pt.id = o.project_type_id
            LEFT JOIN users u ON u.id = o.assigned_to
            WHERE ($1::text IS NULL OR o.number ILIKE $1 OR o.title ILIKE $1 OR p.name ILIKE $1 OR o.vehicle_vin ILIKE $1
-                  OR ($2::text <> '' AND upper(regexp_replace(o.vehicle_plate, '[^A-Za-z0-9]', '', 'g')) LIKE $2))
+                  OR ($2::text <> '' AND upper(regexp_replace(o.vehicle_plate, '[^A-Za-z0-9]', '', 'g')) LIKE $2)
+                  -- V2.1: the plate lives on the vehicle now. The order's own text columns
+                  -- stay in the predicate as the migration fallback.
+                  OR EXISTS (SELECT 1 FROM order_vehicles xv JOIN vehicles xveh ON xveh.id = xv.vehicle_id
+                              WHERE xv.order_id = o.id
+                                AND (($2::text <> '' AND xveh.plate_norm LIKE $2) OR xveh.vin ILIKE $1)))
              AND ($3::text IS NULL OR cs.stage_key = $3)
              AND ($4::bigint IS NULL OR o.partner_id = $4)
              AND ($5::bigint IS NULL OR o.project_type_id = $5)

@@ -5,22 +5,23 @@ use std::time::Duration;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-use super::Items;
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
+use super::{Items, page_limit, page_offset};
 use crate::AppState;
-use crate::domain::media::ImageCategory;
+use crate::domain::media::{DocumentKind, ImageCategory};
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::media::storage::content_disposition;
 use crate::repo::documents::{self, Document};
 use crate::repo::images::{self, Image};
-use crate::repo::{audit, orders};
+use crate::repo::{audit, leads, orders};
 use crate::service::media::{self, Completed, UploadRequest, UploadResponse};
 
 const URL_TTL: Duration = Duration::from_secs(3600);
@@ -28,6 +29,10 @@ const URL_TTL: Duration = Duration::from_secs(3600);
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(request_upload))
+        .routes(routes!(request_lead_upload))
+        .routes(routes!(list_lead_documents))
+        .routes(routes!(search_documents))
+        .routes(routes!(update_document))
         .routes(routes!(complete_upload))
         .routes(routes!(list_images))
         .routes(routes!(original_url))
@@ -51,7 +56,26 @@ async fn request_upload(
 ) -> AppResult<Json<UploadResponse>> {
     me.require(Capability::UploadMedia)?;
     Ok(Json(
-        media::request_upload(&state, &me, order_id, body).await?,
+        media::request_upload(&state, &me, documents::Owner::Order(order_id), body).await?,
+    ))
+}
+
+/// V2.4: a quotation PDF hangs off the lead it was sent for.
+#[utoipa::path(
+    post, path = "/leads/{id}/uploads", tag = "media",
+    params(("id" = i64, Path)),
+    request_body = UploadRequest,
+    responses((status = 200, body = UploadResponse))
+)]
+async fn request_lead_upload(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(lead_id): ApiPath<i64>,
+    ApiJson(body): ApiJson<UploadRequest>,
+) -> AppResult<Json<UploadResponse>> {
+    me.require(Capability::UploadMedia)?;
+    Ok(Json(
+        media::request_upload(&state, &me, documents::Owner::Lead(lead_id), body).await?,
     ))
 }
 
@@ -239,6 +263,106 @@ async fn list_documents(
     ))
 }
 
+/// V2.4: documents of a lead — the quotation, before any order exists.
+#[utoipa::path(
+    get, path = "/leads/{id}/documents", tag = "media",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Items<Document>))
+)]
+async fn list_lead_documents(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiPath(lead_id): ApiPath<i64>,
+) -> AppResult<Json<Items<Document>>> {
+    leads::find(&state.db, lead_id)
+        .await?
+        .ok_or(AppError::NotFound("lead"))?;
+    Ok(Items::new(
+        documents::list_for_lead(&state.db, lead_id).await?,
+    ))
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct DocumentSearchQuery {
+    kind: Option<DocumentKind>,
+    /// Certificates whose validity ends on or before this date. The question this query
+    /// exists for: "which ATP certificates expire next quarter".
+    expiring_before: Option<NaiveDate>,
+    vehicle_id: Option<i64>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+}
+
+/// The first cross-order document query in the system (V2.5). Without it a certificate is
+/// reachable only through the one job it happened to be filed under.
+#[utoipa::path(
+    get, path = "/documents", tag = "media",
+    params(DocumentSearchQuery),
+    responses((status = 200, body = Items<Document>))
+)]
+async fn search_documents(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<DocumentSearchQuery>,
+) -> AppResult<Json<Items<Document>>> {
+    Ok(Items::new(
+        documents::search(
+            &state.db,
+            q.kind,
+            q.expiring_before,
+            q.vehicle_id,
+            page_limit(q.limit),
+            page_offset(q.offset),
+        )
+        .await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct DocumentPatch {
+    /// Who issued it — the ATP inspection body, the designer, the supplier.
+    issuer: Option<String>,
+    valid_from: Option<NaiveDate>,
+    valid_until: Option<NaiveDate>,
+    /// Which vehicle on a multi-vehicle order this covers.
+    vehicle_id: Option<i64>,
+}
+
+/// Validity and vehicle on an existing document (V2.5, V2.1). The bytes never change.
+#[utoipa::path(
+    patch, path = "/documents/{id}", tag = "media",
+    params(("id" = i64, Path)),
+    request_body = DocumentPatch,
+    responses((status = 200, body = Document))
+)]
+async fn update_document(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(body): ApiJson<DocumentPatch>,
+) -> AppResult<Json<Document>> {
+    me.require(Capability::UploadMedia)?;
+    if let (Some(from), Some(until)) = (body.valid_from, body.valid_until)
+        && from > until
+    {
+        return Err(AppError::validation("valid_from is after valid_until"));
+    }
+    let updated = documents::set_validity(
+        &state.db,
+        id,
+        &documents::Validity {
+            issuer: super::optional(body.issuer),
+            valid_from: body.valid_from,
+            valid_until: body.valid_until,
+        },
+        body.vehicle_id,
+    )
+    .await?
+    .ok_or(AppError::NotFound("document"))?;
+    Ok(Json(updated))
+}
+
 #[derive(Serialize, ToSchema)]
 struct DownloadUrl {
     /// Presigned, expires after one hour.
@@ -287,11 +411,14 @@ async fn delete_document(
         .filter(|d| d.deleted_at.is_none())
         .ok_or(AppError::NotFound("document"))?;
     documents::soft_delete(&mut *tx, id, me.user_id).await?;
+    let (entity, entity_id) = documents::Owner::from_about(doc.order_id, doc.lead_id)
+        .ok_or_else(|| AppError::internal("document with no owner"))?
+        .entity();
     audit::record(
         &mut *tx,
         Some(me.user_id),
-        "order",
-        doc.order_id,
+        entity,
+        entity_id,
         "document_delete",
         json!({ "document_id": id, "filename": doc.filename }),
     )

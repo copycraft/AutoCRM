@@ -190,7 +190,15 @@
     "convertSuccess": "Átalakítva. Az új megrendelés megnyílik.",
     "noPartnerForConvert": "A lead-hez nincs partner rendelve — az átalakításhoz előbb rendeljen hozzá partnert.",
     "noOtherStage": "Nincs másik választható fázis.",
-    "since": "óta"
+    "since": "óta",
+    "quoteSection": "Árajánlat",
+    "quotedValue": "Árajánlat összege",
+    "quoteCurrency": "Pénznem",
+    "quoteValidUntil": "Érvényes eddig",
+    "quoteExpired": "Lejárt",
+    "convertedOrders": "Megrendelések",
+    "documents": "Dokumentumok",
+    "noDocuments": "Nincs dokumentum."
   },
   "orders": {
     "title": "Megrendelések",
@@ -280,7 +288,13 @@
     "tabsNotes": "Napló",
     "notesSection": "MiniCRM előzmények",
     "notesEmpty": "Nincs átvett MiniCRM előzmény.",
-    "auditSection": "Változásnapló"
+    "auditSection": "Változásnapló",
+    "relatedSection": "Kapcsolódó megrendelés",
+    "relationWarranty": "Garanciális",
+    "relationRework": "Újramunkálás",
+    "relationRepeat": "Ismételt",
+    "vehiclesSection": "Járművek",
+    "noVehicles": "Nincs rögzített jármű."
   },
   "blockers": {
     "title": "Akadályok",
