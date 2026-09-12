@@ -26,8 +26,15 @@ data class Items<T>(@SerialName("items") val items: List<T>)
 data class LoginBody(
     @SerialName("email") val email: String,
     @SerialName("password") val password: String,
-    /** `mobile` returns a bearer token; `web` would set a cookie this client cannot use. */
-    @SerialName("client") val client: String = "mobile",
+    /**
+     * `mobile` returns a bearer token; `web` sets a cookie this client cannot read.
+     *
+     * No default value on purpose. As a Kotlin default it was silently dropped from the
+     * JSON — kotlinx.serialization omits defaults unless `encodeDefaults` is on — so the
+     * server applied its own default of `web`, answered with a cookie, and the app
+     * reported "no session ticket". The call site states it instead, where it is visible.
+     */
+    @SerialName("client") val client: String,
     @SerialName("device_label") val deviceLabel: String? = null,
 )
 

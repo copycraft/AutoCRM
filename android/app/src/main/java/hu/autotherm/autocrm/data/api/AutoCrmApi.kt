@@ -40,6 +40,9 @@ class AutoCrmApi(
     private val json = Json {
         ignoreUnknownKeys = true // the server may add fields; the phone must not break.
         explicitNulls = false // omit nulls rather than sending them: PATCH treats null as "clear".
+        // Belt and braces after the login bug: a value the code states must reach the wire,
+        // even when it happens to equal a Kotlin default.
+        encodeDefaults = true
     }
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
@@ -135,7 +138,16 @@ class AutoCrmApi(
     suspend fun login(email: String, password: String, deviceLabel: String): LoginResponse =
         send(
             Request.Builder().url(url("/auth/login").build())
-                .post(body(LoginBody(email = email, password = password, deviceLabel = deviceLabel))),
+                .post(
+                    body(
+                        LoginBody(
+                            email = email,
+                            password = password,
+                            client = "mobile",
+                            deviceLabel = deviceLabel,
+                        ),
+                    ),
+                ),
             LoginResponse.serializer(),
         )
 
