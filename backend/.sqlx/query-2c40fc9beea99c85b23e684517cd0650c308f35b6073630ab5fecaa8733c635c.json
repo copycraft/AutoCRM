@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO partners (kind, name, email, phone, website, tax_number, eu_tax_number,\n                                   country, default_currency, postal_code, city, address_line, notes,\n                                   minicrm_id, raw_import)\n             VALUES ($1, $2, $3, $4, $5, $6, $7, coalesce($8, 'HU'), coalesce($9, 'HUF'), $10, $11, $12, $13, $14, $15)\n             ON CONFLICT (minicrm_id) DO UPDATE\n             SET kind = EXCLUDED.kind, name = EXCLUDED.name, email = EXCLUDED.email, phone = EXCLUDED.phone,\n                 website = EXCLUDED.website, tax_number = EXCLUDED.tax_number,\n                 eu_tax_number = EXCLUDED.eu_tax_number, country = EXCLUDED.country,\n                 default_currency = EXCLUDED.default_currency, postal_code = EXCLUDED.postal_code,\n                 city = EXCLUDED.city, address_line = EXCLUDED.address_line, notes = EXCLUDED.notes,\n                 raw_import = EXCLUDED.raw_import\n             RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "partner_kind",
+            "kind": {
+              "Enum": [
+                "business",
+                "person"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2c40fc9beea99c85b23e684517cd0650c308f35b6073630ab5fecaa8733c635c"
+}

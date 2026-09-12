@@ -13,10 +13,12 @@ import type {
   LeadSummary,
   Order,
   OrderDetail,
+  OrderNote,
   OrderSummary,
   Partner,
   PartnerDetail,
   ProjectType,
+  RawImportView,
   SessionUser,
   Settings,
   StageDefinition,
@@ -192,6 +194,20 @@ export const auditEntry: AuditEntry = {
   entity_id: 3,
   action: 'item_update',
   changes: { unit_price: { from: 1000000, to: 1250000 } },
+};
+
+export const orderNote: OrderNote = {
+  id: 71,
+  order_id: 3,
+  minicrm_id: 9001,
+  author_name: 'Nagy Béla',
+  body: 'Ügyfél jóváhagyta a tervet.',
+  occurred_at: NOW,
+};
+
+export const rawImportView: RawImportView = {
+  minicrm_id: 1001,
+  raw_import: { Id: 1001, Name: 'Sprinter', Rendszam: 'ABC-123' },
 };
 
 export const orderDetail: OrderDetail = {

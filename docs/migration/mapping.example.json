@@ -30,5 +30,49 @@
   "default_image_category": "production",
   "default_currency": "HUF",
   "order_currency_field": "Penznem",
-  "order_value_field": "Osszeg"
+  "order_value_field": "Osszeg",
+
+  "order_number_field": "Sorszam",
+
+  "order_fields": {
+    "vehicle_make": "Jarmu_marka",
+    "vehicle_model": "Jarmu_tipus",
+    "vehicle_plate": "Rendszam",
+    "vehicle_vin": "Alvazszam",
+    "description": "Leiras",
+    "due_date": "Hatarido",
+    "project_type": "Projekttipus",
+    "assignee": "Felelos"
+  },
+
+  "vehicle_plate_from_title": "[A-Z]{3}-?[0-9]{3}",
+
+  "partner_fields": {
+    "tax_number": "VatNumber",
+    "eu_tax_number": "EuVatNumber",
+    "country": "CountryId",
+    "default_currency": "Penznem",
+    "postal_code": "PostalCode",
+    "city": "City",
+    "address_line": "Address",
+    "notes": "Comment"
+  },
+
+  "countries": {
+    "Magyarország": "HU",
+    "Deutschland": "DE",
+    "Österreich": "AT"
+  },
+
+  "project_types": {
+    "Hutofelepitmeny": "refrigerated_body",
+    "Furgon": "van_conversion",
+    "Hutogep": "unit_install",
+    "Javitas": "repair"
+  },
+
+  "assignees": {
+    "77": "gyartas@autotherm.hu",
+    "78": "iroda@autotherm.hu"
+  }
 }

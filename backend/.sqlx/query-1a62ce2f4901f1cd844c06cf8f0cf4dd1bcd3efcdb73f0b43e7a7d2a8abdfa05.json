@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO order_notes (order_id, minicrm_id, author_name, body, occurred_at, raw_import)\n                 VALUES ($1, $2, $3, $4, $5, $6)\n                 ON CONFLICT (minicrm_id) DO UPDATE\n                 SET order_id = EXCLUDED.order_id, author_name = EXCLUDED.author_name,\n                     body = EXCLUDED.body, occurred_at = EXCLUDED.occurred_at,\n                     raw_import = EXCLUDED.raw_import",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1a62ce2f4901f1cd844c06cf8f0cf4dd1bcd3efcdb73f0b43e7a7d2a8abdfa05"
+}

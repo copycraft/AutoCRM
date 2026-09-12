@@ -569,6 +569,20 @@ export const zItemsLeadSummary = z.object({
 /**
  * The list envelope: `{"items": [...]}`.
  */
+export const zItemsOrderNote = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        order_id: z.number().int(),
+        minicrm_id: z.number().int().nullish(),
+        author_name: z.string().nullish(),
+        body: z.string(),
+        occurred_at: z.string().datetime()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
 export const zItemsOrderSummary = z.object({
     items: z.array(z.object({
         id: z.number().int(),
@@ -829,6 +843,15 @@ export const zItemsItemView = z.object({
     })))
 });
 
+export const zOrderNote = z.object({
+    id: z.number().int(),
+    order_id: z.number().int(),
+    minicrm_id: z.number().int().nullish(),
+    author_name: z.string().nullish(),
+    body: z.string(),
+    occurred_at: z.string().datetime()
+});
+
 export const zOrderRef = z.object({
     id: z.number().int(),
     number: z.string()
@@ -1062,6 +1085,11 @@ export const zProjectType = z.object({
     label_hu: z.string(),
     position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
     is_active: z.boolean()
+});
+
+export const zRawImportView = z.object({
+    minicrm_id: z.number().int().nullish(),
+    raw_import: z.record(z.unknown()).nullish()
 });
 
 export const zResetPassword = z.object({
@@ -1631,6 +1659,24 @@ export const zPartnersArchiveContactPath = z.object({
  */
 export const zPartnersArchiveContactResponse = z.void();
 
+export const zMigrationPartnerRawImportPath = z.object({
+    id: z.number().int()
+});
+
+export const zMigrationPartnerRawImportResponse = zRawImportView;
+
+export const zMigrationLeadRawImportPath = z.object({
+    id: z.number().int()
+});
+
+export const zMigrationLeadRawImportResponse = zRawImportView;
+
+export const zMigrationOrderRawImportPath = z.object({
+    id: z.number().int()
+});
+
+export const zMigrationOrderRawImportResponse = zRawImportView;
+
 export const zLeadsSearchQuery = z.object({
     q: z.string().optional(),
     stage: z.string().optional(),
@@ -1759,6 +1805,12 @@ export const zOrdersAuditTrailQuery = z.object({
 });
 
 export const zOrdersAuditTrailResponse = zItemsAuditEntry;
+
+export const zOrdersNotesPath = z.object({
+    id: z.number().int()
+});
+
+export const zOrdersNotesResponse = zItemsOrderNote;
 
 export const zOrdersListItemsPath = z.object({
     id: z.number().int()

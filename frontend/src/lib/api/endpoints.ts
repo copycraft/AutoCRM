@@ -95,6 +95,8 @@ export const ordersApi = {
     request(`/orders/${id}/stages`, s.zOrdersStageHistoryResponse),
   audit: (id: number, search: QueryOf<'orders_audit_trail'> = {}): Promise<S['Items_AuditEntry']> =>
     request(`/orders/${id}/audit`, s.zOrdersAuditTrailResponse, { search }),
+  notes: (id: number): Promise<S['Items_OrderNote']> =>
+    request(`/orders/${id}/notes`, s.zOrdersNotesResponse),
   items: (orderId: number): Promise<S['Items_ItemView']> =>
     request(`/orders/${orderId}/items`, s.zOrdersListItemsResponse),
   createItem: (orderId: number, body: S['AddItem']): Promise<S['ItemView']> =>
@@ -118,6 +120,18 @@ export const blockersApi = {
     request(`/blockers/${id}/resolve`, s.zBlockersResolveResponse, { method: 'POST', body }),
   reopen: (id: number): Promise<S['Blocker']> =>
     request(`/blockers/${id}/reopen`, s.zBlockersReopenResponse, { method: 'POST' }),
+};
+
+// ── Migration provenance ──
+// The MiniCRM source record behind a migrated row. Its own endpoint rather than a field on
+// the detail responses: it is the whole source record and most screen loads do not want it.
+export const rawImportApi = {
+  partner: (id: number): Promise<S['RawImportView']> =>
+    request(`/partners/${id}/raw-import`, s.zMigrationPartnerRawImportResponse),
+  lead: (id: number): Promise<S['RawImportView']> =>
+    request(`/leads/${id}/raw-import`, s.zMigrationLeadRawImportResponse),
+  order: (id: number): Promise<S['RawImportView']> =>
+    request(`/orders/${id}/raw-import`, s.zMigrationOrderRawImportResponse),
 };
 
 // ── Media ──

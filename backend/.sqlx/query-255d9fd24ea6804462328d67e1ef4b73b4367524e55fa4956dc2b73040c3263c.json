@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO orders (number, title, partner_id, contact_id, project_type_id, currency,\n                                     valuation_date, vehicle_make, vehicle_model, vehicle_plate, vehicle_vin,\n                                     description, due_date, assigned_to, minicrm_id, raw_import, created_at)\n                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, coalesce($17, now()))\n                 ON CONFLICT (minicrm_id) DO UPDATE\n                 SET number = EXCLUDED.number, title = EXCLUDED.title, partner_id = EXCLUDED.partner_id,\n                     contact_id = EXCLUDED.contact_id, project_type_id = EXCLUDED.project_type_id,\n                     valuation_date = EXCLUDED.valuation_date, vehicle_make = EXCLUDED.vehicle_make,\n                     vehicle_model = EXCLUDED.vehicle_model, vehicle_plate = EXCLUDED.vehicle_plate,\n                     vehicle_vin = EXCLUDED.vehicle_vin, description = EXCLUDED.description,\n                     due_date = EXCLUDED.due_date, assigned_to = EXCLUDED.assigned_to,\n                     raw_import = EXCLUDED.raw_import\n                 RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Bpchar",
+        "Date",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Date",
+        "Int8",
+        "Int8",
+        "Jsonb",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "255d9fd24ea6804462328d67e1ef4b73b4367524e55fa4956dc2b73040c3263c"
+}

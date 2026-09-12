@@ -26,6 +26,10 @@ kamadak-exif = "0.6"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls", "hostname"] }
 quick-xml = "0.37"
 rand = "0.9"
+# V7.2: the vehicle plate may live only inside MiniCRM project names, so the migration
+# mapping can carry a user-supplied extraction pattern. Already in the lock file via
+# tracing-subscriber's env-filter.
+regex = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 rust_decimal = { version = "1", features = ["serde-with-str"] }
 serde = { version = "1", features = ["derive"] }

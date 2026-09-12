@@ -16,6 +16,7 @@ import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditPartners, useAuth } from '@/lib/auth/context';
 import { DateDisplay } from '@/components/ui/DateDisplay';
+import { RawImportPanel } from '@/components/migration/RawImportPanel';
 import { useState } from 'react';
 
 function DetailRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
@@ -174,6 +175,8 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                   )}
                 </div>
               </section>
+
+              {partner.minicrm_id != null && <RawImportPanel entity="partner" id={id} />}
 
               <ConfirmDialog
                 open={confirmArchive}

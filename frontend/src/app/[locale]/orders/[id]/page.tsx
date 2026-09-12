@@ -23,6 +23,7 @@ import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import type { PatchOrder } from '@/lib/api/types';
 import { isBlockerOpen } from '@/lib/utils/blockers';
+import { RawImportPanel } from '@/components/migration/RawImportPanel';
 
 type Tab = 'data' | 'items' | 'stages' | 'blockers' | 'audit';
 
@@ -63,6 +64,13 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const audit = useQuery({
     queryKey: qk.orderAudit(id),
     queryFn: () => ordersApi.audit(id, { limit: 100 }),
+    enabled: tab === 'audit',
+  });
+  // Imported MiniCRM to-do history (V1.3): for a migrated order this is usually the only
+  // record of what actually happened, since MiniCRM exposes no stage history.
+  const notes = useQuery({
+    queryKey: qk.orderNotes(id),
+    queryFn: () => ordersApi.notes(id),
     enabled: tab === 'audit',
   });
   const projectTypes = useQuery({
@@ -114,6 +122,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     : '—';
   const defs = stagesQuery.data?.items ?? [];
   const auditItems = audit.data?.items ?? [];
+  const noteItems = notes.data?.items ?? [];
   const openBlockers = blockers.filter(isBlockerOpen);
   const tabs: { key: Tab; label: string }[] = [
     { key: 'data', label: t('tabsData') },
@@ -245,6 +254,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     ))}
                   </div>
                 </section>
+
+                {order.minicrm_id != null && <RawImportPanel entity="order" id={id} />}
               </div>
             )}
           </Tabs.Content>
@@ -336,7 +347,32 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
           <Tabs.Content value="audit">
             <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
-              <h2 className="text-section font-semibold">{t('tabsAudit')}</h2>
+              <h2 className="text-section font-semibold">{t('notesSection')}</h2>
+              <div className="mt-3">
+                {notes.isLoading ? (
+                  <p className="text-metadata text-steel-500">{tc('loading')}</p>
+                ) : notes.isError ? (
+                  <ErrorState error={notes.error} onRetry={() => void notes.refetch()} />
+                ) : noteItems.length === 0 ? (
+                  <p className="text-metadata text-steel-500">{t('notesEmpty')}</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {noteItems.map((n) => (
+                      <li key={n.id} className="border-l-2 border-steel-200 pl-3 text-body">
+                        <p className="text-metadata text-steel-500">
+                          {n.author_name ?? '—'} ·{' '}
+                          <DateDisplay withTime value={n.occurred_at} className="text-metadata" />
+                        </p>
+                        <p className="whitespace-pre-wrap">{n.body}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+
+            <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+              <h2 className="text-section font-semibold">{t('auditSection')}</h2>
               <div className="mt-3">
                 {audit.isLoading ? (
                   <p className="text-metadata text-steel-500">{tc('loading')}</p>

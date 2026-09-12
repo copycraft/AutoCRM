@@ -372,6 +372,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/partners/{id}/raw-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["migration_partner_raw_import"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leads/{id}/raw-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["migration_lead_raw_import"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/raw-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["migration_order_raw_import"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leads": {
         parameters: {
             query?: never;
@@ -540,6 +588,26 @@ export interface paths {
             cookie?: never;
         };
         get: operations["orders_audit_trail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Imported MiniCRM activity (V1.3). Read-only, and empty for orders created in AutoCRM:
+         *     this is history, not a task list.
+         */
+        get: operations["orders_notes"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1889,6 +1957,25 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_OrderNote: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                order_id: number;
+                /**
+                 * Format: int64
+                 * @description Provenance: the MiniCRM to-do this came from.
+                 */
+                minicrm_id?: number | null;
+                /** @description The MiniCRM user's name as text — those accounts do not exist in AutoCRM. */
+                author_name?: string | null;
+                body: string;
+                /** Format: date-time */
+                occurred_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_OrderSummary: {
             items: {
                 /** Format: int64 */
@@ -2295,6 +2382,22 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        OrderNote: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            order_id: number;
+            /**
+             * Format: int64
+             * @description Provenance: the MiniCRM to-do this came from.
+             */
+            minicrm_id?: number | null;
+            /** @description The MiniCRM user's name as text — those accounts do not exist in AutoCRM. */
+            author_name?: string | null;
+            body: string;
+            /** Format: date-time */
+            occurred_at: string;
+        };
         OrderRef: {
             /** Format: int64 */
             id: number;
@@ -2507,6 +2610,18 @@ export interface components {
             /** Format: int32 */
             position: number;
             is_active: boolean;
+        };
+        RawImportView: {
+            /**
+             * Format: int64
+             * @description The MiniCRM id this row came from; null for records created in AutoCRM.
+             */
+            minicrm_id?: number | null;
+            /**
+             * @description The complete source record as MiniCRM returned it. Null for records created in
+             *     AutoCRM — the screen shows nothing rather than an empty panel.
+             */
+            raw_import?: Record<string, unknown> | null;
         };
         ResetPassword: {
             temporary_password: string;
@@ -4074,6 +4189,123 @@ export interface operations {
             };
         };
     };
+    migration_partner_raw_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawImportView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    migration_lead_raw_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawImportView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    migration_order_raw_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RawImportView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     leads_search: {
         parameters: {
             query?: {
@@ -4689,6 +4921,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Items_AuditEntry"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    orders_notes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_OrderNote"];
                 };
             };
             /** @description Client error; see `error.code` */

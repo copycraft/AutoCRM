@@ -1,0 +1,110 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.id, o.number, o.valuation_date, o.raw_import, p.name AS partner, c.name AS \"contact?\",\n                  o.vehicle_make, o.vehicle_model, o.vehicle_plate, o.vehicle_vin, o.description,\n                  o.due_date, o.assigned_to, t.key AS \"project_type?\",\n                  (SELECT stage_key FROM order_stages s WHERE s.order_id = o.id) AS \"stage!\",\n                  (SELECT unit_price FROM order_items i WHERE i.order_id = o.id) AS \"unit_price!\"\n           FROM orders o JOIN partners p ON p.id = o.partner_id LEFT JOIN contacts c ON c.id = o.contact_id\n           LEFT JOIN project_types t ON t.id = o.project_type_id\n           WHERE o.minicrm_id = 500",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "valuation_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "raw_import",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "partner",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "contact?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "vehicle_make",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "vehicle_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "vehicle_plate",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "vehicle_vin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "due_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "assigned_to",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "project_type?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "stage!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "unit_price!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "9258adc72b458e0db39898c3b12d90138fa4ae78b738a6882086b184a3807740"
+}

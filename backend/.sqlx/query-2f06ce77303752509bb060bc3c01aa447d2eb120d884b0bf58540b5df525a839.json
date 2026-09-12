@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT minicrm_id AS \"minicrm_id!\", number, title, vehicle_make, vehicle_model,\n                  vehicle_plate, vehicle_vin, description, due_date, project_type_id, assigned_to\n             FROM orders WHERE minicrm_id IS NOT NULL ORDER BY random() LIMIT $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "minicrm_id!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "vehicle_make",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "vehicle_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "vehicle_plate",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "vehicle_vin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "due_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "project_type_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "assigned_to",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "2f06ce77303752509bb060bc3c01aa447d2eb120d884b0bf58540b5df525a839"
+}

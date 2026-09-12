@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use super::extract::as_i64;
 use super::fetch::{FailedEntry, FetchedEntry, read_jsonl};
-use super::load::{Mapping, text};
+use super::load::{self, Mapping, text};
 use super::manifest::ManifestEntry;
 use crate::AppState;
 
@@ -268,9 +268,269 @@ pub async fn run(
         "\n## Integrity\n\n- Orders without stage history: {orphans}"
     );
 
+    // V1.4: say plainly what the stage numbers do and do not cover.
+    let single_stage = sqlx::query_scalar!(
+        r#"SELECT count(*) AS "n!" FROM orders o WHERE o.minicrm_id IS NOT NULL
+             AND (SELECT count(*) FROM order_stages s WHERE s.order_id = o.id) = 1"#
+    )
+    .fetch_one(db)
+    .await?;
+    let _ = writeln!(
+        report,
+        "- Migrated orders whose entire stage history is the single 'MiniCRM import' row: \
+         **{single_stage}**\n\n\
+         > **Historical stage durations are not available.** The MiniCRM R3 API exposes a \
+         > project's *current* status and the date it was last changed (`StatusUpdatedAt`), \
+         > and no per-status change log. Every migrated order therefore enters AutoCRM with \
+         > one stage row: its final status, dated when it last changed. Stage-duration and \
+         > throughput reports are meaningful only for orders created in AutoCRM — do not \
+         > read them as covering the migrated years. See docs/migration/README.md."
+    );
+
+    coverage_and_field_sample(state, mapping, raw_dir, &projects, &contacts, &mut report).await?;
+
     let _ = writeln!(
         report,
         "\n## Sign-off\n\nChecked by Autotherm staff (spot-check at least 20 orders across different years, including their photos):\n\n- Name: ____________________\n- Date: ____________________\n- Result: ☐ approved ☐ needs fixes\n"
     );
     Ok(report)
+}
+
+/// Per-column coverage and a field-level sample (V1.6).
+///
+/// Counting rows proves nothing about content: the previous report printed ✅ on a
+/// migration that dropped every vehicle, because it never compared a field. Two checks
+/// close that: what share of migrated rows have each column set, and — for a random
+/// sample — whether the loaded value equals what the source actually says.
+const SAMPLE: i64 = 50;
+
+async fn coverage_and_field_sample(
+    state: &AppState,
+    mapping: &Mapping,
+    raw_dir: &Path,
+    projects: &[Value],
+    contacts: &[Value],
+    report: &mut String,
+) -> anyhow::Result<()> {
+    let db = &state.db;
+    let tz = state.config.business_tz;
+    let lookups = load::check_coverage(state, mapping, projects).await?;
+    let addresses = load::read_addresses(raw_dir)?;
+
+    let by_id = |records: &[Value]| -> HashMap<i64, Value> {
+        records
+            .iter()
+            .filter_map(|r| Some((r.get("Id").and_then(as_i64)?, r.clone())))
+            .collect()
+    };
+    let projects_by_id = by_id(projects);
+    let contacts_by_id = by_id(contacts);
+
+    // ── Coverage ────────────────────────────────────────────────────────────────────
+    let orders = sqlx::query!(
+        r#"SELECT count(*) AS "total!",
+                  count(vehicle_make) AS "vehicle_make!", count(vehicle_model) AS "vehicle_model!",
+                  count(vehicle_plate) AS "vehicle_plate!", count(vehicle_vin) AS "vehicle_vin!",
+                  count(description) AS "description!", count(due_date) AS "due_date!",
+                  count(assigned_to) AS "assigned_to!", count(project_type_id) AS "project_type_id!",
+                  count(lead_id) AS "lead_id!"
+             FROM orders WHERE minicrm_id IS NOT NULL"#
+    )
+    .fetch_one(db)
+    .await?;
+    let partners = sqlx::query!(
+        r#"SELECT count(*) AS "total!",
+                  count(email) AS "email!", count(phone) AS "phone!", count(website) AS "website!",
+                  count(tax_number) AS "tax_number!", count(eu_tax_number) AS "eu_tax_number!",
+                  count(postal_code) AS "postal_code!", count(city) AS "city!",
+                  count(address_line) AS "address_line!", count(notes) AS "notes!",
+                  count(*) FILTER (WHERE country <> 'HU') AS "non_hu_country!"
+             FROM partners WHERE minicrm_id IS NOT NULL"#
+    )
+    .fetch_one(db)
+    .await?;
+    let notes = sqlx::query_scalar!(r#"SELECT count(*) AS "n!" FROM order_notes"#)
+        .fetch_one(db)
+        .await?;
+
+    let _ = writeln!(
+        report,
+        "\n## Field coverage\n\n\
+         What share of migrated rows actually carry each column. **A column at 0% means \
+         the mapping has no source for it** — that is the shape of the defect this table \
+         exists to catch, not a property of the data.\n\n\
+         | Table | Column | Non-null | Coverage |\n|---|---|---:|---:|"
+    );
+    let mut row = |table: &str, column: &str, n: i64, total: i64| {
+        let pct = if total == 0 {
+            0.0
+        } else {
+            n as f64 * 100.0 / total as f64
+        };
+        let _ = writeln!(report, "| {table} | {column} | {n} | {pct:.1}% |");
+    };
+    let ot = orders.total;
+    row("orders", "vehicle_make", orders.vehicle_make, ot);
+    row("orders", "vehicle_model", orders.vehicle_model, ot);
+    row("orders", "vehicle_plate", orders.vehicle_plate, ot);
+    row("orders", "vehicle_vin", orders.vehicle_vin, ot);
+    row("orders", "description", orders.description, ot);
+    row("orders", "due_date", orders.due_date, ot);
+    row("orders", "assigned_to", orders.assigned_to, ot);
+    row("orders", "project_type_id", orders.project_type_id, ot);
+    row("orders", "lead_id", orders.lead_id, ot);
+    let pt = partners.total;
+    row("partners", "email", partners.email, pt);
+    row("partners", "phone", partners.phone, pt);
+    row("partners", "website", partners.website, pt);
+    row("partners", "tax_number", partners.tax_number, pt);
+    row("partners", "eu_tax_number", partners.eu_tax_number, pt);
+    row("partners", "postal_code", partners.postal_code, pt);
+    row("partners", "city", partners.city, pt);
+    row("partners", "address_line", partners.address_line, pt);
+    row("partners", "notes", partners.notes, pt);
+    row("partners", "country (non-HU)", partners.non_hu_country, pt);
+    let _ = writeln!(
+        report,
+        "\nImported activity entries (`order_notes`): **{notes}**{}",
+        if notes == 0 {
+            " — nothing loaded. Did `extract` run with to-dos enabled?"
+        } else {
+            ""
+        }
+    );
+
+    // ── Field-level sample ──────────────────────────────────────────────────────────
+    let sampled_orders = sqlx::query!(
+        r#"SELECT minicrm_id AS "minicrm_id!", number, title, vehicle_make, vehicle_model,
+                  vehicle_plate, vehicle_vin, description, due_date, project_type_id, assigned_to
+             FROM orders WHERE minicrm_id IS NOT NULL ORDER BY random() LIMIT $1"#,
+        SAMPLE
+    )
+    .fetch_all(db)
+    .await?;
+    let mut order_diffs: Vec<String> = Vec::new();
+    for o in &sampled_orders {
+        let Some(source) = projects_by_id.get(&o.minicrm_id) else {
+            order_diffs.push(format!(
+                "| {} | — | (source project not in the extract) | — |",
+                o.minicrm_id
+            ));
+            continue;
+        };
+        let actual: BTreeMap<&str, Option<String>> = BTreeMap::from([
+            ("title", Some(o.title.clone())),
+            ("number", Some(o.number.clone())),
+            ("vehicle_make", o.vehicle_make.clone()),
+            ("vehicle_model", o.vehicle_model.clone()),
+            ("vehicle_plate", o.vehicle_plate.clone()),
+            ("vehicle_vin", o.vehicle_vin.clone()),
+            ("description", o.description.clone()),
+            ("due_date", o.due_date.map(|d| d.to_string())),
+            ("project_type_id", o.project_type_id.map(|v| v.to_string())),
+            ("assigned_to", o.assigned_to.map(|v| v.to_string())),
+        ]);
+        diff_row(
+            &load::expected_order_fields(mapping, &lookups, source, tz),
+            &actual,
+            o.minicrm_id,
+            &mut order_diffs,
+        );
+    }
+
+    let sampled_partners = sqlx::query!(
+        r#"SELECT minicrm_id AS "minicrm_id!", name, email, phone, website, tax_number,
+                  eu_tax_number, country, default_currency, postal_code, city, address_line, notes
+             FROM partners WHERE minicrm_id IS NOT NULL ORDER BY random() LIMIT $1"#,
+        SAMPLE
+    )
+    .fetch_all(db)
+    .await?;
+    let mut partner_diffs: Vec<String> = Vec::new();
+    for p in &sampled_partners {
+        let Some(source) = contacts_by_id.get(&p.minicrm_id) else {
+            partner_diffs.push(format!(
+                "| {} | — | (source contact not in the extract) | — |",
+                p.minicrm_id
+            ));
+            continue;
+        };
+        let actual: BTreeMap<&str, Option<String>> = BTreeMap::from([
+            ("name", Some(p.name.clone())),
+            ("email", p.email.clone()),
+            ("phone", p.phone.clone()),
+            ("website", p.website.clone()),
+            ("tax_number", p.tax_number.clone()),
+            ("eu_tax_number", p.eu_tax_number.clone()),
+            ("country", Some(p.country.clone())),
+            ("default_currency", Some(p.default_currency.clone())),
+            ("postal_code", p.postal_code.clone()),
+            ("city", p.city.clone()),
+            ("address_line", p.address_line.clone()),
+            ("notes", p.notes.clone()),
+        ]);
+        diff_row(
+            &load::expected_partner_fields(
+                mapping,
+                source,
+                load::address_for(&addresses, p.minicrm_id),
+            ),
+            &actual,
+            p.minicrm_id,
+            &mut partner_diffs,
+        );
+    }
+
+    let _ = writeln!(
+        report,
+        "\n## Field-level sample\n\n\
+         {} orders and {} partners drawn at random, every loaded column compared with the \
+         source JSON. A row here is a value that differs, or a null where the source had \
+         something.",
+        sampled_orders.len(),
+        sampled_partners.len()
+    );
+    for (label, diffs) in [("Orders", &order_diffs), ("Partners", &partner_diffs)] {
+        if diffs.is_empty() {
+            let _ = writeln!(report, "\n**{label}: no differences.**");
+            continue;
+        }
+        let _ = writeln!(
+            report,
+            "\n### {label}: {} differences\n\n| MiniCRM id | Column | Source | Loaded |\n|---|---|---|---|",
+            diffs.len()
+        );
+        for line in diffs.iter().take(200) {
+            let _ = writeln!(report, "{line}");
+        }
+        if diffs.len() > 200 {
+            let _ = writeln!(report, "\n(… {} more)", diffs.len() - 200);
+        }
+    }
+    Ok(())
+}
+
+/// Appends one table row per column whose loaded value is not what the source says.
+fn diff_row(
+    expected: &BTreeMap<&'static str, Option<String>>,
+    actual: &BTreeMap<&str, Option<String>>,
+    id: i64,
+    out: &mut Vec<String>,
+) {
+    for (column, want) in expected {
+        let got = actual.get(column).cloned().flatten();
+        if &got == want {
+            continue;
+        }
+        let show = |v: &Option<String>| match v {
+            Some(s) if s.chars().count() > 60 => s.chars().take(57).collect::<String>() + "…",
+            Some(s) => s.replace('|', "\\|").replace('\n', " "),
+            None => "(null)".into(),
+        };
+        out.push(format!(
+            "| {id} | {column} | {} | {} |",
+            show(want),
+            show(&got)
+        ));
+    }
 }

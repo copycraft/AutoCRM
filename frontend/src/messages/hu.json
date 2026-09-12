@@ -276,7 +276,11 @@
       "blockers": "Akadályok"
     },
     "stageNoteRequired": "Indoklás szükséges a fázis módosításához",
-    "stageGate": "A megrendelés nem léphet tovább, mert egy szükséges feltétel még nem teljesült."
+    "stageGate": "A megrendelés nem léphet tovább, mert egy szükséges feltétel még nem teljesült.",
+    "tabsNotes": "Napló",
+    "notesSection": "MiniCRM előzmények",
+    "notesEmpty": "Nincs átvett MiniCRM előzmény.",
+    "auditSection": "Változásnapló"
   },
   "blockers": {
     "title": "Akadályok",
@@ -596,5 +600,15 @@
     "taxNumberFormat": "Érvénytelen adószám formátum",
     "plateFormat": "Érvénytelen rendszám formátum",
     "vinFormat": "Érvénytelen VIN formátum"
+  },
+  "rawImport": {
+    "title": "MiniCRM eredeti adatok",
+    "explanation": "A MiniCRM-ből átvett nyers rekord, ahogy az importáláskor érkezett. Csak olvasható.",
+    "notMigrated": "Ez a rekord az AutoCRM-ben készült, nincs MiniCRM forrása.",
+    "searchPlaceholder": "Keresés a mezők között",
+    "minicrmId": "MiniCRM azonosító",
+    "fieldCount": "{shown} / {total} mező",
+    "field": "Mező",
+    "value": "Érték"
   }
 }

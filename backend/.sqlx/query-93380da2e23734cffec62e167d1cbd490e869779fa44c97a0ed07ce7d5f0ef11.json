@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT minicrm_id AS \"minicrm_id!\", name, email, phone, website, tax_number,\n                  eu_tax_number, country, default_currency, postal_code, city, address_line, notes\n             FROM partners WHERE minicrm_id IS NOT NULL ORDER BY random() LIMIT $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "minicrm_id!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "website",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "tax_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "eu_tax_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "country",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "default_currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "postal_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "address_line",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "notes",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "93380da2e23734cffec62e167d1cbd490e869779fa44c97a0ed07ce7d5f0ef11"
+}

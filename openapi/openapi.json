@@ -1568,6 +1568,159 @@
         }
       }
     },
+    "/partners/{id}/raw-import": {
+      "get": {
+        "tags": [
+          "migration"
+        ],
+        "operationId": "migration_partner_raw_import",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawImportView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/raw-import": {
+      "get": {
+        "tags": [
+          "migration"
+        ],
+        "operationId": "migration_lead_raw_import",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawImportView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/raw-import": {
+      "get": {
+        "tags": [
+          "migration"
+        ],
+        "operationId": "migration_order_raw_import",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawImportView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/leads": {
       "get": {
         "tags": [
@@ -2482,6 +2635,58 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Items_AuditEntry"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/notes": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Imported MiniCRM activity (V1.3). Read-only, and empty for orders created in AutoCRM:\nthis is history, not a task list.",
+        "operationId": "orders_notes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_OrderNote"
                 }
               }
             }
@@ -7429,6 +7634,59 @@
           }
         }
       },
+      "Items_OrderNote": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "order_id",
+                "body",
+                "occurred_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "minicrm_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Provenance: the MiniCRM to-do this came from."
+                },
+                "author_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The MiniCRM user's name as text — those accounts do not exist in AutoCRM."
+                },
+                "body": {
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_OrderSummary": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -8928,6 +9186,47 @@
           }
         }
       },
+      "OrderNote": {
+        "type": "object",
+        "required": [
+          "id",
+          "order_id",
+          "body",
+          "occurred_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "minicrm_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Provenance: the MiniCRM to-do this came from."
+          },
+          "author_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The MiniCRM user's name as text — those accounts do not exist in AutoCRM."
+          },
+          "body": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "OrderRef": {
         "type": "object",
         "required": [
@@ -9771,6 +10070,26 @@
           },
           "is_active": {
             "type": "boolean"
+          }
+        }
+      },
+      "RawImportView": {
+        "type": "object",
+        "properties": {
+          "minicrm_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The MiniCRM id this row came from; null for records created in AutoCRM."
+          },
+          "raw_import": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The complete source record as MiniCRM returned it. Null for records created in\nAutoCRM — the screen shows nothing rather than an empty panel."
           }
         }
       },

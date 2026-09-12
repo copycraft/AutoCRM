@@ -52,6 +52,8 @@ export interface Items<T> {
   items: T[];
 }
 export type AuditEntry = Schemas['AuditEntry'];
+export type OrderNote = Schemas['OrderNote'];
+export type RawImportView = Schemas['RawImportView'];
 export type Blocker = Schemas['Blocker'];
 export type ProjectType = Schemas['ProjectType'];
 export type Settings = Schemas['Settings'];

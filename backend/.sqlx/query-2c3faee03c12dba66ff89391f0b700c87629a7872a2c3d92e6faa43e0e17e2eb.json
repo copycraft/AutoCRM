@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT category::text AS \"category!\", immutable, source_ref FROM images WHERE order_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "category!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "immutable",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "source_ref",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      true
+    ]
+  },
+  "hash": "2c3faee03c12dba66ff89391f0b700c87629a7872a2c3d92e6faa43e0e17e2eb"
+}

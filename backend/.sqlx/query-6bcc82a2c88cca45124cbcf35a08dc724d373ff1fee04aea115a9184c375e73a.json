@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"total!\",\n                  count(email) AS \"email!\", count(phone) AS \"phone!\", count(website) AS \"website!\",\n                  count(tax_number) AS \"tax_number!\", count(eu_tax_number) AS \"eu_tax_number!\",\n                  count(postal_code) AS \"postal_code!\", count(city) AS \"city!\",\n                  count(address_line) AS \"address_line!\", count(notes) AS \"notes!\",\n                  count(*) FILTER (WHERE country <> 'HU') AS \"non_hu_country!\"\n             FROM partners WHERE minicrm_id IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "email!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "phone!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "website!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "tax_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "eu_tax_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "postal_code!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "city!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "address_line!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "notes!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "non_hu_country!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "6bcc82a2c88cca45124cbcf35a08dc724d373ff1fee04aea115a9184c375e73a"
+}

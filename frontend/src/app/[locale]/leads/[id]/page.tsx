@@ -19,6 +19,7 @@ import { qk } from '@/lib/query/provider';
 import { canAdmin, canEditLeads, useAuth } from '@/lib/auth/context';
 import { daysSince } from '@/lib/utils/format';
 import { DateDisplay } from '@/components/ui/DateDisplay';
+import { RawImportPanel } from '@/components/migration/RawImportPanel';
 
 export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
@@ -161,6 +162,8 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   <StageHistoryList history={history} />
                 </div>
               </section>
+
+              {lead.minicrm_id != null && <RawImportPanel entity="lead" id={id} />}
 
               {stageOpen && (
                 <LeadStageDialog leadId={id} detail={detail.data} onClose={() => setStageOpen(false)} />

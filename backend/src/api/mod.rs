@@ -16,6 +16,7 @@ pub mod mobile;
 pub mod openapi;
 pub mod orders;
 pub mod partners;
+pub mod raw_import;
 pub mod reports;
 pub mod users;
 
@@ -44,6 +45,7 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(users::routes())
         .merge(configuration::routes())
         .merge(partners::routes())
+        .merge(raw_import::routes())
         .merge(leads::routes())
         .merge(orders::routes())
         .merge(blockers::routes())

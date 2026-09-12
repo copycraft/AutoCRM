@@ -24,11 +24,12 @@ use crate::error::{AppError, AppResult};
 use crate::repo::audit::AuditEntry;
 use crate::repo::blockers::Blocker;
 use crate::repo::order_items::OrderItem;
+use crate::repo::order_notes::OrderNote;
 use crate::repo::orders::{Order, OrderFields, OrderFilter, OrderSummary, OrderValue};
 use crate::repo::stages::StageEntry;
 use crate::repo::{
-    audit, blockers, config, images, like_pattern, order_items, orders, parse_sort, partners,
-    stages,
+    audit, blockers, config, images, like_pattern, order_items, order_notes, orders, parse_sort,
+    partners, stages,
 };
 use crate::service;
 use crate::service::orders::{
@@ -44,6 +45,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(transitions))
         .routes(routes!(stage_history))
         .routes(routes!(audit_trail))
+        .routes(routes!(notes))
         .routes(routes!(list_items, add_item))
         .routes(routes!(update_item, delete_item))
 }
@@ -511,6 +513,23 @@ async fn stage_history(
         .await?
         .ok_or(AppError::NotFound("order"))?;
     Ok(Items::new(stages::order_history(&state.db, id).await?))
+}
+
+/// Imported MiniCRM activity (V1.3). Read-only, and empty for orders created in AutoCRM:
+/// this is history, not a task list.
+#[utoipa::path(
+    get, path = "/orders/{id}/notes", tag = "orders",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Items<OrderNote>))
+)]
+async fn notes(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<Items<OrderNote>>> {
+    Ok(Items::new(
+        order_notes::list_for_order(&state.db, id).await?,
+    ))
 }
 
 #[derive(Deserialize, IntoParams)]

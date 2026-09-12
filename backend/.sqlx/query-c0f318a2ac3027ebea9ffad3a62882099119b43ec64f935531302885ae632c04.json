@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"total!\",\n                  count(vehicle_make) AS \"vehicle_make!\", count(vehicle_model) AS \"vehicle_model!\",\n                  count(vehicle_plate) AS \"vehicle_plate!\", count(vehicle_vin) AS \"vehicle_vin!\",\n                  count(description) AS \"description!\", count(due_date) AS \"due_date!\",\n                  count(assigned_to) AS \"assigned_to!\", count(project_type_id) AS \"project_type_id!\",\n                  count(lead_id) AS \"lead_id!\"\n             FROM orders WHERE minicrm_id IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "vehicle_make!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "vehicle_model!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "vehicle_plate!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "vehicle_vin!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "description!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "due_date!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "assigned_to!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "project_type_id!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "lead_id!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "c0f318a2ac3027ebea9ffad3a62882099119b43ec64f935531302885ae632c04"
+}
