@@ -18,17 +18,8 @@ import { RecentRecords, ResumeBanner } from '@/components/layout/RecentRecords';
 import { blockersApi, leadsApi, ordersApi, reportsApi, tasksApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { daysSince } from '@/lib/utils/format';
+import { budapestIsoPlus } from '@/components/forms/DateQuickPicks';
 import type { Currency } from '@/lib/api/types';
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function todayPlus(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 /** Link to the record a task is pinned to. */
 function taskHref(locale: string, entity: string, id: number): string {
@@ -109,12 +100,12 @@ export function DashboardView() {
   });
   const stalledRows = stalled.data?.items ?? [];
   const expiring = (openLeads.data?.items ?? []).filter(
-    (l) => l.quote_valid_until && l.quote_valid_until <= todayPlus(7),
+    (l) => l.quote_valid_until && l.quote_valid_until <= budapestIsoPlus(7),
   );
   const pipeline = [...(openLeads.data?.items ?? [])]
     .sort((a, b) => (a.quote_valid_until ?? '9') < (b.quote_valid_until ?? '9') ? -1 : 1)
     .slice(0, 10);
-  const today = todayIso();
+  const today = budapestIsoPlus(0);
   const tasks = [...(myTasks.data?.items ?? [])].sort((a, b) => {
     const aOver = !!a.due_date && a.due_date < today;
     const bOver = !!b.due_date && b.due_date < today;

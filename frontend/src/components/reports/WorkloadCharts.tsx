@@ -16,6 +16,7 @@ import { reportsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { budapestIsoPlus } from '@/components/forms/DateQuickPicks';
 
 /** One row of `GET /reports/workload`. */
 export type WorkloadDay = {
@@ -42,23 +43,13 @@ const WorkloadChartsView = dynamic(
 
 type RangeKey = 'week' | 'month' | 'mtd';
 
-function isoDay(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 function rangeFor(key: RangeKey): { from: string; to: string } {
-  const to = new Date();
-  const toIso = isoDay(to);
-  if (key === 'week') {
-    const from = new Date(to);
-    from.setDate(from.getDate() - 6);
-    return { from: isoDay(from), to: toIso };
-  }
-  if (key === 'month') {
-    const from = new Date(to);
-    from.setDate(from.getDate() - 29);
-    return { from: isoDay(from), to: toIso };
-  }
+  // Budapest calendar on both ends: the backend bounds report periods on
+  // business-tz midnights, and a UTC "today" would query the wrong window
+  // around midnight (same bug as the dashboard's old todayIso).
+  const toIso = budapestIsoPlus(0);
+  if (key === 'week') return { from: budapestIsoPlus(-6), to: toIso };
+  if (key === 'month') return { from: budapestIsoPlus(-29), to: toIso };
   return { from: `${toIso.slice(0, 8)}01`, to: toIso };
 }
 

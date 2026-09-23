@@ -169,6 +169,21 @@ describe('QoL primitives', () => {
     expect(diff).toBe(7 * 86_400_000);
   });
 
+  it('budapestIsoPlus follows the Budapest calendar across the UTC midnight boundary', () => {
+    // 2026-09-13T22:30:00Z is already 2026-09-14 in Budapest (CEST, +02:00) while
+    // still 2026-09-13 in UTC. The old todayIso() reported the UTC day here, so the
+    // dashboard and the lead detail disagreed about expiring quotes every night.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-09-13T22:30:00Z'));
+      expect(new Date().toISOString().slice(0, 10)).toBe('2026-09-13');
+      expect(budapestIsoPlus(0)).toBe('2026-09-14');
+      expect(budapestIsoPlus(7)).toBe('2026-09-21');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('columnMenuItems prefers explicit ids and skips non-string headers', () => {
     const cols = columnMenuItems([
       { accessorKey: 'title', header: 'Cím' },
