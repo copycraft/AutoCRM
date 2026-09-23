@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (o.created_at AT TIME ZONE $3)::date AS \"placed!\",\n                  CASE WHEN sd.is_terminal\n                       THEN (fin.entered_at AT TIME ZONE $3)::date\n                       ELSE NULL::date END AS \"completed?\"\n           FROM orders o\n           JOIN order_current_stage fin ON fin.order_id = o.id\n           JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = fin.stage_key\n           WHERE (o.created_at AT TIME ZONE $3)::date <= $2\n             AND (NOT sd.is_terminal OR (fin.entered_at AT TIME ZONE $3)::date >= $1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "placed!",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "completed?",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Date",
+        "Date",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "996b43b5b666d1420d8d71894b24720e60a3bedd30b7ea50c557f5bda6d43beb"
+}

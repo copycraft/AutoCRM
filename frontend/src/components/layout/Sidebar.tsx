@@ -10,6 +10,7 @@ import {
   Package,
   Mail,
   BarChart3,
+  MonitorPlay,
   Settings,
   ShieldCheck,
   LogOut,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils/format';
 import { useAuth, canAdmin } from '@/lib/auth/context';
+import { GlobalSearch } from '@/components/search/GlobalSearch';
 
 const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: boolean }[] = [
   { href: '', icon: LayoutDashboard, key: 'dashboard' },
@@ -25,13 +27,15 @@ const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: bo
   { href: '/leads', icon: Target, key: 'leads' },
   { href: '/orders', icon: Package, key: 'orders' },
   { href: '/emails', icon: Mail, key: 'emails' },
+  { href: '/board', icon: MonitorPlay, key: 'board' },
   { href: '/reports', icon: BarChart3, key: 'reports' },
   { href: '/admin', icon: ShieldCheck, key: 'admin', admin: true },
   { href: '/settings', icon: Settings, key: 'settings', admin: true },
 ] as const;
 
-export function Sidebar() {
+export function Sidebar({ onHelp }: { onHelp?: () => void }) {
   const t = useTranslations('navigation');
+  const tq = useTranslations('qol');
   const tc = useTranslations('common');
   const pathname = usePathname();
   const locale = useLocale();
@@ -48,6 +52,8 @@ export function Sidebar() {
           <span className="block text-metadata text-steel-500">AutoCRM</span>
         </span>
       </Link>
+
+      <GlobalSearch />
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5" aria-label={t('main')}>
         {NAV.filter((i) => !i.admin || canAdmin(user)).map((item) => {
@@ -84,6 +90,19 @@ export function Sidebar() {
           <LogOut className="h-4 w-4" aria-hidden />
           {tc('logout')}
         </button>
+        {onHelp && (
+          <button
+            onClick={onHelp}
+            className="btn-ghost btn-sm w-full justify-start"
+            title="?"
+            aria-label="?"
+          >
+            <kbd className="rounded border border-steel-200 px-1.5 font-mono text-metadata text-steel-500">
+              ?
+            </kbd>
+            {tq('shortcutsTitle')}
+          </button>
+        )}
       </div>
     </aside>
   );

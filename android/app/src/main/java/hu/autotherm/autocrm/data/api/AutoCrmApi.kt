@@ -132,12 +132,14 @@ class AutoCrmApi(
 
     private fun errorFor(status: Int, body: String): ApiException {
         val parsed = runCatching { json.decodeFromString(ApiErrorBody.serializer(), body) }.getOrNull()
+        val code = parsed?.error?.code ?: "validation"
+        val message = parsed?.error?.message
         return when (status) {
             401 -> ApiException.Unauthenticated()
             403 -> ApiException.Forbidden()
-            404 -> ApiException.NotFound(parsed?.message ?: "record")
-            409, 422 -> ApiException.Rule(parsed?.error ?: "validation", parsed?.message)
-            else -> ApiException.Server(status, parsed?.message ?: body.take(300))
+            404 -> ApiException.NotFound(message ?: "record")
+            409, 422 -> ApiException.Rule(code, message)
+            else -> ApiException.Server(status, message ?: body.take(300))
         }
     }
 
@@ -200,6 +202,33 @@ class AutoCrmApi(
     suspend fun order(id: Long): OrderDetail =
         send(Request.Builder().url(url("/orders/$id").build()).get(), OrderDetail.serializer())
 
+    suspend fun createOrder(body: OrderBody): Order =
+        send(
+            Request.Builder().url(url("/orders").build()).post(body(body)),
+            Order.serializer(),
+        )
+
+    suspend fun patchOrder(id: Long, body: OrderBody): Order =
+        send(
+            Request.Builder().url(url("/orders/$id").build()).patch(body(body)),
+            Order.serializer(),
+        )
+
+    suspend fun orderItems(id: Long): List<ItemView> =
+        send(
+            Request.Builder().url(url("/orders/$id/items").build()).get(),
+            Items.serializer(ItemView.serializer()),
+        ).items
+
+    suspend fun addItem(orderId: Long, body: AddItemBody): ItemView =
+        send(
+            Request.Builder().url(url("/orders/$orderId/items").build()).post(body(body)),
+            ItemView.serializer(),
+        )
+
+    suspend fun deleteItem(id: Long) =
+        sendNoContent(Request.Builder().url(url("/order-items/$id").build()).delete())
+
     suspend fun orderStages(id: Long): List<StageEntry> =
         send(
             Request.Builder().url(url("/orders/$id/stages").build()).get(),
@@ -235,6 +264,70 @@ class AutoCrmApi(
             Items.serializer(Blocker.serializer()),
         ).items
 
+    suspend fun createBlocker(orderId: Long, body: BlockerBody): Blocker =
+        send(
+            Request.Builder().url(url("/orders/$orderId/blockers").build()).post(body(body)),
+            Blocker.serializer(),
+        )
+
+    suspend fun resolveBlocker(id: Long, note: String?): Blocker =
+        send(
+            Request.Builder().url(url("/blockers/$id/resolve").build())
+                .post(body(ResolveBody(note))),
+            Blocker.serializer(),
+        )
+
+    suspend fun reopenBlocker(id: Long): Blocker =
+        send(
+            Request.Builder().url(url("/blockers/$id/reopen").build()).post(EMPTY),
+            Blocker.serializer(),
+        )
+
+    // ── Tasks ───────────────────────────────────────────────────────────────────────
+
+    suspend fun tasksMine(): List<Task> =
+        send(
+            Request.Builder().url(url("/tasks").build()).get(),
+            Items.serializer(Task.serializer()),
+        ).items
+
+    suspend fun tasksFor(entity: String, id: Long): List<Task> =
+        send(
+            Request.Builder().url(url("/tasks/for/$entity/$id").build()).get(),
+            Items.serializer(Task.serializer()),
+        ).items
+
+    suspend fun createTask(body: TaskBody): Task =
+        send(
+            Request.Builder().url(url("/tasks").build()).post(body(body)),
+            Task.serializer(),
+        )
+
+    suspend fun setTaskDone(id: Long, done: Boolean): Task =
+        send(
+            Request.Builder().url(url("/tasks/$id/done").build())
+                .post(body(DoneBody(done))),
+            Task.serializer(),
+        )
+
+    suspend fun deleteTask(id: Long) =
+        sendNoContent(Request.Builder().url(url("/tasks/$id").build()).delete())
+
+    // ── Reports ─────────────────────────────────────────────────────────────────────
+
+    suspend fun workload(from: String, to: String): WorkloadReport {
+        val u = url("/reports/workload")
+            .addQueryParameter("from", from)
+            .addQueryParameter("to", to)
+        return send(Request.Builder().url(u.build()).get(), WorkloadReport.serializer())
+    }
+
+    suspend fun stalled(): List<StalledOrder> =
+        send(
+            Request.Builder().url(url("/reports/stalled").build()).get(),
+            Items.serializer(StalledOrder.serializer()),
+        ).items
+
     // ── Media ───────────────────────────────────────────────────────────────────────
 
     suspend fun images(orderId: Long, category: String? = null): List<ImageView> {
@@ -267,6 +360,12 @@ class AutoCrmApi(
     suspend fun email(id: Long): EmailMessage =
         send(Request.Builder().url(url("/emails/$id").build()).get(), EmailMessage.serializer())
 
+    suspend fun sendEmail(body: ComposeBody): EmailMessage =
+        send(
+            Request.Builder().url(url("/emails").build()).post(body(body)),
+            EmailMessage.serializer(),
+        )
+
     // ── Partners and leads ──────────────────────────────────────────────────────────
 
     suspend fun partners(query: String? = null, role: String? = null, limit: Int = 50): List<Partner> {
@@ -280,6 +379,30 @@ class AutoCrmApi(
     suspend fun partner(id: Long): PartnerDetail =
         send(Request.Builder().url(url("/partners/$id").build()).get(), PartnerDetail.serializer())
 
+    suspend fun createPartner(body: PartnerBody): Partner =
+        send(
+            Request.Builder().url(url("/partners").build()).post(body(body)),
+            Partner.serializer(),
+        )
+
+    suspend fun patchPartner(id: Long, body: PartnerBody): Partner =
+        send(
+            Request.Builder().url(url("/partners/$id").build()).patch(body(body)),
+            Partner.serializer(),
+        )
+
+    suspend fun createContact(partnerId: Long, body: ContactBody): Contact =
+        send(
+            Request.Builder().url(url("/partners/$partnerId/contacts").build()).post(body(body)),
+            Contact.serializer(),
+        )
+
+    suspend fun patchContact(id: Long, body: ContactBody): Contact =
+        send(
+            Request.Builder().url(url("/contacts/$id").build()).patch(body(body)),
+            Contact.serializer(),
+        )
+
     suspend fun leads(query: String? = null, openOnly: Boolean = false, limit: Int = 50): List<LeadSummary> {
         val u = url("/leads")
         if (!query.isNullOrBlank()) u.addQueryParameter("q", query)
@@ -290,6 +413,137 @@ class AutoCrmApi(
 
     suspend fun lead(id: Long): LeadDetail =
         send(Request.Builder().url(url("/leads/$id").build()).get(), LeadDetail.serializer())
+
+    suspend fun createLead(body: LeadBody): Lead =
+        send(
+            Request.Builder().url(url("/leads").build()).post(body(body)),
+            Lead.serializer(),
+        )
+
+    suspend fun patchLead(id: Long, body: LeadBody): Lead =
+        send(
+            Request.Builder().url(url("/leads/$id").build()).patch(body(body)),
+            Lead.serializer(),
+        )
+
+    suspend fun leadTransitions(id: Long): List<TransitionOption> =
+        send(
+            Request.Builder().url(url("/leads/$id/transitions").build()).get(),
+            Items.serializer(TransitionOption.serializer()),
+        ).items
+
+    suspend fun changeLeadStage(id: Long, stage: String, note: String?) =
+        sendNoContent(
+            Request.Builder().url(url("/leads/$id/stage").build())
+                .post(body(StageBody(stage = stage, note = note))),
+        )
+
+    suspend fun convertLead(id: Long, body: OrderBody): Order =
+        send(
+            Request.Builder().url(url("/leads/$id/convert").build()).post(body(body)),
+            Order.serializer(),
+        )
+
+    // ── Handover inspections ────────────────────────────────────────────────────
+
+    suspend fun inspections(orderId: Long): List<Inspection> {
+        val u = url("/inspections").addQueryParameter("order_id", orderId.toString())
+        return send(Request.Builder().url(u.build()).get(), Items.serializer(Inspection.serializer())).items
+    }
+
+    suspend fun createInspection(body: InspectionBody): Inspection =
+        send(
+            Request.Builder().url(url("/inspections").build()).post(body(body)),
+            Inspection.serializer(),
+        )
+
+    suspend fun inspection(id: Long): InspectionDetail =
+        send(Request.Builder().url(url("/inspections/$id").build()).get(), InspectionDetail.serializer())
+
+    suspend fun patchInspection(id: Long, body: InspectionBody): Inspection =
+        send(
+            Request.Builder().url(url("/inspections/$id").build()).patch(body(body)),
+            Inspection.serializer(),
+        )
+
+    suspend fun deleteInspection(id: Long) =
+        sendNoContent(Request.Builder().url(url("/inspections/$id").build()).delete())
+
+    suspend fun attachInspectionPhoto(id: Long, body: AttachPhotoBody): InspectionPhoto =
+        send(
+            Request.Builder().url(url("/inspections/$id/photos").build()).post(body(body)),
+            InspectionPhoto.serializer(),
+        )
+
+    suspend fun addInspectionDamage(id: Long, body: DamageBody): InspectionDamage =
+        send(
+            Request.Builder().url(url("/inspections/$id/damages").build()).post(body(body)),
+            InspectionDamage.serializer(),
+        )
+
+    suspend fun deleteInspectionDamage(id: Long, damageId: Long) =
+        sendNoContent(Request.Builder().url(url("/inspections/$id/damages/$damageId").build()).delete())
+
+    suspend fun addInspectionSignature(id: Long, body: SignatureBody): InspectionSignature =
+        send(
+            Request.Builder().url(url("/inspections/$id/signatures").build()).post(body(body)),
+            InspectionSignature.serializer(),
+        )
+
+    suspend fun signInspection(id: Long, customerComment: String?): Inspection =
+        send(
+            Request.Builder().url(url("/inspections/$id/sign").build())
+                .post(body(SignBody(customerComment))),
+            Inspection.serializer(),
+        )
+
+    suspend fun addInspectionNote(id: Long, body: String): InspectionNote =
+        send(
+            Request.Builder().url(url("/inspections/$id/notes").build())
+                .post(body(InspectionNoteBody(body))),
+            InspectionNote.serializer(),
+        )
+
+    suspend fun inspectionComparison(id: Long): Comparison =
+        send(
+            Request.Builder().url(url("/inspections/$id/comparison").build()).get(),
+            Comparison.serializer(),
+        )
+
+    suspend fun setInspectionVerdict(id: Long, body: VerdictBody): InspectionVerdict =
+        send(
+            Request.Builder().url(url("/inspections/$id/verdicts").build()).post(body(body)),
+            InspectionVerdict.serializer(),
+        )
+
+    suspend fun zoneTemplates(projectTypeId: Long?): List<ZoneTemplate> {
+        val u = url("/inspections/templates")
+        if (projectTypeId != null) u.addQueryParameter("project_type_id", projectTypeId.toString())
+        return send(Request.Builder().url(u.build()).get(), Items.serializer(ZoneTemplate.serializer())).items
+    }
+
+    /** Step 1 of a signature upload: a finger-drawn PNG travels as an `other` document. */
+    suspend fun requestDocumentUpload(
+        orderId: Long,
+        filename: String,
+        contentType: String,
+        byteSize: Long,
+        sha256: String,
+    ): UploadResponse =
+        send(
+            Request.Builder().url(url("/orders/$orderId/uploads").build()).post(
+                body(
+                    UploadRequest(
+                        target = UploadTarget(type = "document", kind = "other"),
+                        filename = filename,
+                        contentType = contentType,
+                        byteSize = byteSize,
+                        sha256 = sha256,
+                    ),
+                ),
+            ),
+            UploadResponse.serializer(),
+        )
 
     // ── Configuration ───────────────────────────────────────────────────────────────
 

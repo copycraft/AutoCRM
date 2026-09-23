@@ -44,7 +44,8 @@
                 "intake",
                 "production",
                 "completion",
-                "marketing"
+                "marketing",
+                "inspection"
               ]
             }
           }
@@ -85,7 +86,8 @@
                 "intake",
                 "production",
                 "completion",
-                "marketing"
+                "marketing",
+                "inspection"
               ]
             }
           }

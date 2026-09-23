@@ -6,8 +6,8 @@ export function PageHeader({
   actions,
   size = 'page',
 }: {
-  title: string;
-  subtitle?: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
   actions?: ReactNode;
   /** Record detail titles use the smaller record scale, not the page scale. */
   size?: 'page' | 'record';

@@ -34,6 +34,12 @@ pub enum Capability {
     DeleteMedia,
     ViewOriginalImages,
     SendEmail,
+    /// Issue an invoice, storno one, or render a proforma. Reporting to the tax authority
+    /// under the company's own technical user is office work, not production work.
+    IssueInvoices,
+    /// Technically annul a data report. Admin only: it says the report should never have
+    /// existed, and a person then has to approve it in NAV's own portal.
+    AnnulInvoices,
 }
 
 impl Role {
@@ -41,11 +47,12 @@ impl Role {
         use Capability::*;
         use Role::*;
         match capability {
-            ManageUsers | ManageSettings | ManageConfiguration | OperateSystem => {
+            ManageUsers | ManageSettings | ManageConfiguration | OperateSystem
+            | AnnulInvoices => {
                 matches!(self, Admin)
             }
             EditPartners | EditLeads | EditOrders | DeleteMedia | ViewOriginalImages
-            | SendEmail => {
+            | SendEmail | IssueInvoices => {
                 matches!(self, Admin | Office)
             }
             ChangeStages | ManageBlockers | UploadMedia => {
@@ -76,6 +83,8 @@ mod tests {
             DeleteMedia,
             ViewOriginalImages,
             SendEmail,
+            IssueInvoices,
+            AnnulInvoices,
         ] {
             assert!(!Role::Viewer.can(cap), "viewer should not have {cap:?}");
             assert!(Role::Admin.can(cap), "admin should have {cap:?}");

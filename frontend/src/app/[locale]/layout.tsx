@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { locales, type Locale } from '@/i18n';
 import { QueryProvider } from '@/lib/query/provider';
 import { AuthProvider } from '@/lib/auth/context';
+import { ToastProvider } from '@/components/ui/Toasts';
 // Authenticated CRM: every page depends on the session cookie, so nothing
 // prerenders. No generateStaticParams: with force-dynamic it would be dead
 // configuration suggesting static output that never happens.
@@ -28,7 +29,9 @@ export default async function LocaleLayout({
   return (
     <NextIntlClientProvider messages={messages}>
       <QueryProvider>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </QueryProvider>
     </NextIntlClientProvider>
   );

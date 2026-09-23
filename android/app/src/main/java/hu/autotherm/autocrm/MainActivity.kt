@@ -4,62 +4,107 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material.icons.filled.Upload
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import hu.autotherm.autocrm.data.auth.SessionStore
+import hu.autotherm.autocrm.data.prefs.ThemePrefs
+import hu.autotherm.autocrm.ui.directory.DirectoryScreen
+import hu.autotherm.autocrm.ui.directory.DirectoryViewModel
+import hu.autotherm.autocrm.ui.emails.EmailComposeScreen
+import hu.autotherm.autocrm.ui.emails.EmailComposeViewModel
 import hu.autotherm.autocrm.ui.emails.EmailDetailScreen
 import hu.autotherm.autocrm.ui.emails.EmailDetailViewModel
 import hu.autotherm.autocrm.ui.emails.EmailListScreen
 import hu.autotherm.autocrm.ui.emails.EmailListViewModel
+import hu.autotherm.autocrm.ui.inspection.InspectionHomeScreen
+import hu.autotherm.autocrm.ui.inspection.InspectionHomeViewModel
+import hu.autotherm.autocrm.ui.inspection.InspectionServerScreen
+import hu.autotherm.autocrm.ui.inspection.InspectionServerViewModel
+import hu.autotherm.autocrm.ui.inspection.WalkaroundScreen
+import hu.autotherm.autocrm.ui.inspection.WalkaroundViewModel
 import hu.autotherm.autocrm.ui.leads.LeadDetailScreen
 import hu.autotherm.autocrm.ui.leads.LeadDetailViewModel
+import hu.autotherm.autocrm.ui.leads.LeadEditScreen
+import hu.autotherm.autocrm.ui.leads.LeadEditViewModel
 import hu.autotherm.autocrm.ui.leads.LeadListScreen
 import hu.autotherm.autocrm.ui.leads.LeadListViewModel
 import hu.autotherm.autocrm.ui.login.LoginScreen
 import hu.autotherm.autocrm.ui.login.LoginViewModel
 import hu.autotherm.autocrm.ui.orders.OrderDetailScreen
 import hu.autotherm.autocrm.ui.orders.OrderDetailViewModel
+import hu.autotherm.autocrm.ui.orders.OrderEditScreen
+import hu.autotherm.autocrm.ui.orders.OrderEditViewModel
 import hu.autotherm.autocrm.ui.orders.OrderListScreen
 import hu.autotherm.autocrm.ui.orders.OrderListViewModel
 import hu.autotherm.autocrm.ui.partners.PartnerDetailScreen
 import hu.autotherm.autocrm.ui.partners.PartnerDetailViewModel
-import hu.autotherm.autocrm.ui.partners.PartnerListScreen
-import hu.autotherm.autocrm.ui.partners.PartnerListViewModel
+import hu.autotherm.autocrm.ui.partners.PartnerEditScreen
+import hu.autotherm.autocrm.ui.partners.PartnerEditViewModel
 import hu.autotherm.autocrm.ui.photos.OrderPhotoViewModel
 import hu.autotherm.autocrm.ui.queue.QueueScreen
 import hu.autotherm.autocrm.ui.queue.QueueViewModel
+import hu.autotherm.autocrm.ui.reports.ReportsScreen
+import hu.autotherm.autocrm.ui.reports.ReportsViewModel
+import hu.autotherm.autocrm.ui.settings.AppearanceScreen
+import hu.autotherm.autocrm.ui.settings.AppearanceViewModel
 import hu.autotherm.autocrm.ui.server.ServerSetupScreen
 import hu.autotherm.autocrm.ui.server.ServerSetupViewModel
+import hu.autotherm.autocrm.ui.tasks.TasksScreen
+import hu.autotherm.autocrm.ui.tasks.TasksViewModel
 import hu.autotherm.autocrm.ui.theme.AutoCrmTheme
+import hu.autotherm.autocrm.ui.theme.Steel500
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -68,7 +113,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val app = application as AutoCrmApp
         setContent {
-            AutoCrmTheme {
+            val themeMode by app.themePrefs.mode.collectAsState(initial = ThemePrefs.MODE_SYSTEM)
+            val amoled by app.themePrefs.amoled.collectAsState(initial = false)
+            val dark = when (themeMode) {
+                ThemePrefs.MODE_LIGHT -> false
+                ThemePrefs.MODE_DARK -> true
+                else -> isSystemInDarkTheme()
+            }
+            AutoCrmTheme(darkTheme = dark, amoled = amoled) {
                 val server by app.serverStore.baseUrl.collectAsState(initial = null)
                 val account by app.sessionStore.account.collectAsState(initial = null)
                 var editingServer by rememberSaveable { mutableStateOf(false) }
@@ -76,7 +128,7 @@ class MainActivity : ComponentActivity() {
                 when {
                     // Nothing can be asked of the user before the app knows where to ask it.
                     server == null || editingServer -> ServerSetupScreen(
-                        viewModel = viewModel { ServerSetupViewModel(app.serverStore, app.api) },
+                        viewModel = viewModel { ServerSetupViewModel(app.serverStore, app.api, app.sessionStore) },
                         onSaved = { editingServer = false },
                         onCancel = if (server != null) ({ editingServer = false }) else null,
                     )
@@ -91,7 +143,7 @@ class MainActivity : ComponentActivity() {
                         onSignedIn = { /* the account flow re-composes this away */ },
                     )
 
-                    else -> AppScaffold(app)
+                    else -> AppScaffold(app, account!!)
                 }
             }
         }
@@ -99,62 +151,167 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * The same sections as the web client's sidebar, minus the ones that need a wide screen.
- *
- * Orders first, because that is where the work is. There is no camera tab: photographing
- * happens inside a job, through the phone's own camera app — a photo belongs to a vehicle,
- * and choosing the job afterwards is how photos end up on the wrong one.
+ * Every section in one drawer: orders and leads for the work, the Névjegyzék for
+ * people, emails, the fitter's own tasks, the Monday numbers, and the upload queue.
+ * Detail and editor routes are not destinations — they open on top and highlight
+ * their parent section.
  */
-private sealed class Tab(val route: String, val label: String, val icon: ImageVector) {
-    data object Orders : Tab("orders", "Munkák", Icons.Filled.Inventory2)
-    data object Leads : Tab("leads", "Leadek", Icons.Filled.TrackChanges)
-    data object Partners : Tab("partners", "Ügyfelek", Icons.Filled.People)
-    data object Emails : Tab("emails", "E-mailek", Icons.Filled.Email)
-    data object Queue : Tab("queue", "Sor", Icons.Filled.Upload)
+private sealed class Destination(val route: String, val label: String, val icon: ImageVector) {
+    data object Orders : Destination("orders", "Munkák", Icons.Filled.Build)
+    data object Leads : Destination("leads", "Leadek", Icons.AutoMirrored.Filled.TrendingUp)
+    data object Directory : Destination("directory", "Névjegyzék", Icons.Filled.Contacts)
+    data object Emails : Destination("emails", "E-mailek", Icons.Filled.Email)
+    data object Tasks : Destination("tasks", "Feladatok", Icons.Filled.Checklist)
+    data object Reports : Destination("reports", "Jelentések", Icons.Filled.BarChart)
+    data object Queue : Destination("queue", "Sor", Icons.Filled.CloudUpload)
+    data object Settings : Destination("settings", "Beállítások", Icons.Filled.Settings)
 }
 
-private val TABS = listOf(Tab.Orders, Tab.Leads, Tab.Partners, Tab.Emails, Tab.Queue)
+private val DESTINATIONS = listOf(
+    Destination.Orders,
+    Destination.Leads,
+    Destination.Directory,
+    Destination.Emails,
+    Destination.Tasks,
+    Destination.Reports,
+    Destination.Queue,
+    Destination.Settings,
+)
+
+/** Which drawer section a route (including detail/editor routes) belongs to. */
+private fun parentOf(route: String?): Destination = when {
+    route == null -> Destination.Orders
+    route.startsWith("order") -> Destination.Orders
+    route.startsWith("lead") -> Destination.Leads
+    route.startsWith("partner") || route.startsWith("directory") -> Destination.Directory
+    route.startsWith("email") -> Destination.Emails
+    route.startsWith("task") -> Destination.Tasks
+    route.startsWith("report") -> Destination.Reports
+    route.startsWith("queue") -> Destination.Queue
+    // Inspection walkaround/history always opens from an order.
+    route.startsWith("inspection") -> Destination.Orders
+    else -> Destination.Orders
+}
 
 @Composable
-private fun AppScaffold(app: AutoCrmApp) {
+private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
     val navController = rememberNavController()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
     val outstanding by app.uploadQueue.outstanding.collectAsState(initial = 0)
     val blocked by app.uploadQueue.blocked.collectAsState(initial = 0)
+    val canEdit = account.canEdit
+    val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
+    var confirmLogout by rememberSaveable { mutableStateOf(false) }
+    // A cancelled logout must not stay armed: reopening the drawer starts over.
+    LaunchedEffect(drawerState.isClosed) {
+        if (drawerState.isClosed) confirmLogout = false
+    }
 
-    Scaffold(
-        bottomBar = {
-            val entry by navController.currentBackStackEntryAsState()
-            NavigationBar {
-                TABS.forEach { tab ->
-                    val selected = entry?.destination?.hierarchy?.any { it.route == tab.route } == true
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = { navController.navigateToTab(tab.route) },
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(Modifier.padding(16.dp)) {
+                    Text("AUTOTHERM", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        account.displayName,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(account.email, style = MaterialTheme.typography.labelMedium, color = Steel500)
+                }
+                HorizontalDivider()
+                val entry by navController.currentBackStackEntryAsState()
+                val current = parentOf(entry?.destination?.route)
+                DESTINATIONS.forEach { dest ->
+                    NavigationDrawerItem(
+                        label = { Text(dest.label) },
+                        selected = current == dest,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            navController.navigateToTop(dest.route)
+                        },
                         icon = {
-                            if (tab is Tab.Queue && (outstanding > 0 || blocked > 0)) {
-                                BadgedBox(badge = { Badge { Text("${outstanding + blocked}") } }) {
-                                    Icon(tab.icon, contentDescription = tab.label)
-                                }
-                            } else {
-                                Icon(tab.icon, contentDescription = tab.label)
+                            Icon(dest.icon, contentDescription = null)
+                        },
+                        badge = {
+                            if (dest is Destination.Queue && (outstanding > 0 || blocked > 0)) {
+                                Text("${outstanding + blocked}")
                             }
                         },
-                        label = { Text(tab.label) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                     )
                 }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                NavigationDrawerItem(
+                    label = { Text(if (confirmLogout) "Biztos? Koppints újra" else "Kijelentkezés") },
+                    selected = false,
+                    onClick = {
+                        if (confirmLogout) {
+                            scope.launch { drawerState.close() }
+                            // Best-effort server logout; the local session clears regardless
+                            // so a dead token never bricks the app.
+                            scope.launch {
+                                runCatching { app.api.logout() }
+                                app.sessionStore.clear()
+                            }
+                        } else confirmLogout = true
+                    },
+                    icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                )
+                Spacer(Modifier.height(8.dp))
             }
         },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            NavHost(navController = navController, startDestination = Tab.Orders.route) {
-                composable(Tab.Orders.route) {
-                    OrderListScreen(
-                        viewModel = viewModel { OrderListViewModel(app.api) },
-                        onOpen = { id -> navController.navigate("order/$id") },
-                    )
-                }
-                // "order/{id}", not "orders/{id}": a detail route sharing a prefix with a tab
-                // route makes the bottom bar's selected-state matching ambiguous.
+    ) {
+        NavHost(
+            navController = navController,
+            startDestination = Destination.Orders.route,
+            modifier = Modifier.fillMaxSize(),
+            // One motion language for the whole app: new screens slide in from the
+            // right and fade, leaving screens hold still and fade. Fast enough to
+            // feel instant on a shop floor (220ms), present enough to feel spatial.
+            enterTransition = {
+                slideInHorizontally(tween(220)) { it / 4 } + fadeIn(tween(220))
+            },
+            exitTransition = {
+                fadeOut(tween(180))
+            },
+            popEnterTransition = {
+                fadeIn(tween(180))
+            },
+            popExitTransition = {
+                slideOutHorizontally(tween(220)) { it / 4 } + fadeOut(tween(220))
+            },
+        ) {
+            composable(Destination.Orders.route) {
+                OrderListScreen(
+                    viewModel = viewModel { OrderListViewModel(app.api) },
+                    onOpen = { id -> navController.navigate("order/$id") },
+                    onMenu = openDrawer,
+                    canEdit = canEdit,
+                    onNewOrder = { navController.navigate("order/new/0") },
+                )
+            }
+            composable(
+                "order/new/{partnerId}",
+                arguments = listOf(navArgument("partnerId") { type = NavType.LongType }),
+            ) { entry ->
+                val partnerId = entry.arguments?.getLong("partnerId")?.takeIf { it > 0 }
+                OrderEditScreen(
+                    orderId = null,
+                    partnerId = partnerId,
+                    viewModel = viewModel { OrderEditViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSaved = { id ->
+                        navController.navigate("order/$id") {
+                            popUpTo("order/new/{partnerId}") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            // "order/{id}", not "orders/{id}": a detail route sharing a prefix with a tab
+            // route makes the selected-state matching ambiguous.
                 composable("order/{id}") { entry ->
                     val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                     OrderDetailScreen(
@@ -162,61 +319,262 @@ private fun AppScaffold(app: AutoCrmApp) {
                         viewModel = viewModel { OrderDetailViewModel(app.api, app.sessionStore) },
                         photoViewModel = viewModel { OrderPhotoViewModel(app.uploadQueue, app.capturePrefs) },
                         onOpenOrder = { other -> navController.navigate("order/$other") },
+                        onBack = { navController.popBackStack() },
+                        onEditOrder = { navController.navigate("order/$id/edit") },
+                        onComposeEmail = { navController.navigate("email/new?orderId=$id") },
+                        onInspections = { navController.navigate("inspections/$id") },
                     )
                 }
-                composable(Tab.Leads.route) {
-                    LeadListScreen(
-                        viewModel = viewModel { LeadListViewModel(app.api) },
-                        onOpen = { id -> navController.navigate("lead/$id") },
-                    )
-                }
-                composable("lead/{id}") { entry ->
-                    val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
-                    LeadDetailScreen(
-                        leadId = id,
-                        viewModel = viewModel { LeadDetailViewModel(app.api) },
-                        onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
-                    )
-                }
-                composable(Tab.Partners.route) {
-                    PartnerListScreen(
-                        viewModel = viewModel { PartnerListViewModel(app.api) },
-                        onOpenPartner = { id -> navController.navigate("partner/$id") },
-                    )
-                }
-                composable("partner/{id}") { entry ->
-                    val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
-                    PartnerDetailScreen(
-                        partnerId = id,
-                        viewModel = viewModel { PartnerDetailViewModel(app.api) },
-                        onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
-                        onOpenLead = { leadId -> navController.navigate("lead/$leadId") },
-                    )
-                }
-                composable(Tab.Emails.route) {
-                    EmailListScreen(
-                        viewModel = viewModel { EmailListViewModel(app.api) },
-                        onOpen = { id -> navController.navigate("email/$id") },
-                    )
-                }
-                composable("email/{id}") { entry ->
-                    val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
-                    EmailDetailScreen(
-                        emailId = id,
-                        viewModel = viewModel { EmailDetailViewModel(app.api) },
-                        onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
-                    )
-                }
-                composable(Tab.Queue.route) {
-                    QueueScreen(viewModel = viewModel { QueueViewModel(app.uploadQueue) })
-                }
+            composable("order/{id}/edit") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                OrderEditScreen(
+                    orderId = id,
+                    partnerId = null,
+                    viewModel = viewModel { OrderEditViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSaved = {
+                        navController.navigate("order/$id") {
+                            popUpTo("order/{id}/edit") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(Destination.Leads.route) {
+                LeadListScreen(
+                    viewModel = viewModel { LeadListViewModel(app.api) },
+                    onOpen = { id -> navController.navigate("lead/$id") },
+                    onMenu = openDrawer,
+                    canEdit = canEdit,
+                    onNewLead = { navController.navigate("lead/new/0") },
+                )
+            }
+            composable(
+                "lead/new/{partnerId}",
+                arguments = listOf(navArgument("partnerId") { type = NavType.LongType }),
+            ) { entry ->
+                val partnerId = entry.arguments?.getLong("partnerId")?.takeIf { it > 0 }
+                LeadEditScreen(
+                    leadId = null,
+                    partnerId = partnerId,
+                    viewModel = viewModel { LeadEditViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSaved = { id ->
+                        navController.navigate("lead/$id") {
+                            popUpTo("lead/new/{partnerId}") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable("lead/{id}") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                LeadDetailScreen(
+                    leadId = id,
+                    viewModel = viewModel { LeadDetailViewModel(app.api) },
+                    onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
+                    onBack = { navController.popBackStack() },
+                    canEdit = canEdit,
+                    onEditLead = { navController.navigate("lead/$id/edit") },
+                    onConverted = { orderId ->
+                        navController.navigate("order/$orderId") {
+                            popUpTo("lead/{id}") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable("lead/{id}/edit") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                LeadEditScreen(
+                    leadId = id,
+                    partnerId = null,
+                    viewModel = viewModel { LeadEditViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSaved = {
+                        navController.navigate("lead/$id") {
+                            popUpTo("lead/{id}/edit") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(Destination.Directory.route) {
+                DirectoryScreen(
+                    viewModel = viewModel { DirectoryViewModel(app.api) },
+                    canEdit = canEdit,
+                    onMenu = openDrawer,
+                    onOpenPartner = { id -> navController.navigate("partner/$id") },
+                    onNewPartner = { navController.navigate("partner/new") },
+                    onEditPartner = { id -> navController.navigate("partner/$id/edit") },
+                )
+            }
+            composable("partner/new") {
+                PartnerEditScreen(
+                    partnerId = null,
+                    viewModel = viewModel { PartnerEditViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSaved = { id ->
+                        navController.navigate("partner/$id") {
+                            popUpTo("partner/new") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable("partner/{id}") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                PartnerDetailScreen(
+                    partnerId = id,
+                    viewModel = viewModel { PartnerDetailViewModel(app.api) },
+                    onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
+                    onOpenLead = { leadId -> navController.navigate("lead/$leadId") },
+                    onBack = { navController.popBackStack() },
+                    canEdit = canEdit,
+                    onEditPartner = { navController.navigate("partner/$id/edit") },
+                    onNewOrder = { pid -> navController.navigate("order/new/$pid") },
+                    onNewLead = { pid -> navController.navigate("lead/new/$pid") },
+                )
+            }
+            composable("partner/{id}/edit") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                PartnerEditScreen(
+                    partnerId = id,
+                    viewModel = viewModel { PartnerEditViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSaved = {
+                        navController.navigate("partner/$id") {
+                            popUpTo("partner/{id}/edit") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(Destination.Emails.route) {
+                EmailListScreen(
+                    viewModel = viewModel { EmailListViewModel(app.api) },
+                    onOpen = { id -> navController.navigate("email/$id") },
+                    onMenu = openDrawer,
+                    canEdit = canEdit,
+                    onCompose = { navController.navigate("email/new") },
+                )
+            }
+            composable(
+                "email/new?orderId={orderId}&leadId={leadId}",
+                arguments = listOf(
+                    navArgument("orderId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("leadId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                ),
+            ) { entry ->
+                val orderId = entry.arguments?.getString("orderId")?.toLongOrNull()
+                val leadId = entry.arguments?.getString("leadId")?.toLongOrNull()
+                EmailComposeScreen(
+                    orderId = orderId,
+                    leadId = leadId,
+                    viewModel = viewModel { EmailComposeViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSent = { id ->
+                        navController.popBackStack()
+                        navController.navigate("email/$id")
+                    },
+                )
+            }
+            composable("email/{id}") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                EmailDetailScreen(
+                    emailId = id,
+                    viewModel = viewModel { EmailDetailViewModel(app.api) },
+                    onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Destination.Tasks.route) {
+                TasksScreen(
+                    viewModel = viewModel { TasksViewModel(app.api) },
+                    onMenu = openDrawer,
+                    onOpenTask = { entity, id ->
+                        when (entity) {
+                            "order" -> navController.navigate("order/$id")
+                            "lead" -> navController.navigate("lead/$id")
+                            "partner" -> navController.navigate("partner/$id")
+                        }
+                    },
+                )
+            }
+            composable(Destination.Reports.route) {
+                ReportsScreen(
+                    viewModel = viewModel { ReportsViewModel(app.api) },
+                    onMenu = openDrawer,
+                    onOpenOrder = { id -> navController.navigate("order/$id") },
+                )
+            }
+            composable(Destination.Queue.route) {
+                QueueScreen(
+                    viewModel = viewModel { QueueViewModel(app.uploadQueue, app.api, app.sessionStore) },
+                    onMenu = openDrawer,
+                )
+            }
+            composable(Destination.Settings.route) {
+                AppearanceScreen(
+                    viewModel = viewModel { AppearanceViewModel(app.themePrefs) },
+                    onMenu = openDrawer,
+                )
+            }
+            // ── Handover inspections: phone-only creation, read everywhere ──
+            composable("inspections/{orderId}") { entry ->
+                val orderId = entry.arguments?.getString("orderId")?.toLongOrNull()
+                    ?: return@composable
+                InspectionHomeScreen(
+                    orderId = orderId,
+                    viewModel = viewModel { InspectionHomeViewModel(app) },
+                    canInspect = account.canChangeStage,
+                    onBack = { navController.popBackStack() },
+                    onStart = { kind -> navController.navigate("inspection/new/$orderId/$kind") },
+                    onResume = { uuid -> navController.navigate("inspection/walk/$uuid") },
+                    onOpenServer = { id -> navController.navigate("inspection/$id") },
+                )
+            }
+            composable("inspection/new/{orderId}/{kind}") { entry ->
+                val orderId = entry.arguments?.getString("orderId")?.toLongOrNull()
+                    ?: return@composable
+                val kind = entry.arguments?.getString("kind")?.takeIf {
+                    it == "checkout" || it == "checkin"
+                } ?: return@composable
+                WalkaroundScreen(
+                    uuid = null,
+                    orderId = orderId,
+                    kind = kind,
+                    viewModel = viewModel { WalkaroundViewModel(app) },
+                    onExit = { navController.popBackStack() },
+                )
+            }
+            composable("inspection/walk/{uuid}") { entry ->
+                val uuid = entry.arguments?.getString("uuid") ?: return@composable
+                WalkaroundScreen(
+                    uuid = uuid,
+                    orderId = 0,
+                    kind = "checkout",
+                    viewModel = viewModel { WalkaroundViewModel(app) },
+                    onExit = { navController.popBackStack() },
+                )
+            }
+            composable("inspection/{id}") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                InspectionServerScreen(
+                    inspectionId = id,
+                    viewModel = viewModel { InspectionServerViewModel(app) },
+                    canAnnotate = account.canChangeStage,
+                    onBack = { navController.popBackStack() },
+                )
             }
         }
     }
 }
 
-/** Tab switching that does not stack twenty copies of a list on the back stack. */
-private fun NavHostController.navigateToTab(route: String) {
+/** Drawer switching that does not stack twenty copies of a list on the back stack. */
+private fun NavHostController.navigateToTop(route: String) {
     navigate(route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true

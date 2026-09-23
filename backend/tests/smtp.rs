@@ -137,6 +137,7 @@ fn nudge() -> OutgoingEmail {
         reply_to: Some("iroda@autotherm.hu".into()),
         to: "michael@supplier.example".into(),
         cc: vec!["anna@supplier.example".into()],
+        bcc: vec![],
         subject: "Reminder: ATP certificate".into(),
         body_text: "Please send the ATP certificate.".into(),
         body_html: "<html><body><p>Please send the ATP certificate.</p></body></html>".into(),
@@ -276,7 +277,10 @@ async fn staff_send_as_themselves_through_the_queue(pool: PgPool) {
             template_key: None,
             subject: Some("Árajánlat".into()),
             body: Some("Tisztelt Ügyfél!\n\nMellékelten küldjük.\n\n{{user.name}}".into()),
+            body_markdown: false,
+            hero: None,
             attachment_document_ids: vec![],
+            embed_document_ids: vec![],
         },
     )
     .await

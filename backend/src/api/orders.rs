@@ -155,6 +155,20 @@ pub struct OrderBody {
     pub related_order_id: Option<i64>,
     /// `warranty` | `rework` | `repeat`.
     pub relation: Option<String>,
+    /// Intake slip: odometer at takeover (km). Leaving `intake` requires it.
+    pub mileage_in: Option<i32>,
+    /// Intake slip: visible condition notes at takeover.
+    pub intake_condition: Option<String>,
+    /// Intake slip: fuel gauge at takeover — `E`, `1/4`, `1/2`, `3/4` or `F`.
+    pub fuel_level: Option<String>,
+    /// Intake slip: how many keys were handed over.
+    pub key_count: Option<i32>,
+    /// Intake slip: whether anyone answered the valuables question. Absent means nobody
+    /// did, which is not the same as `false` — "we never asked" is not a defence.
+    pub valuables_declared: Option<bool>,
+    /// Intake slip: what was left in the vehicle. Only meaningful with
+    /// `valuables_declared = true`, and rejected without it.
+    pub valuables: Option<String>,
     /// The build specification, when the chosen project type asks for one. Written in the
     /// same transaction as the order so a failed second request cannot leave a build with
     /// no spec.
@@ -244,6 +258,42 @@ async fn required_form(
     }
 }
 
+/// The five marks on a fuel gauge, matching the CHECK in 0019_intake_extras.sql. A value
+/// the database would reject should come back as a field error, not a 500.
+const FUEL_LEVELS: [&str; 5] = ["E", "1/4", "1/2", "3/4", "F"];
+
+fn fuel_level(value: Option<String>) -> AppResult<Option<String>> {
+    match optional(value) {
+        Some(v) if !FUEL_LEVELS.contains(&v.as_str()) => Err(AppError::validation(
+            "fuel_level must be one of E, 1/4, 1/2, 3/4, F",
+        )),
+        v => Ok(v),
+    }
+}
+
+/// A description of what is in the car only means something next to a tick saying there
+/// is something in the car; the database enforces the same pairing.
+fn valuables(
+    declared: Option<bool>,
+    text: Option<String>,
+) -> AppResult<(Option<bool>, Option<String>)> {
+    let text = optional(text);
+    if text.is_some() && declared != Some(true) {
+        return Err(AppError::validation(
+            "valuables requires valuables_declared = true",
+        ));
+    }
+    Ok((declared, text))
+}
+
+/// Keys are counted, so zero is a real answer and a negative one is a typo.
+fn key_count(value: Option<i32>) -> AppResult<Option<i32>> {
+    match value {
+        Some(k) if k < 0 => Err(AppError::validation("key_count cannot be negative")),
+        k => Ok(k),
+    }
+}
+
 pub fn fields_from_body(
     b: OrderBody,
     partner_id: i64,
@@ -251,6 +301,7 @@ pub fn fields_from_body(
     title_fallback: Option<String>,
 ) -> AppResult<(OrderFields, Vec<NewItem>)> {
     let title = optional(b.title).or(title_fallback).unwrap_or_default();
+    let valuables_pair = valuables(b.valuables_declared, b.valuables)?;
     let fields = OrderFields {
         title: required("title", &title)?,
         partner_id,
@@ -267,6 +318,17 @@ pub fn fields_from_body(
         assigned_to: b.assigned_to,
         related_order_id: b.related_order_id,
         relation: optional(b.relation),
+        mileage_in: match b.mileage_in {
+            Some(m) if m < 0 => {
+                return Err(AppError::validation("mileage_in cannot be negative"))
+            }
+            m => m,
+        },
+        intake_condition: optional(b.intake_condition),
+        fuel_level: fuel_level(b.fuel_level)?,
+        key_count: key_count(b.key_count)?,
+        valuables_declared: valuables_pair.0,
+        valuables: valuables_pair.1,
     };
     let items = b
         .items
@@ -493,6 +555,18 @@ struct PatchOrder {
     related_order_id: Option<Option<i64>>,
     #[serde(default, deserialize_with = "patch_field")]
     relation: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    mileage_in: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    intake_condition: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    fuel_level: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    key_count: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    valuables_declared: Option<Option<bool>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    valuables: Option<Option<String>>,
 }
 
 #[utoipa::path(
@@ -514,6 +588,12 @@ async fn update(
         .ok_or(AppError::NotFound("order"))?;
 
     let partner_changed = p.partner_id.is_some_and(|pid| pid != current.partner_id);
+    // Resolved together: unticking the box in the same request that leaves the old
+    // description behind would otherwise trip the database's CHECK as a 500.
+    let valuables_pair = valuables(
+        p.valuables_declared.unwrap_or(current.valuables_declared),
+        patch_text(&current.valuables, p.valuables),
+    )?;
     let title = p.title.unwrap_or_else(|| current.title.clone());
     let fields = OrderFields {
         title: required("title", &title)?,
@@ -540,6 +620,18 @@ async fn update(
         assigned_to: p.assigned_to.unwrap_or(current.assigned_to),
         related_order_id: p.related_order_id.unwrap_or(current.related_order_id),
         relation: patch_text(&current.relation, p.relation),
+        mileage_in: match p.mileage_in {
+            Some(Some(m)) if m < 0 => {
+                return Err(AppError::validation("mileage_in cannot be negative"))
+            }
+            Some(v) => v,
+            None => current.mileage_in,
+        },
+        intake_condition: patch_text(&current.intake_condition, p.intake_condition),
+        fuel_level: fuel_level(patch_text(&current.fuel_level, p.fuel_level))?,
+        key_count: key_count(p.key_count.unwrap_or(current.key_count))?,
+        valuables_declared: valuables_pair.0,
+        valuables: valuables_pair.1,
     };
     if fields.currency != current.currency && order_items::count(&mut *tx, id).await? > 0 {
         return Err(AppError::rule(
@@ -606,6 +698,42 @@ async fn update(
             "assigned_to",
             json!(current.assigned_to),
             json!(updated.assigned_to),
+        ),
+        (
+            "related_order_id",
+            json!(current.related_order_id),
+            json!(updated.related_order_id),
+        ),
+        ("relation", json!(current.relation), json!(updated.relation)),
+        (
+            "mileage_in",
+            json!(current.mileage_in),
+            json!(updated.mileage_in),
+        ),
+        (
+            "intake_condition",
+            json!(current.intake_condition),
+            json!(updated.intake_condition),
+        ),
+        (
+            "fuel_level",
+            json!(current.fuel_level),
+            json!(updated.fuel_level),
+        ),
+        (
+            "key_count",
+            json!(current.key_count),
+            json!(updated.key_count),
+        ),
+        (
+            "valuables_declared",
+            json!(current.valuables_declared),
+            json!(updated.valuables_declared),
+        ),
+        (
+            "valuables",
+            json!(current.valuables),
+            json!(updated.valuables),
         ),
     ]);
     audit::record(&mut *tx, Some(me.user_id), "order", id, "update", changes).await?;

@@ -2,7 +2,6 @@ package hu.autotherm.autocrm.data.api
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 
 /**
  * The wire shapes, mirroring `openapi/openapi.json`.
@@ -298,9 +297,19 @@ data class UploadRequest(
 data class PresignedRequest(
     @SerialName("method") val method: String,
     @SerialName("url") val url: String,
+    /**
+     * `[name, value]` pairs, exactly as the API signs them. A JSON array, not an
+     * object: decoding this as a Map broke every ticketed upload with
+     * "expected start of the object, but had '['".
+     */
+    @SerialName("headers") val headerPairs: List<List<String>> = emptyList(),
+) {
     /** Every header here is part of the signature: send them all, add nothing. */
-    @SerialName("headers") val headers: Map<String, String> = emptyMap(),
-)
+    val headers: Map<String, String>
+        get() = headerPairs.mapNotNull { pair ->
+            if (pair.size >= 2) pair[0] to pair[1] else null
+        }.toMap()
+}
 
 /**
  * `status` is the discriminator: `upload` means do the PUT, `already_uploaded` means this
@@ -324,7 +333,13 @@ data class CompleteBody(@SerialName("ticket") val ticket: String)
 data class Completed(
     @SerialName("type") val type: String,
     @SerialName("image") val image: ImageView? = null,
+    @SerialName("document") val document: CompletedDocument? = null,
     @SerialName("created") val created: Boolean = false,
+)
+
+@Serializable
+data class CompletedDocument(
+    @SerialName("id") val id: Long,
 )
 
 // ── Email ───────────────────────────────────────────────────────────────────────────
@@ -453,6 +468,332 @@ data class LeadDetail(
     @SerialName("orders") val orders: List<OrderRef> = emptyList(),
 )
 
+// ── Write bodies ────────────────────────────────────────────────────────────────
+// PATCH semantics (backend): a field omitted is kept, explicit null clears it. The
+// client's `explicitNulls = false` omits every null, so "clear" is expressed by
+// simply not sending — clearing a field from the phone is not supported, by design.
+
+@Serializable
+data class PartnerBody(
+    @SerialName("kind") val kind: String? = null,
+    @SerialName("name") val name: String? = null,
+    @SerialName("tax_number") val taxNumber: String? = null,
+    @SerialName("country") val country: String? = null,
+    @SerialName("email") val email: String? = null,
+    @SerialName("phone") val phone: String? = null,
+    @SerialName("city") val city: String? = null,
+    @SerialName("address_line") val addressLine: String? = null,
+    @SerialName("notes") val notes: String? = null,
+    @SerialName("role") val role: String? = null,
+)
+
+@Serializable
+data class ContactBody(
+    @SerialName("name") val name: String? = null,
+    @SerialName("email") val email: String? = null,
+    @SerialName("phone") val phone: String? = null,
+    @SerialName("position") val position: String? = null,
+    @SerialName("notes") val notes: String? = null,
+)
+
+@Serializable
+data class LeadBody(
+    @SerialName("title") val title: String? = null,
+    @SerialName("partner_id") val partnerId: Long? = null,
+    @SerialName("contact_name") val contactName: String? = null,
+    @SerialName("contact_email") val contactEmail: String? = null,
+    @SerialName("contact_phone") val contactPhone: String? = null,
+    @SerialName("source") val source: String? = null,
+    @SerialName("description") val description: String? = null,
+    @SerialName("quoted_value_minor") val quotedValueMinor: Long? = null,
+    @SerialName("currency") val currency: String? = null,
+    @SerialName("quote_valid_until") val quoteValidUntil: String? = null,
+)
+
+@Serializable
+data class OrderBody(
+    @SerialName("title") val title: String? = null,
+    @SerialName("partner_id") val partnerId: Long? = null,
+    @SerialName("project_type_id") val projectTypeId: Long? = null,
+    @SerialName("currency") val currency: String? = null,
+    @SerialName("valuation_date") val valuationDate: String? = null,
+    @SerialName("vehicle_make") val vehicleMake: String? = null,
+    @SerialName("vehicle_model") val vehicleModel: String? = null,
+    @SerialName("vehicle_plate") val vehiclePlate: String? = null,
+    @SerialName("vehicle_vin") val vehicleVin: String? = null,
+    @SerialName("description") val description: String? = null,
+    @SerialName("due_date") val dueDate: String? = null,
+)
+
+@Serializable
+data class TaskBody(
+    @SerialName("entity_type") val entityType: String,
+    @SerialName("entity_id") val entityId: Long,
+    @SerialName("title") val title: String,
+    @SerialName("due_date") val dueDate: String? = null,
+)
+
+@Serializable
+data class Task(
+    @SerialName("id") val id: Long,
+    @SerialName("entity_type") val entityType: String,
+    @SerialName("entity_id") val entityId: Long,
+    @SerialName("title") val title: String,
+    @SerialName("due_date") val dueDate: String? = null,
+    @SerialName("done_at") val doneAt: String? = null,
+    @SerialName("assigned_name") val assignedName: String? = null,
+) {
+    val isDone: Boolean get() = doneAt != null
+}
+
+@Serializable
+data class DoneBody(@SerialName("done") val done: Boolean)
+
+@Serializable
+data class BlockerBody(
+    @SerialName("what") val what: String? = null,
+    @SerialName("responsible_email") val responsibleEmail: String? = null,
+    @SerialName("due_date") val dueDate: String? = null,
+    @SerialName("notes") val notes: String? = null,
+)
+
+@Serializable
+data class ResolveBody(@SerialName("note") val note: String? = null)
+
+@Serializable
+data class AddItemBody(
+    @SerialName("description") val description: String,
+    @SerialName("quantity") val quantity: String,
+    @SerialName("unit_price") val unitPrice: Long,
+)
+
+@Serializable
+data class ComposeBody(
+    @SerialName("order_id") val orderId: Long? = null,
+    @SerialName("lead_id") val leadId: Long? = null,
+    @SerialName("to") val to: String,
+    @SerialName("subject") val subject: String? = null,
+    @SerialName("body") val body: String? = null,
+)
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+@Serializable
+data class WorkloadDay(
+    @SerialName("date") val date: String,
+    @SerialName("placed") val placed: Long,
+    @SerialName("completed") val completed: Long,
+    @SerialName("in_workshop") val inWorkshop: Long,
+)
+
+@Serializable
+data class WorkloadReport(
+    @SerialName("from") val from: String,
+    @SerialName("to") val to: String,
+    @SerialName("days") val days: List<WorkloadDay> = emptyList(),
+)
+
+@Serializable
+data class StalledOrder(
+    @SerialName("order_id") val orderId: Long,
+    @SerialName("number") val number: String,
+    @SerialName("title") val title: String,
+    @SerialName("partner_name") val partnerName: String,
+    @SerialName("stage_key") val stageKey: String,
+    @SerialName("stage_label") val stageLabel: String,
+    @SerialName("days_in_stage") val daysInStage: Int,
+    @SerialName("open_blockers") val openBlockers: Long = 0,
+)
+
+// ── Handover inspections (átadás-átvétel) ───────────────────────────────────────
+// Order-linked check-out / check-in damage record. Created on the phone (guided
+// walkaround), read everywhere. Photos ride the normal upload queue with category
+// `inspection` and are attached with zone + purpose + capture metadata.
+
+@Serializable
+data class Inspection(
+    @SerialName("id") val id: Long,
+    @SerialName("order_id") val orderId: Long,
+    @SerialName("kind") val kind: String,
+    @SerialName("status") val status: String,
+    @SerialName("vehicle_plate") val vehiclePlate: String,
+    @SerialName("vehicle_vin") val vehicleVin: String? = null,
+    @SerialName("inspector_name") val inspectorName: String,
+    @SerialName("driver_name") val driverName: String? = null,
+    @SerialName("location") val location: String? = null,
+    @SerialName("odometer") val odometer: Int? = null,
+    @SerialName("fuel_level") val fuelLevel: String? = null,
+    @SerialName("battery_pct") val batteryPct: Int? = null,
+    @SerialName("warning_lights") val warningLights: String? = null,
+    @SerialName("checkout_id") val checkoutId: Long? = null,
+    @SerialName("customer_comment") val customerComment: String? = null,
+    @SerialName("signed_at") val signedAt: String? = null,
+    @SerialName("created_by") val createdBy: Long,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+)
+
+@Serializable
+data class InspectionPhoto(
+    @SerialName("id") val id: Long,
+    @SerialName("inspection_id") val inspectionId: Long,
+    @SerialName("image_id") val imageId: Long,
+    @SerialName("zone_key") val zoneKey: String,
+    @SerialName("purpose") val purpose: String,
+    @SerialName("damage_id") val damageId: Long? = null,
+    @SerialName("taken_at") val takenAt: String,
+    @SerialName("lat") val lat: Double? = null,
+    @SerialName("lon") val lon: Double? = null,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("thumb_url") val thumbUrl: String? = null,
+    @SerialName("display_url") val displayUrl: String? = null,
+)
+
+@Serializable
+data class InspectionDamage(
+    @SerialName("id") val id: Long,
+    @SerialName("inspection_id") val inspectionId: Long,
+    @SerialName("zone_key") val zoneKey: String,
+    @SerialName("damage_type") val damageType: String,
+    @SerialName("severity") val severity: String,
+    @SerialName("note") val note: String? = null,
+    @SerialName("x") val x: Double? = null,
+    @SerialName("y") val y: Double? = null,
+    @SerialName("view") val view: String,
+    @SerialName("created_at") val createdAt: String,
+)
+
+@Serializable
+data class InspectionVerdict(
+    @SerialName("id") val id: Long,
+    @SerialName("checkin_id") val checkinId: Long,
+    @SerialName("checkin_damage_id") val checkinDamageId: Long,
+    @SerialName("checkout_damage_id") val checkoutDamageId: Long? = null,
+    @SerialName("verdict") val verdict: String,
+    @SerialName("note") val note: String? = null,
+    @SerialName("reviewed_by") val reviewedBy: Long,
+    @SerialName("reviewed_at") val reviewedAt: String,
+    @SerialName("created_at") val createdAt: String,
+)
+
+@Serializable
+data class InspectionSignature(
+    @SerialName("id") val id: Long,
+    @SerialName("inspection_id") val inspectionId: Long,
+    @SerialName("role") val role: String,
+    @SerialName("name") val name: String,
+    @SerialName("document_id") val documentId: Long,
+    @SerialName("signed_at") val signedAt: String,
+    @SerialName("created_at") val createdAt: String,
+)
+
+@Serializable
+data class InspectionNote(
+    @SerialName("id") val id: Long,
+    @SerialName("inspection_id") val inspectionId: Long,
+    @SerialName("body") val body: String,
+    @SerialName("created_by") val createdBy: Long,
+    @SerialName("created_at") val createdAt: String,
+)
+
+@Serializable
+data class InspectionDetail(
+    @SerialName("inspection") val inspection: Inspection,
+    @SerialName("photos") val photos: List<InspectionPhoto> = emptyList(),
+    @SerialName("damages") val damages: List<InspectionDamage> = emptyList(),
+    @SerialName("verdicts") val verdicts: List<InspectionVerdict> = emptyList(),
+    @SerialName("signatures") val signatures: List<InspectionSignature> = emptyList(),
+    @SerialName("notes") val notes: List<InspectionNote> = emptyList(),
+)
+
+@Serializable
+data class InspectionBody(
+    @SerialName("order_id") val orderId: Long? = null,
+    @SerialName("kind") val kind: String? = null,
+    @SerialName("vehicle_plate") val vehiclePlate: String? = null,
+    @SerialName("vehicle_vin") val vehicleVin: String? = null,
+    @SerialName("inspector_name") val inspectorName: String? = null,
+    @SerialName("driver_name") val driverName: String? = null,
+    @SerialName("location") val location: String? = null,
+    @SerialName("odometer") val odometer: Int? = null,
+    @SerialName("fuel_level") val fuelLevel: String? = null,
+    @SerialName("battery_pct") val batteryPct: Int? = null,
+    @SerialName("warning_lights") val warningLights: String? = null,
+    @SerialName("customer_comment") val customerComment: String? = null,
+)
+
+@Serializable
+data class AttachPhotoBody(
+    @SerialName("image_id") val imageId: Long,
+    @SerialName("zone_key") val zoneKey: String,
+    @SerialName("purpose") val purpose: String,
+    @SerialName("damage_id") val damageId: Long? = null,
+    @SerialName("taken_at") val takenAt: String,
+    @SerialName("lat") val lat: Double? = null,
+    @SerialName("lon") val lon: Double? = null,
+)
+
+@Serializable
+data class DamageBody(
+    @SerialName("zone_key") val zoneKey: String,
+    @SerialName("damage_type") val damageType: String,
+    @SerialName("severity") val severity: String,
+    @SerialName("note") val note: String? = null,
+    @SerialName("x") val x: Double? = null,
+    @SerialName("y") val y: Double? = null,
+    @SerialName("view") val view: String = "top",
+)
+
+@Serializable
+data class SignatureBody(
+    @SerialName("role") val role: String,
+    @SerialName("name") val name: String,
+    @SerialName("document_id") val documentId: Long,
+)
+
+@Serializable
+data class SignBody(
+    @SerialName("customer_comment") val customerComment: String? = null,
+)
+
+@Serializable
+data class VerdictBody(
+    @SerialName("checkin_damage_id") val checkinDamageId: Long,
+    @SerialName("checkout_damage_id") val checkoutDamageId: Long? = null,
+    @SerialName("verdict") val verdict: String,
+    @SerialName("note") val note: String? = null,
+)
+
+@Serializable
+data class InspectionNoteBody(
+    @SerialName("body") val body: String,
+)
+
+@Serializable
+data class ZoneTemplate(
+    @SerialName("id") val id: Long,
+    @SerialName("set_key") val setKey: String,
+    @SerialName("zone_key") val zoneKey: String,
+    @SerialName("position") val position: Int,
+    @SerialName("instruction") val instruction: String,
+    @SerialName("optional") val optional: Boolean,
+    @SerialName("required") val required: Boolean,
+)
+
+@Serializable
+data class DamageSuggestion(
+    @SerialName("checkin_damage_id") val checkinDamageId: Long,
+    @SerialName("checkout_damage_id") val checkoutDamageId: Long? = null,
+    @SerialName("suggested") val suggested: String,
+)
+
+@Serializable
+data class Comparison(
+    @SerialName("checkin") val checkin: InspectionDetail,
+    @SerialName("checkout") val checkout: InspectionDetail,
+    @SerialName("suggestions") val suggestions: List<DamageSuggestion> = emptyList(),
+)
+
 // ── Configuration ───────────────────────────────────────────────────────────────────
 
 @Serializable
@@ -478,10 +819,14 @@ data class ProjectType(
     @SerialName("spec_form") val specForm: String? = null,
 )
 
-/** The API's error envelope. `details` shape varies by code, so it stays raw JSON. */
+/** The API's error envelope (backend/src/error.rs): `{"error": {"code", "message"}}`. */
 @Serializable
 data class ApiErrorBody(
-    @SerialName("error") val error: String,
+    @SerialName("error") val error: ErrorDetail,
+)
+
+@Serializable
+data class ErrorDetail(
+    @SerialName("code") val code: String,
     @SerialName("message") val message: String? = null,
-    @SerialName("details") val details: JsonElement? = null,
 )

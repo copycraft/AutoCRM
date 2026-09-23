@@ -141,6 +141,72 @@ class OpenApiContractTest {
     }
 
     @Test
+    fun `the error envelope still carries a machine readable code`() {
+        // The phone routes 409/422/400 by code (stage_gate gets its own explainer); if the
+        // envelope flattens, every refusal degrades to a generic validation line.
+        assertHasFields("ErrorBody", "error")
+        assertHasFields("ErrorDetail", "code", "message")
+    }
+
+    @Test
+    fun `the write paths the phone now uses still exist`() {
+        val paths = document["paths"]!!.jsonObject
+        val required = listOf(
+            "/partners/{id}/contacts", "/contacts/{id}",
+            "/leads/{id}/stage", "/leads/{id}/transitions", "/leads/{id}/convert",
+            "/orders/{id}/items", "/order-items/{id}",
+            "/orders/{id}/blockers", "/blockers/{id}/resolve", "/blockers/{id}/reopen",
+            "/tasks", "/tasks/for/{entity}/{id}", "/tasks/{id}/done", "/tasks/{id}",
+            "/reports/workload", "/reports/stalled",
+        )
+        for (path in required) {
+            assertTrue("the API no longer serves $path", paths.containsKey(path))
+        }
+    }
+
+    @Test
+    fun `tasks reports and write bodies still carry what the phone sends and reads`() {
+        assertHasFields(
+            "Task", "id", "entity_type", "entity_id", "title", "due_date", "done_at",
+            "assigned_name",
+        )
+        assertHasFields("TaskBody", "entity_type", "entity_id", "title", "due_date")
+        assertHasFields("WorkloadReport", "from", "to", "days")
+        assertHasFields("WorkloadDay", "date", "placed", "completed", "in_workshop")
+        assertHasFields(
+            "StalledOrder", "order_id", "number", "title", "stage_label", "days_in_stage",
+            "open_blockers",
+        )
+        assertHasFields("ContactBody", "name", "email", "phone", "position", "notes")
+        assertHasFields("LeadBody", "title", "partner_id", "contact_name", "quoted_value_minor")
+        assertHasFields("OrderBody", "title", "partner_id", "currency", "vehicle_plate")
+        assertHasFields("BlockerBody", "what", "responsible_email", "due_date", "notes")
+        assertHasFields("AddItem", "description", "quantity", "unit_price")
+        assertHasFields("ComposeRequest", "order_id", "to", "subject", "body")
+    }
+
+    @Test
+    fun `handover inspections still carry what the phone walks and syncs`() {
+        assertHasFields(
+            "Inspection", "id", "order_id", "kind", "status", "vehicle_plate",
+            "inspector_name", "odometer", "fuel_level", "checkout_id", "signed_at",
+        )
+        assertHasFields(
+            "InspectionDetail", "inspection", "photos", "damages", "verdicts",
+            "signatures", "notes",
+        )
+        assertHasFields(
+            "InspectionPhoto", "image_id", "zone_key", "purpose", "taken_at",
+            "thumb_url", "display_url",
+        )
+        assertHasFields(
+            "InspectionDamage", "zone_key", "damage_type", "severity", "note", "x", "y",
+        )
+        assertHasFields("ZoneTemplate", "set_key", "zone_key", "position", "instruction")
+        assertHasFields("Comparison", "checkin", "checkout", "suggestions")
+    }
+
+    @Test
     fun `the endpoints the phone calls still exist`() {
         val paths = document["paths"]!!.jsonObject
         val required = listOf(
@@ -151,6 +217,11 @@ class OpenApiContractTest {
             "/orders/{id}/uploads", "/uploads/complete",
             "/partners", "/partners/{id}", "/leads", "/leads/{id}",
             "/emails", "/emails/{id}",
+            "/inspections", "/inspections/{id}", "/inspections/{id}/photos",
+            "/inspections/{id}/damages", "/inspections/{id}/signatures",
+            "/inspections/{id}/sign", "/inspections/{id}/notes",
+            "/inspections/{id}/comparison", "/inspections/{id}/verdicts",
+            "/inspections/templates",
         )
         for (path in required) {
             assertTrue("the API no longer serves $path", paths.containsKey(path))

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT max(split_part(number, '-', 2)::int) FROM invoices\n            WHERE number ~ ('^' || $1::text || '-[0-9]{4,9}$')",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "max",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2a607d8d79b4aecbefbf9371c719b4d753e8c76a3124644de106eb9df8aaa687"
+}

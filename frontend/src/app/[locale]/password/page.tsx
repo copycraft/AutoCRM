@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
+import { qk } from '@/lib/query/provider';
 
 export default function PasswordPage() {
   const t = useTranslations('auth');
@@ -13,6 +15,7 @@ export default function PasswordPage() {
   const ter = useTranslations('errors');
   const locale = useLocale();
   const router = useRouter();
+  const qc = useQueryClient();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +31,9 @@ export default function PasswordPage() {
     setBusy(true);
     try {
       await authApi.changePassword({ current_password: current, new_password: next });
+      // The AppShell gate reads cached qk.me: without invalidation it still sees
+      // must_change_password and bounces straight back here (redirect loop).
+      await qc.invalidateQueries({ queryKey: qk.me });
       router.replace(`/${locale}`);
     } catch (err) {
       setError(errorMessage(err, ter, ter('unknownError')));

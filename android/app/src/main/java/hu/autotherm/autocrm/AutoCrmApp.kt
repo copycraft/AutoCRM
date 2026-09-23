@@ -10,8 +10,10 @@ import kotlinx.coroutines.launch
 import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.db.AutoCrmDatabase
+import hu.autotherm.autocrm.data.inspection.InspectionSyncWorker
 import hu.autotherm.autocrm.data.prefs.CapturePrefs
 import hu.autotherm.autocrm.data.prefs.ServerStore
+import hu.autotherm.autocrm.data.prefs.ThemePrefs
 import hu.autotherm.autocrm.data.upload.UploadQueue
 import hu.autotherm.autocrm.data.upload.UploadWorker
 
@@ -29,6 +31,7 @@ class AutoCrmApp : Application(), Configuration.Provider {
     val capturePrefs: CapturePrefs by lazy { CapturePrefs(this) }
     val database: AutoCrmDatabase by lazy { AutoCrmDatabase.get(this) }
     val serverStore: ServerStore by lazy { ServerStore(this) }
+    val themePrefs: ThemePrefs by lazy { ThemePrefs(this) }
     val api: AutoCrmApi by lazy { AutoCrmApi(serverStore, sessionStore) }
     val uploadQueue: UploadQueue by lazy { UploadQueue(this, database.pendingUploads()) }
 
@@ -68,5 +71,7 @@ class AutoCrmApp : Application(), Configuration.Provider {
         // A phone that was out of coverage all night has photos waiting. Poking the queue at
         // launch means the fitter sees them drain rather than wondering.
         UploadWorker.enqueue(this)
+        // Same for handover-inspection drafts: anything walked offline syncs now.
+        InspectionSyncWorker.enqueue(this)
     }
 }

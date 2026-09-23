@@ -24,6 +24,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(volume))
         .routes(routes!(stage_durations))
         .routes(routes!(throughput))
+        .routes(routes!(workload))
         .routes(routes!(stalled))
         .routes(routes!(blocker_load))
         .routes(routes!(fx_rates))
@@ -266,4 +267,76 @@ async fn fx_rates(
     let p = period(&state, q.from, q.to)?;
     let base = q.base.unwrap_or_else(|| "EUR".into()).to_uppercase();
     Ok(Items::new(fx::list(&state.db, &base, p.from, p.to).await?))
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct WorkloadQuery {
+    /// Defaults to 6 days before `to` (one week).
+    from: Option<NaiveDate>,
+    /// Defaults to today.
+    to: Option<NaiveDate>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct WorkloadDay {
+    date: NaiveDate,
+    /// Orders placed (created) that day.
+    placed: i64,
+    /// Orders that reached a terminal stage that day.
+    completed: i64,
+    /// Orders sitting in the workshop that day (placed, not yet completed).
+    in_workshop: i64,
+}
+
+#[derive(Serialize, ToSchema)]
+struct WorkloadReport {
+    from: NaiveDate,
+    to: NaiveDate,
+    days: Vec<WorkloadDay>,
+}
+
+/// Daily workshop load: placed, completed and in-workshop cars per business-tz day.
+/// Ranges cap at 62 days — this feeds bar charts, not history exports.
+#[utoipa::path(
+    get, path = "/reports/workload", tag = "reports",
+    params(WorkloadQuery),
+    responses((status = 200, body = WorkloadReport))
+)]
+async fn workload(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<WorkloadQuery>,
+) -> AppResult<Json<WorkloadReport>> {
+    let to = q.to.unwrap_or_else(|| business_today(state.config.business_tz));
+    let from = q.from.unwrap_or(to - TimeDelta::days(6));
+    if from > to {
+        return Err(AppError::validation("from must not be after to"));
+    }
+    if (to - from).num_days() > 62 {
+        return Err(AppError::validation("workload range caps at 62 days"));
+    }
+    let intervals =
+        reports::workload_intervals(&state.db, from, to, state.config.business_tz.name()).await?;
+    let mut days = Vec::new();
+    let mut day = from;
+    while day <= to {
+        let placed = intervals.iter().filter(|r| r.placed == day).count() as i64;
+        let completed = intervals
+            .iter()
+            .filter(|r| r.completed == Some(day))
+            .count() as i64;
+        let in_workshop = intervals
+            .iter()
+            .filter(|r| r.placed <= day && r.completed.map(|c| c >= day).unwrap_or(true))
+            .count() as i64;
+        days.push(WorkloadDay {
+            date: day,
+            placed,
+            completed,
+            in_workshop,
+        });
+        day += TimeDelta::days(1);
+    }
+    Ok(Json(WorkloadReport { from, to, days }))
 }

@@ -7,10 +7,11 @@ import {
   useReactTable,
   type ColumnDef,
   type SortingState,
+  type VisibilityState,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 import { useMemo } from 'react';
-import { LoadingState } from '@/components/ui/LoadingState';
+import { TableSkeleton } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 declare module '@tanstack/react-table' {
@@ -34,10 +35,27 @@ export function nextSort(current: TableSort | null, key: string): TableSort | nu
   return null;
 }
 
+/** Menu items for ColumnMenu: explicit id wins, else the accessor key. */
+export function columnMenuItems<T>(
+  columns: ColumnDef<T, unknown>[],
+): { id: string; label: string }[] {
+  return columns.flatMap((c) => {
+    const id =
+      'id' in c && typeof c.id === 'string'
+        ? c.id
+        : 'accessorKey' in c && typeof c.accessorKey === 'string'
+          ? c.accessorKey
+          : null;
+    if (!id || typeof c.header !== 'string') return [];
+    return [{ id, label: c.header }];
+  });
+}
+
 export function DataTable<T>({
   columns,
   data,
   isLoading,
+  isFetching,
   emptyTitle,
   emptyFilteredTitle,
   filtered,
@@ -45,10 +63,18 @@ export function DataTable<T>({
   density,
   sort,
   onSort,
+  columnVisibility,
+  onColumnVisibilityChange,
 }: {
   columns: ColumnDef<T, unknown>[];
   data: T[];
+  /** Initial load (no rows yet). Shows a table-shaped skeleton, not a bare spinner. */
   isLoading?: boolean;
+  /** Background refetch (page/filter/sort change with old rows kept via
+   *  keepPreviousData). Shows a thin progress bar + dimmed table instead of
+   *  swapping content out — previously refetches had zero feedback and felt
+   *  like buffering. */
+  isFetching?: boolean;
   /** Shown when the list itself is empty. */
   emptyTitle: string;
   /** Shown when filters/search hide everything. Defaults to emptyTitle. */
@@ -61,6 +87,8 @@ export function DataTable<T>({
   /** Server-side sort. Null means the backend default order. */
   sort?: TableSort | null;
   onSort?: (key: string) => void;
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: (next: VisibilityState) => void;
 }) {
   const sorting: SortingState = useMemo(() => {
     if (!sort) return [];
@@ -76,17 +104,35 @@ export function DataTable<T>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     manualSorting: true,
-    state: { sorting },
+    state: { sorting, columnVisibility: columnVisibility ?? {} },
+    onColumnVisibilityChange: (updater) => {
+      if (!onColumnVisibilityChange) return;
+      const next =
+        typeof updater === 'function' ? updater(columnVisibility ?? {}) : updater;
+      onColumnVisibilityChange(next);
+    },
     getRowId: getRowId ? (row) => getRowId(row) : undefined,
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <TableSkeleton rows={8} />;
   if (data.length === 0) {
     return <EmptyState title={filtered ? (emptyFilteredTitle ?? emptyTitle) : emptyTitle} />;
   }
 
   return (
-    <div className={`table-container${density === 'compact' ? ' density-compact' : ''}`}>
+    <div className="relative">
+      {isFetching && (
+        <div
+          className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden rounded-full bg-steel-200"
+          role="progressbar"
+          aria-label="loading"
+        >
+          <div className="h-full w-1/3 animate-pulse bg-steel-900" />
+        </div>
+      )}
+      <div
+        className={`table-container${density === 'compact' ? ' density-compact' : ''}${isFetching ? ' opacity-70 transition-opacity' : ''}`}
+      >
       <table className="table">
         <thead>
           {table.getHeaderGroups().map((hg) => (
@@ -146,6 +192,7 @@ export function DataTable<T>({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

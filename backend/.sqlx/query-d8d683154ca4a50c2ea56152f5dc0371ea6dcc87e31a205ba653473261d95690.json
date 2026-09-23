@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, order_id, number, currency, issue_date, payment_date, net_amount,\n                vat_amount, gross_amount, document_id, created_by, created_at\n           FROM proformas WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "issue_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "payment_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "net_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "vat_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "document_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "d8d683154ca4a50c2ea56152f5dc0371ea6dcc87e31a205ba653473261d95690"
+}

@@ -18,6 +18,7 @@ const EXACT: Record<string, Handler> = {
   '/blockers': () => ({ items: [f.blocker] }),
   '/emails': () => ({ items: [f.emailSummary] }),
   '/email-templates': () => ({ items: [] }),
+  '/reports/stalled': () => ({ items: [] }),
   '/email-suppressions': () => ({ items: [] }),
   '/project-types': () => ({
     items: [f.coolingProjectType, f.heatingProjectType, f.plainProjectType],
@@ -38,6 +39,9 @@ const PATTERNS: [RegExp, Handler][] = [
   [/^\/orders\/\d+\/blockers$/, () => ({ items: [f.blocker] })],
   [/^\/orders\/\d+\/images$/, () => ({ items: [] })],
   [/^\/orders\/\d+\/documents$/, () => ({ items: [] })],
+  [/^\/orders\/\d+\/invoices$/, () => ({ items: [] })],
+  [/^\/orders\/\d+\/proformas$/, () => ({ items: [] })],
+  [/^\/invoices\/\d+\/chain$/, () => ({ items: [] })],
   [/^\/emails\/\d+$/, () => f.emailMessage],
 ];
 
@@ -48,6 +52,18 @@ function stageDefinitions(search: Record<string, unknown> | undefined): unknown 
   return { items: [...f.leadStageDefinitions, ...f.orderStageDefinitions] };
 }
 
+/**
+ * Per-test answers, keyed by exact path, checked before everything else.
+ *
+ * Some screens are about state the fixtures cannot hold two of at once — an invoice NAV
+ * accepted and one it rejected, say. A test sets what it needs here and clears it after.
+ */
+export const overrides = new Map<string, Handler>();
+
+export function resetOverrides(): void {
+  overrides.clear();
+}
+
 /** Paths a test asked for that nothing here answers — asserted empty. */
 export const unhandled: string[] = [];
 
@@ -56,6 +72,8 @@ export function resetUnhandled(): void {
 }
 
 function resolve(path: string, search?: Record<string, unknown>): unknown {
+  const override = overrides.get(path);
+  if (override) return override();
   if (path === '/stage-definitions') return stageDefinitions(search);
   const exact = EXACT[path];
   if (exact) return exact();

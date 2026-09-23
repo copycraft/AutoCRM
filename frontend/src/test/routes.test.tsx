@@ -14,8 +14,11 @@ vi.mock('next-intl/server', () => import('./intl-server-mock'));
 
 import AdminPage from '@/app/[locale]/admin/page';
 import BlockersPage from '@/app/[locale]/blockers/page';
+import BoardPage from '@/app/[locale]/board/page';
 import DashboardPage from '@/app/[locale]/page';
 import EmailDetailPage from '@/app/[locale]/emails/[id]/page';
+import NewEmailPage from '@/app/[locale]/emails/new/page';
+import UnsubscribePage from '@/app/[locale]/newsletter/unsubscribe/page';
 import EmailsPage from '@/app/[locale]/emails/page';
 import LeadDetailPage from '@/app/[locale]/leads/[id]/page';
 import LeadNewPage from '@/app/[locale]/leads/new/page';
@@ -43,7 +46,7 @@ interface Route {
 }
 
 const routes: Route[] = [
-  { path: '/hu', element: () => DashboardPage({ params: locale }), expect: 'Irányítópult' },
+  { path: '/hu', element: () => <DashboardPage />, expect: 'Irányítópult' },
   { path: '/hu/login', element: () => <LoginPage />, expect: /Bejelentkez/ },
   { path: '/hu/password', element: () => <PasswordPage />, expect: /jelszó/i },
   { path: '/hu/preferences', element: () => <PreferencesPage />, expect: /Saját beállítások/ },
@@ -70,11 +73,22 @@ const routes: Route[] = [
     expect: /MC-1001/,
   },
   { path: '/hu/blockers', element: () => BlockersPage({ params: locale }), expect: /Akadályok/ },
+  { path: '/hu/board', element: () => <BoardPage />, expect: /Átvehető/ },
   { path: '/hu/emails', element: () => <EmailsPage />, expect: /fenyezo\.hu/ },
   {
     path: '/hu/emails/[id]',
     element: () => <EmailDetailPage params={{ id: '61' }} />,
     expect: /fenyezo\.hu/,
+  },
+  {
+    path: '/hu/emails/new',
+    element: () => <NewEmailPage />,
+    expect: /Markdown/,
+  },
+  {
+    path: '/hu/newsletter/unsubscribe',
+    element: () => <UnsubscribePage searchParams={{}} />,
+    expect: /Leiratkozás/,
   },
   { path: '/hu/reports', element: () => ReportsPage({ params: locale }), expect: /Jelentések/ },
   { path: '/hu/settings', element: () => <SettingsPage />, expect: /smtp\.example\.com|Beállítások/ },

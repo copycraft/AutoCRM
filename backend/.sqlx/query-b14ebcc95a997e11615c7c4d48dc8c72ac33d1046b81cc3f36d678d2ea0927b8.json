@@ -1,0 +1,142 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO inspections (order_id, kind, vehicle_plate, vehicle_vin, inspector_name,\n                                    driver_name, location, odometer, fuel_level, battery_pct,\n                                    warning_lights, checkout_id, created_by)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n            RETURNING id, order_id, kind, status, vehicle_plate, vehicle_vin, inspector_name,\n                      driver_name, location, odometer, fuel_level, battery_pct, warning_lights,\n                      checkout_id, customer_comment, signed_at, created_by, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "vehicle_plate",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "vehicle_vin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "inspector_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "driver_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "location",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "odometer",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "fuel_level",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "battery_pct",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "warning_lights",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "checkout_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "customer_comment",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "signed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Text",
+        "Int4",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b14ebcc95a997e11615c7c4d48dc8c72ac33d1046b81cc3f36d678d2ea0927b8"
+}

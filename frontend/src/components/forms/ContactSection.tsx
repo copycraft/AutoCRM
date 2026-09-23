@@ -11,6 +11,7 @@ import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ContactLine } from '@/components/ui/ContactLinks';
 import type { Contact, ContactBody } from '@/lib/api/types';
 
 const schema = z.object({
@@ -195,7 +196,7 @@ export function ContactSection({ partnerId, contacts }: { partnerId: number; con
                     )}
                   </p>
                   <p className="text-metadata text-steel-500">
-                    {[c.position, c.email, c.phone].filter(Boolean).join(' · ') || '—'}
+                    <ContactLine position={c.position} email={c.email} phone={c.phone} />
                   </p>
                   {c.notes && <p className="mt-1 text-body">{c.notes}</p>}
                 </div>

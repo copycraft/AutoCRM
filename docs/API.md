@@ -128,10 +128,10 @@ Thumbnails and display copies are generated in the background; until then `thumb
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/emails` | `order_id` \| `lead_id` \| `partner_id` (includes its orders and leads), `status`, `attention` |
+| GET | `/emails` | `order_id` | `lead_id` | `partner_id` (includes its orders and leads), `status`, `attention`, `q` (subject/recipient, server-side) |
 | GET | `/emails/{id}` | full rendered message |
 | POST | `/emails/preview` | same body as send; returns rendered subject/body, `unresolved`, `recipient_suppressed` |
-| POST | `/emails` | `{order_id?\|lead_id?\|partner_id?, to, cc?, template_key?, subject?, body?, attachment_document_ids?}` → `202`; subject/body override the template; unresolved variables are rejected |
+| POST | `/emails` | `{order_id?\|lead_id?\|partner_id?, to, cc?, template_key?, subject?, body?, body_markdown?, hero?, attachment_document_ids?, embed_document_ids?}` → `202`; subject/body override the template; unresolved variables are rejected. `body_markdown` renders Markdown to the HTML part (refused together with a template) |
 | POST | `/emails/{id}/cancel` | own queued mail, or any with system operations |
 | POST | `/emails/{id}/retry` | admin; failed or needs-review |
 | GET / POST | `/email-templates` | create: `{key, name, subject, body}` |
@@ -139,6 +139,13 @@ Thumbnails and display copies are generated in the background; until then `thumb
 | PATCH | `/email-templates/{id}` | `{name?, subject?, body?}` — unknown variables rejected |
 | GET / POST | `/email-suppressions` | `{email, reason?}` |
 | DELETE | `/email-suppressions/{email}` | admin |
+| POST | `/leads/{id}/quotation` | `{subject?, hero?, body?, body_markdown?, attachment_document_ids?}` → `202`; hero-banded quotation letter to the lead's contact (partner fallback), lead documents attachable; empty fields fall back to lead-built defaults |
+| GET | `/newsletter/subscriptions` | the list as the office sees it, unsubscribed included |
+| POST | `/newsletter/subscriptions` | `{email, name?}` hand-add (office) |
+| DELETE | `/newsletter/subscriptions/{id}` | remove (office) |
+| POST | `/newsletter/send` | `{subject, body, body_markdown?, hero?, attachment_document_ids?, embed_document_ids?}` → one row, everyone in BCC; `{{variables}}` refused (a blast has no recipient to resolve against). `![alt](doc:ID)` embeds the document as an inline `cid:` image; `hero` adds the red band |
+| POST | `/newsletter/subscribe` | website signup: `{email, name?}` + `X-Newsletter-Key`; resubscribing clears an earlier unsubscribe |
+| GET | `/newsletter/unsubscribe` | `?token=` one-click or `?email=`; always 200, never reveals membership |
 
 Statuses: `queued → sending → sent`, or `failed`, `cancelled`, `needs_review` (delivery
 outcome unknown — check the provider before retrying).

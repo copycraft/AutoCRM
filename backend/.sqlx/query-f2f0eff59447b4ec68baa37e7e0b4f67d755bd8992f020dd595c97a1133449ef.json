@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, inspection_id, image_id, zone_key, purpose, damage_id,\n                  taken_at, lat, lon, created_at\n            FROM inspection_photos WHERE inspection_id = $1 ORDER BY created_at, id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "inspection_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "image_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "zone_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "purpose",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "damage_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "taken_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "lat",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "lon",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "f2f0eff59447b4ec68baa37e7e0b4f67d755bd8992f020dd595c97a1133449ef"
+}

@@ -6,7 +6,6 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.captureDataStore by preferencesDataStore(name = "capture")
@@ -27,8 +26,6 @@ class CapturePrefs(private val context: Context) {
         val ORDER_TITLE = stringPreferencesKey("current_order_title")
         val ORDER_PLATE = stringPreferencesKey("current_order_plate")
         val CATEGORY = stringPreferencesKey("sticky_category")
-        /** The last session in which the intake warning was acknowledged. */
-        val INTAKE_ACK_AT = longPreferencesKey("intake_acknowledged_at")
     }
 
     data class CurrentOrder(
@@ -77,35 +74,32 @@ class CapturePrefs(private val context: Context) {
         context.captureDataStore.edit { it[Keys.CATEGORY] = category }
     }
 
-    /**
-     * True when the intake banner still has to be shown. Acknowledgement lasts one hour:
-     * long enough not to nag through a single van's intake set, short enough that tomorrow's
-     * first photo asks again. A photo filed as intake by mistake can never be deleted or
-     * moved, so "confirm once, forever" is the wrong trade.
-     */
-    suspend fun needsIntakeConfirmation(): Boolean {
-        val acknowledged = context.captureDataStore.data.first()[Keys.INTAKE_ACK_AT] ?: 0
-        return System.currentTimeMillis() - acknowledged > 60 * 60 * 1000
-    }
-
-    suspend fun acknowledgeIntake() {
-        context.captureDataStore.edit { it[Keys.INTAKE_ACK_AT] = System.currentTimeMillis() }
-    }
-
     companion object {
         const val CATEGORY_INTAKE = "intake"
         const val CATEGORY_PRODUCTION = "production"
         const val CATEGORY_COMPLETION = "completion"
         const val CATEGORY_MARKETING = "marketing"
 
+        /** Handover-inspection walkaround photos. Never offered in the capture
+         *  picker: inspection shots only come from the inspection camera loop. */
+        const val CATEGORY_INSPECTION = "inspection"
+
         /** Order matches `image_category` in 0002_partners_leads.sql. */
         val ALL = listOf(CATEGORY_INTAKE, CATEGORY_PRODUCTION, CATEGORY_COMPLETION, CATEGORY_MARKETING)
+
+        /**
+         * The only categories a user may pick when attaching photos by hand: production.
+         * Intake and handover shots are evidence with their own flows (bevétel, átadás-átvétel)
+         * and must never come from the gallery or an ad-hoc camera tap — per the client.
+         */
+        val ATTACHABLE = listOf(CATEGORY_PRODUCTION)
 
         fun label(category: String): String = when (category) {
             CATEGORY_INTAKE -> "Bevétel"
             CATEGORY_PRODUCTION -> "Gyártás"
             CATEGORY_COMPLETION -> "Átadás/MEO"
             CATEGORY_MARKETING -> "Referencia"
+            CATEGORY_INSPECTION -> "Átvétel"
             else -> category
         }
 

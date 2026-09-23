@@ -11,23 +11,32 @@ private val HU = Locale("hu", "HU")
 private val BUDAPEST: ZoneId = ZoneId.of("Europe/Budapest")
 
 /**
- * Money as the web client shows it: minor units in, grouped major units out, currency
- * symbol after the number. HUF has no fractional part in practice — the API still stores
- * fillér, so the division is by 100 either way and HUF simply never shows the remainder.
+ * Money as the web client shows it (frontend/src/lib/utils/format.ts): integer minor units
+ * in, grouped whole units out, fraction appended as a string. Integer arithmetic only —
+ * never divide into floating point (HUF 4 850 000 stored as 485000000 must not wobble).
+ * HUF fillér render when nonzero; whole-forint amounts render without decimals.
  */
 fun formatMoney(minor: Long, currency: String): String {
-    val amount = minor / 100.0
-    val format = NumberFormat.getNumberInstance(HU).apply {
-        minimumFractionDigits = if (currency == "HUF") 0 else 2
-        maximumFractionDigits = if (currency == "HUF") 0 else 2
+    val negative = minor < 0
+    val abs = if (negative) -minor else minor
+    val frac = (abs % 100).toInt()
+    val whole = abs / 100
+    val grouped = NumberFormat.getIntegerInstance(HU).format(whole)
+    val sign = if (negative) "-" else ""
+    val cents = frac.toString().padStart(2, '0')
+    // Compared case-insensitively: a lowercase "huf" from anywhere must not fall through
+    // to the generic branch and render "1 000,00 huf".
+    return when (currency.uppercase()) {
+        "HUF" -> if (frac == 0) "$sign$grouped Ft" else "$sign$grouped,$cents Ft"
+        "EUR" -> "$sign$grouped,$cents €"
+        else -> "$sign$grouped,$cents $currency"
     }
-    val symbol = when (currency) {
-        "HUF" -> "Ft"
-        "EUR" -> "€"
-        else -> currency
-    }
-    return "${format.format(amount)} $symbol"
 }
+
+/** Queue timestamps (epoch millis) in the business timezone, like formatDateTime. */
+fun formatTime(epochMillis: Long): String =
+    Instant.ofEpochMilli(epochMillis).atZone(BUDAPEST)
+        .format(DateTimeFormatter.ofPattern("MM.dd. HH:mm", HU))
 
 /** `2026-09-12` → `2026. 09. 12.`, the Hungarian date form the web client uses. */
 fun formatDate(isoDate: String?): String? = isoDate?.let {

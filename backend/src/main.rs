@@ -147,6 +147,7 @@ async fn email_test(config: Config, to: String) -> anyhow::Result<()> {
             reply_to: Some(config.email.reply_to_default.clone()),
             to: to.clone(),
             cc: vec![],
+            bcc: vec![],
             subject: "AutoCRM teszt e-mail".into(),
             body_html: text_to_html(&body),
             body_text: body,

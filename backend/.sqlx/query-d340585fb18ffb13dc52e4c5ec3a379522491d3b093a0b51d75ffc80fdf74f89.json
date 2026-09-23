@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE invoices SET nav_error_code = $2, nav_message = $3 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d340585fb18ffb13dc52e4c5ec3a379522491d3b093a0b51d75ffc80fdf74f89"
+}

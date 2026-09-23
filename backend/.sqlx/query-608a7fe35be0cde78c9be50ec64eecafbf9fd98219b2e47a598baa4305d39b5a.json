@@ -1,0 +1,198 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by, to_address, cc, bcc,\n                  from_address, reply_to, subject, body_html, body_text, attachments, status AS \"status: EmailStatus\",\n                  provider_id, error, attempts, queued_at, send_after, sending_started_at, sent_at, cancelled_at, cancelled_by\n           FROM email_messages WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "lead_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "partner_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "blocker_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "template_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "trigger",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "is_automatic",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "sent_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "to_address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "cc",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 11,
+        "name": "bcc",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 12,
+        "name": "from_address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "reply_to",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "subject",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "body_html",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "body_text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "attachments",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 18,
+        "name": "status: EmailStatus",
+        "type_info": {
+          "Custom": {
+            "name": "email_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "sending",
+                "sent",
+                "failed",
+                "cancelled",
+                "needs_review"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "provider_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "attempts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 22,
+        "name": "queued_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 23,
+        "name": "send_after",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 24,
+        "name": "sending_started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 25,
+        "name": "sent_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 26,
+        "name": "cancelled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 27,
+        "name": "cancelled_by",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "608a7fe35be0cde78c9be50ec64eecafbf9fd98219b2e47a598baa4305d39b5a"
+}

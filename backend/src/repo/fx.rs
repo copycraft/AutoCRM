@@ -70,3 +70,25 @@ pub async fn orders_missing_rates(db: impl PgExecutor<'_>) -> sqlx::Result<i64> 
         .fetch_one(db)
         .await
 }
+
+/// The rate to use for a day MNB may not have published on.
+///
+/// MNB publishes on working days only, and an invoice can be issued on a Saturday. NAV
+/// wants the rate that applied, which is the last published one on or before the day —
+/// looking for an exact match would fail every weekend.
+pub async fn rate_on_or_before(
+    db: impl PgExecutor<'_>,
+    base: &str,
+    day: NaiveDate,
+) -> sqlx::Result<Option<FxRate>> {
+    sqlx::query_as!(
+        FxRate,
+        "SELECT day, base, quote, rate, source, fetched_at FROM fx_rates
+          WHERE base = $1 AND quote = 'HUF' AND day <= $2
+          ORDER BY day DESC LIMIT 1",
+        base,
+        day
+    )
+    .fetch_optional(db)
+    .await
+}

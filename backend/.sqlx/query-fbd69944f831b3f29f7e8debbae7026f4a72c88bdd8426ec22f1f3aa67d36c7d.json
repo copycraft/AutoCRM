@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO email_messages (order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by,\n                                     idempotency_key, to_address, cc, bcc, from_address, reply_to, subject, body_html, body_text,\n                                     attachments, send_after)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, coalesce($19, now()))\n         ON CONFLICT (idempotency_key) DO NOTHING\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Text",
+        "Text",
+        "Bool",
+        "Int8",
+        "Text",
+        "Text",
+        "TextArray",
+        "TextArray",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fbd69944f831b3f29f7e8debbae7026f4a72c88bdd8426ec22f1f3aa67d36c7d"
+}

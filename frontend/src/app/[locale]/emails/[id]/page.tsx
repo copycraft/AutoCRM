@@ -11,10 +11,14 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DocumentLink } from '@/components/orders/InvoicesSection';
+import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
+import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
 import { emailApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
 import { canAdmin, useAuth } from '@/lib/auth/context';
+import { useToast } from '@/components/ui/Toasts';
 import type { EmailStatus } from '@/lib/api/types';
 
 function statusTone(status: EmailStatus): StatusTone {
@@ -53,12 +57,16 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
   const id = Number(params.id);
   const t = useTranslations('emails');
   const tc = useTranslations('common');
+  const tn = useTranslations('navigation');
   const ter = useTranslations('errors');
   const locale = useLocale();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [confirm, setConfirm] = useState<'cancel' | 'retry' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [htmlView, setHtmlView] = useState(true);
+  const toast = useToast();
+  const tq = useTranslations('qol');
 
   const detail = useQuery({ queryKey: qk.email(id), queryFn: () => emailApi.get(id) });
   // GET /users is admin-only; non-admins see the raw id (backend gap).
@@ -78,12 +86,17 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
     void qc.invalidateQueries({ queryKey: ['emails'] });
   };
 
-  const fail = (e: unknown) => setActionError(errorMessage(e, ter, ter('unknownError')));
+  const fail = (e: unknown) => {
+    const msg = errorMessage(e, ter, ter('unknownError'));
+    setActionError(msg);
+    toast.error(tq('toastError'), msg);
+  };
   const cancel = useMutation({
     mutationFn: () => emailApi.cancel(id),
     onSuccess: () => {
       setConfirm(null);
       setActionError(null);
+      toast.success(t('cancelledNote'));
       invalidate();
     },
     onError: fail,
@@ -93,6 +106,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
     onSuccess: () => {
       setConfirm(null);
       setActionError(null);
+      toast.success(t('retry'));
       invalidate();
     },
     onError: fail,
@@ -121,8 +135,23 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
           const email = detail.data;
           return (
             <>
+              <BackToList listKey="emails" fallbackHref={`/${locale}/emails`} />
+              <div className="flex items-center justify-between gap-3">
+                <Breadcrumbs
+                  items={[
+                    { href: `/${locale}/emails`, label: tn('emails') },
+                    { label: email.subject },
+                  ]}
+                />
+                <CopyLinkButton />
+              </div>
               <PageHeader size="record"
-                title={email.subject}
+                title={
+                  <span className="inline-flex items-center gap-2">
+                    <span>{email.subject}</span>
+                    <CopyButton value={email.to_address} label={t('to')} />
+                  </span>
+                }
                 subtitle={email.to_address}
                 actions={
                   <>
@@ -192,9 +221,63 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
               </section>
 
               <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
-                <h2 className="text-section font-semibold">{t('body')}</h2>
+                <h2 className="text-section font-semibold">{t('attachments')}</h2>
                 <div className="mt-3">
-                  <pre className="whitespace-pre-wrap font-sans text-body">{email.body_text}</pre>
+                  {email.attachments.length === 0 ? (
+                    <p className="text-metadata text-steel-500">—</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {email.attachments.map((a) => (
+                        <li key={a.document_id} className="text-body">
+                          <DocumentLink
+                            documentId={a.document_id}
+                            label={a.filename ?? `${t('attachments')} #${a.document_id}`}
+                          />
+                          {a.mode && (
+                            <span className="text-metadata text-steel-500"> · {a.mode}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </section>
+
+              <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-section font-semibold">{t('body')}</h2>
+                  <div className="inline-flex rounded-lg bg-steel-200/50 p-0.5 text-metadata" role="group" aria-label={t('body')}>
+                    <button
+                      type="button"
+                      onClick={() => setHtmlView(true)}
+                      aria-pressed={htmlView}
+                      className={`rounded-md px-2.5 py-1 ${htmlView ? 'bg-surface text-steel-900 shadow-sm' : 'text-steel-500'}`}
+                    >
+                      {t('viewHtml')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHtmlView(false)}
+                      aria-pressed={!htmlView}
+                      className={`rounded-md px-2.5 py-1 ${!htmlView ? 'bg-surface text-steel-900 shadow-sm' : 'text-steel-500'}`}
+                    >
+                      {t('viewText')}
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  {htmlView ? (
+                    // Sandboxed: the stored HTML renders like a mail client shows it,
+                    // with no scripts and no access to the app.
+                    <iframe
+                      title={t('viewHtml')}
+                      sandbox=""
+                      srcDoc={email.body_html}
+                      className="h-[480px] w-full rounded-lg border border-steel-200 bg-white"
+                    />
+                  ) : (
+                    <pre className="whitespace-pre-wrap font-sans text-body">{email.body_text}</pre>
+                  )}
                 </div>
               </section>
 

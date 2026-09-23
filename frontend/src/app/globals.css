@@ -63,8 +63,19 @@
     @apply w-full rounded-lg border border-steel-200 bg-surface px-3 py-2 text-body text-steel-900 placeholder-steel-500 transition-colors focus:border-steel-900 focus:outline-none focus:ring-2 focus:ring-steel-900/20 disabled:bg-panel disabled:cursor-not-allowed;
   }
 
+  /* Keyed off the ARIA attribute rather than a class: a field that reads as invalid to a
+     screen reader and one that looks invalid must be the same field, and there is no way
+     to set one here without the other. */
+  .input[aria-invalid='true'] {
+    @apply border-signal focus:border-signal focus:ring-signal/20;
+  }
+
   .label {
     @apply block text-body font-medium text-steel-900 mb-1;
+  }
+
+  .field-error {
+    @apply mt-1 text-metadata text-signal;
   }
 
   .card {
@@ -116,7 +127,7 @@
   }
 
   .table th {
-    @apply h-10 px-3 text-left align-middle font-medium text-steel-500 bg-panel border-b border-steel-200;
+    @apply h-10 px-3 text-left align-middle font-medium text-steel-500 bg-panel border-b border-steel-200 sticky top-0 z-10;
   }
 
   .table td {
@@ -163,5 +174,31 @@
   .text-id {
     @apply font-mono text-metadata;
   }
+}
 
+/* Job sheet printing (orders/[id]): the screen keeps its tabs and buttons, paper gets
+   only the sheet. Chrome is hidden by element, not by class, so no page has to opt in. */
+@media print {
+  aside,
+  nav,
+  button,
+  input,
+  select,
+  textarea {
+    display: none !important;
+  }
+
+  main > div {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+  }
+
+  a {
+    text-decoration: none !important;
+    color: inherit !important;
+  }
 }

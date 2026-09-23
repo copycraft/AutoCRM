@@ -29,6 +29,19 @@ pub struct Order {
     pub related_order_id: Option<i64>,
     /// 'warranty' | 'rework' | 'repeat'. Set together with related_order_id or not at all.
     pub relation: Option<String>,
+    /// Intake slip (átvételi lap): odometer at takeover. Leaving `intake` requires it.
+    pub mileage_in: Option<i32>,
+    /// Intake slip: visible condition notes at takeover.
+    pub intake_condition: Option<String>,
+    /// Intake slip: fuel level at takeover (`E` | `1/4` | `1/2` | `3/4` | `F`).
+    pub fuel_level: Option<String>,
+    /// Intake slip: how many keys were handed over.
+    pub key_count: Option<i32>,
+    /// Intake slip: whether the valuables question was answered at all, and how.
+    /// `None` means nobody asked; `Some(false)` means the vehicle was empty.
+    pub valuables_declared: Option<bool>,
+    /// Intake slip: what was left in the vehicle, when [`Self::valuables_declared`] is true.
+    pub valuables: Option<String>,
     pub created_by: Option<i64>,
     pub minicrm_id: Option<i64>,
     pub created_at: DateTime<Utc>,
@@ -52,6 +65,12 @@ pub struct OrderFields {
     pub assigned_to: Option<i64>,
     pub related_order_id: Option<i64>,
     pub relation: Option<String>,
+    pub mileage_in: Option<i32>,
+    pub intake_condition: Option<String>,
+    pub fuel_level: Option<String>,
+    pub key_count: Option<i32>,
+    pub valuables_declared: Option<bool>,
+    pub valuables: Option<String>,
 }
 
 impl From<&Order> for OrderFields {
@@ -72,6 +91,12 @@ impl From<&Order> for OrderFields {
             assigned_to: o.assigned_to,
             related_order_id: o.related_order_id,
             relation: o.relation.clone(),
+            mileage_in: o.mileage_in,
+            intake_condition: o.intake_condition.clone(),
+            fuel_level: o.fuel_level.clone(),
+            key_count: o.key_count,
+            valuables_declared: o.valuables_declared,
+            valuables: o.valuables.clone(),
         }
     }
 }
@@ -81,7 +106,8 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Order
         Order,
         "SELECT id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                 vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                related_order_id, relation, created_by, minicrm_id, created_at, updated_at
+                related_order_id, relation, mileage_in, intake_condition,
+                fuel_level, key_count, valuables_declared, valuables, created_by, minicrm_id, created_at, updated_at
          FROM orders WHERE id = $1",
         id
     )
@@ -96,7 +122,8 @@ pub async fn lock(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Order
         Order,
         "SELECT id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                 vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                related_order_id, relation, created_by, minicrm_id, created_at, updated_at
+                related_order_id, relation, mileage_in, intake_condition,
+                fuel_level, key_count, valuables_declared, valuables, created_by, minicrm_id, created_at, updated_at
          FROM orders WHERE id = $1 FOR UPDATE",
         id
     )
@@ -145,11 +172,13 @@ pub async fn insert(
         Order,
         "INSERT INTO orders (number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                              vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                             related_order_id, relation, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                             related_order_id, relation, mileage_in, intake_condition,
+                             fuel_level, key_count, valuables_declared, valuables, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
          RETURNING id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                    vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                   related_order_id, relation, created_by, minicrm_id, created_at, updated_at",
+                   related_order_id, relation, mileage_in, intake_condition,
+                fuel_level, key_count, valuables_declared, valuables, created_by, minicrm_id, created_at, updated_at",
         number,
         f.title,
         f.partner_id,
@@ -167,6 +196,12 @@ pub async fn insert(
         f.assigned_to,
         f.related_order_id,
         f.relation,
+        f.mileage_in,
+        f.intake_condition,
+        f.fuel_level,
+        f.key_count,
+        f.valuables_declared,
+        f.valuables,
         created_by
     )
     .fetch_one(db)
@@ -183,11 +218,14 @@ pub async fn update(
         "UPDATE orders
          SET title = $2, partner_id = $3, contact_id = $4, project_type_id = $5, currency = $6, valuation_date = $7,
              vehicle_make = $8, vehicle_model = $9, vehicle_plate = $10, vehicle_vin = $11, description = $12,
-             due_date = $13, assigned_to = $14, related_order_id = $15, relation = $16
+             due_date = $13, assigned_to = $14, related_order_id = $15, relation = $16,
+             mileage_in = $17, intake_condition = $18,
+             fuel_level = $19, key_count = $20, valuables_declared = $21, valuables = $22
          WHERE id = $1
          RETURNING id, number, title, partner_id, contact_id, lead_id, project_type_id, currency, valuation_date,
                    vehicle_make, vehicle_model, vehicle_plate, vehicle_vin, description, due_date, assigned_to,
-                   related_order_id, relation, created_by, minicrm_id, created_at, updated_at",
+                   related_order_id, relation, mileage_in, intake_condition,
+                fuel_level, key_count, valuables_declared, valuables, created_by, minicrm_id, created_at, updated_at",
         id,
         f.title,
         f.partner_id,
@@ -203,7 +241,13 @@ pub async fn update(
         f.due_date,
         f.assigned_to,
         f.related_order_id,
-        f.relation
+        f.relation,
+        f.mileage_in,
+        f.intake_condition,
+        f.fuel_level,
+        f.key_count,
+        f.valuables_declared,
+        f.valuables
     )
     .fetch_optional(db)
     .await
@@ -298,8 +342,10 @@ pub async fn search(
                CASE WHEN $10 = '-created_at' THEN o.created_at END DESC,
                CASE WHEN $10 = 'due_date' THEN o.due_date END ASC NULLS LAST,
                CASE WHEN $10 = '-due_date' THEN o.due_date END DESC NULLS LAST,
-               CASE WHEN $10 = 'total' THEN ov.total_minor END ASC,
-               CASE WHEN $10 = '-total' THEN ov.total_minor END DESC,
+                -- V3: totals sort in HUF terms. Raw minor units are not comparable
+                -- across currencies (10 000 fillér ≈ €0.26 would rank with €100).
+                CASE WHEN $10 = 'total' THEN ov.total_huf_minor END ASC NULLS LAST,
+                CASE WHEN $10 = '-total' THEN ov.total_huf_minor END DESC NULLS LAST,
                CASE WHEN $10 = 'number' THEN o.number END ASC,
                CASE WHEN $10 = '-number' THEN o.number END DESC,
                o.id DESC

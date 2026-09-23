@@ -1,0 +1,75 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO inspection_verdicts (checkin_id, checkin_damage_id, checkout_damage_id,\n                                            verdict, note, reviewed_by)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            ON CONFLICT (checkin_damage_id) DO UPDATE SET\n                checkout_damage_id = EXCLUDED.checkout_damage_id,\n                verdict = EXCLUDED.verdict,\n                note = EXCLUDED.note,\n                reviewed_by = EXCLUDED.reviewed_by,\n                reviewed_at = now()\n            RETURNING id, checkin_id, checkin_damage_id, checkout_damage_id, verdict,\n                      note, reviewed_by, reviewed_at, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "checkin_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "checkin_damage_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "checkout_damage_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "verdict",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "reviewed_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "reviewed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "23fbaabb9ad18ed272e0ffe338dc1b69b74cfd2e3feb5e1fcbf952af3c77bee1"
+}

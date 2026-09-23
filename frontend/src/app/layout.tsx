@@ -19,6 +19,7 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: 'AutoCRM — Autotherm',
   description: 'Autotherm belső megrendelés- és gyártáskövető rendszere.',
+  icons: { icon: '/icon.svg' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

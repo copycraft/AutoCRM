@@ -102,6 +102,13 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
 
+    // In-app camera for handover inspections only: the guided walkaround needs a live
+    // view with instruction overlays and a tight shoot-review loop, which the system
+    // camera intent cannot provide. Everything else still uses the system camera.
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)

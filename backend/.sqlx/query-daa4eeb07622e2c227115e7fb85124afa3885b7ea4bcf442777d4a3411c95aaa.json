@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM inspection_damages WHERE id = $1 AND inspection_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "daa4eeb07622e2c227115e7fb85124afa3885b7ea4bcf442777d4a3411c95aaa"
+}

@@ -500,6 +500,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leads/{id}/quotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the quotation letter for a lead: hero band on top, the lead's quotation PDF
+         *     attached, from the staff member as themselves. Writing to a stranger's money needs a
+         *     person behind it, so this is `SendEmail` (office), not an automatic trigger.
+         */
+        post: operations["leads_quotation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders": {
         parameters: {
             query?: never;
@@ -748,6 +769,198 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/inspections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["inspections_list"];
+        put?: never;
+        post: operations["inspections_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["inspections_detail"];
+        put?: never;
+        post?: never;
+        delete: operations["inspections_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["inspections_patch"];
+        trace?: never;
+    };
+    "/inspections/{id}/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inspections_attach_photo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/{id}/damages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inspections_add_damage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/{id}/damages/{damage_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["inspections_remove_damage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/{id}/signatures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inspections_add_signature"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/{id}/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inspections_sign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inspections_add_note"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/{id}/comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["inspections_comparison"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/{id}/verdicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["inspections_set_verdict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["inspections_templates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inspections/templates/{set}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["inspections_replace_templates"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders/{id}/uploads": {
         parameters: {
             query?: never;
@@ -939,6 +1152,94 @@ export interface paths {
             cookie?: never;
         };
         get: operations["mobile_order_picker"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everyone on the list, unsubscribed included: the office sees who opted out, because a
+         *     deleted address would silently resubscribe on the next import.
+         */
+        get: operations["newsletter_subscriptions"];
+        put?: never;
+        post: operations["newsletter_add_subscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/subscriptions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["newsletter_remove_subscription"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["newsletter_send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Website signup: `POST` with the address and `X-Newsletter-Key`. Resubscribing clears
+         *     an earlier unsubscribe — coming back is saying yes again.
+         */
+        post: operations["newsletter_subscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["newsletter_unsubscribe"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1155,6 +1456,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/workload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daily workshop load: placed, completed and in-workshop cars per business-tz day.
+         *     Ranges cap at 62 days — this feeds bar charts, not history exports.
+         */
+        get: operations["reports_workload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/stalled": {
         parameters: {
             query?: never;
@@ -1198,6 +1519,90 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search_global"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's open tasks: assigned to them or created by them, most urgent first.
+         *     This is what the dashboard widget reads.
+         */
+        get: operations["tasks_mine"];
+        put?: never;
+        post: operations["tasks_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/for/{entity}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["tasks_for_entity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["tasks_set_done"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["tasks_remove"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1371,6 +1776,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orders/{id}/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["invoices_list_for_order"];
+        put?: never;
+        /** Issue an invoice for an order and report it to NAV. */
+        post: operations["invoices_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["invoices_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{id}/storno": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Storno an issued invoice. The answer is the storno document, being reported. */
+        post: operations["invoices_storno"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{id}/annul": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Technically annul a data report. Admin only. */
+        post: operations["invoices_annul"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{id}/chain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The invoice's modification chain, straight from NAV. */
+        get: operations["invoices_chain"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/proformas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["invoices_list_proformas"];
+        put?: never;
+        /**
+         * Render a proforma (díjbekérő) for an order.
+         * @description Nothing is reported to NAV, no invoice status changes, and no invoice needs to exist:
+         *     a proforma is a request for payment, and usable from the day the order is priced.
+         */
+        post: operations["invoices_create_proforma"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1410,9 +1920,30 @@ export interface components {
             /** Format: date */
             latest_eur_rate_day?: string | null;
         };
+        AnnulRequest: {
+            /** @description One of NAV's codes; `ERRATIC_DATA` is the usual one. */
+            code: string;
+            /** @description Why. NAV stores it and shows it in the Online Számla portal. */
+            reason: string;
+        };
         AttachBody: {
             /** Format: int64 */
             vehicle_id: number;
+        };
+        AttachPhotoBody: {
+            /** Format: int64 */
+            image_id: number;
+            zone_key: string;
+            /** @description `overview` | `closeup` | `dashboard` | `signature`. */
+            purpose: string;
+            /** Format: int64 */
+            damage_id?: number | null;
+            /** Format: date-time */
+            taken_at: string;
+            /** Format: double */
+            lat?: number | null;
+            /** Format: double */
+            lon?: number | null;
         };
         AttachmentRef: {
             /** Format: int64 */
@@ -1420,8 +1951,14 @@ export interface components {
             filename?: string | null;
             /** Format: int64 */
             byte_size?: number | null;
-            /** @description "attached" or "link", filled in when the email is sent. */
+            /**
+             * @description "attached" or "link", filled in when the email is sent. "embedded" means the file
+             *     travels as an inline image under `content_id`, referenced from the HTML as
+             *     `cid:…` rather than listed as an attachment.
+             */
             mode?: string | null;
+            /** @description Content-ID without brackets (`doc-42`); only set together with mode "embedded". */
+            content_id?: string | null;
         };
         AuditEntry: {
             /** Format: int64 */
@@ -1515,9 +2052,35 @@ export interface components {
              */
             waiting_days: number;
         };
+        /**
+         * @description One document in the invoice's chain at NAV.
+         *
+         *     The sidecar speaks NAV's camelCase; this API does not. Restating the four fields the
+         *     screen uses keeps the contract in one shape rather than leaving a camelCase island in
+         *     the middle of it.
+         */
+        ChainStep: {
+            invoice_number: string;
+            /** @description `CREATE`, `MODIFY` or `STORNO`. */
+            operation: string;
+            /** @description When NAV recorded it, UTC. */
+            ins_date: string;
+            /** @description The document this one modifies, on a storno or a correction. */
+            original_invoice_number?: string | null;
+        };
         ChangePasswordBody: {
             current_password: string;
             new_password: string;
+        };
+        Comparison: {
+            checkin: components["schemas"]["InspectionDetail"];
+            checkout: components["schemas"]["InspectionDetail"];
+            /**
+             * @description Suggested verdict per check-in damage: same zone + same type as a
+             *     check-out damage reads as pre-existing, anything else as new. The
+             *     inspector still confirms or dismisses each one.
+             */
+            suggestions: components["schemas"]["Suggestion"][];
         };
         CompleteBody: {
             ticket: string;
@@ -1545,7 +2108,23 @@ export interface components {
             template_key?: string | null;
             subject?: string | null;
             body?: string | null;
+            /**
+             * @description The body is Markdown: rendered to HTML for sending, kept as written for the text
+             *     part and the inbox. Templates stay plain text — Markdown and `{{variables}}` mix
+             *     badly when values contain asterisks, so a template plus this flag is refused.
+             */
+            body_markdown?: boolean;
+            /**
+             * @description Optional shout across the top of the HTML part (the quotation letter's band).
+             *     The text part never carries it.
+             */
+            hero?: string | null;
             attachment_document_ids?: number[];
+            /**
+             * @description Documents shown inline: write `![alt](doc:ID)` in Markdown and pick the file here.
+             *     Sent as inline parts under `cid:doc-ID`, never as download links.
+             */
+            embed_document_ids?: number[];
         };
         Contact: {
             /** Format: int64 */
@@ -1571,6 +2150,23 @@ export interface components {
             phone?: string | null;
             position?: string | null;
             notes?: string | null;
+        };
+        CreateBody: {
+            /** Format: int64 */
+            order_id: number;
+            /** @description `checkout` | `checkin`. */
+            kind: string;
+            vehicle_plate?: string | null;
+            vehicle_vin?: string | null;
+            inspector_name: string;
+            driver_name?: string | null;
+            location?: string | null;
+            /** Format: int32 */
+            odometer?: number | null;
+            fuel_level?: string | null;
+            /** Format: int32 */
+            battery_pct?: number | null;
+            warning_lights?: string | null;
         };
         CreatePartner: {
             kind: components["schemas"]["PartnerKind"];
@@ -1647,6 +2243,17 @@ export interface components {
             /** Format: date-time */
             entered_at: string;
         };
+        DamageBody: {
+            zone_key: string;
+            damage_type: string;
+            severity: string;
+            note?: string | null;
+            /** Format: double */
+            x?: number | null;
+            /** Format: double */
+            y?: number | null;
+            view?: string | null;
+        };
         Document: {
             /** Format: int64 */
             id: number;
@@ -1684,7 +2291,7 @@ export interface components {
             deleted_at?: string | null;
         };
         /** @enum {string} */
-        DocumentKind: "design" | "cad" | "certificate" | "other";
+        DocumentKind: "design" | "cad" | "certificate" | "invoice" | "proforma" | "other";
         DocumentPatch: {
             /** @description Who issued it — the ATP inspection body, the designer, the supplier. */
             issuer?: string | null;
@@ -1697,6 +2304,9 @@ export interface components {
              * @description Which vehicle on a multi-vehicle order this covers.
              */
             vehicle_id?: number | null;
+        };
+        DoneBody: {
+            done: boolean;
         };
         DownloadUrl: {
             /** @description Presigned, expires after one hour. */
@@ -1724,6 +2334,8 @@ export interface components {
             sent_by?: number | null;
             to_address: string;
             cc: string[];
+            /** @description A newsletter blast's recipients. Everyone else's rows leave this empty. */
+            bcc: string[];
             from_address: string;
             reply_to?: string | null;
             subject: string;
@@ -1864,6 +2476,11 @@ export interface components {
             /** Format: date-time */
             fetched_at: string;
         };
+        GlobalResults: {
+            orders: components["schemas"]["OrderHit"][];
+            partners: components["schemas"]["PartnerHit"][];
+            leads: components["schemas"]["LeadHit"][];
+        };
         Image: {
             /** Format: int64 */
             id: number;
@@ -1894,12 +2511,261 @@ export interface components {
             deleted_at?: string | null;
         };
         /** @enum {string} */
-        ImageCategory: "intake" | "production" | "completion" | "marketing";
+        ImageCategory: "intake" | "production" | "completion" | "marketing" | "inspection";
         ImageView: components["schemas"]["Image"] & {
             /** @description Presigned, expires after one hour; null until the thumbnail is generated. */
             thumb_url?: string | null;
             /** @description Presigned, expires after one hour. */
             display_url?: string | null;
+        };
+        Inspection: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            order_id: number;
+            kind: string;
+            status: string;
+            vehicle_plate: string;
+            vehicle_vin?: string | null;
+            inspector_name: string;
+            driver_name?: string | null;
+            location?: string | null;
+            /** Format: int32 */
+            odometer?: number | null;
+            fuel_level?: string | null;
+            /** Format: int32 */
+            battery_pct?: number | null;
+            warning_lights?: string | null;
+            /** Format: int64 */
+            checkout_id?: number | null;
+            customer_comment?: string | null;
+            /** Format: date-time */
+            signed_at?: string | null;
+            /** Format: int64 */
+            created_by: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        InspectionDamage: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            inspection_id: number;
+            zone_key: string;
+            damage_type: string;
+            severity: string;
+            note?: string | null;
+            /** Format: double */
+            x?: number | null;
+            /** Format: double */
+            y?: number | null;
+            view: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InspectionDetail: {
+            inspection: components["schemas"]["Inspection"];
+            photos: components["schemas"]["InspectionPhoto"][];
+            damages: components["schemas"]["InspectionDamage"][];
+            verdicts: components["schemas"]["InspectionVerdict"][];
+            signatures: components["schemas"]["InspectionSignature"][];
+            notes: components["schemas"]["InspectionNote"][];
+        };
+        InspectionNote: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            inspection_id: number;
+            body: string;
+            /** Format: int64 */
+            created_by: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InspectionPhoto: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            inspection_id: number;
+            /** Format: int64 */
+            image_id: number;
+            zone_key: string;
+            purpose: string;
+            /** Format: int64 */
+            damage_id?: number | null;
+            /** Format: date-time */
+            taken_at: string;
+            /** Format: double */
+            lat?: number | null;
+            /** Format: double */
+            lon?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Presigned, expires after one hour; null until generated. */
+            thumb_url?: string | null;
+            /** @description Presigned, expires after one hour. */
+            display_url?: string | null;
+        };
+        InspectionSignature: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            inspection_id: number;
+            role: string;
+            name: string;
+            /** Format: int64 */
+            document_id: number;
+            /** Format: date-time */
+            signed_at: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InspectionVerdict: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            checkin_id: number;
+            /** Format: int64 */
+            checkin_damage_id: number;
+            /** Format: int64 */
+            checkout_damage_id?: number | null;
+            verdict: string;
+            note?: string | null;
+            /** Format: int64 */
+            reviewed_by: number;
+            /** Format: date-time */
+            reviewed_at: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Invoice: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            order_id: number;
+            /** @description The number NAV knows this document by. */
+            number: string;
+            kind: components["schemas"]["InvoiceKind"];
+            status: components["schemas"]["InvoiceStatus"];
+            /**
+             * Format: int64
+             * @description The invoice this one cancels. Set exactly on a storno.
+             */
+            original_invoice_id?: number | null;
+            currency: string;
+            /** Format: date */
+            issue_date: string;
+            /** Format: date */
+            delivery_date: string;
+            /** Format: date */
+            payment_date?: string | null;
+            /**
+             * Format: int64
+             * @description Minor units (fillér / eurocent). Negative on a storno: it is the reversal.
+             */
+            net_amount: number;
+            /** Format: int64 */
+            vat_amount: number;
+            /** Format: int64 */
+            gross_amount: number;
+            /** @description NAV's handle for the submission. Worth quoting in any support question. */
+            nav_transaction_id?: string | null;
+            /** @description NAV's own per-invoice status: `DONE` when stored, `ABORTED` when rejected. */
+            nav_status?: string | null;
+            /** @description NAV's fault code on a rejection, e.g. `INVOICE_NUMBER_ALREADY_EXISTS`. */
+            nav_error_code?: string | null;
+            nav_message?: string | null;
+            /** @description Everything NAV said, including warnings on an accepted invoice. */
+            nav_messages: components["schemas"]["NavMessage"][];
+            annulment_transaction_id?: string | null;
+            annulment_code?: string | null;
+            annulment_reason?: string | null;
+            /** Format: date-time */
+            annulled_at?: string | null;
+            /**
+             * Format: int64
+             * @description The stored PDF, once there is one.
+             */
+            document_id?: number | null;
+            /** Format: date-time */
+            submitted_at?: string | null;
+            /** Format: date-time */
+            issued_at?: string | null;
+            /** Format: int64 */
+            created_by?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description An invoice with everything the screen shows about it. */
+        InvoiceDetail: components["schemas"]["Invoice"] & {
+            lines: components["schemas"]["InvoiceLine"][];
+            /**
+             * @description Filename of the stored PDF, when there is one. Download it through
+             *     `GET /documents/{id}/download` like any other document.
+             */
+            document_filename?: string | null;
+        };
+        /** @enum {string} */
+        InvoiceKind: "invoice" | "storno";
+        InvoiceLine: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            invoice_id: number;
+            /** Format: int32 */
+            position: number;
+            description: string;
+            quantity: string;
+            unit: string;
+            /** Format: int64 */
+            unit_price: number;
+            /** @description The fraction: 0.2700 is 27%. */
+            vat_rate: string;
+            /** Format: int64 */
+            net_amount: number;
+            /** Format: int64 */
+            vat_amount: number;
+        };
+        /**
+         * @description Where an invoice is in its life.
+         *
+         *     `Submitting` is a real state, not a placeholder: NAV validates asynchronously, so there
+         *     is a period in which the report has been sent and no verdict exists. `Rejected` is
+         *     terminal for that document — the number is spent, and a corrected invoice is a new one.
+         * @enum {string}
+         */
+        InvoiceStatus: "submitting" | "issued" | "rejected" | "stornoed" | "annulled";
+        /**
+         * @description What the caller may decide when issuing an invoice. Everything is optional: with an
+         *     order that already carries its line items, "issue the invoice" is a confirmation, not a
+         *     form.
+         */
+        IssueRequest: {
+            /** @description The fraction, not the percentage: 0.27 is 27%. Defaults to `NAV_DEFAULT_VAT_RATE`. */
+            vat_rate?: string | null;
+            /**
+             * Format: date
+             * @description Defaults to today in the business timezone.
+             */
+            issue_date?: string | null;
+            /**
+             * Format: date
+             * @description Fulfilment date. Defaults to the issue date.
+             */
+            delivery_date?: string | null;
+            /**
+             * Format: date
+             * @description Defaults to the issue date plus `NAV_PAYMENT_DAYS`.
+             */
+            payment_date?: string | null;
+            /** @description `TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`. */
+            payment_method?: string | null;
+            /** @description Send the customer the invoice once NAV has stored it. */
+            send_email?: boolean;
         };
         ItemBody: {
             description: string;
@@ -1972,6 +2838,18 @@ export interface components {
                  *     (not UTC midnight — the whole point of this flag).
                  */
                 is_overdue: boolean;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_ChainStep: {
+            items: {
+                invoice_number: string;
+                /** @description `CREATE`, `MODIFY` or `STORNO`. */
+                operation: string;
+                /** @description When NAV recorded it, UTC. */
+                ins_date: string;
+                /** @description The document this one modifies, on a storno or a correction. */
+                original_invoice_number?: string | null;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -2104,6 +2982,102 @@ export interface components {
             })[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_Inspection: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                order_id: number;
+                kind: string;
+                status: string;
+                vehicle_plate: string;
+                vehicle_vin?: string | null;
+                inspector_name: string;
+                driver_name?: string | null;
+                location?: string | null;
+                /** Format: int32 */
+                odometer?: number | null;
+                fuel_level?: string | null;
+                /** Format: int32 */
+                battery_pct?: number | null;
+                warning_lights?: string | null;
+                /** Format: int64 */
+                checkout_id?: number | null;
+                customer_comment?: string | null;
+                /** Format: date-time */
+                signed_at?: string | null;
+                /** Format: int64 */
+                created_by: number;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_Invoice: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                order_id: number;
+                /** @description The number NAV knows this document by. */
+                number: string;
+                kind: components["schemas"]["InvoiceKind"];
+                status: components["schemas"]["InvoiceStatus"];
+                /**
+                 * Format: int64
+                 * @description The invoice this one cancels. Set exactly on a storno.
+                 */
+                original_invoice_id?: number | null;
+                currency: string;
+                /** Format: date */
+                issue_date: string;
+                /** Format: date */
+                delivery_date: string;
+                /** Format: date */
+                payment_date?: string | null;
+                /**
+                 * Format: int64
+                 * @description Minor units (fillér / eurocent). Negative on a storno: it is the reversal.
+                 */
+                net_amount: number;
+                /** Format: int64 */
+                vat_amount: number;
+                /** Format: int64 */
+                gross_amount: number;
+                /** @description NAV's handle for the submission. Worth quoting in any support question. */
+                nav_transaction_id?: string | null;
+                /** @description NAV's own per-invoice status: `DONE` when stored, `ABORTED` when rejected. */
+                nav_status?: string | null;
+                /** @description NAV's fault code on a rejection, e.g. `INVOICE_NUMBER_ALREADY_EXISTS`. */
+                nav_error_code?: string | null;
+                nav_message?: string | null;
+                /** @description Everything NAV said, including warnings on an accepted invoice. */
+                nav_messages: components["schemas"]["NavMessage"][];
+                annulment_transaction_id?: string | null;
+                annulment_code?: string | null;
+                annulment_reason?: string | null;
+                /** Format: date-time */
+                annulled_at?: string | null;
+                /**
+                 * Format: int64
+                 * @description The stored PDF, once there is one.
+                 */
+                document_id?: number | null;
+                /** Format: date-time */
+                submitted_at?: string | null;
+                /** Format: date-time */
+                issued_at?: string | null;
+                /** Format: int64 */
+                created_by?: number | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_ItemView: {
             items: (components["schemas"]["OrderItem"] & {
                 /**
@@ -2154,6 +3128,11 @@ export interface components {
                 /** Format: int64 */
                 assigned_to?: number | null;
                 assigned_name?: string | null;
+                /** Format: int64 */
+                quoted_value_minor?: number | null;
+                currency?: string | null;
+                /** Format: date */
+                quote_valid_until?: string | null;
                 stage_key: string;
                 stage_label: string;
                 /** Format: date-time */
@@ -2270,6 +3249,36 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_Proforma: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                order_id: number;
+                number: string;
+                currency: string;
+                /** Format: date */
+                issue_date: string;
+                /** Format: date */
+                payment_date?: string | null;
+                /** Format: int64 */
+                net_amount: number;
+                /** Format: int64 */
+                vat_amount: number;
+                /** Format: int64 */
+                gross_amount: number;
+                /**
+                 * Format: int64
+                 * @description The rendered PDF. Always present: a proforma is its document.
+                 */
+                document_id: number;
+                /** Format: int64 */
+                created_by?: number | null;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_ProjectType: {
             items: {
                 /** Format: int64 */
@@ -2351,6 +3360,20 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_Subscription: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                email: string;
+                name: string;
+                source: string;
+                /** Format: date-time */
+                subscribed_at: string;
+                /** Format: date-time */
+                unsubscribed_at?: string | null;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_Suppression: {
             items: {
                 email: string;
@@ -2359,6 +3382,28 @@ export interface components {
                 created_at: string;
                 /** Format: int64 */
                 created_by?: number | null;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_Task: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                entity_type: string;
+                /** Format: int64 */
+                entity_id: number;
+                title: string;
+                /** Format: date */
+                due_date?: string | null;
+                /** Format: date-time */
+                done_at?: string | null;
+                /** Format: int64 */
+                assigned_to?: number | null;
+                assigned_name?: string | null;
+                /** Format: int64 */
+                created_by: number;
+                /** Format: date-time */
+                created_at: string;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -2417,6 +3462,20 @@ export interface components {
                 created_at: string;
                 /** Format: date-time */
                 updated_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_ZoneTemplate: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                set_key: string;
+                zone_key: string;
+                /** Format: int32 */
+                position: number;
+                instruction: string;
+                optional: boolean;
+                required: boolean;
             }[];
         };
         Job: {
@@ -2518,6 +3577,13 @@ export interface components {
             /** @description V2.4: the quotation and anything else filed against the enquiry itself. */
             documents: components["schemas"]["Document"][];
         };
+        LeadHit: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            contact_name?: string | null;
+            stage_label: string;
+        };
         LeadSummary: {
             /** Format: int64 */
             id: number;
@@ -2531,6 +3597,11 @@ export interface components {
             /** Format: int64 */
             assigned_to?: number | null;
             assigned_name?: string | null;
+            /** Format: int64 */
+            quoted_value_minor?: number | null;
+            currency?: string | null;
+            /** Format: date */
+            quote_valid_until?: string | null;
             stage_key: string;
             stage_label: string;
             /** Format: date-time */
@@ -2560,6 +3631,51 @@ export interface components {
         };
         MeResponse: {
             user: components["schemas"]["SessionUser"];
+        };
+        /** @description One finding, as the sidecar flattens NAV's technical and business messages. */
+        NavMessage: {
+            /** @description `technical`, `business`, `local` or `request`. */
+            source: string;
+            /** @description `ERROR`, `WARN` or `INFO`. */
+            level: string;
+            /** @description NAV's own fault code, where there is one. */
+            code?: string | null;
+            message: string;
+            path?: string | null;
+        };
+        /**
+         * @description A newsletter blast: one row, everyone in BCC, nobody sees the list.
+         *
+         *     Bodies are literal — a blast has no single partner or lead, so `{{variables}}` have
+         *     nothing to resolve against, and any braces found refuse the send loudly rather than
+         *     mailing `{{MISSING:…}}` to hundreds of people. Unsubscribed and globally suppressed
+         *     addresses never make the BCC list.
+         */
+        NewsletterRequest: {
+            subject: string;
+            body: string;
+            body_markdown?: boolean;
+            /** @description Optional shout across the top (the quotation-style band for offer blasts). */
+            hero?: string | null;
+            /**
+             * @description Any company documents: a blast has no order or lead, so ownership is not
+             *     checked — the endpoint is office-only, and the list is company mail.
+             */
+            attachment_document_ids?: number[];
+            /** @description Documents shown inline via `![alt](doc:ID)`, sent as `cid:doc-ID` parts. */
+            embed_document_ids?: number[];
+        };
+        /**
+         * @description One row, everyone in BCC. The answer says how many addresses made the list, so the
+         *     office knows what "sent" meant.
+         */
+        NewsletterSent: {
+            /** Format: int64 */
+            email_id: number;
+            recipients: number;
+        };
+        NoteBody: {
+            body: string;
         };
         Order: {
             /** Format: int64 */
@@ -2594,6 +3710,27 @@ export interface components {
             related_order_id?: number | null;
             /** @description 'warranty' | 'rework' | 'repeat'. Set together with related_order_id or not at all. */
             relation?: string | null;
+            /**
+             * Format: int32
+             * @description Intake slip (átvételi lap): odometer at takeover. Leaving `intake` requires it.
+             */
+            mileage_in?: number | null;
+            /** @description Intake slip: visible condition notes at takeover. */
+            intake_condition?: string | null;
+            /** @description Intake slip: fuel level at takeover (`E` | `1/4` | `1/2` | `3/4` | `F`). */
+            fuel_level?: string | null;
+            /**
+             * Format: int32
+             * @description Intake slip: how many keys were handed over.
+             */
+            key_count?: number | null;
+            /**
+             * @description Intake slip: whether the valuables question was answered at all, and how.
+             *     `None` means nobody asked; `Some(false)` means the vehicle was empty.
+             */
+            valuables_declared?: boolean | null;
+            /** @description Intake slip: what was left in the vehicle, when [`Self::valuables_declared`] is true. */
+            valuables?: string | null;
             /** Format: int64 */
             created_by?: number | null;
             /** Format: int64 */
@@ -2633,6 +3770,30 @@ export interface components {
             related_order_id?: number | null;
             /** @description `warranty` | `rework` | `repeat`. */
             relation?: string | null;
+            /**
+             * Format: int32
+             * @description Intake slip: odometer at takeover (km). Leaving `intake` requires it.
+             */
+            mileage_in?: number | null;
+            /** @description Intake slip: visible condition notes at takeover. */
+            intake_condition?: string | null;
+            /** @description Intake slip: fuel gauge at takeover — `E`, `1/4`, `1/2`, `3/4` or `F`. */
+            fuel_level?: string | null;
+            /**
+             * Format: int32
+             * @description Intake slip: how many keys were handed over.
+             */
+            key_count?: number | null;
+            /**
+             * @description Intake slip: whether anyone answered the valuables question. Absent means nobody
+             *     did, which is not the same as `false` — "we never asked" is not a defence.
+             */
+            valuables_declared?: boolean | null;
+            /**
+             * @description Intake slip: what was left in the vehicle. Only meaningful with
+             *     `valuables_declared = true`, and rejected without it.
+             */
+            valuables?: string | null;
             spec?: null | components["schemas"]["SpecBody"];
             items?: components["schemas"]["ItemBody"][];
         };
@@ -2654,6 +3815,15 @@ export interface components {
             image_counts: {
                 [key: string]: number;
             };
+        };
+        /** @description One order hit: enough to recognise the job (number + plate + stage) and link to it. */
+        OrderHit: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            title: string;
+            plate?: string | null;
+            stage_label: string;
         };
         OrderItem: {
             /** Format: int64 */
@@ -2815,12 +3985,31 @@ export interface components {
              */
             leads: components["schemas"]["LeadSummary"][];
         };
+        PartnerHit: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            kind: string;
+            city?: string | null;
+        };
         /** @enum {string} */
         PartnerKind: "business" | "person";
         PartnerRef: {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        PatchBody: {
+            inspector_name?: string | null;
+            driver_name?: string | null;
+            location?: string | null;
+            /** Format: int32 */
+            odometer?: number | null;
+            fuel_level?: string | null;
+            /** Format: int32 */
+            battery_pct?: number | null;
+            warning_lights?: string | null;
+            customer_comment?: string | null;
         };
         PatchItem: {
             description?: string | null;
@@ -2857,6 +4046,14 @@ export interface components {
             /** Format: int64 */
             related_order_id?: number | null;
             relation?: string | null;
+            /** Format: int32 */
+            mileage_in?: number | null;
+            intake_condition?: string | null;
+            fuel_level?: string | null;
+            /** Format: int32 */
+            key_count?: number | null;
+            valuables_declared?: boolean | null;
+            valuables?: string | null;
         };
         PatchPartner: {
             kind?: null | components["schemas"]["PartnerKind"];
@@ -2938,6 +4135,51 @@ export interface components {
             recipient_suppressed: boolean;
             attachments: components["schemas"]["AttachmentRef"][];
         };
+        Proforma: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            order_id: number;
+            number: string;
+            currency: string;
+            /** Format: date */
+            issue_date: string;
+            /** Format: date */
+            payment_date?: string | null;
+            /** Format: int64 */
+            net_amount: number;
+            /** Format: int64 */
+            vat_amount: number;
+            /** Format: int64 */
+            gross_amount: number;
+            /**
+             * Format: int64
+             * @description The rendered PDF. Always present: a proforma is its document.
+             */
+            document_id: number;
+            /** Format: int64 */
+            created_by?: number | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description A rendered proforma and the document it was stored as. */
+        ProformaCreated: components["schemas"]["Proforma"] & {
+            /**
+             * Format: int64
+             * @description Queued letter, when one was asked for and the customer has an address.
+             */
+            email_id?: number | null;
+        };
+        ProformaRequest: {
+            vat_rate?: string | null;
+            /** Format: date */
+            issue_date?: string | null;
+            /** Format: date */
+            payment_date?: string | null;
+            /** @description Printed under the totals, e.g. payment instructions. */
+            note?: string | null;
+            send_email?: boolean;
+        };
         ProjectType: {
             /** Format: int64 */
             id: number;
@@ -2952,6 +4194,28 @@ export interface components {
              *     the office can retype a category without a deploy.
              */
             spec_form?: string | null;
+        };
+        /**
+         * @description A quotation letter for a lead: the one letter that shouts. Hero band on top, the
+         *     lead's quotation PDF attached, sent by the staff member as themselves.
+         *
+         *     The price and validity lines appear when the lead carries them; the PDF is
+         *     authoritative either way, so a lead without a quoted price still sends. Anything the
+         *     office writes by hand goes through `{{variable}}` rendering first, then Markdown when
+         *     asked — the same pipeline as a manual letter.
+         */
+        QuotationRequest: {
+            subject?: string | null;
+            body?: string | null;
+            /** @description The hero band. Defaults to the shout; the office can tone it down per send. */
+            hero?: string | null;
+            body_markdown?: boolean;
+            attachment_document_ids?: number[];
+        };
+        /** @description The queued quotation letter. */
+        QuotationSent: {
+            /** Format: int64 */
+            email_id: number;
         };
         RawImportView: {
             /**
@@ -2972,6 +4236,9 @@ export interface components {
             title: string;
             /** @description 'warranty' | 'rework' | 'repeat'. */
             relation: string;
+        };
+        ReplaceTemplatesBody: {
+            zones: components["schemas"]["ZoneBody"][];
         };
         ResetPassword: {
             temporary_password: string;
@@ -3062,6 +4329,19 @@ export interface components {
             stalled_alert_recipients?: string[];
             /** @description Email transport overrides; absent keeps everything stored. */
             email?: components["schemas"]["EmailTransportBody"];
+        };
+        SignBody: {
+            customer_comment?: string | null;
+        };
+        SignatureBody: {
+            /** @description `inspector` | `customer`. */
+            role: string;
+            name: string;
+            /**
+             * Format: int64
+             * @description Finger-drawn PNG uploaded as an `other` document of the same order.
+             */
+            document_id: number;
         };
         /**
          * @description The build spec as the form sends it. `form` is not taken on trust: it must match what
@@ -3180,6 +4460,36 @@ export interface components {
             /** Format: int64 */
             open_blockers: number;
         };
+        StornoRequest: {
+            /**
+             * Format: date
+             * @description Defaults to today in the business timezone.
+             */
+            issue_date?: string | null;
+            send_email?: boolean;
+        };
+        Subscription: {
+            /** Format: int64 */
+            id: number;
+            email: string;
+            name: string;
+            source: string;
+            /** Format: date-time */
+            subscribed_at: string;
+            /** Format: date-time */
+            unsubscribed_at?: string | null;
+        };
+        SubscriptionBody: {
+            email: string;
+            name?: string;
+        };
+        Suggestion: {
+            /** Format: int64 */
+            checkin_damage_id: number;
+            /** Format: int64 */
+            checkout_damage_id?: number | null;
+            suggested: string;
+        };
         Suppression: {
             email: string;
             reason?: string | null;
@@ -3187,6 +4497,36 @@ export interface components {
             created_at: string;
             /** Format: int64 */
             created_by?: number | null;
+        };
+        Task: {
+            /** Format: int64 */
+            id: number;
+            entity_type: string;
+            /** Format: int64 */
+            entity_id: number;
+            title: string;
+            /** Format: date */
+            due_date?: string | null;
+            /** Format: date-time */
+            done_at?: string | null;
+            /** Format: int64 */
+            assigned_to?: number | null;
+            assigned_name?: string | null;
+            /** Format: int64 */
+            created_by: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        TaskBody: {
+            /** @description `order` | `lead` | `partner`. */
+            entity_type: string;
+            /** Format: int64 */
+            entity_id: number;
+            title: string;
+            /** Format: date */
+            due_date?: string | null;
+            /** Format: int64 */
+            assigned_to?: number | null;
         };
         TemplateVariable: {
             name: string;
@@ -3225,6 +4565,13 @@ export interface components {
             requires_note: boolean;
             /** @description False when an image gate between current and target is unmet. */
             gates_met: boolean;
+        };
+        /**
+         * @description Unsubscribe from a link or a typed address. Always answers 200 with whether anything
+         *     changed: a link clicked twice is not an error, and guessing addresses learns nothing.
+         */
+        Unsubscribed: {
+            unsubscribed: boolean;
         };
         UpdateUser: {
             display_name?: string | null;
@@ -3327,6 +4674,15 @@ export interface components {
             number: string;
             title: string;
         };
+        VerdictBody: {
+            /** Format: int64 */
+            checkin_damage_id: number;
+            /** Format: int64 */
+            checkout_damage_id?: number | null;
+            /** @description `preexisting` | `new` | `dismissed`. */
+            verdict: string;
+            note?: string | null;
+        };
         VolumeReport: {
             period: components["schemas"]["Period"];
             group: string;
@@ -3352,6 +4708,51 @@ export interface components {
              * @description Orders excluded from the normalised sum because no rate was available.
              */
             missing_fx: number;
+        };
+        WorkloadDay: {
+            /** Format: date */
+            date: string;
+            /**
+             * Format: int64
+             * @description Orders placed (created) that day.
+             */
+            placed: number;
+            /**
+             * Format: int64
+             * @description Orders that reached a terminal stage that day.
+             */
+            completed: number;
+            /**
+             * Format: int64
+             * @description Orders sitting in the workshop that day (placed, not yet completed).
+             */
+            in_workshop: number;
+        };
+        WorkloadReport: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            days: components["schemas"]["WorkloadDay"][];
+        };
+        ZoneBody: {
+            zone_key: string;
+            /** Format: int32 */
+            position: number;
+            instruction: string;
+            optional: boolean;
+            required: boolean;
+        };
+        ZoneTemplate: {
+            /** Format: int64 */
+            id: number;
+            set_key: string;
+            zone_key: string;
+            /** Format: int32 */
+            position: number;
+            instruction: string;
+            optional: boolean;
+            required: boolean;
         };
     };
     responses: never;
@@ -4198,7 +5599,10 @@ export interface operations {
     partners_search: {
         parameters: {
             query?: {
-                /** @description Matches name, tax number, e-mail and city. */
+                /**
+                 * @description Matches name, tax number, e-mail, city — and phone in any
+                 *     +36/06/0036 spacing variant.
+                 */
                 q?: string;
                 kind?: components["schemas"]["PartnerKind"];
                 /**
@@ -5003,6 +6407,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Order"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leads_quotation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuotationRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuotationSent"];
                 };
             };
             /** @description Client error; see `error.code` */
@@ -5903,6 +7350,624 @@ export interface operations {
             };
         };
     };
+    inspections_list: {
+        parameters: {
+            query?: {
+                order_id?: number;
+                /** @description Full vehicle history across orders, by plate. */
+                plate?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Inspection"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inspection"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionDetail"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inspection"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_attach_photo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachPhotoBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionPhoto"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_add_damage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DamageBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionDamage"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_remove_damage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                damage_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_add_signature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignatureBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionSignature"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_sign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inspection"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_add_note: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionNote"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_comparison: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comparison"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_set_verdict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerdictBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionVerdict"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_templates: {
+        parameters: {
+            query?: {
+                project_type_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_ZoneTemplate"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_replace_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                set: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceTemplatesBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_ZoneTemplate"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     media_request_upload: {
         parameters: {
             query?: never;
@@ -6445,6 +8510,255 @@ export interface operations {
             };
         };
     };
+    newsletter_subscriptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Subscription"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_add_subscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_remove_subscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_send: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewsletterRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsletterSent"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
+            };
+            /** @description Missing or wrong key, or signup is off */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description The per-address token from an earlier mail. The page without a token asks for the
+                 *     address instead — a BCC blast cannot carry personal links.
+                 */
+                token: string | null;
+                email: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unsubscribed"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     email_list: {
         parameters: {
             query?: {
@@ -6455,6 +8769,8 @@ export interface operations {
                 status?: components["schemas"]["EmailStatus"];
                 /** @description Only failed and needs-review mail. */
                 attention?: boolean;
+                /** @description Free text over subject and recipient. */
+                q?: string;
                 limit?: number;
                 offset?: number;
             };
@@ -7090,6 +9406,48 @@ export interface operations {
             };
         };
     };
+    reports_workload: {
+        parameters: {
+            query?: {
+                /** @description Defaults to 6 days before `to` (one week). */
+                from?: string;
+                /** @description Defaults to today. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkloadReport"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     reports_stalled: {
         parameters: {
             query?: never;
@@ -7192,6 +9550,247 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Items_FxRate"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_global: {
+        parameters: {
+            query?: {
+                /**
+                 * @description At least 2 characters; shorter input returns empty groups rather than an error,
+                 *     so the UI can query on every keystroke without special-casing.
+                 */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalResults"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tasks_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Task"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tasks_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tasks_for_entity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entity: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Task"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tasks_set_done: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoneBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tasks_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -7713,6 +10312,356 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_list_for_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Invoice"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueRequest"];
+            };
+        };
+        responses: {
+            /** @description Queued for reporting; poll GET /invoices/{id} */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description An invoice is already in flight or live for this order */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDetail"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_storno: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StornoRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Only an issued invoice can be stornoed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_annul: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnulRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Admin only */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_chain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_ChainStep"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_list_proformas: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Proforma"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_create_proforma: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProformaRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProformaCreated"];
+                };
             };
             /** @description Client error; see `error.code` */
             "4XX": {

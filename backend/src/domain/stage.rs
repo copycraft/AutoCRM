@@ -36,6 +36,10 @@ impl StageEntity {
 pub mod keys {
     /// A lead reaches `won` only through conversion to an order.
     pub const LEAD_WON: &str = "won";
+    /// Leaving `intake` closes the intake slip: the mileage must be recorded first.
+    pub const ORDER_INTAKE: &str = "intake";
+    /// Entering `completed` queues the ready-for-pickup email instead of the stage mail.
+    pub const ORDER_COMPLETED: &str = "completed";
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]

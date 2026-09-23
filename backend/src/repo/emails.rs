@@ -20,6 +20,8 @@ pub struct EmailMessage {
     pub sent_by: Option<i64>,
     pub to_address: String,
     pub cc: Vec<String>,
+    /// A newsletter blast's recipients. Everyone else's rows leave this empty.
+    pub bcc: Vec<String>,
     pub from_address: String,
     pub reply_to: Option<String>,
     pub subject: String,
@@ -72,6 +74,7 @@ pub struct NewEmail<'a> {
     pub idempotency_key: Option<&'a str>,
     pub to_address: &'a str,
     pub cc: &'a [String],
+    pub bcc: &'a [String],
     pub from_address: &'a str,
     pub reply_to: Option<&'a str>,
     pub subject: &'a str,
@@ -85,9 +88,9 @@ pub struct NewEmail<'a> {
 pub async fn insert(db: impl PgExecutor<'_>, e: &NewEmail<'_>) -> sqlx::Result<Option<i64>> {
     sqlx::query_scalar!(
         "INSERT INTO email_messages (order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by,
-                                     idempotency_key, to_address, cc, from_address, reply_to, subject, body_html, body_text,
+                                     idempotency_key, to_address, cc, bcc, from_address, reply_to, subject, body_html, body_text,
                                      attachments, send_after)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, coalesce($18, now()))
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, coalesce($19, now()))
          ON CONFLICT (idempotency_key) DO NOTHING
          RETURNING id",
         e.order_id,
@@ -101,6 +104,7 @@ pub async fn insert(db: impl PgExecutor<'_>, e: &NewEmail<'_>) -> sqlx::Result<O
         e.idempotency_key,
         e.to_address,
         e.cc,
+        e.bcc,
         e.from_address,
         e.reply_to,
         e.subject,
@@ -116,7 +120,7 @@ pub async fn insert(db: impl PgExecutor<'_>, e: &NewEmail<'_>) -> sqlx::Result<O
 pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<EmailMessage>> {
     sqlx::query_as!(
         EmailMessage,
-        r#"SELECT id, order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by, to_address, cc,
+        r#"SELECT id, order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by, to_address, cc, bcc,
                   from_address, reply_to, subject, body_html, body_text, attachments, status AS "status: EmailStatus",
                   provider_id, error, attempts, queued_at, send_after, sending_started_at, sent_at, cancelled_at, cancelled_by
            FROM email_messages WHERE id = $1"#,
@@ -129,7 +133,7 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Email
 pub async fn lock(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<EmailMessage>> {
     sqlx::query_as!(
         EmailMessage,
-        r#"SELECT id, order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by, to_address, cc,
+        r#"SELECT id, order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by, to_address, cc, bcc,
                   from_address, reply_to, subject, body_html, body_text, attachments, status AS "status: EmailStatus",
                   provider_id, error, attempts, queued_at, send_after, sending_started_at, sent_at, cancelled_at, cancelled_by
            FROM email_messages WHERE id = $1 FOR UPDATE"#,
@@ -147,6 +151,9 @@ pub struct EmailFilter {
     pub partner_id: Option<i64>,
     pub status: Option<EmailStatus>,
     pub needs_attention: bool,
+    /// Free text over subject and recipient. Served server-side so the inbox searches
+    /// the whole log, not just the loaded page.
+    pub q: Option<String>,
 }
 
 pub async fn list(
@@ -167,17 +174,19 @@ pub async fn list(
              AND ($3::bigint IS NULL OR m.partner_id = $3
                   OR m.order_id IN (SELECT id FROM orders WHERE partner_id = $3)
                   OR m.lead_id IN (SELECT id FROM leads WHERE partner_id = $3))
-             AND ($4::email_status IS NULL OR m.status = $4)
-             AND (NOT $5 OR m.status IN ('failed', 'needs_review'))
-           ORDER BY m.queued_at DESC, m.id DESC
-           LIMIT $6 OFFSET $7"#,
+              AND ($4::email_status IS NULL OR m.status = $4)
+              AND (NOT $5 OR m.status IN ('failed', 'needs_review'))
+              AND ($8::text IS NULL OR m.subject ILIKE $8 OR m.to_address ILIKE $8)
+            ORDER BY m.queued_at DESC, m.id DESC
+            LIMIT $6 OFFSET $7"#,
         f.order_id,
         f.lead_id,
         f.partner_id,
         f.status as Option<EmailStatus>,
         f.needs_attention,
         limit,
-        offset
+        offset,
+        f.q.as_deref().and_then(crate::repo::like_pattern)
     )
     .fetch_all(db)
     .await

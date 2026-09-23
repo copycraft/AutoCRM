@@ -11,6 +11,23 @@
     <!-- Only to tell the fitter a batch finished or needs attention. Denied is survivable:
          the queue screen carries the same information. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Handover inspections open a live in-app camera (CameraX). Without it an inspection
+         cannot continue; the walkaround explains how to enable it. Photos never come from
+         storage: there is deliberately no READ_MEDIA_IMAGES permission anywhere here. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Inspection photos are geotagged when available. Denied is survivable: the photo
+         keeps its timestamp, zone and inspection, just without coordinates. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+
+    <!-- Android 11+ package visibility: without this the system camera intent cannot be
+         resolved and the capture button crashes with ActivityNotFoundException. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
 
     <application
         android:name=".AutoCrmApp"

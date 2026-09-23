@@ -1,0 +1,632 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+
+package hu.autotherm.autocrm.ui.inspection
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import hu.autotherm.autocrm.data.inspection.DAMAGE_TYPES
+import hu.autotherm.autocrm.data.inspection.DraftDamage
+import hu.autotherm.autocrm.data.inspection.SEVERITIES
+import hu.autotherm.autocrm.data.inspection.damageTypeLabel
+import hu.autotherm.autocrm.data.inspection.severityLabel
+import hu.autotherm.autocrm.data.inspection.zoneTitle
+import hu.autotherm.autocrm.ui.common.AutoCrmTextField
+import hu.autotherm.autocrm.ui.common.Card
+import hu.autotherm.autocrm.ui.common.DetailSkeleton
+import hu.autotherm.autocrm.ui.common.ErrorState
+import hu.autotherm.autocrm.ui.common.PrimaryButton
+import hu.autotherm.autocrm.ui.common.ScreenTopBar
+import hu.autotherm.autocrm.ui.theme.Steel500
+import java.io.File
+
+/**
+ * The guided walkaround: readings → zone loop (camera → review → damage?) →
+ * comparison (check-in) → summary → signatures. One hand, big buttons, minimal
+ * typing. The camera opens automatically for every shot; review is one tap.
+ */
+@Composable
+fun WalkaroundScreen(
+    uuid: String?,
+    orderId: Long,
+    kind: String,
+    viewModel: WalkaroundViewModel,
+    onExit: () -> Unit,
+) {
+    val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(uuid, orderId, kind) {
+        if (state.payload == null && state.error == null) {
+            viewModel.open(uuid, orderId, kind)
+        }
+    }
+
+    // Full-screen camera or review take over everything while active.
+    val review = state.review
+    if (review != null) {
+        PhotoReview(
+            file = review.second,
+            onRetake = viewModel::retakePhoto,
+            onKeep = viewModel::keepPhoto,
+        )
+        return
+    }
+    state.capture?.let { request ->
+        CameraCapture(
+            instruction = request.instruction,
+            outputFile = request.file,
+            onCaptured = { viewModel.onCaptured(request) },
+            onCancel = viewModel::cancelCapture,
+        )
+        return
+    }
+
+    Scaffold(
+        topBar = {
+            ScreenTopBar(
+                title = if (kind == "checkin" || state.kind == "checkin") "Visszavétel" else "Kiadás",
+                subtitle = if (state.orderNumber.isNotBlank()) {
+                    "${state.orderNumber} · ${state.payload?.vehiclePlate.orEmpty()}"
+                } else null,
+                onBack = onExit,
+            )
+        },
+    ) { padding ->
+        when (val phase = state.phase) {
+            is Phase.Loading -> if (state.payload == null && state.error != null) {
+                // The order (or templates) failed to load: a bare skeleton here would
+                // spin forever with no way out. Retry, or leave the walkaround.
+                ErrorState(
+                    state.error!!,
+                    Modifier.fillMaxSize().padding(padding),
+                    onRetry = viewModel::retryOpen,
+                )
+            } else {
+                DetailSkeleton(
+                    Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                )
+            }
+            is Phase.Readings -> ReadingsStep(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            )
+            is Phase.Zone -> ZoneStep(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            )
+            is Phase.Damage -> DamageStep(
+                viewModel = viewModel,
+                damageLocalId = phase.damageLocalId,
+                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            )
+            is Phase.Comparison -> ComparisonStep(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            )
+            is Phase.Summary -> SummaryStep(
+                viewModel = viewModel,
+                onSigning = viewModel::gotoSigning,
+                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            )
+            is Phase.Signing -> SigningStep(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            )
+            is Phase.Done -> DoneStep(
+                onExit = onExit,
+                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            )
+        }
+        state.error?.let {
+            // Transient banner under the top bar content is handled per step; a
+            // global fallback keeps unexpected errors visible anywhere.
+        }
+    }
+}
+
+@Composable
+private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier) {
+    val state by viewModel.state.collectAsState()
+    val payload = state.payload ?: return
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Card {
+                Text("Átvétel adatai", style = MaterialTheme.typography.titleLarge)
+                AutoCrmTextField(
+                    value = payload.inspectorName,
+                    onValueChange = { v -> viewModel.setReadings { it.copy(inspectorName = v) } },
+                    label = "Átadó / felvevő neve *",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                AutoCrmTextField(
+                    value = payload.driverName,
+                    onValueChange = { v -> viewModel.setReadings { it.copy(driverName = v) } },
+                    label = "Sofőr / ügyfél neve",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                AutoCrmTextField(
+                    value = payload.location,
+                    onValueChange = { v -> viewModel.setReadings { it.copy(location = v) } },
+                    label = "Helyszín",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        item {
+            Card {
+                Text("Óraállás, üzemanyag, figyelmeztetések", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Fotózd le a műszerfalat, aztán írd be az értékeket.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Steel500,
+                )
+                val dashPhotos = payload.photos.filter {
+                    it.purpose == "dashboard" && it.zoneKey == "interior_dashboard"
+                }
+                if (dashPhotos.isEmpty()) {
+                    PrimaryButton(
+                        text = "Műszerfal fotózása",
+                        onClick = {
+                            viewModel.requestCapture(
+                                "dashboard",
+                                "interior_dashboard",
+                                "Műszerfal: óraállás és figyelmeztető lámpák",
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    Text(
+                        "${dashPhotos.size} műszerfal-fotó kész.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Steel500,
+                    )
+                    TextButton(
+                        onClick = {
+                            viewModel.requestCapture(
+                                "dashboard",
+                                "interior_dashboard",
+                                "Műszerfal: óraállás és figyelmeztető lámpák",
+                            )
+                        },
+                    ) { Text("Újabb műszerfal-fotó") }
+                }
+                AutoCrmTextField(
+                    value = payload.odometer,
+                    onValueChange = { v ->
+                        viewModel.setReadings { it.copy(odometer = v.filter { c -> c.isDigit() }) }
+                    },
+                    label = "Óraállás (km)",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text("Üzemanyagszint", style = MaterialTheme.typography.labelMedium)
+                // FlowRow, not LazyRow: lazy rows measure infinite inside lazy items
+                // and crash on the device.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf("E", "1/4", "1/2", "3/4", "F").forEach { level ->
+                        FilterChip(
+                            selected = payload.fuelLevel == level,
+                            onClick = {
+                                viewModel.setReadings {
+                                    it.copy(fuelLevel = if (it.fuelLevel == level) null else level)
+                                }
+                            },
+                            label = { Text(level) },
+                        )
+                    }
+                }
+                AutoCrmTextField(
+                    value = payload.batteryPct,
+                    onValueChange = { v ->
+                        viewModel.setReadings { it.copy(batteryPct = v.filter { c -> c.isDigit() }.take(3)) }
+                    },
+                    label = "Akkumulátor (%) – elektromosnál",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                AutoCrmTextField(
+                    value = payload.warningLights,
+                    onValueChange = { v -> viewModel.setReadings { it.copy(warningLights = v) } },
+                    label = "Égő figyelmeztető lámpák",
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        item {
+            state.error?.let {
+                Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+            }
+            PrimaryButton(
+                text = "Körbejárás indítása",
+                onClick = {
+                    if (payload.inspectorName.isBlank()) {
+                        viewModel.setError("az átadó neve kötelező")
+                    } else {
+                        viewModel.readingsDone()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ZoneStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier) {
+    val state by viewModel.state.collectAsState()
+    val payload = state.payload ?: return
+    val templates = payload.templates
+    if (payload.zoneIndex >= templates.size) {
+        // Walk finished from another path; move on.
+        LaunchedEffect(Unit) { viewModel.gotoSummary() }
+        return
+    }
+    val zone = templates[payload.zoneIndex]
+    val overviews = payload.photos.filter { it.zoneKey == zone.zoneKey && it.purpose == "overview" }
+    val damages = payload.damages.filter { it.zoneKey == zone.zoneKey && it.damageType.isNotBlank() }
+
+    // The camera opens automatically once per zone without an overview yet. Once
+    // only: cancelling must land back on the zone step, not reopen the camera in
+    // a loop the user cannot escape (which reads as a crash).
+    var autoOpened by rememberSaveable(zone.zoneKey) { mutableStateOf(false) }
+    LaunchedEffect(zone.zoneKey, overviews.isEmpty()) {
+        if (overviews.isEmpty() && !autoOpened) {
+            autoOpened = true
+            viewModel.requestCapture("overview", zone.zoneKey, zone.instruction)
+        }
+    }
+
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            LinearProgressIndicator(
+                progress = { (payload.zoneIndex).toFloat() / templates.size.toFloat() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "${payload.zoneIndex + 1} / ${templates.size} · ${zoneTitle(zone.zoneKey)}",
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(zone.instruction, style = MaterialTheme.typography.bodyLarge, color = Steel500)
+        }
+        if (overviews.isNotEmpty()) {
+            item {
+                Card {
+                    LocalPhotoRow(overviews.map { it.fileName }, state.uuid)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.requestCapture("overview", zone.zoneKey, zone.instruction)
+                            },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Újrafotózás") }
+                    }
+                }
+            }
+            item {
+                Card {
+                    Text("Van sérülés ebben a zónában?", style = MaterialTheme.typography.titleLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                val id = viewModel.startDamage(zone.zoneKey)
+                                viewModel.requestCapture(
+                                    "closeup",
+                                    zone.zoneKey,
+                                    "Közeli kép a sérülésről",
+                                    damageLocalId = id,
+                                )
+                            },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Igen") }
+                        OutlinedButton(
+                            onClick = viewModel::nextZone,
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Nem") }
+                    }
+                }
+            }
+            if (damages.isNotEmpty()) {
+                item {
+                    Text("Rögzített sérülések", style = MaterialTheme.typography.titleMedium)
+                }
+                items(damages, key = { it.localId }) { damage ->
+                    DamageCard(damage = damage)
+                }
+            }
+        } else {
+            item {
+                PrimaryButton(
+                    text = "Fotó készítése",
+                    onClick = {
+                        viewModel.requestCapture("overview", zone.zoneKey, zone.instruction)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        state.error?.let {
+            item {
+                Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DamageStep(
+    viewModel: WalkaroundViewModel,
+    damageLocalId: String,
+    modifier: Modifier = Modifier,
+) {
+    val state by viewModel.state.collectAsState()
+    val payload = state.payload ?: return
+    val damage = payload.damages.firstOrNull { it.localId == damageLocalId } ?: run {
+        LaunchedEffect(Unit) { viewModel.damageDone() }
+        return
+    }
+    val closeups = payload.photos.filter {
+        it.damageLocalId == damageLocalId && it.purpose == "closeup"
+    }
+    var subStep by rememberSaveable(damageLocalId) { mutableStateOf(0) } // 0 photo → 1 more? → 2 form → 3 another?
+
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("Sérülés dokumentálása", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "${zoneTitle(damage.zoneKey)} · ${closeups.size} közeli fotó",
+                style = MaterialTheme.typography.labelMedium,
+                color = Steel500,
+            )
+        }
+        when (subStep) {
+            0 -> {
+                item {
+                    PrimaryButton(
+                        text = if (closeups.isEmpty()) "Közeli fotó készítése" else "További közeli fotó",
+                        onClick = {
+                            viewModel.requestCapture(
+                                "closeup",
+                                damage.zoneKey,
+                                "Közeli kép a sérülésről",
+                                damageLocalId = damageLocalId,
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (closeups.isNotEmpty()) {
+                    item { Card { LocalPhotoRow(closeups.map { it.fileName }, state.uuid) } }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.requestCapture(
+                                        "closeup",
+                                        damage.zoneKey,
+                                        "További közeli kép a sérülésről",
+                                        damageLocalId = damageLocalId,
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) { Text("Még egy közeli") }
+                            Button(
+                                onClick = { subStep = 1 },
+                                modifier = Modifier.weight(1f),
+                            ) { Text("Leírás") }
+                        }
+                    }
+                }
+            }
+            1 -> {
+                item {
+                    Card {
+                        Text("Helye a karosszérián", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Koppints a sérülés helyére.",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Steel500,
+                        )
+                        CarOutline(
+                            marks = damage.x?.let { x ->
+                                damage.y?.let { y -> listOf(x.toFloat() to y.toFloat()) }
+                            }.orEmpty(),
+                            onTap = { x, y ->
+                                viewModel.updateDamage(damageLocalId) {
+                                    it.copy(x = x.toDouble(), y = y.toDouble())
+                                }
+                            },
+                        )
+                    }
+                }
+                item {
+                    Card {
+                        Text("Sérülés típusa", style = MaterialTheme.typography.titleMedium)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            DAMAGE_TYPES.forEach { (key, label) ->
+                                FilterChip(
+                                    selected = damage.damageType == key,
+                                    onClick = {
+                                        viewModel.updateDamage(damageLocalId) { it.copy(damageType = key) }
+                                    },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                    }
+                }
+                item {
+                    Card {
+                        Text("Súlyosság", style = MaterialTheme.typography.titleMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SEVERITIES.forEach { (key, label) ->
+                                FilterChip(
+                                    selected = damage.severity == key,
+                                    onClick = {
+                                        viewModel.updateDamage(damageLocalId) { it.copy(severity = key) }
+                                    },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                        AutoCrmTextField(
+                            value = damage.note.orEmpty(),
+                            onValueChange = { v ->
+                                viewModel.updateDamage(damageLocalId) { it.copy(note = v) }
+                            },
+                            label = "Megjegyzés (opcionális)",
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        )
+                    }
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { viewModel.removeDamage(damageLocalId) }) {
+                            Text("Eldobás")
+                        }
+                        PrimaryButton(
+                            text = "Kész",
+                            onClick = {
+                                if (damage.damageType.isBlank() || damage.severity.isBlank()) {
+                                    viewModel.setError("válassz típust és súlyosságot")
+                                } else {
+                                    viewModel.setError(null)
+                                    subStep = 2
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    state.error?.let {
+                        Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+            else -> {
+                item {
+                    Card {
+                        Text("Van másik sérülés ebben a zónában?", style = MaterialTheme.typography.titleLarge)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    val id = viewModel.startDamage(damage.zoneKey)
+                                    viewModel.requestCapture(
+                                        "closeup",
+                                        damage.zoneKey,
+                                        "Közeli kép a sérülésről",
+                                        damageLocalId = id,
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) { Text("Igen") }
+                            OutlinedButton(
+                                onClick = viewModel::damageDone,
+                                modifier = Modifier.weight(1f),
+                            ) { Text("Nincs, tovább") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DamageCard(damage: DraftDamage) {
+    Card {
+        Text(
+            "${damageTypeLabel(damage.damageType)} · ${severityLabel(damage.severity)}",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        damage.note?.takeIf { it.isNotBlank() }?.let {
+            Text(it, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+@Composable
+fun LocalPhotoRow(fileNames: List<String>, uuid: String) {
+    val context = LocalContext.current
+    // Fixed height: a lazy row inside lazy items/columns measures infinite
+    // otherwise, which crashes on the device (same class as ListSkeleton did).
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.height(120.dp),
+    ) {
+        items(fileNames, key = { it }) { name ->
+            AsyncImage(
+                model = File(context.filesDir, "inspections/$uuid/$name"),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(120.dp).clip(RoundedCornerShape(8.dp)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhotoReview(
+    file: File,
+    onRetake: () -> Unit,
+    onKeep: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+        AsyncImage(
+            model = file,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(onClick = onRetake, modifier = Modifier.weight(1f)) {
+                Text("Újra")
+            }
+            Button(onClick = onKeep, modifier = Modifier.weight(1f)) {
+                Text("Megtartom")
+            }
+        }
+    }
+}

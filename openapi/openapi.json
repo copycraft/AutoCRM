@@ -1015,7 +1015,7 @@
           {
             "name": "q",
             "in": "query",
-            "description": "Matches name, tax number, e-mail and city.",
+            "description": "Matches name, tax number, e-mail, city — and phone in any\n+36/06/0036 spacing variant.",
             "required": false,
             "schema": {
               "type": "string"
@@ -2139,6 +2139,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/quotation": {
+      "post": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Send the quotation letter for a lead: hero band on top, the lead's quotation PDF\nattached, from the staff member as themselves. Writing to a stranger's money needs a\nperson behind it, so this is `SendEmail` (office), not an automatic trigger.",
+        "operationId": "leads_quotation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuotationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationSent"
                 }
               }
             }
@@ -3402,6 +3464,847 @@
         }
       }
     },
+    "/inspections": {
+      "get": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_list",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "plate",
+            "in": "query",
+            "description": "Full vehicle history across orders, by plate.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Inspection"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inspection"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}": {
+      "get": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_patch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inspection"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}/photos": {
+      "post": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_attach_photo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachPhotoBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionPhoto"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}/damages": {
+      "post": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_add_damage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DamageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionDamage"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}/damages/{damage_id}": {
+      "delete": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_remove_damage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "damage_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}/signatures": {
+      "post": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_add_signature",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignatureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionSignature"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}/sign": {
+      "post": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_sign",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inspection"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}/notes": {
+      "post": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_add_note",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionNote"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}/comparison": {
+      "get": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_comparison",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comparison"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/{id}/verdicts": {
+      "post": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_set_verdict",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerdictBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionVerdict"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/templates": {
+      "get": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_templates",
+        "parameters": [
+          {
+            "name": "project_type_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_ZoneTemplate"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inspections/templates/{set}": {
+      "put": {
+        "tags": [
+          "inspections"
+        ],
+        "operationId": "inspections_replace_templates",
+        "parameters": [
+          {
+            "name": "set",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceTemplatesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_ZoneTemplate"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/orders/{id}/uploads": {
       "post": {
         "tags": [
@@ -4144,6 +5047,308 @@
         }
       }
     },
+    "/newsletter/subscriptions": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Everyone on the list, unsubscribed included: the office sees who opted out, because a\ndeleted address would silently resubscribe on the next import.",
+        "operationId": "newsletter_subscriptions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Subscription"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_add_subscription",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/subscriptions/{id}": {
+      "delete": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_remove_subscription",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/send": {
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_send",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewsletterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterSent"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/subscribe": {
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Website signup: `POST` with the address and `X-Newsletter-Key`. Resubscribing clears\nan earlier unsubscribe — coming back is saying yes again.",
+        "operationId": "newsletter_subscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or wrong key, or signup is off"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/unsubscribe": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_unsubscribe",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "The per-address token from an earlier mail. The page without a token asks for the\naddress instead — a BCC blast cannot carry personal links.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "email",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unsubscribed"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/emails": {
       "get": {
         "tags": [
@@ -4194,6 +5399,15 @@
             "required": false,
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Free text over subject and recipient.",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -5008,6 +6222,69 @@
         }
       }
     },
+    "/reports/workload": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Daily workshop load: placed, completed and in-workshop cars per business-tz day.\nRanges cap at 62 days — this feeds bar charts, not history exports.",
+        "operationId": "reports_workload",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Defaults to 6 days before `to` (one week).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Defaults to today.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkloadReport"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reports/stalled": {
       "get": {
         "tags": [
@@ -5155,6 +6432,310 @@
                 }
               }
             }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "operationId": "search_global",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "At least 2 characters; shorter input returns empty groups rather than an error,\nso the UI can query on every keystroke without special-casing.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalResults"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "The caller's open tasks: assigned to them or created by them, most urgent first.\nThis is what the dashboard widget reads.",
+        "operationId": "tasks_mine",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Task"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "tasks_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/for/{entity}/{id}": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "tasks_for_entity",
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Task"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{id}/done": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "tasks_set_done",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoneBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{id}": {
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "tasks_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
           },
           "4XX": {
             "description": "Client error; see `error.code`",
@@ -5859,6 +7440,465 @@
           }
         }
       }
+    },
+    "/orders/{id}/invoices": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "operationId": "invoices_list_for_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Invoice"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Issue an invoice for an order and report it to NAV.",
+        "operationId": "invoices_create",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Queued for reporting; poll GET /invoices/{id}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An invoice is already in flight or live for this order"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/{id}": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "operationId": "invoices_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/{id}/storno": {
+      "post": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Storno an issued invoice. The answer is the storno document, being reported.",
+        "operationId": "invoices_storno",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StornoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Only an issued invoice can be stornoed"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/{id}/annul": {
+      "post": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Technically annul a data report. Admin only.",
+        "operationId": "invoices_annul",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnulRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin only"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/{id}/chain": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "The invoice's modification chain, straight from NAV.",
+        "operationId": "invoices_chain",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_ChainStep"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/proformas": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "operationId": "invoices_list_proformas",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Proforma"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Render a proforma (díjbekérő) for an order.",
+        "description": "Nothing is reported to NAV, no invoice status changes, and no invoice needs to exist:\na proforma is a request for payment, and usable from the day the order is priced.",
+        "operationId": "invoices_create_proforma",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProformaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProformaCreated"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5969,6 +8009,23 @@
           }
         }
       },
+      "AnnulRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "reason"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "One of NAV's codes; `ERRATIC_DATA` is the usual one."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why. NAV stores it and shows it in the Online Számla portal."
+          }
+        }
+      },
       "AttachBody": {
         "type": "object",
         "required": [
@@ -5978,6 +8035,53 @@
           "vehicle_id": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "AttachPhotoBody": {
+        "type": "object",
+        "required": [
+          "image_id",
+          "zone_key",
+          "purpose",
+          "taken_at"
+        ],
+        "properties": {
+          "image_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "zone_key": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "`overview` | `closeup` | `dashboard` | `signature`."
+          },
+          "damage_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "taken_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lon": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           }
         }
       },
@@ -6009,7 +8113,14 @@
               "string",
               "null"
             ],
-            "description": "\"attached\" or \"link\", filled in when the email is sent."
+            "description": "\"attached\" or \"link\", filled in when the email is sent. \"embedded\" means the file\ntravels as an inline image under `content_id`, referenced from the HTML as\n`cid:…` rather than listed as an attachment."
+          },
+          "content_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Content-ID without brackets (`doc-42`); only set together with mode \"embedded\"."
           }
         }
       },
@@ -6306,6 +8417,35 @@
           }
         }
       },
+      "ChainStep": {
+        "type": "object",
+        "description": "One document in the invoice's chain at NAV.\n\nThe sidecar speaks NAV's camelCase; this API does not. Restating the four fields the\nscreen uses keeps the contract in one shape rather than leaving a camelCase island in\nthe middle of it.",
+        "required": [
+          "invoice_number",
+          "operation",
+          "ins_date"
+        ],
+        "properties": {
+          "invoice_number": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string",
+            "description": "`CREATE`, `MODIFY` or `STORNO`."
+          },
+          "ins_date": {
+            "type": "string",
+            "description": "When NAV recorded it, UTC."
+          },
+          "original_invoice_number": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The document this one modifies, on a storno or a correction."
+          }
+        }
+      },
       "ChangePasswordBody": {
         "type": "object",
         "required": [
@@ -6318,6 +8458,29 @@
           },
           "new_password": {
             "type": "string"
+          }
+        }
+      },
+      "Comparison": {
+        "type": "object",
+        "required": [
+          "checkin",
+          "checkout",
+          "suggestions"
+        ],
+        "properties": {
+          "checkin": {
+            "$ref": "#/components/schemas/InspectionDetail"
+          },
+          "checkout": {
+            "$ref": "#/components/schemas/InspectionDetail"
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "description": "Suggested verdict per check-in damage: same zone + same type as a\ncheck-out damage reads as pre-existing, anything else as new. The\ninspector still confirms or dismisses each one."
           }
         }
       },
@@ -6434,12 +8597,31 @@
               "null"
             ]
           },
+          "body_markdown": {
+            "type": "boolean",
+            "description": "The body is Markdown: rendered to HTML for sending, kept as written for the text\npart and the inbox. Templates stay plain text — Markdown and `{{variables}}` mix\nbadly when values contain asterisks, so a template plus this flag is refused."
+          },
+          "hero": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional shout across the top of the HTML part (the quotation letter's band).\nThe text part never carries it."
+          },
           "attachment_document_ids": {
             "type": "array",
             "items": {
               "type": "integer",
               "format": "int64"
             }
+          },
+          "embed_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Documents shown inline: write `![alt](doc:ID)` in Markdown and pick the file here.\nSent as inline parts under `cid:doc-ID`, never as download links."
           }
         }
       },
@@ -6534,6 +8716,77 @@
             ]
           },
           "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateBody": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "kind",
+          "inspector_name"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`checkout` | `checkin`."
+          },
+          "vehicle_plate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vehicle_vin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inspector_name": {
+            "type": "string"
+          },
+          "driver_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "odometer": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "fuel_level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "battery_pct": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "warning_lights": {
             "type": [
               "string",
               "null"
@@ -6803,6 +9056,51 @@
           }
         }
       },
+      "DamageBody": {
+        "type": "object",
+        "required": [
+          "zone_key",
+          "damage_type",
+          "severity"
+        ],
+        "properties": {
+          "zone_key": {
+            "type": "string"
+          },
+          "damage_type": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "x": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "y": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "view": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "Document": {
         "type": "object",
         "required": [
@@ -6906,6 +9204,8 @@
           "design",
           "cad",
           "certificate",
+          "invoice",
+          "proforma",
           "other"
         ]
       },
@@ -6940,6 +9240,17 @@
             ],
             "format": "int64",
             "description": "Which vehicle on a multi-vehicle order this covers."
+          }
+        }
+      },
+      "DoneBody": {
+        "type": "object",
+        "required": [
+          "done"
+        ],
+        "properties": {
+          "done": {
+            "type": "boolean"
           }
         }
       },
@@ -6981,6 +9292,7 @@
           "is_automatic",
           "to_address",
           "cc",
+          "bcc",
           "from_address",
           "subject",
           "body_html",
@@ -7051,6 +9363,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "bcc": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A newsletter blast's recipients. Everyone else's rows leave this empty."
           },
           "from_address": {
             "type": "string"
@@ -7533,6 +9852,34 @@
           }
         }
       },
+      "GlobalResults": {
+        "type": "object",
+        "required": [
+          "orders",
+          "partners",
+          "leads"
+        ],
+        "properties": {
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderHit"
+            }
+          },
+          "partners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartnerHit"
+            }
+          },
+          "leads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeadHit"
+            }
+          }
+        }
+      },
       "Image": {
         "type": "object",
         "required": [
@@ -7637,7 +9984,8 @@
           "intake",
           "production",
           "completion",
-          "marketing"
+          "marketing",
+          "inspection"
         ]
       },
       "ImageView": {
@@ -7665,6 +10013,745 @@
             }
           }
         ]
+      },
+      "Inspection": {
+        "type": "object",
+        "required": [
+          "id",
+          "order_id",
+          "kind",
+          "status",
+          "vehicle_plate",
+          "inspector_name",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "vehicle_plate": {
+            "type": "string"
+          },
+          "vehicle_vin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inspector_name": {
+            "type": "string"
+          },
+          "driver_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "odometer": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "fuel_level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "battery_pct": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "warning_lights": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkout_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "customer_comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InspectionDamage": {
+        "type": "object",
+        "required": [
+          "id",
+          "inspection_id",
+          "zone_key",
+          "damage_type",
+          "severity",
+          "view",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inspection_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "zone_key": {
+            "type": "string"
+          },
+          "damage_type": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "x": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "y": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "view": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InspectionDetail": {
+        "type": "object",
+        "required": [
+          "inspection",
+          "photos",
+          "damages",
+          "verdicts",
+          "signatures",
+          "notes"
+        ],
+        "properties": {
+          "inspection": {
+            "$ref": "#/components/schemas/Inspection"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionPhoto"
+            }
+          },
+          "damages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionDamage"
+            }
+          },
+          "verdicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionVerdict"
+            }
+          },
+          "signatures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionSignature"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionNote"
+            }
+          }
+        }
+      },
+      "InspectionNote": {
+        "type": "object",
+        "required": [
+          "id",
+          "inspection_id",
+          "body",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inspection_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "body": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InspectionPhoto": {
+        "type": "object",
+        "required": [
+          "id",
+          "inspection_id",
+          "image_id",
+          "zone_key",
+          "purpose",
+          "taken_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inspection_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "image_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "zone_key": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "damage_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "taken_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lon": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "thumb_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Presigned, expires after one hour; null until generated."
+          },
+          "display_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Presigned, expires after one hour."
+          }
+        }
+      },
+      "InspectionSignature": {
+        "type": "object",
+        "required": [
+          "id",
+          "inspection_id",
+          "role",
+          "name",
+          "document_id",
+          "signed_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inspection_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "role": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "signed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InspectionVerdict": {
+        "type": "object",
+        "required": [
+          "id",
+          "checkin_id",
+          "checkin_damage_id",
+          "verdict",
+          "reviewed_by",
+          "reviewed_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checkin_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checkin_damage_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checkout_damage_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewed_by": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "required": [
+          "id",
+          "order_id",
+          "number",
+          "kind",
+          "status",
+          "currency",
+          "issue_date",
+          "delivery_date",
+          "net_amount",
+          "vat_amount",
+          "gross_amount",
+          "nav_messages",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string",
+            "description": "The number NAV knows this document by."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InvoiceKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InvoiceStatus"
+          },
+          "original_invoice_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The invoice this one cancels. Set exactly on a storno."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "issue_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "delivery_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "payment_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "net_amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Minor units (fillér / eurocent). Negative on a storno: it is the reversal."
+          },
+          "vat_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nav_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "NAV's handle for the submission. Worth quoting in any support question."
+          },
+          "nav_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "NAV's own per-invoice status: `DONE` when stored, `ABORTED` when rejected."
+          },
+          "nav_error_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "NAV's fault code on a rejection, e.g. `INVOICE_NUMBER_ALREADY_EXISTS`."
+          },
+          "nav_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nav_messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NavMessage"
+            },
+            "description": "Everything NAV said, including warnings on an accepted invoice."
+          },
+          "annulment_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "annulment_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "annulment_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "annulled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "document_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The stored PDF, once there is one."
+          },
+          "submitted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "issued_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InvoiceDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Invoice"
+          },
+          {
+            "type": "object",
+            "required": [
+              "lines"
+            ],
+            "properties": {
+              "lines": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InvoiceLine"
+                }
+              },
+              "document_filename": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Filename of the stored PDF, when there is one. Download it through\n`GET /documents/{id}/download` like any other document."
+              }
+            }
+          }
+        ],
+        "description": "An invoice with everything the screen shows about it."
+      },
+      "InvoiceKind": {
+        "type": "string",
+        "enum": [
+          "invoice",
+          "storno"
+        ]
+      },
+      "InvoiceLine": {
+        "type": "object",
+        "required": [
+          "id",
+          "invoice_id",
+          "position",
+          "description",
+          "quantity",
+          "unit",
+          "unit_price",
+          "vat_rate",
+          "net_amount",
+          "vat_amount"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "invoice_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "unit_price": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vat_rate": {
+            "type": "string",
+            "description": "The fraction: 0.2700 is 27%."
+          },
+          "net_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vat_amount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "InvoiceStatus": {
+        "type": "string",
+        "description": "Where an invoice is in its life.\n\n`Submitting` is a real state, not a placeholder: NAV validates asynchronously, so there\nis a period in which the report has been sent and no verdict exists. `Rejected` is\nterminal for that document — the number is spent, and a corrected invoice is a new one.",
+        "enum": [
+          "submitting",
+          "issued",
+          "rejected",
+          "stornoed",
+          "annulled"
+        ]
+      },
+      "IssueRequest": {
+        "type": "object",
+        "description": "What the caller may decide when issuing an invoice. Everything is optional: with an\norder that already carries its line items, \"issue the invoice\" is a confirmation, not a\nform.",
+        "properties": {
+          "vat_rate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The fraction, not the percentage: 0.27 is 27%. Defaults to `NAV_DEFAULT_VAT_RATE`."
+          },
+          "issue_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Defaults to today in the business timezone."
+          },
+          "delivery_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Fulfilment date. Defaults to the issue date."
+          },
+          "payment_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Defaults to the issue date plus `NAV_PAYMENT_DAYS`."
+          },
+          "payment_method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`."
+          },
+          "send_email": {
+            "type": "boolean",
+            "description": "Send the customer the invoice once NAV has stored it."
+          }
+        }
       },
       "ItemBody": {
         "type": "object",
@@ -7888,6 +10975,47 @@
                 "is_overdue": {
                   "type": "boolean",
                   "description": "Past due date and still open, measured against the caller's business day\n(not UTC midnight — the whole point of this flag)."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_ChainStep": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "One document in the invoice's chain at NAV.\n\nThe sidecar speaks NAV's camelCase; this API does not. Restating the four fields the\nscreen uses keeps the contract in one shape rather than leaving a camelCase island in\nthe middle of it.",
+              "required": [
+                "invoice_number",
+                "operation",
+                "ins_date"
+              ],
+              "properties": {
+                "invoice_number": {
+                  "type": "string"
+                },
+                "operation": {
+                  "type": "string",
+                  "description": "`CREATE`, `MODIFY` or `STORNO`."
+                },
+                "ins_date": {
+                  "type": "string",
+                  "description": "When NAV recorded it, UTC."
+                },
+                "original_invoice_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The document this one modifies, on a storno or a correction."
                 }
               }
             }
@@ -8335,6 +11463,316 @@
           }
         }
       },
+      "Items_Inspection": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "order_id",
+                "kind",
+                "status",
+                "vehicle_plate",
+                "inspector_name",
+                "created_by",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "vehicle_plate": {
+                  "type": "string"
+                },
+                "vehicle_vin": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "inspector_name": {
+                  "type": "string"
+                },
+                "driver_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "odometer": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "fuel_level": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "battery_pct": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "warning_lights": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "checkout_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "customer_comment": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "signed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "created_by": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_Invoice": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "order_id",
+                "number",
+                "kind",
+                "status",
+                "currency",
+                "issue_date",
+                "delivery_date",
+                "net_amount",
+                "vat_amount",
+                "gross_amount",
+                "nav_messages",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "number": {
+                  "type": "string",
+                  "description": "The number NAV knows this document by."
+                },
+                "kind": {
+                  "$ref": "#/components/schemas/InvoiceKind"
+                },
+                "status": {
+                  "$ref": "#/components/schemas/InvoiceStatus"
+                },
+                "original_invoice_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "The invoice this one cancels. Set exactly on a storno."
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "issue_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "delivery_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "payment_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "net_amount": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Minor units (fillér / eurocent). Negative on a storno: it is the reversal."
+                },
+                "vat_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "gross_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "nav_transaction_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "NAV's handle for the submission. Worth quoting in any support question."
+                },
+                "nav_status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "NAV's own per-invoice status: `DONE` when stored, `ABORTED` when rejected."
+                },
+                "nav_error_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "NAV's fault code on a rejection, e.g. `INVOICE_NUMBER_ALREADY_EXISTS`."
+                },
+                "nav_message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nav_messages": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NavMessage"
+                  },
+                  "description": "Everything NAV said, including warnings on an accepted invoice."
+                },
+                "annulment_transaction_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "annulment_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "annulment_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "annulled_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "document_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "The stored PDF, once there is one."
+                },
+                "submitted_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "issued_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "created_by": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_ItemView": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -8528,6 +11966,26 @@
                     "string",
                     "null"
                   ]
+                },
+                "quoted_value_minor": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "currency": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "quote_valid_until": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
                 },
                 "stage_key": {
                   "type": "string"
@@ -8928,6 +12386,88 @@
           }
         }
       },
+      "Items_Proforma": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "order_id",
+                "number",
+                "currency",
+                "issue_date",
+                "net_amount",
+                "vat_amount",
+                "gross_amount",
+                "document_id",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "issue_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "payment_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "net_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "vat_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "gross_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "document_id": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "The rendered PDF. Always present: a proforma is its document."
+                },
+                "created_by": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_ProjectType": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -9208,6 +12748,54 @@
           }
         }
       },
+      "Items_Subscription": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "email",
+                "name",
+                "source",
+                "subscribed_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "subscribed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "unsubscribed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_Suppression": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -9243,6 +12831,80 @@
                     "null"
                   ],
                   "format": "int64"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_Task": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "entity_type",
+                "entity_id",
+                "title",
+                "created_by",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "entity_type": {
+                  "type": "string"
+                },
+                "entity_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "due_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "done_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "assigned_to": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "assigned_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created_by": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               }
             }
@@ -9452,6 +13114,55 @@
                 "updated_at": {
                   "type": "string",
                   "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_ZoneTemplate": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "set_key",
+                "zone_key",
+                "position",
+                "instruction",
+                "optional",
+                "required"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "set_key": {
+                  "type": "string"
+                },
+                "zone_key": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "instruction": {
+                  "type": "string"
+                },
+                "optional": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
                 }
               }
             }
@@ -9798,6 +13509,32 @@
           }
         }
       },
+      "LeadHit": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "stage_label"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contact_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stage_label": {
+            "type": "string"
+          }
+        }
+      },
       "LeadSummary": {
         "type": "object",
         "required": [
@@ -9859,6 +13596,26 @@
               "string",
               "null"
             ]
+          },
+          "quoted_value_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quote_valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
           },
           "stage_key": {
             "type": "string"
@@ -9948,6 +13705,112 @@
         "properties": {
           "user": {
             "$ref": "#/components/schemas/SessionUser"
+          }
+        }
+      },
+      "NavMessage": {
+        "type": "object",
+        "description": "One finding, as the sidecar flattens NAV's technical and business messages.",
+        "required": [
+          "source",
+          "level",
+          "message"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "`technical`, `business`, `local` or `request`."
+          },
+          "level": {
+            "type": "string",
+            "description": "`ERROR`, `WARN` or `INFO`."
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "NAV's own fault code, where there is one."
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "NewsletterRequest": {
+        "type": "object",
+        "description": "A newsletter blast: one row, everyone in BCC, nobody sees the list.\n\nBodies are literal — a blast has no single partner or lead, so `{{variables}}` have\nnothing to resolve against, and any braces found refuse the send loudly rather than\nmailing `{{MISSING:…}}` to hundreds of people. Unsubscribed and globally suppressed\naddresses never make the BCC list.",
+        "required": [
+          "subject",
+          "body"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "body_markdown": {
+            "type": "boolean"
+          },
+          "hero": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional shout across the top (the quotation-style band for offer blasts)."
+          },
+          "attachment_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Any company documents: a blast has no order or lead, so ownership is not\nchecked — the endpoint is office-only, and the list is company mail."
+          },
+          "embed_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Documents shown inline via `![alt](doc:ID)`, sent as `cid:doc-ID` parts."
+          }
+        }
+      },
+      "NewsletterSent": {
+        "type": "object",
+        "description": "One row, everyone in BCC. The answer says how many addresses made the list, so the\noffice knows what \"sent\" meant.",
+        "required": [
+          "email_id",
+          "recipients"
+        ],
+        "properties": {
+          "email_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recipients": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "NoteBody": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
           }
         }
       },
@@ -10064,6 +13927,50 @@
               "null"
             ],
             "description": "'warranty' | 'rework' | 'repeat'. Set together with related_order_id or not at all."
+          },
+          "mileage_in": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Intake slip (átvételi lap): odometer at takeover. Leaving `intake` requires it."
+          },
+          "intake_condition": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Intake slip: visible condition notes at takeover."
+          },
+          "fuel_level": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Intake slip: fuel level at takeover (`E` | `1/4` | `1/2` | `3/4` | `F`)."
+          },
+          "key_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Intake slip: how many keys were handed over."
+          },
+          "valuables_declared": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Intake slip: whether the valuables question was answered at all, and how.\n`None` means nobody asked; `Some(false)` means the vehicle was empty."
+          },
+          "valuables": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Intake slip: what was left in the vehicle, when [`Self::valuables_declared`] is true."
           },
           "created_by": {
             "type": [
@@ -10192,6 +14099,50 @@
             ],
             "description": "`warranty` | `rework` | `repeat`."
           },
+          "mileage_in": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Intake slip: odometer at takeover (km). Leaving `intake` requires it."
+          },
+          "intake_condition": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Intake slip: visible condition notes at takeover."
+          },
+          "fuel_level": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Intake slip: fuel gauge at takeover — `E`, `1/4`, `1/2`, `3/4` or `F`."
+          },
+          "key_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Intake slip: how many keys were handed over."
+          },
+          "valuables_declared": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Intake slip: whether anyone answered the valuables question. Absent means nobody\ndid, which is not the same as `false` — \"we never asked\" is not a defence."
+          },
+          "valuables": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Intake slip: what was left in the vehicle. Only meaningful with\n`valuables_declared = true`, and rejected without it."
+          },
           "spec": {
             "oneOf": [
               {
@@ -10287,6 +14238,37 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        }
+      },
+      "OrderHit": {
+        "type": "object",
+        "description": "One order hit: enough to recognise the job (number + plate + stage) and link to it.",
+        "required": [
+          "id",
+          "number",
+          "title",
+          "stage_label"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "plate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stage_label": {
+            "type": "string"
           }
         }
       },
@@ -10837,6 +14819,32 @@
           }
         }
       },
+      "PartnerHit": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PartnerKind": {
         "type": "string",
         "enum": [
@@ -10857,6 +14865,61 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "PatchBody": {
+        "type": "object",
+        "properties": {
+          "inspector_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "driver_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "odometer": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "fuel_level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "battery_pct": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "warning_lights": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customer_comment": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -10993,6 +15056,44 @@
             "format": "int64"
           },
           "relation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mileage_in": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "intake_condition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fuel_level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "valuables_declared": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "valuables": {
             "type": [
               "string",
               "null"
@@ -11354,6 +15455,132 @@
           }
         }
       },
+      "Proforma": {
+        "type": "object",
+        "required": [
+          "id",
+          "order_id",
+          "number",
+          "currency",
+          "issue_date",
+          "net_amount",
+          "vat_amount",
+          "gross_amount",
+          "document_id",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "issue_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "payment_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "net_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vat_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "document_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The rendered PDF. Always present: a proforma is its document."
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProformaCreated": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Proforma"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "email_id": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "description": "Queued letter, when one was asked for and the customer has an address."
+              }
+            }
+          }
+        ],
+        "description": "A rendered proforma and the document it was stored as."
+      },
+      "ProformaRequest": {
+        "type": "object",
+        "properties": {
+          "vat_rate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issue_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "payment_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Printed under the totals, e.g. payment instructions."
+          },
+          "send_email": {
+            "type": "boolean"
+          }
+        }
+      },
       "ProjectType": {
         "type": "object",
         "required": [
@@ -11387,6 +15614,54 @@
               "null"
             ],
             "description": "Which build-spec section the order form shows for this type: `heating`,\n`cooling`, or null for work that has no build spec (repairs). Configuration, so\nthe office can retype a category without a deploy."
+          }
+        }
+      },
+      "QuotationRequest": {
+        "type": "object",
+        "description": "A quotation letter for a lead: the one letter that shouts. Hero band on top, the\nlead's quotation PDF attached, sent by the staff member as themselves.\n\nThe price and validity lines appear when the lead carries them; the PDF is\nauthoritative either way, so a lead without a quoted price still sends. Anything the\noffice writes by hand goes through `{{variable}}` rendering first, then Markdown when\nasked — the same pipeline as a manual letter.",
+        "properties": {
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hero": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The hero band. Defaults to the shout; the office can tone it down per send."
+          },
+          "body_markdown": {
+            "type": "boolean"
+          },
+          "attachment_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "QuotationSent": {
+        "type": "object",
+        "description": "The queued quotation letter.",
+        "required": [
+          "email_id"
+        ],
+        "properties": {
+          "email_id": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -11432,6 +15707,20 @@
           "relation": {
             "type": "string",
             "description": "'warranty' | 'rework' | 'repeat'."
+          }
+        }
+      },
+      "ReplaceTemplatesBody": {
+        "type": "object",
+        "required": [
+          "zones"
+        ],
+        "properties": {
+          "zones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ZoneBody"
+            }
           }
         }
       },
@@ -11751,6 +16040,39 @@
           "email": {
             "$ref": "#/components/schemas/EmailTransportBody",
             "description": "Email transport overrides; absent keeps everything stored."
+          }
+        }
+      },
+      "SignBody": {
+        "type": "object",
+        "properties": {
+          "customer_comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SignatureBody": {
+        "type": "object",
+        "required": [
+          "role",
+          "name",
+          "document_id"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "`inspector` | `customer`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Finger-drawn PNG uploaded as an `other` document of the same order."
           }
         }
       },
@@ -12141,6 +16463,95 @@
           }
         }
       },
+      "StornoRequest": {
+        "type": "object",
+        "properties": {
+          "issue_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Defaults to today in the business timezone."
+          },
+          "send_email": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Subscription": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "name",
+          "source",
+          "subscribed_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "subscribed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unsubscribed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SubscriptionBody": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Suggestion": {
+        "type": "object",
+        "required": [
+          "checkin_damage_id",
+          "suggested"
+        ],
+        "properties": {
+          "checkin_damage_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checkout_damage_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "suggested": {
+            "type": "string"
+          }
+        }
+      },
       "Suppression": {
         "type": "object",
         "required": [
@@ -12162,6 +16573,103 @@
             "format": "date-time"
           },
           "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "Task": {
+        "type": "object",
+        "required": [
+          "id",
+          "entity_type",
+          "entity_id",
+          "title",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "done_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "assigned_to": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "assigned_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TaskBody": {
+        "type": "object",
+        "required": [
+          "entity_type",
+          "entity_id",
+          "title"
+        ],
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "description": "`order` | `lead` | `partner`."
+          },
+          "entity_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "assigned_to": {
             "type": [
               "integer",
               "null"
@@ -12271,6 +16779,18 @@
           "gates_met": {
             "type": "boolean",
             "description": "False when an image gate between current and target is unmet."
+          }
+        }
+      },
+      "Unsubscribed": {
+        "type": "object",
+        "description": "Unsubscribe from a link or a typed address. Always answers 200 with whether anything\nchanged: a link clicked twice is not an error, and guessing addresses learns nothing.",
+        "required": [
+          "unsubscribed"
+        ],
+        "properties": {
+          "unsubscribed": {
+            "type": "boolean"
           }
         }
       },
@@ -12662,6 +17182,36 @@
           }
         }
       },
+      "VerdictBody": {
+        "type": "object",
+        "required": [
+          "checkin_damage_id",
+          "verdict"
+        ],
+        "properties": {
+          "checkin_damage_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checkout_damage_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "verdict": {
+            "type": "string",
+            "description": "`preexisting` | `new` | `dismissed`."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "VolumeReport": {
         "type": "object",
         "required": [
@@ -12727,6 +17277,125 @@
             "type": "integer",
             "format": "int64",
             "description": "Orders excluded from the normalised sum because no rate was available."
+          }
+        }
+      },
+      "WorkloadDay": {
+        "type": "object",
+        "required": [
+          "date",
+          "placed",
+          "completed",
+          "in_workshop"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "placed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Orders placed (created) that day."
+          },
+          "completed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Orders that reached a terminal stage that day."
+          },
+          "in_workshop": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Orders sitting in the workshop that day (placed, not yet completed)."
+          }
+        }
+      },
+      "WorkloadReport": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "days"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkloadDay"
+            }
+          }
+        }
+      },
+      "ZoneBody": {
+        "type": "object",
+        "required": [
+          "zone_key",
+          "position",
+          "instruction",
+          "optional",
+          "required"
+        ],
+        "properties": {
+          "zone_key": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "optional": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ZoneTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "set_key",
+          "zone_key",
+          "position",
+          "instruction",
+          "optional",
+          "required"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "set_key": {
+            "type": "string"
+          },
+          "zone_key": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "optional": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
           }
         }
       }

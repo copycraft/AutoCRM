@@ -1,13 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DataTable, nextSort, type TableSort } from '@/components/tables/DataTable';
+import { DataTable, columnMenuItems, nextSort, type TableSort } from '@/components/tables/DataTable';
+import { ColumnMenu } from '@/components/tables/ColumnMenu';
+import { useColumnVisibility } from '@/hooks/useColumnVisibility';
 import { FilterBar, FilterField } from '@/components/tables/FilterBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -15,6 +17,12 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { AssigneeField } from '@/components/forms/AssigneeField';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useDensity, usePageSize } from '@/hooks/usePreferences';
+import { useUrlFlag, useUrlInt, useUrlState } from '@/hooks/useUrlState';
+import { useRememberList } from '@/hooks/useListMemory';
+import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
+import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
+import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
+import { ExportCsvButton } from '@/components/tables/ExportCsvButton';
 import { errorMessage } from '@/lib/api/errors';
 import { configApi, leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
@@ -31,18 +39,36 @@ export default function LeadsPage() {
   const tc = useTranslations('common');
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
+  const tq = useTranslations('qol');
   const ter = useTranslations('errors');
   const locale = useLocale();
   const { user } = useAuth();
-  const [q, setQ] = useState('');
-  const [stage, setStage] = useState('');
-  const [assignee, setAssignee] = useState<number | null | 'all' | 'me'>(null);
-  const [openOnly, setOpenOnly] = useState(false);
-  const [offset, setOffset] = useState(0);
-  const [sort, setSort] = useState<TableSort | null>(null);
+  useRememberList('leads');
+  const [q, setQ] = useUrlState('q', '');
+  const [stage, setStage] = useUrlState('stage', '');
+  const [assigneeRaw, setAssigneeRaw] = useUrlState('assignee', '');
+  const [openOnly, setOpenOnly] = useUrlFlag('open', false);
+  const [page, setPage] = useUrlInt('page', 1);
+  const [sortRaw, setSortRaw] = useUrlState('sort', '');
+  const assignee: number | null | 'all' | 'me' =
+    assigneeRaw === '' ? null : assigneeRaw === 'all' ? 'all' : assigneeRaw === 'me' ? 'me' : (Number(assigneeRaw) || null);
+  const sort: TableSort | null = sortRaw === '' ? null : sortRaw.startsWith('-')
+    ? { key: sortRaw.slice(1), dir: 'desc' }
+    : { key: sortRaw, dir: 'asc' };
+  const setAssignee = (v: number | null | 'all' | 'me') => {
+    setAssigneeRaw(v === null ? '' : v === 'all' ? 'all' : v === 'me' ? 'me' : String(v));
+  };
+  const setSort = (s: TableSort | null) => {
+    setSortRaw(!s ? '' : s.dir === 'desc' ? `-${s.key}` : s.key);
+  };
   const debouncedQ = useDebouncedValue(q);
   const pageSize = usePageSize();
-  const density = useDensity();
+  const serverDensity = useDensity();
+  const { density, toggle: toggleDensity, overridden: densityOverridden } =
+    useDensityWithOverride(serverDensity);
+  const { visibility: colVis, onChange: setColVis, reset: resetColVis } =
+    useColumnVisibility('leads');
+  const offset = Math.max(0, (page - 1) * pageSize);
 
   const assignedTo =
     assignee === 'me' ? (user?.id ?? null) : assignee === 'all' ? undefined : (assignee ?? undefined);
@@ -137,9 +163,54 @@ export default function LeadsPage() {
     setStage('');
     setAssignee(null);
     setOpenOnly(false);
-    setOffset(0);
+    setPage(1);
     setSort(null);
   };
+
+  const setPage1 = () => setPage(1);
+
+  /** Current filters, first 200 rows (the API max page). */
+  const exportLeads = async () => {
+    const data = await leadsApi.list({
+      q: debouncedQ || undefined,
+      stage: stage || undefined,
+      assigned_to: assignedTo ?? undefined,
+      open: openOnly || undefined,
+      sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
+      limit: 200,
+      offset: 0,
+    });
+    const items = data.items ?? [];
+    return {
+      header: [t('title'), t('partner'), t('stage'), t('assignedTo'), t('createdAt')],
+      rows: items.map((l) => [l.title, l.partner_name, l.stage_label, l.assigned_name, l.created_at]),
+      count: items.length,
+    };
+  };
+
+  const chips = useMemo<FilterChip[]>(() => {
+    const list: FilterChip[] = [];
+    if (q.trim() !== '') {
+      list.push({ key: 'q', label: `${tc('search')}: ${q.trim()}`, onRemove: () => { setQ(''); setPage1(); } });
+    }
+    if (stage !== '') {
+      const label = stagesQuery.data?.items.find((d) => d.key === stage)?.label_hu ?? stage;
+      list.push({ key: 'stage', label: `${t('stage')}: ${label}`, onRemove: () => { setStage(''); setPage1(); } });
+    }
+    if (assignee !== null && assignee !== 'all') {
+      const label = assignee === 'me' ? (user?.display_name ?? 'me') : `#${assignee}`;
+      list.push({ key: 'assignee', label: `${t('assigneeFilter')}: ${label}`, onRemove: () => { setAssignee(null); setPage1(); } });
+    }
+    if (openOnly) {
+      list.push({ key: 'open', label: t('openOnly'), onRemove: () => { setOpenOnly(false); setPage1(); } });
+    }
+    if (sort) {
+      list.push({ key: 'sort', label: tq('sortChip', { key: sort.key, dir: sort.dir === 'desc' ? '↓' : '↑' }), onRemove: () => { setSort(null); setPage1(); } });
+    }
+    return list;
+    // setPage1 is a stable wrapper around setPage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, stage, assignee, user, openOnly, sort, stagesQuery.data, tc, t, tq]);
 
   return (
     <AppShell>
@@ -153,6 +224,7 @@ export default function LeadsPage() {
           )
         }
       />
+      <SavedViewsBar listKey="leads" />
       <FilterBar onClear={clear}>
         <FilterField label={tc('search')}>
           <input
@@ -161,7 +233,7 @@ export default function LeadsPage() {
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
-              setOffset(0);
+              setPage(1);
             }}
           />
         </FilterField>
@@ -172,7 +244,7 @@ export default function LeadsPage() {
             disabled={stagesQuery.isLoading}
             onChange={(e) => {
               setStage(e.target.value);
-              setOffset(0);
+              setPage(1);
             }}
           >
             <option value="">{tc('all')}</option>
@@ -195,7 +267,7 @@ export default function LeadsPage() {
           allowEmpty={false}
           onChange={(v) => {
             setAssignee(v);
-            setOffset(0);
+            setPage(1);
           }}
         />
         <label className="flex items-center gap-2 pb-2 text-body">
@@ -205,12 +277,13 @@ export default function LeadsPage() {
             checked={openOnly}
             onChange={(e) => {
               setOpenOnly(e.target.checked);
-              setOffset(0);
+              setPage(1);
             }}
           />
           {t('openOnly')}
         </label>
       </FilterBar>
+      <ActiveFilterChips chips={chips} />
 
       {query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
@@ -219,7 +292,8 @@ export default function LeadsPage() {
           <DataTable
             columns={columns}
             data={query.data?.items ?? []}
-            isLoading={query.isLoading}
+            isLoading={query.isPending}
+            isFetching={query.isFetching && !query.isPending}
             emptyTitle={te('noLeads')}
             emptyFilteredTitle={te('filterNoResults')}
             filtered={
@@ -231,18 +305,33 @@ export default function LeadsPage() {
             getRowId={(r) => String(r.id)}
             density={density}
             sort={sort}
+            columnVisibility={colVis}
+            onColumnVisibilityChange={setColVis}
             onSort={(key) => {
               setSort(nextSort(sort, key));
-              setOffset(0);
+              setPage(1);
             }}
           />
-          <Pagination
-            offset={offset}
-            limit={pageSize}
-            loaded={query.data?.items.length ?? 0}
-            onPrev={() => setOffset((o) => Math.max(0, o - pageSize))}
-            onNext={() => setOffset((o) => o + pageSize)}
-          />
+          <div className="flex items-center justify-between gap-3">
+            <Pagination
+              offset={offset}
+              limit={pageSize}
+              loaded={query.data?.items.length ?? 0}
+              onPrev={() => setPage(Math.max(1, page - 1))}
+              onNext={() => setPage(page + 1)}
+              onJump={setPage}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportCsvButton base="leadek" onExport={exportLeads} />
+              <DensityToggle density={density} overridden={densityOverridden} onToggle={toggleDensity} />
+              <ColumnMenu
+                columns={columnMenuItems(columns)}
+                visibility={colVis}
+                onChange={setColVis}
+                onReset={resetColVis}
+              />
+            </div>
+          </div>
         </>
       )}
     </AppShell>

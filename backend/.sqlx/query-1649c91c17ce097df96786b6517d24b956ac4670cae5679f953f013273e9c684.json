@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, checkin_id, checkin_damage_id, checkout_damage_id, verdict,\n                  note, reviewed_by, reviewed_at, created_at\n            FROM inspection_verdicts WHERE checkin_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "checkin_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "checkin_damage_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "checkout_damage_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "verdict",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "reviewed_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "reviewed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1649c91c17ce097df96786b6517d24b956ac4670cae5679f953f013273e9c684"
+}

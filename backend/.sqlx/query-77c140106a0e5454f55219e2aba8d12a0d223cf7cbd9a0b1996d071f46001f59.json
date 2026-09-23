@@ -1,0 +1,207 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, order_id, number, kind AS \"kind: InvoiceKind\", status AS \"status: InvoiceStatus\",\n                  original_invoice_id, currency, issue_date, delivery_date, payment_date,\n                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,\n                  nav_error_code, nav_message, nav_messages, annulment_transaction_id,\n                  annulment_code, annulment_reason, annulled_at, document_id, submitted_at,\n                  issued_at, created_by, created_at, updated_at\n             FROM invoices WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind: InvoiceKind",
+        "type_info": {
+          "Custom": {
+            "name": "invoice_kind",
+            "kind": {
+              "Enum": [
+                "invoice",
+                "storno"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "status: InvoiceStatus",
+        "type_info": {
+          "Custom": {
+            "name": "invoice_status",
+            "kind": {
+              "Enum": [
+                "submitting",
+                "issued",
+                "rejected",
+                "stornoed",
+                "annulled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "original_invoice_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "issue_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "delivery_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "payment_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 10,
+        "name": "net_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "vat_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "nav_transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "nav_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "nav_error_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "nav_message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "nav_messages",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 18,
+        "name": "annulment_transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "annulment_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "annulment_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "annulled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 22,
+        "name": "document_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 23,
+        "name": "submitted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 24,
+        "name": "issued_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 25,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 26,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 27,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "77c140106a0e5454f55219e2aba8d12a0d223cf7cbd9a0b1996d071f46001f59"
+}

@@ -99,6 +99,11 @@ export function canUploadMedia(user: SessionUser | null): boolean {
   return canChangeStage(user);
 }
 
+/// Sending mail (manual, quotation, newsletter) is office work, like invoices.
+export function canSendEmail(user: SessionUser | null): boolean {
+  return canEdit(user);
+}
+
 export function canAdmin(user: SessionUser | null): boolean {
   return !!user && user.role === 'admin';
 }

@@ -30,7 +30,13 @@ const imagePatterns = process.env.AUTOCRM_S3_URL
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    optimizePackageImports: ['lucide-react'],
+    // Barrel files: import only the icons/helpers actually used, not the whole index.
+    optimizePackageImports: [
+      'lucide-react',
+      'date-fns',
+      'recharts',
+      // Not @tanstack/*: their ESM-only builds fail to parse under the optimizer.
+    ],
   },
   images: {
     remotePatterns: imagePatterns,

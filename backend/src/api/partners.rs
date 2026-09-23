@@ -19,7 +19,7 @@ use crate::repo::contacts::{Contact, ContactInput};
 use crate::repo::leads::LeadSummary;
 use crate::repo::orders::{OrderFilter, OrderSummary};
 use crate::repo::partners::{Partner, PartnerInput};
-use crate::repo::{audit, contacts, leads, like_pattern, orders, parse_sort, partners};
+use crate::repo::{audit, contacts, leads, like_pattern, orders, parse_sort, partners, phone_pattern};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
@@ -35,7 +35,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
 #[derive(Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 struct SearchQuery {
-    /// Matches name, tax number, e-mail and city.
+    /// Matches name, tax number, e-mail, city — and phone in any
+    /// +36/06/0036 spacing variant.
     q: Option<String>,
     kind: Option<PartnerKind>,
     /// V2.6: `customer` or `supplier`. A partner with no role set counts as a customer,
@@ -60,6 +61,7 @@ async fn search(
     ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> AppResult<Json<Items<Partner>>> {
     let pattern = q.q.as_deref().and_then(like_pattern);
+    let phone = q.q.as_deref().and_then(phone_pattern);
     let sort_key = parse_sort(
         q.sort.as_deref(),
         partners::PARTNER_SORTS,
@@ -76,6 +78,7 @@ async fn search(
     let rows = partners::search(
         &state.db,
         pattern.as_deref(),
+        phone.as_deref(),
         q.kind,
         q.role.as_deref(),
         q.include_archived,

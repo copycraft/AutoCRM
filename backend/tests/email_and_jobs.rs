@@ -61,6 +61,7 @@ async fn manual_email(pool: &PgPool, user_id: i64, status: EmailStatus) -> i64 {
             idempotency_key: None,
             to_address: "customer@example.hu",
             cc: &[],
+            bcc: &[],
             from_address: "Teszt <noreply@autotherm.hu>",
             reply_to: Some("teszt@autotherm.hu"),
             subject: "Teszt",
@@ -184,6 +185,8 @@ async fn automatic_mail_is_idempotent_and_respects_kill_switch(pool: PgPool) {
         to: "customer@example.hu",
         trigger: triggers::STAGE_CHANGED,
         idempotency_key: key.to_string(),
+        attachments: Vec::new(),
+        extra_values: Default::default(),
     };
     let first = queue_automatic(&mut conn, &state.config, email("stage:1"))
         .await
@@ -231,6 +234,8 @@ async fn suppressed_recipients_never_get_automatic_mail(pool: PgPool) {
             to: "customer@example.hu",
             trigger: triggers::STAGE_CHANGED,
             idempotency_key: "stage:x".into(),
+            attachments: Vec::new(),
+            extra_values: Default::default(),
         },
     )
     .await
@@ -313,4 +318,50 @@ async fn overdue_blockers_are_nudged_once_per_interval(pool: PgPool) {
             .status,
         EmailStatus::Sent
     );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn the_inbox_search_runs_on_the_server(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    manual_email(&pool, user.user_id, EmailStatus::Sent).await;
+
+    let found = emails::list(
+        &pool,
+        &emails::EmailFilter {
+            q: Some("teszt".into()),
+            ..Default::default()
+        },
+        10,
+        0,
+    )
+    .await
+    .unwrap();
+    assert_eq!(found.len(), 1);
+
+    let missing = emails::list(
+        &pool,
+        &emails::EmailFilter {
+            q: Some("nincs-ilyen-targy".into()),
+            ..Default::default()
+        },
+        10,
+        0,
+    )
+    .await
+    .unwrap();
+    assert!(missing.is_empty());
+
+    // Wildcards in the query are literal: searching for 50% matches 50%, not everything.
+    let literal = emails::list(
+        &pool,
+        &emails::EmailFilter {
+            q: Some("%".into()),
+            ..Default::default()
+        },
+        10,
+        0,
+    )
+    .await
+    .unwrap();
+    assert!(literal.is_empty());
 }

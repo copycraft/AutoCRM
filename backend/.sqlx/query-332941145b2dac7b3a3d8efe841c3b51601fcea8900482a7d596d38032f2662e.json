@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM inspection_zone_templates WHERE set_key = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "332941145b2dac7b3a3d8efe841c3b51601fcea8900482a7d596d38032f2662e"
+}

@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT t.id, t.entity_type, t.entity_id, t.title, t.due_date, t.done_at,\n                  t.assigned_to, u.display_name AS \"assigned_name?\", t.created_by, t.created_at\n           FROM tasks t LEFT JOIN users u ON u.id = t.assigned_to\n           WHERE t.done_at IS NULL AND (t.assigned_to = $1 OR t.created_by = $1)\n           ORDER BY t.due_date NULLS LAST, t.id DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "entity_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "entity_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "due_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "done_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "assigned_to",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "assigned_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "db9eb4c7edcb5db29d86565b3058fc7d6cd1446691e4138ba4115ff28d0b52a3"
+}

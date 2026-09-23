@@ -1,0 +1,131 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.id, b.order_id, o.number AS order_number, b.what, b.responsible_partner_id,\n                  p.name AS \"responsible_partner_name?\", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,\n                  b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,\n                  b.created_by, b.created_at, b.updated_at,\n                  (b.due_date IS NOT NULL AND b.due_date < $2 AND b.resolved_at IS NULL) AS \"is_overdue!\"\n           FROM blockers b\n            JOIN orders o ON o.id = b.order_id\n            LEFT JOIN partners p ON p.id = b.responsible_partner_id\n            WHERE b.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "order_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "what",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "responsible_partner_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "responsible_partner_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "responsible_email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "due_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "nudge_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "last_nudged_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "nudge_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "resolved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "resolved_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "resolution_note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "is_overdue!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "d073bb9fa1748fd63feec5d8befa8248c7a87f1405ebe2e245aac2da7cc9a9de"
+}

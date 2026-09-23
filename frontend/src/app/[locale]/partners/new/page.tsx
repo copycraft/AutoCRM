@@ -36,6 +36,7 @@ export default function NewPartnerPage() {
       <PageHeader title={t('newPartner')} />
       <PartnerForm
         initialKind={initialKind}
+        draftKey="partner-new"
         submitLabel={tc('create')}
         onSubmit={(v) => create.mutateAsync(v).then(() => undefined)}
       />

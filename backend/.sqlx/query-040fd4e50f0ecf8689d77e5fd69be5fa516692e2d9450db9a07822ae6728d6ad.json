@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO inspection_signatures (inspection_id, role, name, document_id)\n            VALUES ($1, $2, $3, $4)\n            ON CONFLICT (inspection_id, role) DO UPDATE SET\n                name = EXCLUDED.name, document_id = EXCLUDED.document_id, signed_at = now()\n            RETURNING id, inspection_id, role, name, document_id, signed_at, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "inspection_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "document_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "signed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "040fd4e50f0ecf8689d77e5fd69be5fa516692e2d9450db9a07822ae6728d6ad"
+}

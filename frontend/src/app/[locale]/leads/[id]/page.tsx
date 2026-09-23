@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
@@ -11,35 +11,57 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { StageHistoryList } from '@/components/ui/StageRail';
 import { LeadForm, leadPatchBody, type LeadFormValues } from '@/components/forms/LeadForm';
+import { TaskList } from '@/components/tasks/TaskList';
 import { LeadStageDialog } from '@/components/forms/LeadStageDialog';
 import { LeadConvertDialog } from '@/components/forms/LeadConvertDialog';
+import { QuotationDialog } from '@/components/email/QuotationDialog';
 import { stageTone } from '@/lib/utils/stages';
 import { configApi, leadsApi, partnersApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canAdmin, canEditLeads, useAuth } from '@/lib/auth/context';
 import { daysSince } from '@/lib/utils/format';
 import { DateDisplay } from '@/components/ui/DateDisplay';
+import { EmailValue, PhoneValue } from '@/components/ui/ContactLinks';
+import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
+import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
+import { useRecentRecords } from '@/hooks/useRecent';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
 import { Money } from '@/components/ui/Money';
 
-/** A quote whose validity has passed. Dates are plain YYYY-MM-DD, compared as such. */
+/** A quote whose validity has passed. Plain YYYY-MM-DD compared against the Budapest
+ * calendar date — a UTC date would flip the badge around midnight for "today". */
 function expired(validUntil: string): boolean {
-  return validUntil < new Date().toISOString().slice(0, 10);
+  const budapest = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Budapest' }).format(new Date());
+  return validUntil < budapest;
 }
 
 export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   const t = useTranslations('leads');
   const tc = useTranslations('common');
+  const tn = useTranslations('navigation');
+  const tt = useTranslations('tasks');
   const locale = useLocale();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { push: pushRecent } = useRecentRecords(6);
   const [editing, setEditing] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [quotationOpen, setQuotationOpen] = useState(false);
   const editable = canEditLeads(user);
 
   const detail = useQuery({ queryKey: qk.lead(id), queryFn: () => leadsApi.get(id) });
+  useEffect(() => {
+    if (detail.data) {
+      pushRecent({
+        href: `/${locale}/leads/${id}`,
+        title: detail.data.lead.title,
+        sub: detail.data.lead.contact_name ?? undefined,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail.data?.lead.id]);
   const stagesQuery = useQuery({
     queryKey: qk.stages('lead'),
     queryFn: () => configApi.stages('lead'),
@@ -90,8 +112,25 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
           const converted = orders.length > 0;
           return (
             <>
+              <BackToList listKey="leads" fallbackHref={`/${locale}/leads`} />
+              <div className="flex items-center justify-between gap-3">
+                <Breadcrumbs
+                  items={[
+                    { href: `/${locale}/leads`, label: tn('leads') },
+                    { label: lead.title },
+                  ]}
+                />
+                <CopyLinkButton />
+              </div>
               <PageHeader size="record"
-                title={lead.title}
+                title={
+                  <span className="inline-flex items-center gap-2">
+                    <span>{lead.title}</span>
+                    <CopyButton value={lead.title} label={t('title')} />
+                    {lead.contact_email && <CopyButton value={lead.contact_email} label={t('contactEmail')} />}
+                    {lead.contact_phone && <CopyButton value={lead.contact_phone} label={t('contactPhone')} />}
+                  </span>
+                }
                 subtitle={`#${lead.id} · ${t('age')}: ${tc('ageDays', { days: daysSince(lead.created_at) })}`}
                 actions={editable && (
                   <>
@@ -99,6 +138,11 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                       <button className="btn-secondary btn-sm" onClick={() => setEditing(true)}>
                         {tc('edit')}
                       </button>
+                    )}
+                    {!editing && (
+                      <Link className="btn-secondary btn-sm" href={`/${locale}/leads/new?clone=${lead.id}`}>
+                        {t('clone')}
+                      </Link>
                     )}
                     {!converted && (
                       <>
@@ -160,8 +204,8 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     <Info label={t('source')} value={lead.source ?? '—'} />
                     <Info label={t('assignedTo')} value={assigneeName} />
                     <Info label={t('contactName')} value={lead.contact_name ?? '—'} />
-                    <Info label={t('contactEmail')} value={lead.contact_email ?? '—'} />
-                    <Info label={t('contactPhone')} value={lead.contact_phone ?? '—'} />
+                    <Info label={t('contactEmail')} value={<EmailValue value={lead.contact_email} />} />
+                    <Info label={t('contactPhone')} value={<PhoneValue value={lead.contact_phone} mono />} />
                     <Info label={t('description')} value={lead.description ?? '—'} />
                     <Info label={t('createdAt')} value={<DateDisplay value={lead.created_at} />} />
                   </div>
@@ -169,7 +213,14 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   {/* V2.3: the quotation — the six weeks between "we sent them a price"
                       and "they said yes" were invisible before this. */}
                   <div className="mt-5 border-t border-steel-200 pt-5">
-                    <h2 className="text-section font-semibold">{t('quoteSection')}</h2>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h2 className="text-section font-semibold">{t('quoteSection')}</h2>
+                      {editable && (
+                        <button className="btn-primary btn-sm" onClick={() => setQuotationOpen(true)}>
+                          {t('sendQuotation')}
+                        </button>
+                      )}
+                    </div>
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       <Info
                         label={t('quotedValue')}
@@ -232,11 +283,23 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
 
               {lead.minicrm_id != null && <RawImportPanel entity="lead" id={id} />}
 
+              {!editing && (
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <h2 className="text-section font-semibold">{tt('forRecord')}</h2>
+                  <div className="mt-3">
+                    <TaskList entity="lead" id={id} />
+                  </div>
+                </section>
+              )}
+
               {stageOpen && (
                 <LeadStageDialog leadId={id} detail={detail.data} onClose={() => setStageOpen(false)} />
               )}
               {convertOpen && (
                 <LeadConvertDialog leadId={id} detail={detail.data} onClose={() => setConvertOpen(false)} />
+              )}
+              {quotationOpen && (
+                <QuotationDialog leadId={id} detail={detail.data} onClose={() => setQuotationOpen(false)} />
               )}
             </>
           );

@@ -83,6 +83,8 @@ pub async fn nudge_blockers(state: &AppState) -> anyhow::Result<usize> {
                 to: recipient,
                 trigger: triggers::NUDGE_BLOCKER,
                 idempotency_key: nudge_idempotency_key(candidate.id, count + 1),
+                attachments: Vec::new(),
+                extra_values: Default::default(),
             },
         )
         .await;
@@ -144,6 +146,8 @@ pub async fn stalled_order_alerts(state: &AppState) -> anyhow::Result<usize> {
                     to: recipient,
                     trigger: triggers::STALLED_ORDER,
                     idempotency_key: key,
+                    attachments: Vec::new(),
+                    extra_values: Default::default(),
                 },
             )
             .await;
@@ -162,6 +166,24 @@ pub async fn stalled_order_alerts(state: &AppState) -> anyhow::Result<usize> {
     Ok(queued)
 }
 
+/// The order's contact email, else the partner's. Shared by the progress and pickup
+/// mails so the two never disagree about who "the customer" is.
+/// The customer address an order writes to: the named contact if it has one, else the
+/// partner. Shared with invoicing, which sends to the same person.
+pub async fn customer_recipient(
+    conn: &mut PgConnection,
+    order: &orders::Order,
+) -> sqlx::Result<Option<String>> {
+    if let Some(cid) = order.contact_id {
+        if let Some(email) = contacts::find(&mut *conn, cid).await?.and_then(|c| c.email) {
+            return Ok(Some(email));
+        }
+    }
+    Ok(partners::find(&mut *conn, order.partner_id)
+        .await?
+        .and_then(|p| p.email))
+}
+
 /// Queues the customer-facing "your order moved on" email, inside the stage-change transaction.
 /// Only when enabled in settings and the order has an address to write to.
 pub async fn notify_stage_changed(
@@ -177,17 +199,7 @@ pub async fn notify_stage_changed(
     let Some(order) = orders::find(&mut *conn, order_id).await? else {
         return Ok(());
     };
-    let contact_email = match order.contact_id {
-        Some(cid) => contacts::find(&mut *conn, cid).await?.and_then(|c| c.email),
-        None => None,
-    };
-    let recipient = match contact_email {
-        Some(e) => Some(e),
-        None => partners::find(&mut *conn, order.partner_id)
-            .await?
-            .and_then(|p| p.email),
-    };
-    let Some(recipient) = recipient else {
+    let Some(recipient) = customer_recipient(&mut *conn, &order).await? else {
         return Ok(());
     };
     queue_automatic(
@@ -202,6 +214,47 @@ pub async fn notify_stage_changed(
             to: &recipient,
             trigger: triggers::STAGE_CHANGED,
             idempotency_key: format!("stage:{stage_row_id}"),
+            attachments: Vec::new(),
+            extra_values: Default::default(),
+        },
+    )
+    .await?;
+    Ok(())
+}
+
+/// Queues the "your car is ready for pickup" email on entering `completed`, in the same
+/// transaction. Replaces the generic stage mail for that move: one letter, not two.
+/// Idempotency key differs from the stage one, so a retry of the move cannot double-send.
+pub async fn notify_ready_for_pickup(
+    conn: &mut PgConnection,
+    state: &AppState,
+    order_id: i64,
+    stage_row_id: i64,
+) -> AppResult<()> {
+    let settings = config::settings(&mut *conn).await?;
+    if !settings.stage_change_notifications || !settings.automatic_email_enabled {
+        return Ok(());
+    }
+    let Some(order) = orders::find(&mut *conn, order_id).await? else {
+        return Ok(());
+    };
+    let Some(recipient) = customer_recipient(&mut *conn, &order).await? else {
+        return Ok(());
+    };
+    queue_automatic(
+        conn,
+        &state.config,
+        AutomaticEmail {
+            template_key: "order_ready_for_pickup",
+            about: About {
+                order_id: Some(order_id),
+                ..Default::default()
+            },
+            to: &recipient,
+            trigger: triggers::READY_FOR_PICKUP,
+            idempotency_key: format!("pickup:{stage_row_id}"),
+            attachments: Vec::new(),
+            extra_values: Default::default(),
         },
     )
     .await?;

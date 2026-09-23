@@ -12,7 +12,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,7 +31,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import hu.autotherm.autocrm.BuildConfig
 import hu.autotherm.autocrm.data.api.AutoCrmApi
+import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.prefs.ServerStore
+import hu.autotherm.autocrm.ui.common.AutoCrmTextField
 import hu.autotherm.autocrm.ui.common.PrimaryButton
 import hu.autotherm.autocrm.ui.theme.Done
 import hu.autotherm.autocrm.ui.theme.MonoSmall
@@ -46,6 +47,7 @@ import kotlinx.coroutines.launch
 class ServerSetupViewModel(
     private val serverStore: ServerStore,
     private val api: AutoCrmApi,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     data class State(
@@ -62,11 +64,15 @@ class ServerSetupViewModel(
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
-    /** Prefills the stored address if there is one, else the build's default. */
+    /** Prefills the stored address if there is one, else the build's default. Never
+     * overwrites in-progress edits: this re-runs on rotation and the ViewModel survives it. */
     fun prefill() {
+        if (_state.value.address.isNotBlank()) return
         viewModelScope.launch {
             val existing = serverStore.current()
-            _state.value = _state.value.copy(address = existing ?: BuildConfig.API_BASE_URL)
+            if (_state.value.address.isBlank()) {
+                _state.value = _state.value.copy(address = existing ?: BuildConfig.API_BASE_URL)
+            }
         }
     }
 
@@ -114,6 +120,9 @@ class ServerSetupViewModel(
         }
         viewModelScope.launch {
             serverStore.save(normalized)
+            // A bearer token belongs to one server: pointing the phone elsewhere must drop
+            // it, or the old token is sent to the new host and every call 401s.
+            sessionStore.clear()
             _state.value = _state.value.copy(saved = true)
             onSaved()
         }
@@ -152,12 +161,11 @@ fun ServerSetupScreen(
         )
         Spacer(Modifier.height(24.dp))
 
-        OutlinedTextField(
+        AutoCrmTextField(
             value = state.address,
             onValueChange = viewModel::setAddress,
-            label = { Text("Cím") },
+            label = "Cím",
             placeholder = { Text("192.168.1.10:8080") },
-            singleLine = true,
             enabled = !state.checking,
             textStyle = MonoSmall.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize),
             keyboardOptions = KeyboardOptions(

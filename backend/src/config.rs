@@ -114,6 +114,48 @@ pub struct S3Config {
     pub intake_lock_years: u32,
 }
 
+/// The billing party on every invoice: us.
+///
+/// NAV wants a structured address, not a line of text, so these are separate fields rather
+/// than the one `address_line` a partner carries. They are configuration because they are
+/// the same on every invoice and wrong on none: a typo here is a defective invoice.
+#[derive(Debug, Clone)]
+pub struct SupplierConfig {
+    pub name: String,
+    /// The 8-digit core of our tax number, as NAV's technical user expects it.
+    pub tax_number: String,
+    pub postal_code: String,
+    pub city: String,
+    /// Street name without the category: "Kossuth", not "Kossuth utca".
+    pub street_name: String,
+    /// "utca", "út", "tér", …
+    pub public_place_category: String,
+    pub number: String,
+    pub bank_account: Option<String>,
+}
+
+/// Talking to the NAV invoicing sidecar.
+///
+/// Absent `NAV_SIDECAR_URL` the whole feature is off: the endpoints answer with a rule
+/// error naming the variable. That is deliberate — a CRM with no invoicing configured is a
+/// supported state, and it is how every existing deployment and test keeps working.
+#[derive(Debug, Clone)]
+pub struct NavConfig {
+    pub sidecar_url: String,
+    /// Per HTTP attempt. Comfortably above the sidecar's own NAV polling, which is what
+    /// makes an invoice submission one call rather than a state machine on this side.
+    pub timeout: std::time::Duration,
+    pub supplier: SupplierConfig,
+    /// Applied to every invoice line that does not override it. 0.27 = 27%.
+    pub default_vat_rate: rust_decimal::Decimal,
+    /// Prefix of our invoice numbers, e.g. `AT` → `AT2026-0001`.
+    pub invoice_prefix: String,
+    /// Prefix of our proforma numbers, e.g. `DB` → `DB2026-0001`.
+    pub proforma_prefix: String,
+    /// Days from issue to payment due, when the caller does not say.
+    pub payment_days: i64,
+}
+
 #[derive(Clone)]
 pub struct Config {
     pub env: AppEnv,
@@ -127,6 +169,11 @@ pub struct Config {
     pub s3: S3Config,
     pub email: EmailConfig,
     pub mnb_endpoint: String,
+    /// None when NAV_SIDECAR_URL is unset: invoicing is simply not configured here.
+    pub nav: Option<NavConfig>,
+    /// API key the main website sends as `X-Newsletter-Key` to subscribe newsletter
+    /// readers. None means the public endpoint is off.
+    pub newsletter_api_key: Option<String>,
     pub business_tz: Tz,
     pub worker_enabled: bool,
     pub worker_id: String,
@@ -174,6 +221,52 @@ pub fn check_sender_domains(sender_domains: &[String], addresses: &[(&str, &str)
             format!("{key} ({addr}) is not in EMAIL_SENDER_DOMAINS; the relay would reject it")
         })
         .collect()
+}
+
+/// Reads the invoicing configuration, or `None` when there is none.
+///
+/// All-or-nothing on purpose: `NAV_SIDECAR_URL` alone turns invoicing on, and then every
+/// field of the supplier's identity is required, because half an identity produces an
+/// invoice NAV rejects — at the worst possible moment, with a customer waiting.
+fn read_nav(r: &mut Reader) -> Option<NavConfig> {
+    let sidecar_url = Reader::var("NAV_SIDECAR_URL")?
+        .trim_end_matches('/')
+        .to_string();
+    if !sidecar_url.starts_with("http://") && !sidecar_url.starts_with("https://") {
+        r.errors
+            .push(format!("NAV_SIDECAR_URL must be an http(s) URL, got '{sidecar_url}'"));
+    }
+    let default_vat_rate: rust_decimal::Decimal = r.parsed(
+        "NAV_DEFAULT_VAT_RATE",
+        rust_decimal::Decimal::new(27, 2), // 0.27
+    );
+    if default_vat_rate.is_sign_negative() || default_vat_rate > rust_decimal::Decimal::ONE {
+        r.errors.push(
+            "NAV_DEFAULT_VAT_RATE is a fraction between 0 and 1: use 0.27 for 27%".into(),
+        );
+    }
+    Some(NavConfig {
+        sidecar_url,
+        timeout: std::time::Duration::from_secs(r.parsed("NAV_SIDECAR_TIMEOUT_SECONDS", 90u64)),
+        supplier: SupplierConfig {
+            name: r.required("NAV_SUPPLIER_NAME"),
+            tax_number: r.required("NAV_SUPPLIER_TAX_NUMBER"),
+            postal_code: r.required("NAV_SUPPLIER_POSTAL_CODE"),
+            city: r.required("NAV_SUPPLIER_CITY"),
+            street_name: r.required("NAV_SUPPLIER_STREET_NAME"),
+            public_place_category: r.required("NAV_SUPPLIER_STREET_CATEGORY"),
+            number: r.required("NAV_SUPPLIER_STREET_NUMBER"),
+            bank_account: r.optional("NAV_SUPPLIER_BANK_ACCOUNT"),
+        },
+        default_vat_rate,
+        invoice_prefix: r
+            .optional("NAV_INVOICE_PREFIX")
+            .unwrap_or_else(|| "AT".into()),
+        proforma_prefix: r
+            .optional("NAV_PROFORMA_PREFIX")
+            .unwrap_or_else(|| "DB".into()),
+        payment_days: r.parsed("NAV_PAYMENT_DAYS", 8i64),
+    })
 }
 
 struct Reader {
@@ -361,6 +454,7 @@ impl Config {
         let mnb_endpoint = r
             .optional("MNB_ENDPOINT")
             .unwrap_or_else(|| "http://www.mnb.hu/arfolyamok.asmx".into());
+        let nav = read_nav(&mut r);
         let business_tz = r.parsed("BUSINESS_TIMEZONE", chrono_tz::Europe::Budapest);
         let worker_enabled = r.parsed("WORKER_ENABLED", true);
         let worker_id = r
@@ -368,6 +462,7 @@ impl Config {
             .unwrap_or_else(|| format!("worker-{}", std::process::id()));
         let log_format = r.parsed("LOG_FORMAT", LogFormat::Pretty);
         let log_dir = r.optional("LOG_DIR").map(PathBuf::from);
+        let newsletter_api_key = r.optional("NEWSLETTER_API_KEY");
 
         if env == AppEnv::Production {
             if !cookie_secure {
@@ -398,7 +493,9 @@ impl Config {
             upload_signing_key,
             s3,
             email,
+            nav,
             mnb_endpoint,
+            newsletter_api_key,
             business_tz,
             worker_enabled,
             worker_id,

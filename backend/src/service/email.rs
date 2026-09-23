@@ -18,6 +18,7 @@ use crate::config::{
 use crate::domain::email::{
     AutoSendContext, AutoSendDecision, EmailStatus, SendWindow, decide_automatic, normalize_address,
 };
+use crate::domain::money::{Currency, Money};
 use crate::domain::stage::{StageEntity, find as find_stage};
 use crate::domain::template::{self, TemplateValues};
 use crate::error::{AppError, AppResult};
@@ -25,14 +26,18 @@ use crate::integrations::email::{Mailer, OutgoingAttachment, OutgoingEmail, Send
 use crate::media::storage::content_disposition;
 use crate::repo::emails::{self, NewEmail};
 use crate::repo::{
-    blockers, config, contacts, documents, jobs, leads, orders, partners, stages, templates,
+    blockers, config, contacts, documents, jobs, leads, newsletter, orders, partners, stages,
+    templates,
 };
 use crate::service::auth::AuthUser;
 
 pub mod triggers {
     pub const MANUAL: &str = "manual";
+    pub const NEWSLETTER: &str = "newsletter";
+    pub const QUOTATION: &str = "quotation";
     pub const NUDGE_BLOCKER: &str = "nudge_blocker";
     pub const STAGE_CHANGED: &str = "stage_changed";
+    pub const READY_FOR_PICKUP: &str = "ready_for_pickup";
     pub const STALLED_ORDER: &str = "stalled_order";
 }
 
@@ -157,13 +162,23 @@ pub struct AttachmentRef {
     pub filename: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub byte_size: Option<i64>,
-    /// "attached" or "link", filled in when the email is sent.
+    /// "attached" or "link", filled in when the email is sent. "embedded" means the file
+    /// travels as an inline image under `content_id`, referenced from the HTML as
+    /// `cid:…` rather than listed as an attachment.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
+    /// Content-ID without brackets (`doc-42`); only set together with mode "embedded".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_id: Option<String>,
 }
 
 fn hu_date(d: NaiveDate) -> String {
     d.format("%Y.%m.%d.").to_string()
+}
+
+fn money_text(minor: i64, currency: Option<&str>) -> String {
+    let parsed: Currency = currency.unwrap_or("HUF").parse().unwrap_or(Currency::HUF);
+    format!("{}", Money::new(minor, parsed))
 }
 
 fn has_unresolved_markers(s: &str) -> bool {
@@ -282,6 +297,15 @@ pub async fn template_values(
         if let Some(name) = l.contact_name {
             v.entry("contact.name").or_insert(name);
         }
+        if let Some(quoted) = l.quoted_value_minor {
+            v.insert(
+                "lead.quoted_total",
+                money_text(quoted, l.currency.as_deref()),
+            );
+        }
+        if let Some(until) = l.quote_valid_until {
+            v.insert("lead.quote_valid_until", hu_date(until));
+        }
     }
 
     if let Some(pid) = partner_id {
@@ -303,8 +327,20 @@ pub struct ComposeRequest {
     pub template_key: Option<String>,
     pub subject: Option<String>,
     pub body: Option<String>,
+    /// The body is Markdown: rendered to HTML for sending, kept as written for the text
+    /// part and the inbox. Templates stay plain text — Markdown and `{{variables}}` mix
+    /// badly when values contain asterisks, so a template plus this flag is refused.
+    #[serde(default)]
+    pub body_markdown: bool,
+    /// Optional shout across the top of the HTML part (the quotation letter's band).
+    /// The text part never carries it.
+    pub hero: Option<String>,
     #[serde(default)]
     pub attachment_document_ids: Vec<i64>,
+    /// Documents shown inline: write `![alt](doc:ID)` in Markdown and pick the file here.
+    /// Sent as inline parts under `cid:doc-ID`, never as download links.
+    #[serde(default)]
+    pub embed_document_ids: Vec<i64>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -318,6 +354,77 @@ pub struct Preview {
     /// Manual mail may still go to a suppressed address; the UI should warn.
     pub recipient_suppressed: bool,
     pub attachments: Vec<AttachmentRef>,
+}
+
+/// Embedded images: validates the picked documents, rewrites `doc:ID` references to
+/// Content-IDs, and returns the refs to store alongside the regular attachments.
+///
+/// `owner` is the record whose documents may be embedded (compose, quotation). `None`
+/// (newsletter) accepts any existing company document: the blast endpoint is office-only.
+async fn apply_embeds(
+    conn: &mut PgConnection,
+    owner: Option<documents::Owner>,
+    embed_ids: &[i64],
+    body_html: String,
+    body_text: String,
+) -> AppResult<(String, String, Vec<AttachmentRef>)> {
+    if embed_ids.is_empty() {
+        // No embeds picked, but a dangling doc:42 is almost certainly a typo for one.
+        if let Err(unknown) = template::resolve_embed_refs(&body_html, &body_text, &[]) {
+            return Err(AppError::validation(format!(
+                "doc:{} is referenced but not embedded — pick it under embedded images",
+                unknown
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", doc:")
+            )));
+        }
+        return Ok((body_html, body_text, Vec::new()));
+    }
+    let docs = documents::find_many(&mut *conn, embed_ids).await?;
+    if docs.len() != embed_ids.len() {
+        return Err(AppError::validation(
+            "embedded images must be existing documents",
+        ));
+    }
+    if let Some(owner) = owner
+        && docs.iter().any(|d| !owner.owns(d))
+    {
+        return Err(AppError::validation(
+            "embedded images must be documents of this order or lead",
+        ));
+    }
+    if let Some(not_image) = docs.iter().find(|d| !d.content_type.starts_with("image/")) {
+        return Err(AppError::validation(format!(
+            "{} is not an image: only images can be embedded, attach anything else",
+            not_image.filename
+        )));
+    }
+    let pairs: Vec<(i64, String)> = docs.iter().map(|d| (d.id, d.filename.clone())).collect();
+    let (html, text) = template::resolve_embed_refs(&body_html, &body_text, &pairs).map_err(
+        |unknown| {
+            AppError::validation(format!(
+                "doc:{} is referenced but not embedded — pick it under embedded images",
+                unknown
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", doc:")
+            ))
+        },
+    )?;
+    let refs = docs
+        .into_iter()
+        .map(|d| AttachmentRef {
+            document_id: d.id,
+            filename: Some(d.filename.clone()),
+            byte_size: Some(d.byte_size),
+            mode: None,
+            content_id: Some(format!("doc-{}", d.id)),
+        })
+        .collect();
+    Ok((html, text, refs))
 }
 
 async fn prepare(
@@ -382,15 +489,34 @@ async fn prepare(
     unresolved.sort();
     unresolved.dedup();
 
+    if req.body_markdown && req.template_key.is_some() {
+        return Err(AppError::validation(
+            "body_markdown does not combine with a template: write the Markdown body directly",
+        ));
+    }
+    let mut body_html = match (req.hero.as_deref().map(str::trim), req.body_markdown) {
+        (Some(hero), true) if !hero.is_empty() => template::markdown_to_html_hero(hero, &body.output),
+        (Some(hero), false) if !hero.is_empty() => template::email_html_hero(hero, &body.output),
+        (_, true) => template::markdown_to_html(&body.output),
+        (_, false) => template::text_to_html(&body.output),
+    };
+    let mut body_text = body.output.clone();
+
     let mut attachments = Vec::new();
     if !req.attachment_document_ids.is_empty() {
         // V2.4: attachments used to require an order outright, which is why a quotation
         // could not be emailed from this system at all — the whole point of a lead is that
-        // no order exists yet.
-        let owner = documents::Owner::from_about(about.order_id, about.lead_id)
-            .ok_or_else(|| AppError::validation("attachments require an order or a lead"))?;
+        // no order exists yet. A letter about nothing (newsletter, standalone) may attach
+        // any company document: the senders are office staff either way.
         let docs = documents::find_many(&mut *conn, &req.attachment_document_ids).await?;
-        if docs.len() != req.attachment_document_ids.len() || docs.iter().any(|d| !owner.owns(d)) {
+        if docs.len() != req.attachment_document_ids.len() {
+            return Err(AppError::validation(
+                "attachments must be existing documents",
+            ));
+        }
+        if let Some(owner) = documents::Owner::from_about(about.order_id, about.lead_id)
+            && docs.iter().any(|d| !owner.owns(d))
+        {
             return Err(AppError::validation(
                 "attachments must be documents of this order or lead",
             ));
@@ -402,17 +528,25 @@ async fn prepare(
                 filename: Some(d.filename),
                 byte_size: Some(d.byte_size),
                 mode: None,
+                content_id: None,
             })
             .collect();
     }
+
+    let owner = documents::Owner::from_about(about.order_id, about.lead_id);
+    let (embedded_html, embedded_text, mut embedded) =
+        apply_embeds(&mut *conn, owner, &req.embed_document_ids, body_html, body_text).await?;
+    body_html = embedded_html;
+    body_text = embedded_text;
+    attachments.append(&mut embedded);
 
     Ok(Preview {
         recipient_suppressed: emails::is_suppressed(&mut *conn, &to).await?,
         to,
         cc,
         subject: template::single_line(&subject.output),
-        body_html: template::text_to_html(&body.output),
-        body_text: body.output,
+        body_html,
+        body_text,
         unresolved,
         attachments,
     })
@@ -456,6 +590,7 @@ pub async fn send_manual(
             idempotency_key: None,
             to_address: &p.to,
             cc: &p.cc,
+            bcc: &[],
             from_address: &from,
             // Replies go to the person who wrote it, never to an unmonitored box.
             reply_to: reply_to.as_deref(),
@@ -480,6 +615,333 @@ pub async fn send_manual(
     Ok(id)
 }
 
+/// A quotation letter for a lead: the one letter that shouts. Hero band on top, the
+/// lead's quotation PDF attached, sent by the staff member as themselves.
+///
+/// The price and validity lines appear when the lead carries them; the PDF is
+/// authoritative either way, so a lead without a quoted price still sends. Anything the
+/// office writes by hand goes through `{{variable}}` rendering first, then Markdown when
+/// asked — the same pipeline as a manual letter.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct QuotationRequest {
+    pub subject: Option<String>,
+    pub body: Option<String>,
+    /// The hero band. Defaults to the shout; the office can tone it down per send.
+    pub hero: Option<String>,
+    #[serde(default)]
+    pub body_markdown: bool,
+    #[serde(default)]
+    pub attachment_document_ids: Vec<i64>,
+}
+
+pub async fn send_quotation(
+    state: &AppState,
+    user: &AuthUser,
+    lead_id: i64,
+    req: &QuotationRequest,
+) -> AppResult<i64> {
+    let mut tx = state.db.begin().await?;
+    let lead = leads::find(&mut *tx, lead_id)
+        .await?
+        .ok_or(AppError::NotFound("lead"))?;
+
+    // The lead's own contact first, the partner's mailbox as fallback. No address
+    // anywhere is a data problem, and the error names the lead.
+    let mut to: Option<String> = lead
+        .contact_email
+        .clone()
+        .and_then(|e| normalize_address(&e));
+    if to.is_none()
+        && let Some(pid) = lead.partner_id
+        && let Some(p) = partners::find(&mut *tx, pid).await?
+    {
+        to = p.email.and_then(|e| normalize_address(&e));
+    }
+    let to = to.ok_or_else(|| {
+        AppError::validation(format!(
+            "lead #{} has no email address: add a contact email first",
+            lead.id
+        ))
+    })?;
+
+    let about = About {
+        lead_id: Some(lead_id),
+        ..Default::default()
+    };
+    let values =
+        template_values(&mut tx, &about, Some(&user.display_name), state.config.business_tz)
+            .await?;
+
+    let mut default_body = String::from(
+        "Tisztelt {{contact.name}}!\n\nKöszönjük érdeklődését ({{lead.title}}). \
+         Árajánlatunkat mellékelten küldjük.",
+    );
+    if values.contains_key("lead.quoted_total") {
+        default_body.push_str("\n\nAjánlott ár: {{lead.quoted_total}}");
+    }
+    if values.contains_key("lead.quote_valid_until") {
+        default_body.push_str("\nAz ajánlat érvényes: {{lead.quote_valid_until}}");
+    }
+    default_body.push_str("\n\nKérdés esetén állunk rendelkezésére.");
+
+    let subject_src = req
+        .subject
+        .clone()
+        .unwrap_or_else(|| "Árajánlatunk: {{lead.title}}".into());
+    let body_src = req.body.clone().unwrap_or(default_body);
+    if req.body_markdown && body_src.contains("{{") {
+        // Same rule as manual mail: Markdown and templates do not mix, because a value
+        // containing asterisks would format the letter by accident.
+        return Err(AppError::validation(
+            "body_markdown does not combine with {{variables}}: write the Markdown body directly",
+        ));
+    }
+    let subject = template::render(&subject_src, &values);
+    let body = template::render(&body_src, &values);
+    let mut unresolved = subject.unresolved.clone();
+    unresolved.extend(body.unresolved.iter().cloned());
+    unresolved.sort();
+    unresolved.dedup();
+    if !unresolved.is_empty() {
+        return Err(AppError::validation(format!(
+            "unresolved template variables: {}",
+            unresolved.join(", ")
+        )));
+    }
+
+    let hero = req
+        .hero
+        .clone()
+        .unwrap_or_else(|| "Megjött az Autotherm árajánlatod!".into());
+    if hero.trim().is_empty() {
+        return Err(AppError::validation("hero is required"));
+    }
+    let body_html = if req.body_markdown {
+        template::markdown_to_html_hero(&hero, &body.output)
+    } else {
+        template::email_html_hero(&hero, &body.output)
+    };
+
+    let mut attachments = Vec::new();
+    if !req.attachment_document_ids.is_empty() {
+        let owner = documents::Owner::Lead(lead_id);
+        let docs = documents::find_many(&mut *tx, &req.attachment_document_ids).await?;
+        if docs.len() != req.attachment_document_ids.len()
+            || docs.iter().any(|d| !owner.owns(d))
+        {
+            return Err(AppError::validation(
+                "attachments must be documents of this lead",
+            ));
+        }
+        attachments = docs
+            .into_iter()
+            .map(|d| AttachmentRef {
+                document_id: d.id,
+                filename: Some(d.filename),
+                byte_size: Some(d.byte_size),
+                mode: None,
+                content_id: None,
+            })
+            .collect();
+    }
+
+    let (from, reply_to) = manual_sender(&state.config.email, user)?;
+    let id = emails::insert(
+        &mut *tx,
+        &NewEmail {
+            order_id: None,
+            lead_id: Some(lead_id),
+            partner_id: None,
+            blocker_id: None,
+            template_key: None,
+            trigger: triggers::QUOTATION,
+            sent_by: Some(user.user_id),
+            idempotency_key: None,
+            to_address: &to,
+            cc: &[],
+            bcc: &[],
+            from_address: &from,
+            reply_to: reply_to.as_deref(),
+            subject: &template::single_line(&subject.output),
+            body_html: &body_html,
+            body_text: &body.output,
+            attachments: json!(attachments),
+            send_after: None,
+        },
+    )
+    .await?
+    .ok_or_else(|| AppError::internal("email insert returned no id"))?;
+    jobs::enqueue(
+        &mut *tx,
+        "send_email",
+        json!({ "email_id": id }),
+        None,
+        Some(&format!("send_email:{id}")),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(id)
+}
+
+/// A newsletter blast: one row, everyone in BCC, nobody sees the list.
+///
+/// Bodies are literal — a blast has no single partner or lead, so `{{variables}}` have
+/// nothing to resolve against, and any braces found refuse the send loudly rather than
+/// mailing `{{MISSING:…}}` to hundreds of people. Unsubscribed and globally suppressed
+/// addresses never make the BCC list.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct NewsletterRequest {
+    pub subject: String,
+    pub body: String,
+    #[serde(default)]
+    pub body_markdown: bool,
+    /// Optional shout across the top (the quotation-style band for offer blasts).
+    pub hero: Option<String>,
+    /// Any company documents: a blast has no order or lead, so ownership is not
+    /// checked — the endpoint is office-only, and the list is company mail.
+    #[serde(default)]
+    pub attachment_document_ids: Vec<i64>,
+    /// Documents shown inline via `![alt](doc:ID)`, sent as `cid:doc-ID` parts.
+    #[serde(default)]
+    pub embed_document_ids: Vec<i64>,
+}
+
+pub async fn send_newsletter(
+    state: &AppState,
+    user: &AuthUser,
+    req: &NewsletterRequest,
+) -> AppResult<(i64, usize)> {
+    if req.subject.trim().is_empty() {
+        return Err(AppError::validation("subject is required"));
+    }
+    if req.body.trim().is_empty() {
+        return Err(AppError::validation("body is required"));
+    }
+    let empty: TemplateValues = TemplateValues::new();
+    let subject = template::render(&req.subject, &empty);
+    let body = template::render(&req.body, &empty);
+    let mut unresolved = subject.unresolved.clone();
+    unresolved.extend(body.unresolved.iter().cloned());
+    unresolved.sort();
+    unresolved.dedup();
+    if !unresolved.is_empty() {
+        return Err(AppError::validation(format!(
+            "a newsletter has no recipient to resolve {} against: remove it",
+            unresolved.join(", ")
+        )));
+    }
+
+    let mut tx = state.db.begin().await?;
+    // Suppressed addresses never make the BCC list, even when still subscribed.
+    let mut clean = Vec::new();
+    for addr in newsletter::active_emails(&mut *tx).await? {
+        if !emails::is_suppressed(&mut *tx, &addr).await? {
+            clean.push(addr);
+        }
+    }
+    if clean.is_empty() {
+        return Err(AppError::validation(
+            "nobody to send to: the newsletter list is empty or all suppressed",
+        ));
+    }
+
+    let unsubscribe_url = format!(
+        "{}/hu/newsletter/unsubscribe",
+        state.config.public_base_url.trim_end_matches('/')
+    );
+    let footer_text = format!("\n\n---\nLeiratkozás: {unsubscribe_url}");
+    let footer_html = format!(
+        "<p style=\"margin:16px 0 0 0;font-size:11px;line-height:1.5;color:#8a847a;\">\
+         <a href=\"{unsubscribe_url}\" style=\"color:#8a847a;\">Leiratkozás a hírlevélről</a></p>"
+    );
+    let body_text = format!("{}{}", body.output, footer_text);
+    let rendered_html = match (req.hero.as_deref().map(str::trim), req.body_markdown) {
+        (Some(hero), true) if !hero.is_empty() => {
+            template::markdown_to_html_hero(hero, &body.output)
+        }
+        (Some(hero), false) if !hero.is_empty() => {
+            template::email_html_hero(hero, &body.output)
+        }
+        (_, true) => template::markdown_to_html(&body.output),
+        (_, false) => template::text_to_html(&body.output),
+    };
+    let mut body_html = rendered_html;
+    body_html = body_html.replace("</body></html>", &format!("{footer_html}</body></html>"));
+
+    let mut attachments = Vec::new();
+    if !req.attachment_document_ids.is_empty() {
+        let docs = documents::find_many(&mut *tx, &req.attachment_document_ids).await?;
+        if docs.len() != req.attachment_document_ids.len() {
+            return Err(AppError::validation(
+                "attachments must be existing documents",
+            ));
+        }
+        attachments = docs
+            .into_iter()
+            .map(|d| AttachmentRef {
+                document_id: d.id,
+                filename: Some(d.filename),
+                byte_size: Some(d.byte_size),
+                mode: None,
+                content_id: None,
+            })
+            .collect();
+    }
+    let (embedded_html, embedded_text, mut embedded) = apply_embeds(
+        &mut *tx,
+        None,
+        &req.embed_document_ids,
+        body_html,
+        body_text,
+    )
+    .await?;
+    body_html = embedded_html;
+    let body_text = embedded_text;
+    attachments.append(&mut embedded);
+
+    let from = format_from(
+        &state.config.email.from_name,
+        &state.config.email.from_automatic,
+    )?;
+    let id = emails::insert(
+        &mut *tx,
+        &NewEmail {
+            order_id: None,
+            lead_id: None,
+            partner_id: None,
+            blocker_id: None,
+            template_key: None,
+            trigger: triggers::NEWSLETTER,
+            sent_by: Some(user.user_id),
+            idempotency_key: None,
+            // The blast goes to ourselves on paper; the audience is all BCC.
+            to_address: &state.config.email.from_automatic,
+            cc: &[],
+            bcc: &clean.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            from_address: &from,
+            reply_to: Some(&state.config.email.reply_to_default),
+            subject: &template::single_line(&subject.output),
+            body_html: &body_html,
+            body_text: &body_text,
+            attachments: json!(attachments),
+            send_after: None,
+        },
+    )
+    .await?
+    .ok_or_else(|| AppError::internal("email insert returned no id"))?;
+    let count = clean.len();
+    jobs::enqueue(
+        &mut *tx,
+        "send_email",
+        json!({ "email_id": id }),
+        None,
+        Some(&format!("send_email:{id}")),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok((id, count))
+}
+
 pub struct AutomaticEmail<'a> {
     pub template_key: &'a str,
     pub about: About,
@@ -487,6 +949,30 @@ pub struct AutomaticEmail<'a> {
     pub trigger: &'a str,
     /// Makes the queueing itself idempotent (e.g. "nudge:17:3").
     pub idempotency_key: String,
+    /// Documents to attach. Delivery decides attachment or link by total size, the same
+    /// way it does for a hand-written email.
+    pub attachments: Vec<AttachmentRef>,
+    /// Values the caller resolves itself, merged over the ones derived from `about`.
+    ///
+    /// Invoicing needs this: an invoice's number and total are not reachable from an
+    /// order id alone — several invoices can belong to one order — and the letter is about
+    /// one of them in particular.
+    pub extra_values: TemplateValues,
+}
+
+impl<'a> AutomaticEmail<'a> {
+    /// The common case: a template, a recipient, nothing attached.
+    pub fn new(template_key: &'a str, about: About, to: &'a str, trigger: &'a str, idempotency_key: String) -> Self {
+        AutomaticEmail {
+            template_key,
+            about,
+            to,
+            trigger,
+            idempotency_key,
+            attachments: Vec::new(),
+            extra_values: TemplateValues::new(),
+        }
+    }
 }
 
 /// Renders and queues automatic mail inside the caller's transaction. Returns None if the
@@ -504,7 +990,8 @@ pub async fn queue_automatic(
         })?;
     let to = normalize_address(e.to)
         .ok_or_else(|| AppError::validation(format!("recipient '{}' is invalid", e.to)))?;
-    let values = template_values(conn, &e.about, None, cfg.business_tz).await?;
+    let mut values = template_values(conn, &e.about, None, cfg.business_tz).await?;
+    values.extend(e.extra_values);
     let subject = template::single_line(&template::render(&tpl.subject, &values).output);
     let body = template::render(&tpl.body, &values).output;
     let html = template::text_to_html(&body);
@@ -529,12 +1016,13 @@ pub async fn queue_automatic(
             idempotency_key: Some(&e.idempotency_key),
             to_address: &to,
             cc: &[],
+            bcc: &[],
             from_address: &from,
             reply_to: Some(&cfg.email.reply_to_default),
             subject: &subject,
             body_html: &html,
             body_text: &body,
-            attachments: json!([]),
+            attachments: json!(e.attachments),
             send_after: None,
         },
     )
@@ -656,24 +1144,57 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
     let mut outgoing = Vec::new();
     let mut sent_refs = Vec::new();
     let total: i64 = docs.iter().map(|d| d.byte_size).sum();
+    // Inline images travel with the letter no matter what: they are referenced from the
+    // HTML by Content-ID, so turning them into download links would leave red X boxes.
+    // Everything else follows the size gate below.
+    let by_id: std::collections::HashMap<i64, &crate::repo::documents::Document> =
+        docs.iter().map(|d| (d.id, d)).collect();
+    for r in requested.iter().filter(|r| r.content_id.is_some()) {
+        let Some(d) = by_id.get(&r.document_id) else {
+            continue;
+        };
+        outgoing.push(OutgoingAttachment {
+            filename: d.filename.clone(),
+            content_type: d.content_type.clone(),
+            bytes: state.storage.get_bytes(&d.storage_key).await?,
+            content_id: r.content_id.clone(),
+        });
+        sent_refs.push(AttachmentRef {
+            document_id: d.id,
+            filename: Some(d.filename.clone()),
+            byte_size: Some(d.byte_size),
+            mode: Some("embedded".into()),
+            content_id: r.content_id.clone(),
+        });
+    }
+    let regular: Vec<i64> = requested
+        .iter()
+        .filter(|r| r.content_id.is_none())
+        .map(|r| r.document_id)
+        .collect();
     if total <= MAX_ATTACHMENT_BYTES {
-        for d in &docs {
+        for d in docs.iter().filter(|d| regular.contains(&d.id)) {
             outgoing.push(OutgoingAttachment {
                 filename: d.filename.clone(),
                 content_type: d.content_type.clone(),
                 bytes: state.storage.get_bytes(&d.storage_key).await?,
+                content_id: None,
             });
             sent_refs.push(AttachmentRef {
                 document_id: d.id,
                 filename: Some(d.filename.clone()),
                 byte_size: Some(d.byte_size),
                 mode: Some("attached".into()),
+                content_id: None,
             });
         }
     } else {
         let mut text = String::from("\n\nLetölthető fájlok (7 napig érvényes):\n");
-        let mut html = String::from("<p>Letölthető fájlok (7 napig érvényes):<br>\n");
-        for d in &docs {
+        let mut html = String::from(
+            "<p style=\"margin:0 0 12px 0;font-size:14px;line-height:1.6;color:#292524;\">\
+             Letölthető fájlok (7 napig érvényes):<br>\n",
+        );
+        for d in docs.iter().filter(|d| regular.contains(&d.id)) {
             let url = state
                 .storage
                 .presign_get(
@@ -684,7 +1205,7 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
                 .await?;
             text.push_str(&format!("- {}: {}\n", d.filename, url));
             html.push_str(&format!(
-                "<a href=\"{}\">{}</a><br>\n",
+                "<a href=\"{}\" style=\"color:#1d4ed8;\">{}</a><br>\n",
                 template::escape_html(&url),
                 template::escape_html(&d.filename)
             ));
@@ -693,6 +1214,7 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
                 filename: Some(d.filename.clone()),
                 byte_size: Some(d.byte_size),
                 mode: Some("link".into()),
+                content_id: None,
             });
         }
         html.push_str("</p>");
@@ -717,6 +1239,7 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
             reply_to: email.reply_to.clone(),
             to: email.to_address.clone(),
             cc: email.cc.clone(),
+            bcc: email.bcc.clone(),
             subject: email.subject.clone(),
             body_text,
             body_html,

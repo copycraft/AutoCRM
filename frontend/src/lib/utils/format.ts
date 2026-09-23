@@ -37,9 +37,11 @@ export function formatMoney(minorUnits: number, currency: 'HUF' | 'EUR', locale:
 
 /**
  * Parse user-typed major units ("4 850 000", "4850000", "12 400,50", "-99,99")
- * to minor units exactly: split on the separator, pad or truncate the
- * fractional part to 2 digits, combine as integers. Never multiply by 100
- * in floating point. Negative values are allowed (discount lines).
+ * to minor units exactly: split on the separator, pad the fractional part to
+ * 2 digits, combine as integers. Never multiply by 100 in floating point.
+ * Negative values are allowed (discount lines). More than 2 fraction digits
+ * is rejected (null) rather than silently truncated: "12,345" must not
+ * become 12,34 without the user knowing.
  * Returns null when the input is not a number or exceeds safe-integer range.
  */
 export function parseMajorToMinor(input: string): number | null {
@@ -48,7 +50,9 @@ export function parseMajorToMinor(input: string): number | null {
   if (!m) return null;
   const negative = m[1] === '-';
   const whole = m[2] ?? '0';
-  const frac = (m[3] ?? m[4] ?? '').slice(0, 2).padEnd(2, '0');
+  const rawFrac = m[3] ?? m[4] ?? '';
+  if (rawFrac.length > 2) return null;
+  const frac = rawFrac.padEnd(2, '0');
   const minor = BigInt(whole) * BigInt(100) + BigInt(frac);
   const signed = negative ? -minor : minor;
   if (

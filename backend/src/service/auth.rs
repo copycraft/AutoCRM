@@ -193,7 +193,10 @@ pub async fn authenticate(db: &PgPool, token: &str) -> AppResult<AuthUser> {
         .await?
         .ok_or(AppError::Unauthenticated)?;
     let now = Utc::now();
-    if now - session.last_seen_at > TOUCH_INTERVAL {
+    // A password-blocked session must not be kept alive by hitting blocked endpoints:
+    // without this, a user who never changes their password extends it forever and the
+    // idle timeout never fires. Blocked sessions expire naturally instead.
+    if !session.must_change_password && now - session.last_seen_at > TOUCH_INTERVAL {
         sessions::touch(
             db,
             session.session_id,

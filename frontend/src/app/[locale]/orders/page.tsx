@@ -7,7 +7,9 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DataTable, nextSort, type TableSort } from '@/components/tables/DataTable';
+import { DataTable, columnMenuItems, nextSort, type TableSort } from '@/components/tables/DataTable';
+import { ColumnMenu } from '@/components/tables/ColumnMenu';
+import { useColumnVisibility } from '@/hooks/useColumnVisibility';
 import { FilterBar, FilterField } from '@/components/tables/FilterBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -17,6 +19,13 @@ import { AssigneeField } from '@/components/forms/AssigneeField';
 import { PartnerPicker, type PartnerOption } from '@/components/forms/PartnerPicker';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useDensity, usePageSize } from '@/hooks/usePreferences';
+import { useUrlFlag, useUrlInt, useUrlState } from '@/hooks/useUrlState';
+import { useRememberList } from '@/hooks/useListMemory';
+import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
+import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
+import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
+import { ExportCsvButton } from '@/components/tables/ExportCsvButton';
+import { minorToMajorString } from '@/lib/utils/format';
 import { configApi, ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
@@ -32,20 +41,41 @@ export default function OrdersPage() {
   const tc = useTranslations('common');
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
+  const tq = useTranslations('qol');
   const ter = useTranslations('errors');
   const locale = useLocale();
   const { user } = useAuth();
-  const [q, setQ] = useState('');
-  const [stage, setStage] = useState('');
+  useRememberList('orders');
+  // List state lives in the URL (shareable, back-button safe, survives reload).
+  const [q, setQ] = useUrlState('q', '');
+  const [stage, setStage] = useUrlState('stage', '');
+  const [partnerId, setPartnerId] = useUrlState('partner', '');
   const [partner, setPartner] = useState<PartnerOption | null>(null);
-  const [projectType, setProjectType] = useState('');
-  const [assignee, setAssignee] = useState<number | null | 'all' | 'me'>(null);
-  const [openOnly, setOpenOnly] = useState(false);
-  const [offset, setOffset] = useState(0);
-  const [sort, setSort] = useState<TableSort | null>(null);
+  const [projectType, setProjectType] = useUrlState('ptype', '');
+  const [assigneeRaw, setAssigneeRaw] = useUrlState('assignee', '');
+  const [openOnly, setOpenOnly] = useUrlFlag('open', false);
+  const [page, setPage] = useUrlInt('page', 1);
+  const [sortRaw, setSortRaw] = useUrlState('sort', '');
+  const assignee: number | null | 'all' | 'me' =
+    assigneeRaw === '' ? null : assigneeRaw === 'all' ? 'all' : assigneeRaw === 'me' ? 'me' : (Number(assigneeRaw) || null);
+  const sort: TableSort | null = sortRaw === '' ? null : sortRaw.startsWith('-')
+    ? { key: sortRaw.slice(1), dir: 'desc' }
+    : { key: sortRaw, dir: 'asc' };
+  const setAssignee = (v: number | null | 'all' | 'me') => {
+    setAssigneeRaw(v === null ? '' : v === 'all' ? 'all' : v === 'me' ? 'me' : String(v));
+  };
+  const setSort = (s: TableSort | null) => {
+    setSortRaw(!s ? '' : s.dir === 'desc' ? `-${s.key}` : s.key);
+  };
   const debouncedQ = useDebouncedValue(q);
   const pageSize = usePageSize();
-  const density = useDensity();
+  const serverDensity = useDensity();
+  const { density, toggle: toggleDensity, overridden: densityOverridden } =
+    useDensityWithOverride(serverDensity);
+  const { visibility: colVis, onChange: setColVis, reset: resetColVis } =
+    useColumnVisibility('orders');
+  const offset = Math.max(0, (page - 1) * pageSize);
+  const resetOffset = () => setPage(1);
 
   const assignedTo =
     assignee === 'me' ? (user?.id ?? null) : assignee === 'all' ? undefined : (assignee ?? undefined);
@@ -66,13 +96,13 @@ export default function OrdersPage() {
 
   const query = useQuery({
     queryKey: qk.orders({
-      q: debouncedQ, stage, partner: partner?.id, projectType, assignedTo, openOnly, offset, pageSize, sort,
+      q: debouncedQ, stage, partner: partnerId || undefined, projectType, assignedTo, openOnly, offset, pageSize, sort,
     }),
     queryFn: () =>
       ordersApi.list({
         q: debouncedQ || undefined,
         stage: stage || undefined,
-        partner_id: partner?.id,
+        partner_id: partnerId ? Number(partnerId) : undefined,
         project_type_id: projectType ? Number(projectType) : undefined,
         assigned_to: assignedTo ?? undefined,
         open: openOnly || undefined,
@@ -81,8 +111,6 @@ export default function OrdersPage() {
         offset,
       }),
   });
-
-  const resetOffset = () => setOffset(0);
 
   const columns = useMemo<ColumnDef<OrderSummary>[]>(
     () => [
@@ -153,12 +181,72 @@ export default function OrdersPage() {
     setQ('');
     setStage('');
     setPartner(null);
+    setPartnerId('');
     setProjectType('');
     setAssignee(null);
     setOpenOnly(false);
-    setOffset(0);
+    setPage(1);
     setSort(null);
   };
+
+  /** Current filters, first 200 rows (the API max page) — what the table shows. */
+  const exportOrders = async () => {
+    const data = await ordersApi.list({
+      q: debouncedQ || undefined,
+      stage: stage || undefined,
+      partner_id: partnerId ? Number(partnerId) : undefined,
+      project_type_id: projectType ? Number(projectType) : undefined,
+      assigned_to: assignedTo ?? undefined,
+      open: openOnly || undefined,
+      sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
+      limit: 200,
+      offset: 0,
+    });
+    const items = data.items ?? [];
+    return {
+      header: [t('number'), t('fieldTitle'), tc('partner'), t('stageFilter'), t('total'), t('vehiclePlate'), t('dueDate')],
+      rows: items.map((o) => [
+        o.number,
+        o.title,
+        o.partner_name,
+        o.stage_label,
+        o.total_minor === null || o.total_minor === undefined ? '' : `${minorToMajorString(o.total_minor)} ${o.currency}`,
+        o.vehicle_plate,
+        o.due_date,
+      ]),
+      count: items.length,
+    };
+  };
+
+  const chips = useMemo<FilterChip[]>(() => {
+    const list: FilterChip[] = [];
+    if (q.trim() !== '') {
+      list.push({ key: 'q', label: `${tc('search')}: ${q.trim()}`, onRemove: () => { setQ(''); resetOffset(); } });
+    }
+    if (stage !== '') {
+      const label = stagesQuery.data?.items.find((d) => d.key === stage)?.label_hu ?? stage;
+      list.push({ key: 'stage', label: `${t('stageFilter')}: ${label}`, onRemove: () => { setStage(''); resetOffset(); } });
+    }
+    if (partnerId !== '') {
+      const label = partner?.name ?? `#${partnerId}`;
+      list.push({ key: 'partner', label: `${t('partnerFilter')}: ${label}`, onRemove: () => { setPartner(null); setPartnerId(''); resetOffset(); } });
+    }
+    if (projectType !== '') {
+      const label = projectTypes.data?.items.find((p) => String(p.id) === projectType)?.label_hu ?? `#${projectType}`;
+      list.push({ key: 'ptype', label: `${t('projectTypeFilter')}: ${label}`, onRemove: () => { setProjectType(''); resetOffset(); } });
+    }
+    if (assignee !== null && assignee !== 'all') {
+      const label = assignee === 'me' ? (user?.display_name ?? 'me') : `#${assignee}`;
+      list.push({ key: 'assignee', label: `${t('assigneeFilter')}: ${label}`, onRemove: () => { setAssignee(null); resetOffset(); } });
+    }
+    if (openOnly) {
+      list.push({ key: 'open', label: t('openOnly'), onRemove: () => { setOpenOnly(false); resetOffset(); } });
+    }
+    if (sort) {
+      list.push({ key: 'sort', label: tq('sortChip', { key: sort.key, dir: sort.dir === 'desc' ? '↓' : '↑' }), onRemove: () => { setSort(null); resetOffset(); } });
+    }
+    return list;
+  }, [q, stage, partnerId, partner, projectType, projectTypes.data, assignee, user, openOnly, sort, stagesQuery.data, tc, t, tq, setQ, setStage, setPartner, setPartnerId, setProjectType, setAssignee, setOpenOnly, setSort, resetOffset]);
 
   return (
     <AppShell>
@@ -172,6 +260,7 @@ export default function OrdersPage() {
           )
         }
       />
+      <SavedViewsBar listKey="orders" />
       <FilterBar onClear={clear}>
         <FilterField label={tc('search')}>
           <input
@@ -200,7 +289,7 @@ export default function OrdersPage() {
           )}
         </FilterField>
         <div className="flex min-w-44 flex-col gap-1">
-          <PartnerPicker value={partner} onChange={(p) => { setPartner(p); resetOffset(); }} label={t('partnerFilter')} />
+          <PartnerPicker value={partner} onChange={(p) => { setPartner(p); setPartnerId(p ? String(p.id) : ''); resetOffset(); }} label={t('partnerFilter')} />
         </div>
         <FilterField label={t('projectTypeFilter')}>
           <select className="input" value={projectType} disabled={projectTypes.isLoading} onChange={(e) => { setProjectType(e.target.value); resetOffset(); }}>
@@ -242,6 +331,7 @@ export default function OrdersPage() {
           {t('openOnly')}
         </label>
       </FilterBar>
+      <ActiveFilterChips chips={chips} />
 
       {query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
@@ -250,13 +340,14 @@ export default function OrdersPage() {
           <DataTable
             columns={columns}
             data={query.data?.items ?? []}
-            isLoading={query.isLoading}
+            isLoading={query.isPending}
+            isFetching={query.isFetching && !query.isPending}
             emptyTitle={te('noOrders')}
             emptyFilteredTitle={te('filterNoResults')}
             filtered={
               debouncedQ.trim() !== '' ||
               stage !== '' ||
-              partner !== null ||
+              partnerId !== '' ||
               projectType !== '' ||
               openOnly ||
               (assignee !== null && assignee !== 'all')
@@ -264,18 +355,33 @@ export default function OrdersPage() {
             getRowId={(r) => String(r.id)}
             density={density}
             sort={sort}
+            columnVisibility={colVis}
+            onColumnVisibilityChange={setColVis}
             onSort={(key) => {
               setSort(nextSort(sort, key));
               resetOffset();
             }}
           />
-          <Pagination
-            offset={offset}
-            limit={pageSize}
-            loaded={query.data?.items.length ?? 0}
-            onPrev={() => setOffset((o) => Math.max(0, o - pageSize))}
-            onNext={() => setOffset((o) => o + pageSize)}
-          />
+          <div className="flex items-center justify-between gap-3">
+            <Pagination
+              offset={offset}
+              limit={pageSize}
+              loaded={query.data?.items.length ?? 0}
+              onPrev={() => setPage(Math.max(1, page - 1))}
+              onNext={() => setPage(page + 1)}
+              onJump={setPage}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportCsvButton base="megrendelesek" onExport={exportOrders} />
+              <DensityToggle density={density} overridden={densityOverridden} onToggle={toggleDensity} />
+              <ColumnMenu
+                columns={columnMenuItems(columns)}
+                visibility={colVis}
+                onChange={setColVis}
+                onReset={resetColVis}
+              />
+            </div>
+          </div>
         </>
       )}
     </AppShell>

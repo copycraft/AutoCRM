@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT max(split_part(number, '-', 2)::int) FROM proformas\n            WHERE number ~ ('^' || $1::text || '-[0-9]{4,9}$')",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "max",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a83744f4c58cfaec75d1f1148e4141e3eab70449ee4c528a62aaa6879a86834f"
+}

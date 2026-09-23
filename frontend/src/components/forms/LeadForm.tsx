@@ -9,8 +9,13 @@ import { skipToken, useQuery } from '@tanstack/react-query';
 import { errorMessage } from '@/lib/api/errors';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
+import { parseMajorToMinor, minorToMajorString } from '@/lib/utils/format';
 import { PartnerPicker, type PartnerOption } from './PartnerPicker';
 import { AssigneeField } from './AssigneeField';
+import { DateQuickPicks } from './DateQuickPicks';
+import { lastAssignee } from '@/hooks/useLastUsed';
+import { useDirtyGuard } from '@/hooks/useDirtyGuard';
+import { useFormDraft } from '@/hooks/useFormDraft';
 import type { Lead, LeadBody } from '@/lib/api/types';
 
 const schema = z.object({
@@ -35,16 +40,16 @@ function assignee(v: LeadFormValues['assigned_to'], meId: number | undefined): n
   return v === 'me' ? (meId ?? null) : v;
 }
 
-/** "1 234,56" → 123456 minor units. Blank or unparseable → null. */
+/** "1 234,56" → 123456 minor units. Blank or unparseable → null. Exact: shares the
+ * order-items parser, no float round-trip (12,345 is rejected, not rounded). */
 export function toMinor(value: string | undefined): number | null {
-  const cleaned = (value ?? '').replace(/[\s\u00a0]/g, '').replace(',', '.');
-  if (!cleaned) return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? Math.round(n * 100) : null;
+  const s = (value ?? '').trim();
+  if (!s) return null;
+  return parseMajorToMinor(s);
 }
 
 function fromMinor(minor: number | null | undefined): string {
-  return minor == null ? '' : String(minor / 100);
+  return minor == null ? '' : minorToMajorString(minor);
 }
 
 export function leadCreateBody(v: LeadFormValues, meId: number | undefined): LeadBody {
@@ -92,21 +97,40 @@ export function leadPatchBody(original: Lead, v: LeadFormValues, meId: number | 
 export function LeadForm({
   initial,
   initialPartner,
+  draftKey,
   onSubmit,
   submitLabel,
 }: {
   initial?: Lead;
   initialPartner?: PartnerOption | null;
+  /** Draft autosave slot for the create page; ignored when editing or cloning. */
+  draftKey?: string;
   onSubmit: (v: LeadFormValues) => Promise<void>;
   submitLabel: string;
 }) {
   const t = useTranslations('leads');
   const tc = useTranslations('common');
+  const tq = useTranslations('qol');
   const tv = useTranslations('validation');
   const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const { register, handleSubmit, control, watch, formState } = useForm<LeadFormValues>({
+  const emptyLead: LeadFormValues = {
+    title: '',
+    partner: null,
+    contact_id: '',
+    contact_name: '',
+    contact_email: '',
+    contact_phone: '',
+    source: '',
+    description: '',
+    assigned_to: null,
+    quoted_value: '',
+    currency: '',
+    quote_valid_until: '',
+  };
+
+  const { register, handleSubmit, control, watch, reset, setValue, formState, setError } = useForm<LeadFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: initial?.title ?? '',
@@ -117,15 +141,22 @@ export function LeadForm({
       contact_phone: initial?.contact_phone ?? '',
       source: initial?.source ?? '',
       description: initial?.description ?? '',
-      assigned_to: initial?.assigned_to ?? null,
+      assigned_to: initial?.assigned_to ?? lastAssignee(),
       quoted_value: fromMinor(initial?.quoted_value_minor),
       currency: initial?.currency ?? '',
       quote_valid_until: initial?.quote_valid_until ?? '',
     },
   });
+  const draft = useFormDraft({
+    key: draftKey && !initial ? draftKey : null,
+    watch,
+    reset,
+    empty: emptyLead,
+  });
 
   const partner = watch('partner');
   const partnerId = partner?.id;
+  useDirtyGuard(formState.isDirty && !formState.isSubmitSuccessful, tq('unsavedChanges'));
   const contactsQuery = useQuery({
     queryKey: qk.partner(partnerId ?? 0),
     queryFn: partnerId === undefined ? skipToken : () => partnersApi.get(partnerId),
@@ -137,13 +168,29 @@ export function LeadForm({
       noValidate
       onSubmit={handleSubmit(async (v) => {
         setServerError(null);
+        // Unparseable is not blank: sending null would silently clear the quote.
+        if (v.quoted_value?.trim() && toMinor(v.quoted_value) === null) {
+          setError('quoted_value', { message: tv('numeric') });
+          return;
+        }
         try {
           await onSubmit(v);
+          draft.clear();
         } catch (e) {
           setServerError(errorMessage(e, ter, ter('unknownError')));
         }
       })}
     >
+      {draft.restored && (
+        <div className="card-content pb-0">
+          <p className="flex flex-wrap items-center gap-2 rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900">
+            <span>{tq('draftRestored')}</span>
+            <button type="button" className="btn-ghost btn-sm" onClick={draft.discard}>
+              {tq('draftDiscard')}
+            </button>
+          </p>
+        </div>
+      )}
       {serverError && (
         <div className="card-content pb-0">
           <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{serverError}</p>
@@ -194,7 +241,7 @@ export function LeadForm({
         </div>
         <div>
           <label className="label" htmlFor="lf-source">{t('source')}</label>
-          <input id="lf-source" className="input" placeholder="web / telefon / …" {...register('source')} />
+          <input id="lf-source" className="input" placeholder={t('sourcePlaceholder')} {...register('source')} />
         </div>
         <div className="md:col-span-2">
           <label className="label" htmlFor="lf-desc">{t('description')}</label>
@@ -217,6 +264,7 @@ export function LeadForm({
         <div>
           <label className="label" htmlFor="lf-quote">{t('quotedValue')}</label>
           <input id="lf-quote" inputMode="decimal" className="input" {...register('quoted_value')} />
+          {formState.errors.quoted_value && <p className="mt-1 text-metadata text-steel-900">{formState.errors.quoted_value.message ?? tv('numeric')}</p>}
         </div>
         <div>
           <label className="label" htmlFor="lf-currency">{t('quoteCurrency')}</label>
@@ -229,6 +277,9 @@ export function LeadForm({
         <div>
           <label className="label" htmlFor="lf-valid">{t('quoteValidUntil')}</label>
           <input id="lf-valid" type="date" className="input" {...register('quote_valid_until')} />
+          <div className="mt-1">
+            <DateQuickPicks onPick={(iso) => setValue('quote_valid_until', iso, { shouldDirty: true, shouldTouch: true })} />
+          </div>
         </div>
       </div>
       <div className="card-footer justify-end">

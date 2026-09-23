@@ -4,30 +4,22 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -37,11 +29,8 @@ import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.SectionTitle
 import hu.autotherm.autocrm.ui.common.StatusBadge
 import hu.autotherm.autocrm.ui.common.Tone
-import hu.autotherm.autocrm.ui.theme.Signal
-import hu.autotherm.autocrm.ui.theme.Steel200
 import hu.autotherm.autocrm.ui.theme.Steel500
 import hu.autotherm.autocrm.ui.theme.Steel900
-import hu.autotherm.autocrm.ui.theme.Surface
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +40,10 @@ import java.io.File
 
 /**
  * Adding photos to a job.
+ *
+ * Everything attached here files as production ("Gyártás"): intake and handover
+ * shots are evidence with their own flows (bevétel, átadás-átvétel) and must
+ * never come from the gallery or an ad-hoc camera tap — per the client.
  *
  * Photography happens in the phone's **own camera app**, not in this one. An in-app
  * preview-and-shutter built on CameraX does not match what the manufacturer's camera
@@ -72,10 +65,9 @@ class OrderPhotoViewModel(
 ) : ViewModel() {
 
     data class State(
-        val category: String = CapturePrefs.CATEGORY_COMPLETION,
+        val category: String = CapturePrefs.CATEGORY_PRODUCTION,
         val pending: Int = 0,
         val message: String? = null,
-        val intakeWarning: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -90,31 +82,17 @@ class OrderPhotoViewModel(
         }
     }
 
-    fun selectCategory(category: String) {
+    fun loadStickyCategory() {
         viewModelScope.launch {
-            prefs.setCategory(category)
-            _state.value = _state.value.copy(category = category, intakeWarning = false)
-            // Intake photos can never be deleted or re-filed: the database refuses both.
-            // That is the one category worth interrupting for.
-            if (CapturePrefs.isImmutable(category) && prefs.needsIntakeConfirmation()) {
-                _state.value = _state.value.copy(intakeWarning = true)
-            }
+            // Manual attaching is production-only (client rule): intake and handover
+            // shots come from their own flows. Coerce any older sticky value back
+            // to production so a stale "intake" can never file here by accident.
+            val stored = prefs.category.first()
+            val category = if (stored in CapturePrefs.ATTACHABLE) stored
+            else CapturePrefs.CATEGORY_PRODUCTION
+            if (category != stored) prefs.setCategory(category)
+            _state.value = _state.value.copy(category = category)
         }
-    }
-
-    fun acknowledgeIntake() {
-        viewModelScope.launch {
-            prefs.acknowledgeIntake()
-            _state.value = _state.value.copy(intakeWarning = false)
-        }
-    }
-
-    fun dismissIntakeWarning() {
-        _state.value = _state.value.copy(
-            intakeWarning = false,
-            category = CapturePrefs.CATEGORY_PRODUCTION,
-        )
-        viewModelScope.launch { prefs.setCategory(CapturePrefs.CATEGORY_PRODUCTION) }
     }
 
     fun add(uris: List<Uri>, orderId: Long, orderNumber: String) {
@@ -153,17 +131,15 @@ class OrderPhotoViewModel(
         _state.value = _state.value.copy(message = null)
     }
 
+    /** The system camera could not be opened at all. Shown, not thrown. */
+    fun cameraUnavailable() {
+        _state.value = _state.value.copy(message = "Nincs elérhető kameraalkalmazás ezen a telefonon.")
+    }
+
     /** A file for the system camera app plus the content URI that grants it write access. */
     fun newCameraTarget(): Pair<File, Uri> = queue.newCameraTarget()
-
-    fun loadStickyCategory() {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(category = prefs.category.first())
-        }
-    }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OrderPhotoSection(
     orderId: Long,
@@ -173,8 +149,11 @@ fun OrderPhotoSection(
 ) {
     val state by viewModel.state.collectAsState()
     // Held across the launcher round trip: the result callback only says whether the camera
-    // app saved, not where.
-    val cameraTarget = remember { mutableStateOf<Pair<File, Uri>?>(null) }
+    // app saved, not where. Saveable as path strings — a plain remember dies with the process
+    // when the system camera foregrounds, and the full-quality JPEG would sit orphaned with
+    // no queue row.
+    var cameraPath by rememberSaveable { mutableStateOf<String?>(null) }
+    var cameraUri by rememberSaveable { mutableStateOf<String?>(null) }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         // The system photo picker: no storage permission, and the user only ever exposes
@@ -185,10 +164,13 @@ fun OrderPhotoSection(
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture(),
     ) { saved ->
-        cameraTarget.value?.let { (file, uri) ->
-            viewModel.cameraResult(saved, file, uri, orderId, orderNumber)
+        val path = cameraPath
+        val uri = cameraUri
+        if (path != null && uri != null) {
+            viewModel.cameraResult(saved, File(path), Uri.parse(uri), orderId, orderNumber)
         }
-        cameraTarget.value = null
+        cameraPath = null
+        cameraUri = null
     }
 
     LaunchedEffect(orderId) {
@@ -197,7 +179,10 @@ fun OrderPhotoSection(
     }
 
     Card {
-        SectionTitle("Fotók")
+        SectionTitle(
+            "Fotók",
+            count = imageCounts.values.sum().toInt().takeIf { it > 0 },
+        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (imageCounts.isEmpty()) {
@@ -214,37 +199,11 @@ fun OrderPhotoSection(
         }
 
         Text(
-            "Kategória",
+            "Ide gyártás közbeni fotók kerülnek. A bevételi és az átadási fotók a saját folyamatukban készülnek.",
             style = MaterialTheme.typography.labelMedium,
             color = Steel500,
             modifier = Modifier.padding(top = 8.dp),
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CapturePrefs.ALL.forEach { category ->
-                val active = category == state.category
-                val immutable = CapturePrefs.isImmutable(category)
-                Box(
-                    Modifier
-                        .background(
-                            when {
-                                active && immutable -> Signal
-                                active -> Steel900
-                                else -> Color.Transparent
-                            },
-                            RoundedCornerShape(999.dp),
-                        )
-                        .border(1.dp, if (active) Color.Transparent else Steel200, RoundedCornerShape(999.dp))
-                        .clickable { viewModel.selectCategory(category) }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                ) {
-                    Text(
-                        CapturePrefs.label(category),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (active) Surface else Steel900,
-                    )
-                }
-            }
-        }
 
         Row(
             Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -252,9 +211,16 @@ fun OrderPhotoSection(
         ) {
             OutlinedButton(
                 onClick = {
-                    val target = viewModel.newCameraTarget()
-                    cameraTarget.value = target
-                    cameraLauncher.launch(target.second)
+                    try {
+                        val target = viewModel.newCameraTarget()
+                        cameraPath = target.first.absolutePath
+                        cameraUri = target.second.toString()
+                        cameraLauncher.launch(target.second)
+                    } catch (e: Exception) {
+                        // No camera app, or one that refuses the handoff: a button that
+                        // kills the process reads as "the app is broken", a line does not.
+                        viewModel.cameraUnavailable()
+                    }
                 },
                 modifier = Modifier.weight(1f),
             ) { Text("Kamera") }
@@ -271,24 +237,5 @@ fun OrderPhotoSection(
         state.message?.let {
             Text(it, style = MaterialTheme.typography.bodyLarge, color = Steel900)
         }
-    }
-
-    if (state.intakeWarning) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissIntakeWarning,
-            title = { Text("Bevételi fotó") },
-            text = {
-                Text(
-                    "A bevételi fotók véglegesek: nem törölhetők és nem sorolhatók át. " +
-                        "Ezek bizonyítják a jármű átvételkori állapotát.",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::acknowledgeIntake) { Text("Értem, bevétel") }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissIntakeWarning) { Text("Mégis gyártás") }
-            },
-        )
     }
 }

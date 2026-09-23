@@ -128,6 +128,21 @@ pub async fn change_order_stage(
     let image_counts = images::count_by_category(&mut *tx, order_id).await?;
 
     let kind = check_transition(&definitions, &current.stage_key, to, note, &image_counts)?;
+    // Leaving intake closes the intake slip: without a recorded mileage the MEO review
+    // and the job sheet have no starting point. Checked here (not in domain) so the
+    // pure transition rules stay signature-stable. Runs before the insert, so a refusal
+    // writes nothing.
+    if current.stage_key == keys::ORDER_INTAKE && to != keys::ORDER_INTAKE {
+        let mileage = orders::find(&mut *tx, order_id)
+            .await?
+            .and_then(|o| o.mileage_in);
+        if mileage.is_none() {
+            return Err(AppError::rule(
+                "intake_slip_missing",
+                "leaving intake requires the intake slip (mileage_in); record it on the order first",
+            ));
+        }
+    }
     let stage_row_id =
         stages::insert_order_stage(&mut *tx, order_id, to, Some(user.user_id), note).await?;
     audit::record(
@@ -139,8 +154,11 @@ pub async fn change_order_stage(
         json!({ "from": current.stage_key, "to": to, "kind": kind, "note": note }),
     )
     .await?;
-    // Customers hear about progress, not about rework or cancellation.
-    if kind == TransitionKind::Forward {
+    // Customers hear about progress, not about rework or cancellation. Entering completed
+    // sends the pickup letter instead of the generic stage mail: one letter, not two.
+    if to == keys::ORDER_COMPLETED {
+        automation::notify_ready_for_pickup(&mut tx, state, order_id, stage_row_id).await?;
+    } else if kind == TransitionKind::Forward {
         automation::notify_stage_changed(&mut tx, state, order_id, stage_row_id).await?;
     }
     tx.commit().await?;

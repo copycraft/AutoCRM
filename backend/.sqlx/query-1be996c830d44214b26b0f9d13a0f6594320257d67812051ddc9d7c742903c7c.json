@@ -34,7 +34,9 @@
                 "design",
                 "cad",
                 "other",
-                "certificate"
+                "certificate",
+                "invoice",
+                "proforma"
               ]
             }
           }
@@ -106,7 +108,9 @@
                 "design",
                 "cad",
                 "other",
-                "certificate"
+                "certificate",
+                "invoice",
+                "proforma"
               ]
             }
           }

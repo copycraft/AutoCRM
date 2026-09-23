@@ -63,7 +63,10 @@ class UploadQueue(
             return@withContext Enqueued.Duplicate
         }
 
-        val destination = File(pendingDir, "$sha.jpg")
+        // Keyed by order as well as content: the same photo queued for two orders must
+        // not share one file, or completing the first row's sweep deletes the second
+        // row's bytes out from under it. Rows already queued keep their stored path.
+        val destination = File(pendingDir, "$orderId-$sha.jpg")
         if (captured.absolutePath != destination.absolutePath) {
             if (!captured.renameTo(destination)) {
                 captured.copyTo(destination, overwrite = true)

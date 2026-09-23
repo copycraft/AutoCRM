@@ -1,6 +1,6 @@
 'use client';
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, keepPreviousData } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { ApiError } from '@/lib/api/errors';
 
@@ -12,6 +12,9 @@ export function QueryProvider({ children }: { children: ReactNode }) {
           queries: {
             staleTime: 30_000,
             gcTime: 5 * 60_000,
+            // Paginating or refiltering keeps the old rows on screen until the new ones
+            // arrive, instead of flashing a skeleton on every page turn.
+            placeholderData: keepPreviousData,
             retry: (count, err) => {
               const status = err instanceof ApiError ? err.status : 0;
               if (status === 401 || status === 403 || status === 404) return false;
@@ -47,13 +50,24 @@ export const qk = {
   orderBlockers: (orderId: number) => ['order', orderId, 'blockers'],
   images: (orderId: number, category?: string) => ['order', orderId, 'images', category],
   documents: (orderId: number) => ['order', orderId, 'documents'],
+  invoices: (orderId: number) => ['order', orderId, 'invoices'],
+  invoice: (id: number) => ['invoice', id],
+  invoiceChain: (id: number) => ['invoice', id, 'chain'],
+  proformas: (orderId: number) => ['order', orderId, 'proformas'],
   emails: (params?: unknown) => ['emails', params],
   email: (id: number) => ['email', id],
+  search: (q: string) => ['search', q],
+  tasksMine: ['tasks', 'mine'],
+  tasksFor: (entity: string, id: number) => ['tasks', entity, id],
   templates: ['email-templates'],
   stages: (entity?: string) => ['stage-definitions', entity],
   projectTypes: ['project-types'],
   settings: ['settings'],
   reports: (name: string, params?: unknown) => ['reports', name, params],
+  inspections: (params?: unknown) => ['inspections', params],
+  inspection: (id: number) => ['inspection', id],
+  inspectionComparison: (id: number) => ['inspection', id, 'comparison'],
+  inspectionTemplates: (key?: string | number) => ['inspection-templates', key],
   adminStatus: ['admin', 'status'],
   adminJobs: (state?: string) => ['admin', 'jobs', state],
 };

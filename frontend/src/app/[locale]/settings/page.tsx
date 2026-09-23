@@ -9,8 +9,10 @@ import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { configApi, adminApi } from '@/lib/api/endpoints';
+import { NewsletterList } from '@/components/email/NewsletterList';
+import { ZoneTemplates } from '@/components/inspections/ZoneTemplates';
 import { qk } from '@/lib/query/provider';
-import { errorMessage } from '@/lib/api/errors';
+import { ApiError, errorMessage } from '@/lib/api/errors';
 import type { EmailTransportBody, Settings } from '@/lib/api/types';
 
 type Mode = 'inherit' | 'dry_run' | 'smtp';
@@ -34,7 +36,11 @@ export default function SettingsPage() {
       ) : query.isError || !query.data ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
-        <SettingsForm key={query.data.updated_at} initial={query.data} />
+        <>
+          <SettingsForm key={query.data.updated_at} initial={query.data} />
+          <ZoneTemplates />
+          <NewsletterList />
+        </>
       )}
     </AppShell>
   );
@@ -44,6 +50,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
   const t = useTranslations('settings');
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
+  const tv = useTranslations('validation');
   const qc = useQueryClient();
 
   const [automatic, setAutomatic] = useState(initial.automatic_email_enabled);
@@ -79,7 +86,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
       const clean = (s: string) => (s.trim() ? s.trim() : null);
       const num = (s: string) => {
         const n = Number(s);
-        if (!Number.isInteger(n)) throw new Error('numeric');
+        // Thrown as a validation ApiError so errorMessage renders the field message,
+        // not the generic "unknown error" a bare Error falls through to.
+        if (!Number.isInteger(n)) throw new ApiError('validation', 0, tv('numeric'));
         return n;
       };
       const email: EmailTransportBody =

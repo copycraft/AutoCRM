@@ -9,6 +9,7 @@ import { OrderForm, orderCreateBody, type OrderFormValues } from '@/components/f
 import type { SpecForm } from '@/components/forms/BuildSpecSection';
 import { ordersApi } from '@/lib/api/endpoints';
 import { useAuth } from '@/lib/auth/context';
+import { rememberLastUsed } from '@/hooks/useLastUsed';
 
 export default function NewOrderPage() {
   const t = useTranslations('orders');
@@ -33,10 +34,13 @@ export default function NewOrderPage() {
     <AppShell>
       <PageHeader title={t('newOrder')} subtitle={t('currencySharedNote')} />
       <OrderForm
+        draftKey="order-new"
         submitLabel={tc('create')}
-        onSubmit={(v, _contactDirty, specForm) =>
-          create.mutateAsync({ v, specForm }).then(() => undefined)
-        }
+        onSubmit={(v, _contactDirty, specForm) => {
+          if (v.assigned_to !== null) rememberLastUsed('assignee', String(v.assigned_to));
+          if (v.project_type_id) rememberLastUsed('ptype', v.project_type_id);
+          return create.mutateAsync({ v, specForm }).then(() => undefined);
+        }}
       />
     </AppShell>
   );

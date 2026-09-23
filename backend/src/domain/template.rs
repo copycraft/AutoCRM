@@ -20,6 +20,19 @@ pub const VARIABLES: &[(&str, &str)] = &[
     ("partner.name", "Partner neve"),
     ("contact.name", "Kapcsolattartó neve"),
     ("lead.title", "Érdeklődés tárgya"),
+    ("lead.quoted_total", "Ajánlott ár (pénznemmel)"),
+    ("lead.quote_valid_until", "Ajánlat érvényessége"),
+    // Invoicing. Not reachable from an order id alone — an order can carry several
+    // invoices — so these are resolved by the caller that knows which one the letter is
+    // about, and merged over the rest.
+    ("invoice.number", "Számla sorszáma"),
+    ("invoice.original_number", "Sztornózott számla sorszáma"),
+    ("invoice.issue_date", "Számla kelte"),
+    ("invoice.payment_date", "Számla fizetési határideje"),
+    ("invoice.total", "Számla végösszege"),
+    ("proforma.number", "Díjbekérő sorszáma"),
+    ("proforma.payment_date", "Díjbekérő fizetési határideje"),
+    ("proforma.total", "Díjbekérő végösszege"),
     ("blocker.what", "Mire várunk"),
     ("blocker.due_date", "Akadály határideje"),
     (
@@ -145,22 +158,173 @@ pub fn escape_html(s: &str) -> String {
 
 /// The HTML part is derived from the rendered plain text: blank lines separate paragraphs,
 /// single newlines become <br>. Everything is escaped, values included.
+///
+/// The paragraphs sit in a branded, email-client-safe layout: tables and inline styles only
+/// (no <style> blocks, no external assets — those get stripped or blocked). The document
+/// still ends with `</body></html>` and the content starts right after a `<body ...>` tag,
+/// because the redirect banner and the download links are spliced into those spots later.
 pub fn text_to_html(text: &str) -> String {
+    email_html(text)
+}
+
+/// The branded wrapper around already-escaped paragraph HTML. One place, so every letter —
+/// automatic or manual, invoice or nudge — looks like it came from the same office.
+pub fn email_html(text: &str) -> String {
+    layout(None, &paragraphs(text))
+}
+
+/// Same, with a shout across the top: the quotation letter's "MEGJÖTT AZ ÁRAJÁNLATOD".
+/// Reserved for the one letter per relationship that deserves it; everything shouting
+/// means nothing is heard.
+pub fn email_html_hero(hero: &str, text: &str) -> String {
+    layout(Some(hero), &paragraphs(text))
+}
+
+/// The body written in Markdown, rendered to HTML and wrapped in the same layout.
+/// Substitution happens before parsing: `{{variables}}` render first, then Markdown.
+/// Authors are staff, so inline HTML passes through (pulldown-cmark keeps it); the inbox
+/// renders stored HTML sandboxed, and mail clients strip what they do not like.
+pub fn markdown_to_html(md: &str) -> String {
+    layout(None, &markdown_fragment(md))
+}
+
+/// Markdown with the hero band, for the quotation letter when the office writes that one
+/// by hand too.
+pub fn markdown_to_html_hero(hero: &str, md: &str) -> String {
+    layout(Some(hero), &markdown_fragment(md))
+}
+
+fn paragraphs(text: &str) -> String {
     let normalized = text.replace("\r\n", "\n");
-    let mut html = String::from(
-        "<!doctype html><html><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#222\">\n",
-    );
+    let mut body = String::new();
     for paragraph in normalized.split("\n\n") {
         let paragraph = paragraph.trim_matches('\n');
         if paragraph.trim().is_empty() {
             continue;
         }
-        html.push_str("<p>");
-        html.push_str(&escape_html(paragraph).replace('\n', "<br>\n"));
-        html.push_str("</p>\n");
+        body.push_str(
+            "<p style=\"margin:0 0 12px 0;font-size:14px;line-height:1.6;color:#292524;\">",
+        );
+        body.push_str(&escape_html(paragraph).replace('\n', "<br>\n"));
+        body.push_str("</p>\n");
     }
-    html.push_str("</body></html>");
-    html
+    body
+}
+
+fn markdown_fragment(md: &str) -> String {
+    use pulldown_cmark::{Options, Parser, html};
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_TABLES);
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TASKLISTS);
+    let parser = Parser::new_ext(md, options);
+    let mut fragment = String::new();
+    html::push_html(&mut fragment, parser);
+    // pulldown-cmark emits bare tags; the layout carries the type, so scope its
+    // descendants instead of rewriting every tag inline.
+    fragment
+}
+
+/// Inline images: `doc:ID` references resolved to embedded attachments.
+///
+/// The author writes `![alt](doc:42)` in Markdown (or `src="doc:42"` in rare hand HTML)
+/// and lists 42 among the embedded documents. This rewrites the HTML reference to
+/// `cid:doc-42` — the Content-ID the attachment is sent with — and the text part to the
+/// bare filename, so the plain-text letter does not quote a pointer nobody can follow.
+/// A reference without a matching embedded document is returned, and the caller refuses
+/// the send naming it: a red X on the customer's screen is worse than no picture.
+///
+/// `embeds` is `(document id, filename)` pairs; filenames are escaped on the way in.
+pub fn resolve_embed_refs(
+    body_html: &str,
+    body_text: &str,
+    embeds: &[(i64, String)],
+) -> Result<(String, String), Vec<i64>> {
+    use std::collections::{BTreeMap, BTreeSet};
+    let by_id: BTreeMap<i64, &str> = embeds.iter().map(|(id, name)| (*id, name.as_str())).collect();
+
+    let mut referenced = BTreeSet::new();
+    let mut rest = body_html;
+    while let Some(start) = rest.find("doc:") {
+        let digits: String = rest[start + 4..].chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(id) = digits.parse::<i64>() {
+            referenced.insert(id);
+        }
+        rest = &rest[start + 4..];
+    }
+    let unknown: Vec<i64> = referenced
+        .into_iter()
+        .filter(|id| !by_id.contains_key(id))
+        .collect();
+    if !unknown.is_empty() {
+        return Err(unknown);
+    }
+
+    let mut html = body_html.to_string();
+    let mut text = body_text.to_string();
+    for (id, name) in &by_id {
+        let from = format!("doc:{id}");
+        html = html.replace(&format!("\"{from}\""), &format!("\"cid:doc-{id}\""));
+        html = html.replace(&format!("'{from}'"), &format!("'cid:doc-{id}'"));
+        let safe_name = escape_html(name);
+        // Markdown image first (`![alt](doc:42)` → the filename), then any bare pointer.
+        let mut rebuilt = String::new();
+        let mut rest = text.as_str();
+        while let Some(open) = rest.find("![") {
+            if let Some(close) = rest[open..].find(&format!("]({from})")) {
+                rebuilt.push_str(&rest[..open]);
+                rebuilt.push_str(&safe_name);
+                rest = &rest[open + close + 3 + from.len()..];
+            } else {
+                rebuilt.push_str(&rest[..open + 2]);
+                rest = &rest[open + 2..];
+            }
+        }
+        rebuilt.push_str(rest);
+        text = rebuilt.replace(&from, &safe_name);
+    }
+    Ok((html, text))
+}
+
+fn layout(hero: Option<&str>, content: &str) -> String {
+    let hero_row = match hero {
+        Some(title) => format!(
+            "<tr><td style=\"background-color:#b91c1c;padding:26px 28px;text-align:center;\">\n\
+             <div style=\"font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;\
+             letter-spacing:1px;color:#ffffff;\">{}</div>\n\
+             </td></tr>",
+            escape_html(title)
+        ),
+        None => String::new(),
+    };
+    format!(
+        "<!doctype html><html lang=\"hu\"><head><meta charset=\"utf-8\">\
+<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>\n\
+<body style=\"margin:0;padding:0;background-color:#f0eeea;\">\n\
+<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" \
+style=\"background-color:#f0eeea;padding:24px 12px;\"><tr><td align=\"center\">\n\
+<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" \
+style=\"width:100%;max-width:600px;background-color:#ffffff;border-radius:10px;overflow:hidden;\
+border:1px solid #e2e0da;\"><tr><td \
+style=\"background-color:#1c1917;padding:20px 28px;\">\n\
+<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;\
+letter-spacing:3px;color:#ffffff;\">AUTOTHERM</div>\n\
+<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#d6d0c7;\
+margin-top:4px;\">Hűtős felépítmények &middot; automata értesítés</div>\n\
+</td></tr>{hero_row}<tr><td class=\"autotherm-body\" \
+style=\"padding:24px 28px;font-family:Arial,Helvetica,sans-serif;font-size:14px;\
+line-height:1.6;color:#292524;\">\n\
+{content}</td></tr><tr><td \
+style=\"background-color:#f7f6f3;padding:14px 28px;border-top:1px solid #e2e0da;\">\n\
+<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;\
+color:#8a847a;\">Ezt a levelet az Autotherm CRM küldte automatikusan. \
+Kérdés esetén válaszoljon erre a levélre — megkeresését munkatársunk olvassa.</div>\n\
+</td></tr></table>\n\
+<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#a8a29e;\
+margin-top:12px;\">Autotherm Kft.</div>\n\
+</td></tr></table>\n\
+</body></html>"
+    )
 }
 
 #[cfg(test)]
@@ -226,8 +390,57 @@ mod tests {
     #[test]
     fn html_part_escapes_and_paragraphs() {
         let html = text_to_html("Hello <b>Müller</b> & co\nline two\n\n\nsecond para");
-        assert!(html.contains("<p>Hello &lt;b&gt;Müller&lt;/b&gt; &amp; co<br>\nline two</p>"));
-        assert!(html.contains("<p>second para</p>"));
+        assert!(html.contains("Hello &lt;b&gt;Müller&lt;/b&gt; &amp; co<br>\nline two"));
+        assert!(html.contains("second para"));
+        assert!(html.contains("AUTOTHERM"));
+        assert!(html.ends_with("</body></html>"));
+    }
+
+    #[test]
+    fn markdown_renders_inside_the_same_layout() {
+        let html = markdown_to_html("# Árajánlat\n\nKedves **János**!\n\n- tétel 1\n- tétel 2\n");
+        assert!(html.contains("<h1>Árajánlat</h1>"), "{html}");
+        assert!(html.contains("<strong>János</strong>"), "{html}");
+        assert!(html.contains("<li>tétel 1</li>"), "{html}");
+        assert!(html.contains("AUTOTHERM"));
+        assert!(html.ends_with("</body></html>"));
+    }
+
+    #[test]
+    fn markdown_keeps_staff_inline_html() {
+        // Authors are authenticated staff; inline HTML passes through by design, and the
+        // inbox renders stored HTML sandboxed. Scripts never execute there.
+        let html = markdown_to_html("szép <b>kiemelés</b> vége");
+        assert!(html.contains("szép <b>kiemelés</b> vége"), "{html}");
+    }
+
+    #[test]
+    fn hero_band_shouts_once() {
+        let html = email_html_hero("MEGJÖTT AZ ÁRAJÁNLATOD", "Kedves János!");
+        assert!(html.contains("MEGJÖTT AZ ÁRAJÁNLATOD"), "{html}");
+        assert!(html.contains("background-color:#b91c1c"), "{html}");
+        assert!(html.contains("Kedves János!"), "{html}");
+    }
+
+    #[test]
+    fn embed_refs_resolve_to_cid_and_filename() {
+        let embeds = vec![(42, "arlista.png".to_string())];
+        let (html, text) = resolve_embed_refs(
+            "<p>Nézd:<img src=\"doc:42\" alt=\"ár\"></p>",
+            "Nézd: ![ár](doc:42) és doc:42",
+            &embeds,
+        )
+        .unwrap();
+        assert!(html.contains("src=\"cid:doc-42\""), "{html}");
+        assert!(!html.contains("doc:42"), "{html}");
+        assert!(text.contains("arlista.png"), "{text}");
+        assert!(!text.contains("doc:42"), "{text}");
+    }
+
+    #[test]
+    fn embed_refs_to_unknown_ids_are_reported() {
+        let err = resolve_embed_refs("x doc:7 y", "x", &[]).unwrap_err();
+        assert_eq!(err, vec![7]);
     }
 
     #[test]

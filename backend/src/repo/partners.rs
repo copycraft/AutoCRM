@@ -74,6 +74,7 @@ pub const DEFAULT_SORT: &str = "name";
 pub async fn search(
     db: impl PgExecutor<'_>,
     pattern: Option<&str>,
+    phone: Option<&str>,
     kind: Option<PartnerKind>,
     role: Option<&str>,
     include_archived: bool,
@@ -87,21 +88,25 @@ pub async fn search(
                   email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at
            FROM partners
            WHERE ($1::text IS NULL OR name ILIKE $1 OR tax_number ILIKE $1 OR eu_tax_number ILIKE $1
-                  OR email ILIKE $1 OR city ILIKE $1)
-             AND ($2::partner_kind IS NULL OR kind = $2)
+                  OR email ILIKE $1 OR city ILIKE $1
+                  -- Phone digits with Hungarian prefixes unified, mirroring
+                  -- domain::partner::normalize_phone: "+36 30 ..." finds "06-30-...".
+                  OR ($2::text IS NOT NULL AND regexp_replace(regexp_replace(regexp_replace(phone, '[^0-9]', '', 'g'), '^00', ''), '^06', '36') LIKE $2))
+             AND ($3::partner_kind IS NULL OR kind = $3)
              -- An unclassified partner counts as a customer; a supplier filter is exact.
-             AND ($3::text IS NULL
-                  OR (role = $3 OR role = 'both')
-                  OR ($3 = 'customer' AND role IS NULL))
-             AND ($4 OR archived_at IS NULL)
+             AND ($4::text IS NULL
+                 OR (role = $4 OR role = 'both')
+                 OR ($4 = 'customer' AND role IS NULL))
+             AND ($5 OR archived_at IS NULL)
            ORDER BY
-               CASE WHEN $7 = 'name' THEN name END ASC,
-               CASE WHEN $7 = '-name' THEN name END DESC,
-               CASE WHEN $7 = 'created_at' THEN created_at END ASC,
-               CASE WHEN $7 = '-created_at' THEN created_at END DESC,
+               CASE WHEN $8 = 'name' THEN name END ASC,
+               CASE WHEN $8 = '-name' THEN name END DESC,
+               CASE WHEN $8 = 'created_at' THEN created_at END ASC,
+               CASE WHEN $8 = '-created_at' THEN created_at END DESC,
                id ASC
-           LIMIT $5 OFFSET $6"#,
+           LIMIT $6 OFFSET $7"#,
         pattern,
+        phone,
         kind as Option<PartnerKind>,
         role,
         include_archived,

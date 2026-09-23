@@ -2,6 +2,7 @@
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslations } from 'next-intl';
+import { useRestoreFocus } from '@/hooks/useRestoreFocus';
 
 export function ConfirmDialog({
   open,
@@ -25,6 +26,7 @@ export function ConfirmDialog({
   const tc = useTranslations('common');
   const okLabel = confirmLabel ?? tc('confirm');
   const noLabel = cancelLabel ?? tc('cancel');
+  useRestoreFocus(open);
   return (
     <Dialog.Root
       open={open}

@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO inspection_damages (inspection_id, zone_key, damage_type, severity, note, x, y, view)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n            RETURNING id, inspection_id, zone_key, damage_type, severity, note, x, y, view, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "inspection_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "zone_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "damage_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "x",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "y",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "view",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Float8",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "e6c3d054f8e16860274fa56705d989b70626e2867fbda5cc95aaef62f7077395"
+}

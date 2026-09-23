@@ -40,6 +40,7 @@ export function LeadStageDialog({
     options.find((o) => o.stage_key === target) ?? options[0];
   const effective = selected?.stage_key ?? '';
   const needsNote = selected?.requires_note ?? false;
+  const gateBlocked = selected ? !selected.gates_met : false;
   const currentLabel = detail.history.at(-1)?.label_hu ?? detail.stage?.stage_key ?? '—';
 
   const change = useMutation({
@@ -87,7 +88,7 @@ export function LeadStageDialog({
     },
   });
 
-  const valid = effective !== '' && (!needsNote || note.trim() !== '');
+  const valid = effective !== '' && (!needsNote || note.trim() !== '') && !gateBlocked;
 
   return (
     <Dialog.Root
@@ -118,8 +119,9 @@ export function LeadStageDialog({
                   <label className="label" htmlFor="ls-target">{t('targetStage')}</label>
                   <select id="ls-target" className="input" value={effective} onChange={(e) => setTarget(e.target.value)}>
                     {options.map((o) => (
-                      <option key={o.stage_key} value={o.stage_key}>
+                      <option key={o.stage_key} value={o.stage_key} disabled={!o.gates_met}>
                         {o.label_hu}
+                        {!o.gates_met ? ` (${t('gateBlocked')})` : ''}
                       </option>
                     ))}
                   </select>

@@ -20,8 +20,9 @@ use crate::repo::documents::{self, Document};
 use crate::repo::leads::{Lead, LeadInput, LeadSummary};
 use crate::repo::orders::Order;
 use crate::repo::stages::{CurrentStage, StageEntry};
-use crate::repo::{audit, leads, like_pattern, orders, parse_sort, stages};
+use crate::repo::{audit, leads, like_pattern, orders, parse_sort, phone_pattern, stages};
 use crate::service;
+use crate::service::email::QuotationRequest;
 use crate::service::stages::{StageChange, TransitionOption};
 
 pub fn routes() -> OpenApiRouter<AppState> {
@@ -31,6 +32,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(change_stage))
         .routes(routes!(transitions))
         .routes(routes!(convert))
+        .routes(routes!(quotation))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -60,11 +62,13 @@ async fn search(
     ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> AppResult<Json<Items<LeadSummary>>> {
     let pattern = q.q.as_deref().and_then(like_pattern);
+    let phone = q.q.as_deref().and_then(phone_pattern);
     let sort_key = parse_sort(q.sort.as_deref(), leads::LEAD_SORTS, leads::DEFAULT_SORT)
         .map_err(AppError::validation)?;
     let rows = leads::search(
         &state.db,
         pattern.as_deref(),
+        phone.as_deref(),
         optional(q.stage).as_deref(),
         q.assigned_to,
         q.open,
@@ -374,4 +378,30 @@ async fn convert(
     )
     .await?;
     Ok((StatusCode::CREATED, Json(order)))
+}
+
+/// The queued quotation letter.
+#[derive(Serialize, ToSchema)]
+pub struct QuotationSent {
+    pub email_id: i64,
+}
+
+/// Send the quotation letter for a lead: hero band on top, the lead's quotation PDF
+/// attached, from the staff member as themselves. Writing to a stranger's money needs a
+/// person behind it, so this is `SendEmail` (office), not an automatic trigger.
+#[utoipa::path(
+    post, path = "/leads/{id}/quotation", tag = "leads",
+    params(("id" = i64, Path)),
+    request_body = QuotationRequest,
+    responses((status = 202, body = QuotationSent))
+)]
+async fn quotation(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<QuotationRequest>,
+) -> AppResult<(StatusCode, Json<QuotationSent>)> {
+    me.require(Capability::SendEmail)?;
+    let email_id = service::email::send_quotation(&state, &me, id, &b).await?;
+    Ok((StatusCode::ACCEPTED, Json(QuotationSent { email_id })))
 }

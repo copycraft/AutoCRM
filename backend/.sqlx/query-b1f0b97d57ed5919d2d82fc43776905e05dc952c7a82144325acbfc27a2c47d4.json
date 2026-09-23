@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tasks SET done_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE id = $1\n           RETURNING id, entity_type, entity_id, title, due_date, done_at,\n                     assigned_to, NULL AS \"assigned_name?\", created_by, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "entity_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "entity_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "due_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "done_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "assigned_to",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "assigned_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "b1f0b97d57ed5919d2d82fc43776905e05dc952c7a82144325acbfc27a2c47d4"
+}

@@ -259,3 +259,37 @@ pub async fn blocker_load(
     .fetch_all(db)
     .await
 }
+
+/// One order's workshop interval, in business-tz calendar dates: the day it was placed
+/// and, once it reaches a terminal stage, the day it left. The per-day buckets are built
+/// in Rust (ranges are weeks, not years), so SQL only selects candidate intervals.
+#[derive(Debug, Clone)]
+pub struct WorkloadInterval {
+    pub placed: NaiveDate,
+    pub completed: Option<NaiveDate>,
+}
+
+pub async fn workload_intervals(
+    db: impl PgExecutor<'_>,
+    from: NaiveDate,
+    to: NaiveDate,
+    tz: &str,
+) -> sqlx::Result<Vec<WorkloadInterval>> {
+    sqlx::query_as!(
+        WorkloadInterval,
+        r#"SELECT (o.created_at AT TIME ZONE $3)::date AS "placed!",
+                  CASE WHEN sd.is_terminal
+                       THEN (fin.entered_at AT TIME ZONE $3)::date
+                       ELSE NULL::date END AS "completed?"
+           FROM orders o
+           JOIN order_current_stage fin ON fin.order_id = o.id
+           JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = fin.stage_key
+           WHERE (o.created_at AT TIME ZONE $3)::date <= $2
+             AND (NOT sd.is_terminal OR (fin.entered_at AT TIME ZONE $3)::date >= $1)"#,
+        from,
+        to,
+        tz
+    )
+    .fetch_all(db)
+    .await
+}

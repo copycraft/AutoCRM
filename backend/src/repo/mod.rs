@@ -9,8 +9,11 @@ pub mod documents;
 pub mod emails;
 pub mod fx;
 pub mod images;
+pub mod inspections;
+pub mod invoices;
 pub mod jobs;
 pub mod leads;
+pub mod newsletter;
 pub mod order_items;
 pub mod order_notes;
 pub mod order_specs;
@@ -18,6 +21,8 @@ pub mod orders;
 pub mod partners;
 pub mod raw_import;
 pub mod reports;
+pub mod search;
+pub mod tasks;
 pub mod sessions;
 pub mod stages;
 pub mod templates;
@@ -38,6 +43,14 @@ pub fn like_pattern(q: &str) -> Option<String> {
     Some(format!("%{escaped}%"))
 }
 
+/// Phone search pattern: digits with Hungarian prefixes unified
+/// (see `domain::partner::normalize_phone`), wrapped for LIKE. The SQL side
+/// applies the same transform to the column; `None` disables the predicate.
+pub fn phone_pattern(q: &str) -> Option<String> {
+    let norm = crate::domain::partner::normalize_phone(q);
+    (!norm.is_empty()).then_some(format!("%{norm}%"))
+}
+
 /// Parses a `sort` query value (`name`, `-created_at`) against a whitelist of
 /// allowed keys, returning the validated key (with any `-` prefix intact).
 /// Anything else is an error — column names can never come from user input.
@@ -56,7 +69,7 @@ pub fn parse_sort(sort: Option<&str>, allowed: &[&str], default: &str) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::{like_pattern, parse_sort};
+    use super::{like_pattern, parse_sort, phone_pattern};
 
     const ALLOWED: &[&str] = &["name", "created_at"];
 
@@ -65,6 +78,15 @@ mod tests {
         assert_eq!(like_pattern("  müller "), Some("%müller%".into()));
         assert_eq!(like_pattern("50%_a\\b"), Some("%50\\%\\_a\\\\b%".into()));
         assert_eq!(like_pattern("   "), None);
+    }
+
+    #[test]
+    fn phone_patterns_normalise() {
+        assert_eq!(
+            phone_pattern("+36 30 123 4567"),
+            Some("%36301234567%".into())
+        );
+        assert_eq!(phone_pattern("   "), None);
     }
 
     #[test]

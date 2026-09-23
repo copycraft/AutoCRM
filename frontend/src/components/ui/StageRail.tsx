@@ -7,6 +7,7 @@ import { Check, Circle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils/format';
 import { DateDisplay } from '@/components/ui/DateDisplay';
+import { EmailValue } from '@/components/ui/ContactLinks';
 import type { Blocker, StageDefinition, StageEntry } from '@/lib/api/types';
 
 export function StageRail({
@@ -119,7 +120,10 @@ export function TravellerStrip({
             <li key={b.id} className="text-metadata text-steel-900">
               <span className="font-medium">{b.what}</span>{' '}
               <span className="text-steel-500">
-                · {[b.responsible_partner_name, b.responsible_email].filter(Boolean).join(' · ') || '—'}
+                · {b.responsible_partner_name}
+                {b.responsible_partner_name && b.responsible_email ? ' · ' : ''}
+                {b.responsible_email && <EmailValue value={b.responsible_email} />}
+                {!b.responsible_partner_name && !b.responsible_email && '—'}
                 {b.due_date ? (
                   <>
                     {' '}· <DateDisplay value={b.due_date} />

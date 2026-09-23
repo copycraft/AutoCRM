@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO invoice_lines (invoice_id, position, description, quantity, unit,\n                                    unit_price, vat_rate, net_amount, vat_amount)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Text",
+        "Numeric",
+        "Text",
+        "Int8",
+        "Numeric",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ba03d59ad8c9a01f933ed42a4b8b0ad5382ac5b36bbcc60faebdd121c29aee79"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE newsletter_subscriptions SET unsubscribed_at = now()\n             WHERE lower(email) = $1 AND unsubscribed_at IS NULL RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "eb6a7b93d39da04dcabff7ad5cfad06795ee072f37baa4216c4a2daed446243a"
+}

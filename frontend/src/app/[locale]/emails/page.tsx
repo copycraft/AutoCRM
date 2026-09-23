@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DataTable } from '@/components/tables/DataTable';
+import { DataTable, columnMenuItems } from '@/components/tables/DataTable';
+import { ColumnMenu } from '@/components/tables/ColumnMenu';
+import { useColumnVisibility } from '@/hooks/useColumnVisibility';
 import { FilterBar, FilterField } from '@/components/tables/FilterBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -16,6 +17,12 @@ import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useDensity, usePageSize } from '@/hooks/usePreferences';
+import { useUrlInt, useUrlState } from '@/hooks/useUrlState';
+import { useRememberList } from '@/hooks/useListMemory';
+import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
+import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
+import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
+import { ExportCsvButton } from '@/components/tables/ExportCsvButton';
 import { emailApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import type { EmailStatus, EmailSummary } from '@/lib/api/types';
@@ -50,35 +57,35 @@ export default function EmailsPage() {
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
   const locale = useLocale();
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState<EmailStatus | ''>('');
-  const [offset, setOffset] = useState(0);
+  useRememberList('emails');
+  const [q, setQ] = useUrlState('q', '');
+  const [statusRaw, setStatusRaw] = useUrlState('status', '');
+  const status = (statusRaw || '') as EmailStatus | '';
+  const setStatus = (s: EmailStatus | '') => setStatusRaw(s);
+  const [page, setPage] = useUrlInt('page', 1);
   const debouncedQ = useDebouncedValue(q);
   const pageSize = usePageSize();
-  const density = useDensity();
+  const serverDensity = useDensity();
+  const { density, toggle: toggleDensity, overridden: densityOverridden } =
+    useDensityWithOverride(serverDensity);
+  const { visibility: colVis, onChange: setColVis, reset: resetColVis } =
+    useColumnVisibility('emails');
+  const offset = Math.max(0, (page - 1) * pageSize);
 
-  // The list endpoint has no free-text search; filtering by subject/address
-  // happens client-side on the loaded page.
+  // Free-text search runs server-side over the whole log; the pager counts
+  // server-filtered rows, so searching beyond the loaded page just works.
   const query = useQuery({
-    queryKey: qk.emails({ status, offset, pageSize }),
+    queryKey: qk.emails({ status, q: debouncedQ.trim(), offset, pageSize }),
     queryFn: () =>
       emailApi.list({
         status: status || undefined,
+        q: debouncedQ.trim() || undefined,
         limit: pageSize,
         offset,
       }),
   });
 
-  const rows = useMemo(() => {
-    const needle = debouncedQ.trim().toLowerCase();
-    const items = query.data?.items ?? [];
-    if (!needle) return items;
-    return items.filter(
-      (m) =>
-        m.subject.toLowerCase().includes(needle) ||
-        m.to_address.toLowerCase().includes(needle),
-    );
-  }, [query.data, debouncedQ]);
+  const rows = useMemo(() => query.data?.items ?? [], [query.data]);
 
   const columns = useMemo<ColumnDef<EmailSummary>[]>(
     () => [
@@ -141,12 +148,52 @@ export default function EmailsPage() {
   const clear = () => {
     setQ('');
     setStatus('');
-    setOffset(0);
+    setPage(1);
   };
+
+  /** Current status filter, first 200 rows (the API max page); text search stays client-side. */
+  const exportEmails = async () => {
+    const data = await emailApi.list({
+      status: status || undefined,
+      limit: 200,
+      offset: 0,
+    });
+    const needle = debouncedQ.trim().toLowerCase();
+    const items = (data.items ?? []).filter(
+      (m) =>
+        !needle ||
+        m.subject.toLowerCase().includes(needle) ||
+        m.to_address.toLowerCase().includes(needle),
+    );
+    return {
+      header: [t('subject'), t('to'), t('orderLink'), tc('status'), t('queuedAt')],
+      rows: items.map((m) => [m.subject, m.to_address, m.order_id, t(`status.${STATUS_KEYS[m.status]}`), m.queued_at]),
+      count: items.length,
+    };
+  };
+
+  const chips = useMemo<FilterChip[]>(() => {
+    const list: FilterChip[] = [];
+    if (q.trim() !== '') {
+      list.push({ key: 'q', label: `${tc('search')}: ${q.trim()}`, onRemove: () => { setQ(''); setPage(1); } });
+    }
+    if (status !== '') {
+      list.push({ key: 'status', label: `${t('statusFilter')}: ${t(`status.${STATUS_KEYS[status]}`)}`, onRemove: () => { setStatus(''); setPage(1); } });
+    }
+    return list;
+  }, [q, status, tc, t, setQ, setStatus]);
 
   return (
     <AppShell>
-      <PageHeader title={tn('emails')} />
+      <PageHeader
+        title={tn('emails')}
+        actions={
+          <Link className="btn-primary btn-sm" href={`/${locale}/emails/new`}>
+            {t('newEmail')}
+          </Link>
+        }
+      />
+      <SavedViewsBar listKey="emails" />
       <FilterBar onClear={clear}>
         <FilterField label={tc('search')}>
           <input
@@ -155,7 +202,7 @@ export default function EmailsPage() {
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
-              setOffset(0);
+              setPage(1);
             }}
           />
         </FilterField>
@@ -165,7 +212,7 @@ export default function EmailsPage() {
             value={status}
             onChange={(e) => {
               setStatus(e.target.value as EmailStatus | '');
-              setOffset(0);
+              setPage(1);
             }}
           >
             <option value="">{tc('all')}</option>
@@ -177,6 +224,7 @@ export default function EmailsPage() {
           </select>
         </FilterField>
       </FilterBar>
+      <ActiveFilterChips chips={chips} />
 
       {query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
@@ -185,20 +233,36 @@ export default function EmailsPage() {
           <DataTable
             columns={columns}
             data={rows}
-            isLoading={query.isLoading}
+            isLoading={query.isPending}
+            isFetching={query.isFetching && !query.isPending}
             emptyTitle={te('noEmails')}
             emptyFilteredTitle={te('filterNoResults')}
             filtered={debouncedQ.trim() !== '' || status !== ''}
             getRowId={(r) => String(r.id)}
             density={density}
+            columnVisibility={colVis}
+            onColumnVisibilityChange={setColVis}
           />
-          <Pagination
-            offset={offset}
-            limit={pageSize}
-            loaded={query.data?.items.length ?? 0}
-            onPrev={() => setOffset((o) => Math.max(0, o - pageSize))}
-            onNext={() => setOffset((o) => o + pageSize)}
-          />
+          <div className="flex items-center justify-between gap-3">
+            <Pagination
+              offset={offset}
+              limit={pageSize}
+              loaded={rows.length}
+              onPrev={() => setPage(Math.max(1, page - 1))}
+              onNext={() => setPage(page + 1)}
+              onJump={setPage}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportCsvButton base="emailek" onExport={exportEmails} />
+              <DensityToggle density={density} overridden={densityOverridden} onToggle={toggleDensity} />
+              <ColumnMenu
+                columns={columnMenuItems(columns)}
+                visibility={colVis}
+                onChange={setColVis}
+                onReset={resetColVis}
+              />
+            </div>
+          </div>
         </>
       )}
     </AppShell>

@@ -317,6 +317,7 @@ async fn test_email(
             reply_to: Some(env.reply_to_default.clone()),
             to: to.clone(),
             cc: vec![],
+            bcc: vec![],
             subject: "AutoCRM teszt e-mail".into(),
             body_html: text_to_html(&body),
             body_text: body,

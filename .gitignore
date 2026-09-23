@@ -1,6 +1,8 @@
 /backend/target/
 /target/
 /frontend/node_modules/
+/nav-sidecar/node_modules/
+/nav-sidecar/dist/
 /frontend/.next/
 /frontend/out/
 .env

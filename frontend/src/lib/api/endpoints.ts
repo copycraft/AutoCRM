@@ -76,6 +76,8 @@ export const leadsApi = {
     request(`/leads/${id}/transitions`, s.zLeadsTransitionsResponse),
   convert: (id: number, body: S['OrderBody']): Promise<S['Order']> =>
     request(`/leads/${id}/convert`, s.zLeadsConvertResponse, { method: 'POST', body }),
+  quotation: (id: number, body: S['QuotationRequest']): Promise<S['QuotationSent']> =>
+    request(`/leads/${id}/quotation`, s.zLeadsQuotationResponse, { method: 'POST', body }),
 };
 
 // ── Orders ──
@@ -106,6 +108,32 @@ export const ordersApi = {
   patchItem: (id: number, body: S['PatchItem']): Promise<S['ItemView']> =>
     request(`/order-items/${id}`, s.zOrdersUpdateItemResponse, { method: 'PATCH', body }),
   deleteItem: (id: number): Promise<void> => requestNoContent(`/order-items/${id}`, { method: 'DELETE' }),
+};
+
+// ── Invoicing ──
+// Issuing is asynchronous: POST answers 202 with the invoice in `submitting`, and the
+// screen polls `get` until NAV has decided. Proformas are the other shape entirely — no
+// NAV call, no status, no chain — and deliberately live under their own paths.
+export const invoicesApi = {
+  forOrder: (orderId: number): Promise<S['Items_Invoice']> =>
+    request(`/orders/${orderId}/invoices`, s.zInvoicesListForOrderResponse),
+  get: (id: number): Promise<S['InvoiceDetail']> =>
+    request(`/invoices/${id}`, s.zInvoicesDetailResponse),
+  create: (orderId: number, body: S['IssueRequest']): Promise<S['Invoice']> =>
+    request(`/orders/${orderId}/invoices`, s.zInvoicesCreateResponse, { method: 'POST', body }),
+  storno: (id: number, body: S['StornoRequest']): Promise<S['Invoice']> =>
+    request(`/invoices/${id}/storno`, s.zInvoicesStornoResponse, { method: 'POST', body }),
+  annul: (id: number, body: S['AnnulRequest']): Promise<S['Invoice']> =>
+    request(`/invoices/${id}/annul`, s.zInvoicesAnnulResponse, { method: 'POST', body }),
+  chain: (id: number): Promise<S['Items_ChainStep']> =>
+    request(`/invoices/${id}/chain`, s.zInvoicesChainResponse),
+  proformas: (orderId: number): Promise<S['Items_Proforma']> =>
+    request(`/orders/${orderId}/proformas`, s.zInvoicesListProformasResponse),
+  createProforma: (orderId: number, body: S['ProformaRequest']): Promise<S['ProformaCreated']> =>
+    request(`/orders/${orderId}/proformas`, s.zInvoicesCreateProformaResponse, {
+      method: 'POST',
+      body,
+    }),
 };
 
 // ── Blockers ──
@@ -145,6 +173,8 @@ export const mediaApi = {
   deleteImage: (id: number): Promise<void> => requestNoContent(`/images/${id}`, { method: 'DELETE' }),
   documents: (orderId: number): Promise<S['Items_Document']> =>
     request(`/orders/${orderId}/documents`, s.zMediaListDocumentsResponse),
+  searchDocuments: (search: QueryOf<'media_search_documents'> = {}): Promise<S['Items_Document']> =>
+    request('/documents', s.zMediaSearchDocumentsResponse, { search }),
   downloadDocument: (id: number): Promise<S['DownloadUrl']> =>
     request(`/documents/${id}/download`, s.zMediaDocumentUrlResponse),
   deleteDocument: (id: number): Promise<void> => requestNoContent(`/documents/${id}`, { method: 'DELETE' }),
@@ -180,6 +210,22 @@ export const emailApi = {
     requestNoContent(`/email-suppressions/${encodeURIComponent(email)}`, { method: 'DELETE' }),
 };
 
+// ── Newsletter ──
+// One blast, everyone in BCC. Subscriptions are managed here; the website signs up
+// through the keyed public endpoint, and readers leave from the unsubscribe page.
+export const newsletterApi = {
+  subscriptions: (): Promise<S['Items_Subscription']> =>
+    request('/newsletter/subscriptions', s.zNewsletterSubscriptionsResponse),
+  addSubscription: (body: S['SubscriptionBody']): Promise<S['Subscription']> =>
+    request('/newsletter/subscriptions', s.zNewsletterAddSubscriptionResponse, { method: 'POST', body }),
+  removeSubscription: (id: number): Promise<void> =>
+    requestNoContent(`/newsletter/subscriptions/${id}`, { method: 'DELETE' }),
+  send: (body: S['NewsletterRequest']): Promise<S['NewsletterSent']> =>
+    request('/newsletter/send', s.zNewsletterSendResponse, { method: 'POST', body }),
+  unsubscribe: (search: { token?: string; email?: string }): Promise<S['Unsubscribed']> =>
+    request('/newsletter/unsubscribe', s.zNewsletterUnsubscribeResponse, { search }),
+};
+
 // ── Configuration ──
 export const configApi = {
   stages: (entity?: StageEntity): Promise<S['Items_StageDefinition']> =>
@@ -212,6 +258,57 @@ export const reportsApi = {
     request('/reports/blocker-load', s.zReportsBlockerLoadResponse, { search }),
   fxRates: (search: QueryOf<'reports_fx_rates'> = {}): Promise<S['Items_FxRate']> =>
     request('/reports/fx-rates', s.zReportsFxRatesResponse, { search }),
+  workload: (search: QueryOf<'reports_workload'> = {}): Promise<S['WorkloadReport']> =>
+    request('/reports/workload', s.zReportsWorkloadResponse, { search }),
+};
+
+// ── Global search ──
+export const searchApi = {
+  global: (q: string, opts?: { signal?: AbortSignal }): Promise<S['GlobalResults']> =>
+    request('/search', s.zSearchGlobalResponse, { search: { q }, signal: opts?.signal }),
+};
+
+// ── Tasks ──
+export const tasksApi = {
+  mine: (): Promise<S['Items_Task']> => request('/tasks', s.zTasksMineResponse),
+  forEntity: (entity: 'order' | 'lead' | 'partner', id: number): Promise<S['Items_Task']> =>
+    request(`/tasks/for/${entity}/${id}`, s.zTasksForEntityResponse),
+  create: (body: S['TaskBody']): Promise<S['Task']> =>
+    request('/tasks', s.zTasksCreateResponse, { method: 'POST', body }),
+  setDone: (id: number, done: boolean): Promise<S['Task']> =>
+    request(`/tasks/${id}/done`, s.zTasksSetDoneResponse, { method: 'POST', body: { done } }),
+  remove: (id: number): Promise<void> => requestNoContent(`/tasks/${id}`, { method: 'DELETE' }),
+};
+
+// ── Handover inspections (átadás-átvétel) ──
+// Created on the phone (guided walkaround); the web reads history, reviews
+// check-in verdicts, annotates locked inspections and configures zone templates.
+export const inspectionsApi = {
+  list: (search: QueryOf<'inspections_list'> = {}): Promise<S['Items_Inspection']> =>
+    request('/inspections', s.zInspectionsListResponse, { search }),
+  get: (id: number): Promise<S['InspectionDetail']> =>
+    request(`/inspections/${id}`, s.zInspectionsDetailResponse),
+  comparison: (id: number): Promise<S['Comparison']> =>
+    request(`/inspections/${id}/comparison`, s.zInspectionsComparisonResponse),
+  verdict: (id: number, body: S['VerdictBody']): Promise<S['InspectionVerdict']> =>
+    request(`/inspections/${id}/verdicts`, s.zInspectionsSetVerdictResponse, {
+      method: 'POST',
+      body,
+    }),
+  note: (id: number, body: S['NoteBody']): Promise<S['InspectionNote']> =>
+    request(`/inspections/${id}/notes`, s.zInspectionsAddNoteResponse, { method: 'POST', body }),
+  templates: (projectTypeId?: number): Promise<S['Items_ZoneTemplate']> =>
+    request('/inspections/templates', s.zInspectionsTemplatesResponse, {
+      search: { project_type_id: projectTypeId },
+    }),
+  saveTemplates: (
+    set: string,
+    body: S['ReplaceTemplatesBody'],
+  ): Promise<S['Items_ZoneTemplate']> =>
+    request(`/inspections/templates/${set}`, s.zInspectionsReplaceTemplatesResponse, {
+      method: 'PUT',
+      body,
+    }),
 };
 
 // ── Admin ──

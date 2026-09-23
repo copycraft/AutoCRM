@@ -10,14 +10,19 @@ pub mod blockers;
 pub mod configuration;
 pub mod email;
 pub mod extract;
+pub mod inspections;
+pub mod invoices;
 pub mod leads;
 pub mod media;
 pub mod mobile;
+pub mod newsletter;
 pub mod openapi;
 pub mod orders;
 pub mod partners;
 pub mod raw_import;
 pub mod reports;
+pub mod search;
+pub mod tasks;
 pub mod users;
 pub mod vehicles;
 
@@ -30,6 +35,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::{Deserialize, Deserializer, Serialize};
 use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::compression::CompressionLayer;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
@@ -50,12 +56,18 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(leads::routes())
         .merge(orders::routes())
         .merge(blockers::routes())
+        .merge(inspections::routes())
         .merge(media::routes())
         .merge(mobile::routes())
+        .merge(newsletter::routes())
         .merge(email::routes())
         .merge(reports::routes())
+        .merge(search::routes())
+        .merge(tasks::routes())
         .merge(admin::routes())
         .merge(vehicles::routes())
+        // Last, so adding it appends to the generated document instead of reshuffling it.
+        .merge(invoices::routes())
 }
 
 pub fn router(state: AppState) -> Router {
@@ -64,6 +76,8 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .nest("/api", api)
+        // JSON lists compress 5-10x; the phone on the shop wifi feels it the most.
+        .layer(CompressionLayer::new().gzip(true))
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(30),

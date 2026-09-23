@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, inspection_id, zone_key, damage_type, severity, note, x, y, view, created_at\n            FROM inspection_damages WHERE inspection_id = $1 ORDER BY created_at, id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "inspection_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "zone_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "damage_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "x",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "y",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "view",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f6086e52e821158efaae717a92deed1da77e55fe10edbe489388e58d5a028960"
+}

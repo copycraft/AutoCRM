@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, name, kind::text AS \"kind!\", city\n           FROM partners\n           WHERE name ILIKE $1 OR city ILIKE $1 OR tax_number ILIKE $1\n              -- Phone digits with Hungarian prefixes unified, mirroring\n              -- domain::partner::normalize_phone.\n              OR ($2::text IS NOT NULL AND regexp_replace(regexp_replace(regexp_replace(phone, '[^0-9]', '', 'g'), '^00', ''), '^06', '36') LIKE $2)\n           ORDER BY id DESC\n           LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "city",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "5da0d48da93addd3ead633e593ab8d2fd91b9b6a8040c5b896147975a2085cfd"
+}

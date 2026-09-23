@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.id, o.number, o.title,\n                  COALESCE(\n                      (SELECT xveh.plate FROM order_vehicles xv\n                        JOIN vehicles xveh ON xveh.id = xv.vehicle_id\n                       WHERE xv.order_id = o.id ORDER BY xveh.plate LIMIT 1),\n                      o.vehicle_plate\n                  ) AS \"plate?\",\n                  sd.label_hu AS \"stage_label!\"\n           FROM orders o\n           JOIN order_current_stage cs ON cs.order_id = o.id\n           JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = cs.stage_key\n           JOIN partners p ON p.id = o.partner_id\n           WHERE o.number ILIKE $1 OR o.title ILIKE $1 OR p.name ILIKE $1\n              OR o.vehicle_vin ILIKE $1\n              -- Legacy plate, normalised like the list search: \"abc123\" finds \"ABC-123\".\n              OR ($2::text IS NOT NULL AND (\n                     upper(regexp_replace(o.vehicle_plate, '[^A-Za-z0-9]', '', 'g')) LIKE $2\n                  OR EXISTS (SELECT 1 FROM order_vehicles xv JOIN vehicles xveh ON xveh.id = xv.vehicle_id\n                              WHERE xv.order_id = o.id\n                                AND (xveh.plate_norm LIKE $2 OR xveh.vin ILIKE $1))))\n           ORDER BY o.id DESC\n           LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "plate?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "stage_label!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "bc85efda09717694baaad99b19d0909bdc0669bd84b9508f52164b1e8fe440af"
+}

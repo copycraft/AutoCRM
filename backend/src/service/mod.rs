@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod automation;
 pub mod email;
+pub mod invoicing;
 pub mod leads;
 pub mod media;
 pub mod orders;

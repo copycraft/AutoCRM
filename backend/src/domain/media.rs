@@ -12,6 +12,10 @@ pub enum ImageCategory {
     Production,
     Completion,
     Marketing,
+    /// Handover-inspection walkaround photos (átadás-átvétel). Mutable like
+    /// production: drafts are retaken freely, and the lock lives on the
+    /// inspection status rather than on the image row.
+    Inspection,
 }
 
 impl ImageCategory {
@@ -21,6 +25,7 @@ impl ImageCategory {
             ImageCategory::Production => "production",
             ImageCategory::Completion => "completion",
             ImageCategory::Marketing => "marketing",
+            ImageCategory::Inspection => "inspection",
         }
     }
 
@@ -43,6 +48,12 @@ pub enum DocumentKind {
     /// distinct from Other so `GET /documents?kind=certificate&expiring_before=…` can be
     /// asked at all.
     Certificate,
+    /// A reported invoice or storno, rendered from what NAV holds. Generated, never
+    /// uploaded, and listed apart from the design files on the order screen.
+    Invoice,
+    /// A díjbekérő. Looks like an invoice, is not one, and is reported nowhere — which is
+    /// exactly why it has a kind of its own rather than hiding among the invoices.
+    Proforma,
     Other,
 }
 

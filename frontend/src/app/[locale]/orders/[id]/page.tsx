@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,13 @@ import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Money } from '@/components/ui/Money';
+import { IntakeSlipSection } from '@/components/orders/IntakeSlipSection';
+import { InspectionSection } from '@/components/inspections/InspectionSection';
+import { TaskList } from '@/components/tasks/TaskList';
+import { JobSheet } from '@/components/orders/JobSheet';
+import { InvoicesSection } from '@/components/orders/InvoicesSection';
+import { ProformasSection } from '@/components/orders/ProformasSection';
+import { EmailValue } from '@/components/ui/ContactLinks';
 import { StageRail, StageHistoryList, TravellerStrip } from '@/components/ui/StageRail';
 import {
   OrderForm,
@@ -24,14 +31,18 @@ import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
 import { configApi, ordersApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
-import { canAdmin, canChangeStage, canEditOrders, useAuth } from '@/lib/auth/context';
+import { canAdmin, canChangeStage, canEditOrders, canSendEmail, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
+import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
+import { DayLabel, groupByDay } from '@/components/ui/DayGroups';
+import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
+import { useRecentRecords } from '@/hooks/useRecent';
 import type { PatchOrder } from '@/lib/api/types';
 import { isBlockerOpen } from '@/lib/utils/blockers';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
 
-type Tab = 'data' | 'items' | 'stages' | 'blockers' | 'audit';
+type Tab = 'data' | 'items' | 'invoices' | 'stages' | 'blockers' | 'audit';
 
 /** Enum value → message key. Unknown values fall back to the raw value's own key, which
  *  next-intl renders visibly rather than silently blank. */
@@ -92,17 +103,34 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const tc = useTranslations('common');
   const ti = useTranslations('images');
   const ts = useTranslations('spec');
+  const tt = useTranslations('tasks');
   const ter = useTranslations('errors');
+  const ti2 = useTranslations('invoices');
   const locale = useLocale();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const tn = useTranslations('navigation');
+  const { push: pushRecent } = useRecentRecords(6);
   const [tab, setTab] = useState<Tab>('data');
   const [editing, setEditing] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
   const canEdit = canEditOrders(user);
   const canStage = canChangeStage(user);
+  const canMail = canSendEmail(user);
 
   const detail = useQuery({ queryKey: qk.order(id), queryFn: () => ordersApi.get(id) });
+  const orderTitle = detail.data ? `#${detail.data.order.number} · ${detail.data.order.title}` : '';
+  useEffect(() => {
+    if (detail.data) {
+      pushRecent({
+        href: `/${locale}/orders/${id}`,
+        title: orderTitle,
+        sub: detail.data.partner.name,
+      });
+    }
+    // Push once per loaded record, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail.data?.order.id]);
   const stagesQuery = useQuery({
     queryKey: qk.stages('order'),
     queryFn: () => configApi.stages('order'),
@@ -191,6 +219,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'data', label: t('tabsData') },
     { key: 'items', label: `${t('tabsItems')} (${items.length})` },
+    { key: 'invoices', label: ti2('tab') },
     { key: 'stages', label: t('tabsStages') },
     { key: 'blockers', label: `${t('tabsBlockers')} (${openBlockers.length})` },
     { key: 'audit', label: t('tabsAudit') },
@@ -200,11 +229,35 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     <AppShell>
       <div className="flex gap-6">
         <div className="min-w-0 flex-1 space-y-6">
+          <BackToList listKey="orders" fallbackHref={`/${locale}/orders`} />
+          <div className="flex items-center justify-between gap-3">
+            <Breadcrumbs
+              items={[
+                { href: `/${locale}/orders`, label: tn('orders') },
+                { label: `#${order.number}` },
+              ]}
+            />
+            <CopyLinkButton />
+          </div>
           <PageHeader size="record"
-            title={`#${order.number} · ${order.title}`}
+            title={
+              <span className="inline-flex items-center gap-2">
+                <span>{`#${order.number} · ${order.title}`}</span>
+                <CopyButton value={order.number} label={t('number')} />
+                {order.vehicle_plate && <CopyButton value={order.vehicle_plate} label={t('vehiclePlate')} />}
+              </span>
+            }
             subtitle={`${partner.name} · ${stage.label_hu} · ${t('daysInStage', { days: stage.days_in_stage })}`}
             actions={
               <>
+                <button className="btn-secondary btn-sm" onClick={() => window.print()}>
+                  {t('print')}
+                </button>
+                {canMail && (
+                  <Link className="btn-secondary btn-sm" href={`/${locale}/emails/new?order_id=${order.id}`}>
+                    {t('writeEmail')}
+                  </Link>
+                )}
                 {canEdit && !editing && tab === 'data' && (
                   <button className="btn-secondary btn-sm" onClick={() => setEditing(true)}>
                     {tc('edit')}
@@ -296,7 +349,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       </p>
                     </div>
                     <div>
-                      <p className="text-metadata text-steel-500">HUF (MNB, <DateDisplay value={value.valuation_date} />)</p>
+                      <p className="text-metadata text-steel-500">{t('hufMnb')} <DateDisplay value={value.valuation_date} />)</p>
                       <p className="text-section font-mono font-medium">
                         {value.total_huf_minor != null ? (
                           <Money minor={value.total_huf_minor} currency="HUF" />
@@ -424,6 +477,19 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 )}
 
                 {order.minicrm_id != null && <RawImportPanel entity="order" id={id} />}
+
+                {!editing && <IntakeSlipSection order={order} editable={canEdit} />}
+
+                {!editing && <InspectionSection orderId={id} />}
+
+                {!editing && (
+                  <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                    <h2 className="text-section font-semibold">{tt('forRecord')}</h2>
+                    <div className="mt-3">
+                      <TaskList entity="order" id={id} />
+                    </div>
+                  </section>
+                )}
               </div>
             )}
           </Tabs.Content>
@@ -455,6 +521,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 </table>
               </div>
             )}
+          </Tabs.Content>
+
+          {/* Invoices report to NAV; proformas never do. Two sections, not one list. */}
+          <Tabs.Content value="invoices">
+            <InvoicesSection orderId={id} currency={currency} />
+            <ProformasSection orderId={id} currency={currency} />
           </Tabs.Content>
 
           <Tabs.Content value="stages">
@@ -494,7 +566,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         {open && !overdue && <StatusBadge tone="steel">{t('blockerOpen')}</StatusBadge>}
                       </p>
                       <p className="mt-1 font-mono text-metadata text-steel-500">
-                        {[b.responsible_partner_name, b.responsible_email].filter(Boolean).join(' · ') || '—'}
+                        {b.responsible_partner_name}
+                        {b.responsible_partner_name && b.responsible_email ? ' · ' : ''}
+                        {b.responsible_email && <EmailValue value={b.responsible_email} />}
+                        {!b.responsible_partner_name && !b.responsible_email && '—'}
                         {b.due_date ? (
                           <>
                             {' '}· {t('dueOn')}: <DateDisplay value={b.due_date} />
@@ -524,17 +599,24 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 ) : noteItems.length === 0 ? (
                   <p className="text-metadata text-steel-500">{t('notesEmpty')}</p>
                 ) : (
-                  <ul className="space-y-3">
-                    {noteItems.map((n) => (
-                      <li key={n.id} className="border-l-2 border-steel-200 pl-3 text-body">
-                        <p className="text-metadata text-steel-500">
-                          {n.author_name ?? '—'} ·{' '}
-                          <DateDisplay withTime value={n.occurred_at} className="text-metadata" />
-                        </p>
-                        <p className="whitespace-pre-wrap">{n.body}</p>
-                      </li>
+                  <div className="space-y-4">
+                    {groupByDay(noteItems, (n) => n.occurred_at).map((g) => (
+                      <div key={g.day}>
+                        <DayLabel day={g.day} />
+                        <ul className="mt-1.5 space-y-3">
+                          {g.items.map((n) => (
+                            <li key={n.id} className="border-l-2 border-steel-200 pl-3 text-body">
+                              <p className="text-metadata text-steel-500">
+                                {n.author_name ?? '—'} ·{' '}
+                                <DateDisplay withTime value={n.occurred_at} className="text-metadata" />
+                              </p>
+                              <p className="whitespace-pre-wrap">{n.body}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </div>
             </section>
@@ -549,22 +631,29 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 ) : auditItems.length === 0 ? (
                   <p className="text-metadata text-steel-500">{t('auditEmpty')}</p>
                 ) : (
-                  <ul className="space-y-3">
-                    {auditItems.map((a) => (
-                      <li key={a.id} className="text-body">
-                        <p>
-                          <span className="font-medium">{a.action}</span>{' '}
-                          <span className="text-steel-500">
-                            · {a.user_name ?? (a.user_id ? `#${a.user_id}` : t('systemUser'))} ·{' '}
-                            <DateDisplay withTime value={a.at} className="text-metadata" />
-                          </span>
-                        </p>
-                        <pre className="mt-1 overflow-x-auto rounded-lg bg-panel p-2 font-mono text-metadata text-steel-900">
-                          {JSON.stringify(a.changes, null, 1)}
-                        </pre>
-                      </li>
+                  <div className="space-y-4">
+                    {groupByDay(auditItems, (a) => a.at).map((g) => (
+                      <div key={g.day}>
+                        <DayLabel day={g.day} />
+                        <ul className="mt-1.5 space-y-3">
+                          {g.items.map((a) => (
+                            <li key={a.id} className="text-body">
+                              <p>
+                                <span className="font-medium">{a.action}</span>{' '}
+                                <span className="text-steel-500">
+                                  · {a.user_name ?? (a.user_id ? `#${a.user_id}` : t('systemUser'))} ·{' '}
+                                  <DateDisplay withTime value={a.at} className="text-metadata" />
+                                </span>
+                              </p>
+                              <pre className="mt-1 overflow-x-auto rounded-lg bg-panel p-2 font-mono text-metadata text-steel-900">
+                                {JSON.stringify(a.changes, null, 1)}
+                              </pre>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </div>
             </section>
@@ -630,6 +719,17 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       {stageOpen && (
         <OrderStageDialog orderId={id} detail={detail.data} definitions={defs} onClose={() => setStageOpen(false)} />
       )}
+
+      <JobSheet
+        order={order}
+        partner={partner}
+        vehicles={vehicles}
+        items={items}
+        value={value}
+        blockers={blockers}
+        stage={stage}
+        assigneeName={assigneeName}
+      />
     </AppShell>
   );
 }

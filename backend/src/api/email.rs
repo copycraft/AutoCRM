@@ -46,6 +46,8 @@ struct ListQuery {
     /// Only failed and needs-review mail.
     #[serde(default)]
     attention: bool,
+    /// Free text over subject and recipient.
+    q: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
@@ -66,6 +68,7 @@ async fn list(
         partner_id: q.partner_id,
         status: q.status,
         needs_attention: q.attention,
+        q: q.q,
     };
     Ok(Items::new(
         emails::list(

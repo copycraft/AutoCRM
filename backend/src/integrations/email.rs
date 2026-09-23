@@ -21,6 +21,9 @@ pub struct OutgoingAttachment {
     pub filename: String,
     pub content_type: String,
     pub bytes: Vec<u8>,
+    /// When set, the part is inline under this Content-ID (`cid:…` from the HTML),
+    /// not a downloadable attachment.
+    pub content_id: Option<String>,
 }
 
 pub struct OutgoingEmail {
@@ -29,6 +32,8 @@ pub struct OutgoingEmail {
     pub reply_to: Option<String>,
     pub to: String,
     pub cc: Vec<String>,
+    /// A newsletter blast: one row, everyone in BCC, nobody sees the list.
+    pub bcc: Vec<String>,
     pub subject: String,
     pub body_text: String,
     pub body_html: String,
@@ -286,6 +291,20 @@ pub fn diagnose(error: &str) -> Option<&'static str> {
         || e.contains("timed out")
         || e.contains("resolv")
         || e.contains("unreachable")
+        // OS error codes and Winsock names are locale-independent: on a Hungarian Windows
+        // box the message reads "Nem hozható létre kapcsolat (os error 10061)" and matches
+        // none of the English substrings above.
+        || e.contains("os error 10060")
+        || e.contains("os error 10061")
+        || e.contains("os error 110")
+        || e.contains("os error 111")
+        || e.contains("os error 101")
+        || e.contains("os error 11001")
+        || e.contains("os error 11004")
+        || e.contains("wsaeconnrefused")
+        || e.contains("wsaetimedout")
+        || e.contains("wsaenetunreach")
+        || e.contains("wsahost_not_found")
     {
         Some(
             "could not reach the SMTP server: check SMTP_HOST/SMTP_PORT and that the hosting provider does not block outbound port 587",
@@ -319,6 +338,9 @@ fn build_message(email: &OutgoingEmail) -> anyhow::Result<Message> {
     for cc in &email.cc {
         builder = builder.cc(mailbox(cc)?);
     }
+    for bcc in &email.bcc {
+        builder = builder.bcc(mailbox(bcc)?);
+    }
     if email.automatic {
         builder = builder.header(AutoSubmitted).header(AutoResponseSuppress);
     }
@@ -331,9 +353,12 @@ fn build_message(email: &OutgoingEmail) -> anyhow::Result<Message> {
         for a in &email.attachments {
             let content_type = ContentType::parse(&a.content_type)
                 .unwrap_or_else(|_| ContentType::parse("application/octet-stream").expect("valid"));
-            mixed = mixed.singlepart(
-                Attachment::new(a.filename.clone()).body(a.bytes.clone(), content_type),
-            );
+            let part = match &a.content_id {
+                Some(cid) => Attachment::new_inline_with_name(cid.clone(), a.filename.clone())
+                    .body(a.bytes.clone(), content_type),
+                None => Attachment::new(a.filename.clone()).body(a.bytes.clone(), content_type),
+            };
+            mixed = mixed.singlepart(part);
         }
         mixed
     };
@@ -351,6 +376,7 @@ mod tests {
             reply_to: Some("iroda@autotherm.hu".into()),
             to: "michael@mueller.example".into(),
             cc: vec!["anna@mueller.example".into()],
+            bcc: vec![],
             subject: "Emlékeztető: ATP tanúsítvány".into(),
             body_text: "Szia".into(),
             body_html: "<!doctype html><html><body style=\"x\">\n<p>Szia</p></body></html>".into(),
@@ -358,6 +384,7 @@ mod tests {
                 filename: "terv.pdf".into(),
                 content_type: "application/pdf".into(),
                 bytes: b"%PDF".to_vec(),
+                content_id: None,
             }],
             automatic: true,
         }
@@ -391,6 +418,20 @@ mod tests {
         let mut e = sample();
         e.to = "not an address".into();
         assert!(build_message(&e).is_err());
+    }
+
+    #[test]
+    fn inline_images_travel_as_cid_parts() {
+        let mut e = sample();
+        e.attachments.push(OutgoingAttachment {
+            filename: "akcio.png".into(),
+            content_type: "image/png".into(),
+            bytes: b"\x89PNG".to_vec(),
+            content_id: Some("doc-9".into()),
+        });
+        let text = formatted(&e);
+        assert!(text.contains("Content-ID: <doc-9>"), "{text}");
+        assert!(text.contains("Content-Disposition: inline"), "{text}");
     }
 
     #[test]
@@ -430,6 +471,18 @@ mod tests {
         );
         assert!(
             diagnose("Connection refused (os error 111)")
+                .unwrap()
+                .contains("reach")
+        );
+        // OS error text is localized by the OS ("Nem hozható létre kapcsolat… (os error
+        // 10061)" on Hungarian Windows); the codes and Winsock names are not.
+        assert!(
+            diagnose("Nem hozható létre kapcsolat a távoli számítógéppel. (os error 10061)")
+                .unwrap()
+                .contains("reach")
+        );
+        assert!(
+            diagnose("No connection could be made because the target machine actively refused it. (os error 10061)")
                 .unwrap()
                 .contains("reach")
         );

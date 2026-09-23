@@ -24,6 +24,7 @@ hmac = "0.12"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 kamadak-exif = "0.6"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls", "hostname"] }
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
 quick-xml = "0.37"
 rand = "0.9"
 # V7.2: the vehicle plate may live only inside MiniCRM project names, so the migration
@@ -38,7 +39,7 @@ sha2 = "0.10"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "macros", "migrate", "chrono", "rust_decimal", "json"] }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "limit", "catch-panic"] }
+tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "limit", "catch-panic", "compression-gzip"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }

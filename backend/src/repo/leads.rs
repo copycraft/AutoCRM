@@ -54,6 +54,9 @@ pub struct LeadSummary {
     pub source: Option<String>,
     pub assigned_to: Option<i64>,
     pub assigned_name: Option<String>,
+    pub quoted_value_minor: Option<i64>,
+    pub currency: Option<String>,
+    pub quote_valid_until: Option<NaiveDate>,
     pub stage_key: String,
     pub stage_label: String,
     pub stage_entered_at: DateTime<Utc>,
@@ -168,6 +171,7 @@ pub const DEFAULT_SORT: &str = "-created_at";
 pub async fn search(
     db: impl PgExecutor<'_>,
     pattern: Option<&str>,
+    phone: Option<&str>,
     stage_key: Option<&str>,
     assigned_to: Option<i64>,
     open_only: bool,
@@ -179,6 +183,7 @@ pub async fn search(
         LeadSummary,
         r#"SELECT l.id, l.title, l.partner_id, p.name AS "partner_name?", l.contact_name, l.contact_email, l.source,
                   l.assigned_to, u.display_name AS "assigned_name?",
+                  l.quoted_value_minor, l.currency, l.quote_valid_until,
                   cs.stage_key AS "stage_key!", sd.label_hu AS "stage_label!", cs.entered_at AS "stage_entered_at!",
                   o.id AS "order_id?", o.number AS "order_number?", l.created_at
            FROM leads l
@@ -189,18 +194,22 @@ pub async fn search(
            -- V2.7: a lead converts as many times as the enquiry had vehicles, so this is a
            -- LATERAL taking the first order rather than a join that would duplicate the lead.
            LEFT JOIN LATERAL (SELECT id, number FROM orders WHERE lead_id = l.id ORDER BY id LIMIT 1) o ON true
-           WHERE ($1::text IS NULL OR l.title ILIKE $1 OR l.contact_name ILIKE $1 OR l.contact_email ILIKE $1 OR p.name ILIKE $1)
-             AND ($2::text IS NULL OR cs.stage_key = $2)
-             AND ($3::bigint IS NULL OR l.assigned_to = $3)
-             AND (NOT $4 OR NOT sd.is_terminal)
+            WHERE ($1::text IS NULL OR l.title ILIKE $1 OR l.contact_name ILIKE $1 OR l.contact_email ILIKE $1 OR p.name ILIKE $1
+                   -- Contact phone digits with Hungarian prefixes unified, mirroring
+                   -- domain::partner::normalize_phone.
+                   OR ($2::text IS NOT NULL AND regexp_replace(regexp_replace(regexp_replace(l.contact_phone, '[^0-9]', '', 'g'), '^00', ''), '^06', '36') LIKE $2))
+             AND ($3::text IS NULL OR cs.stage_key = $3)
+             AND ($4::bigint IS NULL OR l.assigned_to = $4)
+             AND (NOT $5 OR NOT sd.is_terminal)
            ORDER BY
-               CASE WHEN $7 = 'created_at' THEN l.created_at END ASC,
-               CASE WHEN $7 = '-created_at' THEN l.created_at END DESC,
-               CASE WHEN $7 = 'title' THEN l.title END ASC,
-               CASE WHEN $7 = '-title' THEN l.title END DESC,
+               CASE WHEN $8 = 'created_at' THEN l.created_at END ASC,
+               CASE WHEN $8 = '-created_at' THEN l.created_at END DESC,
+               CASE WHEN $8 = 'title' THEN l.title END ASC,
+               CASE WHEN $8 = '-title' THEN l.title END DESC,
                l.id DESC
-           LIMIT $5 OFFSET $6"#,
+           LIMIT $6 OFFSET $7"#,
         pattern,
+        phone,
         stage_key,
         assigned_to,
         open_only,
@@ -222,6 +231,7 @@ pub async fn for_partner(
         LeadSummary,
         r#"SELECT l.id, l.title, l.partner_id, p.name AS "partner_name?", l.contact_name, l.contact_email, l.source,
                   l.assigned_to, u.display_name AS "assigned_name?",
+                  l.quoted_value_minor, l.currency, l.quote_valid_until,
                   cs.stage_key AS "stage_key!", sd.label_hu AS "stage_label!", cs.entered_at AS "stage_entered_at!",
                   o.id AS "order_id?", o.number AS "order_number?", l.created_at
            FROM leads l

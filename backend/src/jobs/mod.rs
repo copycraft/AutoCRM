@@ -16,6 +16,7 @@ use crate::AppState;
 use crate::integrations::email::Mailer;
 use crate::repo::jobs::{self, Job};
 use crate::service::automation;
+use crate::service::invoicing;
 use crate::service::email::{self, Delivery};
 
 pub mod kinds {
@@ -24,6 +25,11 @@ pub mod kinds {
     pub const NUDGE_BLOCKERS: &str = "nudge_blockers";
     pub const STALLED_ORDERS: &str = "stalled_orders";
     pub const FETCH_FX_RATES: &str = "fetch_fx_rates";
+    /// Report an invoice or storno to NAV through the sidecar, then store its PDF and
+    /// queue the letter. Reporting is asynchronous at NAV, so it is asynchronous here.
+    pub const NAV_SUBMIT_INVOICE: &str = "nav_submit_invoice";
+    /// Technically annul a data report.
+    pub const NAV_ANNUL_INVOICE: &str = "nav_annul_invoice";
 }
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -152,6 +158,16 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
         }
         kinds::STALLED_ORDERS => {
             automation::stalled_order_alerts(state).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::NAV_SUBMIT_INVOICE => {
+            let p: invoicing::SubmitPayload = payload(job)?;
+            invoicing::submit_invoice(state, &p).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::NAV_ANNUL_INVOICE => {
+            let p: invoicing::AnnulPayload = payload(job)?;
+            invoicing::annul_job(state, &p).await?;
             Ok(Outcome::Done)
         }
         kinds::FETCH_FX_RATES => {

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE invoices SET status = 'stornoed' WHERE id = $1 AND status = 'issued'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "48c6ead7872ee68c9fd26c393386c929398321d403daf67fb567e204d745b6e1"
+}

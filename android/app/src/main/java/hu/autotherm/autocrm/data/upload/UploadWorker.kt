@@ -42,6 +42,10 @@ class UploadWorker(
         var retryLater = false
         while (true) {
             val due = dao.dueForUpload(System.currentTimeMillis())
+                // Inspection photos belong to the inspection sync, not this drain: it
+                // creates damages and attaches metadata around the same rows, and two
+                // owners sweeping them would lose the image ids the attach needs.
+                .filter { it.category != "inspection" }
             if (due.isEmpty()) break
 
             for (row in due) {
@@ -66,7 +70,12 @@ class UploadWorker(
 
         // Files of confirmed uploads are removed here rather than at completion, so the
         // queue screen can show a batch finishing before the evidence disappears from it.
-        dao.sweepCompleted { path -> File(path).delete() }
+        // Inspection rows are excluded: the inspection sync attaches and frees them
+        // itself, and sweeping one early would delete bytes no attach can recover.
+        for (row in dao.completed().filter { it.category != "inspection" }) {
+            File(row.filePath).delete()
+            dao.delete(row.id)
+        }
 
         return if (retryLater) Result.retry() else Result.success()
     }

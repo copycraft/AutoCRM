@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { errorMessage } from '@/lib/api/errors';
+import { useDirtyGuard } from '@/hooks/useDirtyGuard';
+import { useFormDraft } from '@/hooks/useFormDraft';
 import type { CreatePartner, Partner, PartnerKind, PatchPartner } from '@/lib/api/types';
 
 const schema = z.object({
@@ -91,25 +93,39 @@ export function partnerCreateBody(v: PartnerFormValues): CreatePartner {
 export function PartnerForm({
   initial,
   initialKind,
+  draftKey,
   onSubmit,
   submitLabel,
 }: {
   initial?: Partner;
   /** Preset kind for create (from the menu the user came from); still changeable. */
   initialKind?: PartnerKind;
+  /** Draft autosave slot for the create page; ignored when editing. */
+  draftKey?: string;
   onSubmit: (v: PartnerFormValues) => Promise<void>;
   submitLabel: string;
 }) {
   const t = useTranslations('partners');
   const tc = useTranslations('common');
+  const tq = useTranslations('qol');
   const tv = useTranslations('validation');
   const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
+  const emptyPartner = toForm(undefined, initialKind);
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    watch,
+    reset,
+    formState: { errors, isSubmitting, isDirty, isSubmitSuccessful },
   } = useForm<PartnerFormValues>({ resolver: zodResolver(schema), defaultValues: toForm(initial, initialKind) });
+  const draft = useFormDraft({
+    key: draftKey && !initial ? draftKey : null,
+    watch,
+    reset,
+    empty: emptyPartner,
+  });
+  useDirtyGuard(isDirty && !isSubmitSuccessful, tq('unsavedChanges'));
 
   return (
     <form
@@ -119,11 +135,22 @@ export function PartnerForm({
         setServerError(null);
         try {
           await onSubmit(v);
+          draft.clear();
         } catch (e) {
           setServerError(errorMessage(e, ter, ter('unknownError')));
         }
       })}
     >
+      {draft.restored && (
+        <div className="card-content pb-0">
+          <p className="flex flex-wrap items-center gap-2 rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900">
+            <span>{tq('draftRestored')}</span>
+            <button type="button" className="btn-ghost btn-sm" onClick={draft.discard}>
+              {tq('draftDiscard')}
+            </button>
+          </p>
+        </div>
+      )}
       {serverError && (
         <div className="card-content pb-0">
           <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">

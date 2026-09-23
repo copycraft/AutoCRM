@@ -42,6 +42,34 @@ services:
       exit 0;
       "
 
+  # Wraps NAV's Online Számla system (XML, signatures, token exchange) behind a
+  # small JSON API, so the Rust backend never handles any of it. Defaults to
+  # MOCK_MODE: an in-process fake NAV, no credentials, nothing reported for real.
+  # Real credentials and the endpoint shapes: nav-sidecar/README.md.
+  nav-sidecar:
+    build: ./nav-sidecar
+    init: true
+    environment:
+      MOCK_MODE: "true"
+      PORT: "8080"
+      NAV_ENVIRONMENT: test
+      # Unset MOCK_MODE and set these to report to the real test system:
+      # NAV_LOGIN, NAV_PASSWORD, NAV_SIGN_KEY, NAV_EXCHANGE_KEY, NAV_TAX_NUMBER,
+      # NAV_SOFTWARE_ID, NAV_SOFTWARE_NAME, NAV_SOFTWARE_DEV_CONTACT.
+    ports:
+      # 8081 on the host: the backend already takes 8080.
+      - "8081:8080"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: ["nav"]
+
   # Local SMTP sink for testing EMAIL_MODE=smtp without reaching real inboxes. UI on :8025.
   mailpit:
     image: axllent/mailpit:latest

@@ -14,10 +14,16 @@ import { ContactSection } from '@/components/forms/ContactSection';
 import { Money } from '@/components/ui/Money';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { canEditPartners, useAuth } from '@/lib/auth/context';
+import { canEditPartners, canSendEmail, useAuth } from '@/lib/auth/context';
 import { DateDisplay } from '@/components/ui/DateDisplay';
+import { TaskList } from '@/components/tasks/TaskList';
+import { ContactLine, EmailValue, PhoneValue } from '@/components/ui/ContactLinks';
+import { useToast } from '@/components/ui/Toasts';
+import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
+import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
-import { useState } from 'react';
+import { useRecentRecords } from '@/hooks/useRecent';
+import { useEffect, useState } from 'react';
 
 function DetailRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
@@ -33,14 +39,28 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
   const t = useTranslations('partners');
   const tc = useTranslations('common');
   const tn = useTranslations('navigation');
+  const tt = useTranslations('tasks');
   const locale = useLocale();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { push: pushRecent } = useRecentRecords(6);
+  const toast = useToast();
+  const tq = useTranslations('qol');
   const [editing, setEditing] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const editable = canEditPartners(user);
 
   const detail = useQuery({ queryKey: qk.partner(id), queryFn: () => partnersApi.get(id) });
+  useEffect(() => {
+    if (detail.data) {
+      pushRecent({
+        href: `/${locale}/partners/${id}`,
+        title: detail.data.partner.name,
+        sub: detail.data.partner.city ?? undefined,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail.data?.partner.id]);
 
   const patch = useMutation({
     mutationFn: (body: Record<string, unknown>) => partnersApi.patch(id, body),
@@ -54,10 +74,14 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
   const setArchived = useMutation({
     mutationFn: (archived: boolean) =>
       archived ? partnersApi.archive(id) : partnersApi.unarchive(id),
-    onSuccess: () => {
+    onSuccess: (_d, archived) => {
       setConfirmArchive(false);
       void qc.invalidateQueries({ queryKey: qk.partner(id) });
       void qc.invalidateQueries({ queryKey: ['partners'] });
+      toast.success(archived ? t('archived') : t('unarchive'), undefined, {
+        label: tq('undo'),
+        onClick: () => setArchived.mutate(!archived),
+      });
     },
   });
 
@@ -76,8 +100,31 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
           const archived = partner.archived_at !== null;
           return (
             <>
+              <BackToList
+                listKey="partners"
+                fallbackHref={`/${locale}/partners/${partner.kind === 'business' ? 'business' : 'consumers'}`}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <Breadcrumbs
+                  items={[
+                    {
+                      href: `/${locale}/partners/${partner.kind === 'business' ? 'business' : 'consumers'}`,
+                      label: tn('partners'),
+                    },
+                    { label: partner.name },
+                  ]}
+                />
+                <CopyLinkButton />
+              </div>
               <PageHeader size="record"
-                title={partner.name}
+                title={
+                  <span className="inline-flex items-center gap-2">
+                    <span>{partner.name}</span>
+                    <CopyButton value={partner.name} label={tc('name')} />
+                    {partner.email && <CopyButton value={partner.email} label={tc('email')} />}
+                    {partner.phone && <CopyButton value={partner.phone} label={tc('phone')} />}
+                  </span>
+                }
                 subtitle={`#${partner.id} · ${partner.kind === 'business' ? t('business') : t('person')}`}
                 actions={editable && (
                   <>
@@ -85,6 +132,14 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                       <button className="btn-secondary btn-sm" onClick={() => setEditing(true)}>
                         {tc('edit')}
                       </button>
+                    )}
+                    {canSendEmail(user) && (
+                      <Link
+                        className="btn-secondary btn-sm"
+                        href={`/${locale}/emails/new?partner_id=${partner.id}${partner.email ? `&to=${encodeURIComponent(partner.email)}` : ''}`}
+                      >
+                        {t('writeEmail')}
+                      </Link>
                     )}
                     <button
                       className="btn-ghost btn-sm"
@@ -118,8 +173,8 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                     <DetailRow label={t('euTaxNumber')} value={partner.eu_tax_number ?? '—'} mono />
                     <DetailRow label={t('country')} value={partner.country} mono />
                     <DetailRow label={t('defaultCurrency')} value={partner.default_currency} mono />
-                    <DetailRow label={tc('email')} value={partner.email ?? '—'} />
-                    <DetailRow label={tc('phone')} value={partner.phone ?? '—'} />
+                    <DetailRow label={tc('email')} value={<EmailValue value={partner.email} />} />
+                    <DetailRow label={tc('phone')} value={<PhoneValue value={partner.phone} mono />} />
                     <DetailRow label={t('website')} value={partner.website ?? '—'} />
                     <DetailRow
                       label={t('addressLine')}
@@ -142,7 +197,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                         <span className="font-medium">{c.name}</span>
                         <span className="text-steel-500">
                           {' '}
-                          · {[c.position, c.email, c.phone].filter(Boolean).join(' · ')}
+                          · <ContactLine position={c.position} email={c.email} phone={c.phone} />
                         </span>
                       </p>
                     ))}
@@ -177,6 +232,15 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
               </section>
 
               {partner.minicrm_id != null && <RawImportPanel entity="partner" id={id} />}
+
+              {!editing && (
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <h2 className="text-section font-semibold">{tt('forRecord')}</h2>
+                  <div className="mt-3">
+                    <TaskList entity="partner" id={id} />
+                  </div>
+                </section>
+              )}
 
               <ConfirmDialog
                 open={confirmArchive}

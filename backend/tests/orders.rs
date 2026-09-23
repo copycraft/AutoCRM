@@ -52,6 +52,12 @@ async fn meo_gate_requires_completion_photos(pool: PgPool) {
     let user = common::user(&pool, Role::Office).await;
     let order = common::order(&pool, &user, "HUF", vec![]).await;
 
+    // Leaving `intake` needs the slip (0018); this test is about the MEO gate, so get
+    // past the earlier one rather than assert it here.
+    let mut f = orders::OrderFields::from(&order);
+    f.mileage_in = Some(120_000);
+    orders::update(&pool, order.id, &f).await.unwrap().unwrap();
+
     for stage in ["design", "production", "meo"] {
         change_order_stage(&state, &user, order.id, stage, None)
             .await
@@ -647,7 +653,7 @@ async fn the_supplier_filter_keeps_customers_visible(pool: PgPool) {
     .await
     .unwrap();
 
-    let customers = partners::search(&pool, None, None, Some("customer"), false, "name", 50, 0)
+    let customers = partners::search(&pool, None, None, None, Some("customer"), false, "name", 50, 0)
         .await
         .unwrap();
     assert!(customers.iter().any(|p| p.id == unclassified));
@@ -656,7 +662,7 @@ async fn the_supplier_filter_keeps_customers_visible(pool: PgPool) {
         "a supplier is not a customer"
     );
 
-    let suppliers = partners::search(&pool, None, None, Some("supplier"), false, "name", 50, 0)
+    let suppliers = partners::search(&pool, None, None, None, Some("supplier"), false, "name", 50, 0)
         .await
         .unwrap();
     assert_eq!(suppliers.len(), 1);
@@ -746,5 +752,55 @@ async fn the_spec_form_comes_from_the_project_type(pool: PgPool) {
     assert!(
         refused.is_err(),
         "a heating spec must not hold cooling fields"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn intake_extras_round_trip_and_valuables_stay_paired(pool: PgPool) {
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::order(&pool, &user, "HUF", vec![]).await;
+
+    // The three extras are optional, so an order arrives with none of them recorded —
+    // which is not the same as an order recorded as having nothing in it.
+    assert_eq!(order.fuel_level, None);
+    assert_eq!(order.key_count, None);
+    assert_eq!(order.valuables_declared, None);
+
+    let mut f = orders::OrderFields::from(&order);
+    f.mileage_in = Some(182_450);
+    f.fuel_level = Some("3/4".into());
+    f.key_count = Some(2);
+    f.valuables_declared = Some(true);
+    f.valuables = Some("Navigáció a kesztyűtartóban".into());
+    let saved = orders::update(&pool, order.id, &f).await.unwrap().unwrap();
+    assert_eq!(saved.fuel_level.as_deref(), Some("3/4"));
+    assert_eq!(saved.key_count, Some(2));
+    assert_eq!(saved.valuables_declared, Some(true));
+
+    // "Asked, and the car was empty" is a recorded answer with no description.
+    f.valuables_declared = Some(false);
+    f.valuables = None;
+    let emptied = orders::update(&pool, order.id, &f).await.unwrap().unwrap();
+    assert_eq!(emptied.valuables_declared, Some(false));
+    assert_eq!(emptied.valuables, None);
+
+    // A gauge reading the gauge does not have.
+    let bad_fuel = sqlx::query("UPDATE orders SET fuel_level = 'fél' WHERE id = $1")
+        .bind(order.id)
+        .execute(&pool)
+        .await;
+    assert!(bad_fuel.is_err(), "fuel_level is limited to the gauge marks");
+
+    // A description with nobody having ticked the box: the pairing is the database's,
+    // not just the handler's, so a future code path cannot write a dangling list.
+    let dangling = sqlx::query(
+        "UPDATE orders SET valuables = 'laptop', valuables_declared = false WHERE id = $1",
+    )
+    .bind(order.id)
+    .execute(&pool)
+    .await;
+    assert!(
+        dangling.is_err(),
+        "a valuables description must carry its declaration"
     );
 }

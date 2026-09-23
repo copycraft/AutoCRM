@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT day, base, quote, rate, source, fetched_at FROM fx_rates\n          WHERE base = $1 AND quote = 'HUF' AND day <= $2\n          ORDER BY day DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "day",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "base",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "quote",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "rate",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 4,
+        "name": "source",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "fetched_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bpchar",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "878b4ff76ad9d47bea422680a2e642942fad76030125e4f960d76c10e246c3dd"
+}

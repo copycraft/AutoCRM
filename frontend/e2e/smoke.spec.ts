@@ -81,7 +81,7 @@ test('log in, open an order, switch every tab', async ({ page, playwright }) => 
   await page.goto(`/hu/orders/${orderId}`);
   const tabs = page.getByRole('tab');
   const count = await tabs.count();
-  expect(count, 'the order detail should have five tabs').toBe(5);
+  expect(count, 'the order detail should have six tabs').toBe(6);
 
   for (let i = 0; i < count; i += 1) {
     const tab = tabs.nth(i);

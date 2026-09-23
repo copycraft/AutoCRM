@@ -1,0 +1,97 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO proformas (order_id, number, currency, issue_date, payment_date,\n                                net_amount, vat_amount, gross_amount, document_id, created_by)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n         RETURNING id, order_id, number, currency, issue_date, payment_date, net_amount,\n                   vat_amount, gross_amount, document_id, created_by, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "issue_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "payment_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "net_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "vat_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "document_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Bpchar",
+        "Date",
+        "Date",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "ce6f554f4a51b9c331fa602f78218e55110b331d4f827bd297708c827e1ce6c0"
+}

@@ -156,7 +156,7 @@ class UploadQueueTest {
         server.enqueue(
             MockResponse().setBody(
                 """{"status":"upload","ticket":"t-1","expires_at":"2999-01-01T00:00:00Z",
-                    "upload":{"method":"PUT","url":"$storage","headers":{"x-amz-checksum-sha256":"abc"}}}""",
+                    "upload":{"method":"PUT","url":"$storage","headers":[["x-amz-checksum-sha256","abc"]]}}""",
             ),
         )
         server.enqueue(MockResponse().setResponseCode(200)) // the PUT to object storage

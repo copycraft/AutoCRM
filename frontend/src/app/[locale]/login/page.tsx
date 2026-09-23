@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useForm } from 'react-hook-form';
@@ -24,7 +24,27 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [nativeSubmit, setNativeSubmit] = useState(false);
   const { register, handleSubmit, formState } = useForm<Form>({ resolver: zodResolver(schema) });
+
+  // A native form submit (JS dead, stale chunks) GETs the credentials into the URL.
+  // Scrub the password back out and say so, instead of leaving it in history.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('password') || params.has('email')) {
+        params.delete('password');
+        params.delete('email');
+        const rest = params.toString();
+        router.replace(`/${locale}/login${rest ? `?${rest}` : ''}`);
+        setNativeSubmit(true);
+      }
+    } catch {
+      /* non-browser — nothing to scrub */
+    }
+    // Once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = handleSubmit(async (v) => {
     setServerError(null);
@@ -60,6 +80,9 @@ export default function LoginPage() {
           </div>
           {serverError && (
             <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{serverError}</p>
+          )}
+          {nativeSubmit && (
+            <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{t('nativeSubmit')}</p>
           )}
           <button className="btn-primary w-full" type="submit" disabled={formState.isSubmitting}>
             {formState.isSubmitting ? t('loggingIn') : t('loginButton')}

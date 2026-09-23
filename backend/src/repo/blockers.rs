@@ -48,11 +48,11 @@ pub async fn find(
                   p.name AS "responsible_partner_name?", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,
                   b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,
                   b.created_by, b.created_at, b.updated_at,
-                  (b.due_date < $2 AND b.resolved_at IS NULL) AS "is_overdue!"
+                  (b.due_date IS NOT NULL AND b.due_date < $2 AND b.resolved_at IS NULL) AS "is_overdue!"
            FROM blockers b
-           JOIN orders o ON o.id = b.order_id
-           LEFT JOIN partners p ON p.id = b.responsible_partner_id
-           WHERE b.id = $1"#,
+            JOIN orders o ON o.id = b.order_id
+            LEFT JOIN partners p ON p.id = b.responsible_partner_id
+            WHERE b.id = $1"#,
         id,
         today
     )
@@ -71,11 +71,11 @@ pub async fn list_for_order(
                   p.name AS "responsible_partner_name?", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,
                   b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,
                   b.created_by, b.created_at, b.updated_at,
-                  (b.due_date < $2 AND b.resolved_at IS NULL) AS "is_overdue!"
+                  (b.due_date IS NOT NULL AND b.due_date < $2 AND b.resolved_at IS NULL) AS "is_overdue!"
            FROM blockers b
-           JOIN orders o ON o.id = b.order_id
-           LEFT JOIN partners p ON p.id = b.responsible_partner_id
-           WHERE b.order_id = $1
+            JOIN orders o ON o.id = b.order_id
+            LEFT JOIN partners p ON p.id = b.responsible_partner_id
+            WHERE b.order_id = $1
            ORDER BY b.resolved_at NULLS FIRST, b.due_date NULLS LAST, b.id"#,
         order_id,
         today
@@ -97,7 +97,7 @@ pub async fn list_open(
                   p.name AS "responsible_partner_name?", b.responsible_email, b.due_date, b.notes, b.nudge_enabled,
                   b.last_nudged_at, b.nudge_count, b.resolved_at, b.resolved_by, b.resolution_note,
                   b.created_by, b.created_at, b.updated_at,
-                  (b.due_date < $4 AND b.resolved_at IS NULL) AS "is_overdue!"
+                  (b.due_date IS NOT NULL AND b.due_date < $4 AND b.resolved_at IS NULL) AS "is_overdue!"
            FROM blockers b
            JOIN orders o ON o.id = b.order_id
            LEFT JOIN partners p ON p.id = b.responsible_partner_id
