@@ -44,6 +44,11 @@ stage on an order is impossible. Leads got their own history table.
 **`clock_timestamp()` for stage entries**, not `now()`: `now()` is the transaction start and
 can precede a concurrently committed change, scrambling history order.
 
+**Migration numbers are never backfilled.** There is no `0023_*` migration (the sequence
+jumps `0022` → `0024`). sqlx runs pending migrations in version order, so a file named
+`0023_*` added later would run *between* them on fresh databases but never on existing
+ones — a guaranteed schema divergence. The next migration is always max+1.
+
 ## Stage rules
 
 - Forward moves may skip stages, but every image gate between current and target applies

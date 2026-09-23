@@ -22,8 +22,10 @@ use crate::error::ErrorBody;
     security(("session_cookie" = []), ("bearer" = [])),
     tags(
         (name = "auth"), (name = "users"), (name = "configuration"), (name = "partners"),
-        (name = "leads"), (name = "orders"), (name = "blockers"), (name = "media"),
-        (name = "mobile"), (name = "email"), (name = "reports"), (name = "admin")
+        (name = "migration"), (name = "leads"), (name = "orders"), (name = "blockers"),
+        (name = "media"), (name = "mobile"), (name = "newsletter"), (name = "email"),
+        (name = "reports"), (name = "search"), (name = "tasks"), (name = "admin"),
+        (name = "vehicles"), (name = "inspections"), (name = "invoices")
     )
 )]
 struct ApiDoc;

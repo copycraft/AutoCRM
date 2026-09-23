@@ -17434,6 +17434,9 @@
       "name": "partners"
     },
     {
+      "name": "migration"
+    },
+    {
       "name": "leads"
     },
     {
@@ -17449,13 +17452,31 @@
       "name": "mobile"
     },
     {
+      "name": "newsletter"
+    },
+    {
       "name": "email"
     },
     {
       "name": "reports"
     },
     {
+      "name": "search"
+    },
+    {
+      "name": "tasks"
+    },
+    {
       "name": "admin"
+    },
+    {
+      "name": "vehicles"
+    },
+    {
+      "name": "inspections"
+    },
+    {
+      "name": "invoices"
     }
   ]
 }
