@@ -55,10 +55,15 @@ data class SessionUser(
     @SerialName("role") val role: String,
     /**
      * While true every endpoint except /auth/me, /auth/password and /auth/logout answers
-     * 422. The app cannot change a password, so it says so and signs out rather than
-     * showing a screen where every action fails.
+     * 422. The login flow routes to the change-password screen until it is false.
      */
     @SerialName("must_change_password") val mustChangePassword: Boolean,
+)
+
+@Serializable
+data class ChangePasswordBody(
+    @SerialName("current_password") val currentPassword: String,
+    @SerialName("new_password") val newPassword: String,
 )
 
 // ── The order picker ────────────────────────────────────────────────────────────────
@@ -156,7 +161,7 @@ data class Blocker(
     @SerialName("responsible_email") val responsibleEmail: String? = null,
     @SerialName("due_date") val dueDate: String? = null,
     @SerialName("notes") val notes: String? = null,
-    @SerialName("nudge_count") val nudgeCount: Int,
+    @SerialName("nudge_count") val nudgeCount: Long,
     @SerialName("resolved_at") val resolvedAt: String? = null,
     @SerialName("resolution_note") val resolutionNote: String? = null,
     @SerialName("is_overdue") val isOverdue: Boolean,
@@ -169,7 +174,7 @@ data class Vehicle(
     @SerialName("plate") val plate: String? = null,
     @SerialName("make") val make: String? = null,
     @SerialName("model") val model: String? = null,
-    @SerialName("year") val year: Int? = null,
+    @SerialName("year") val year: Long? = null,
 )
 
 @Serializable
@@ -266,6 +271,20 @@ data class OrderNote(
 
 // ── Media ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * The image row (`#/components/schemas/Image`): what `complete` returns. No URLs —
+ * decoding it as [ImageView] only worked because the URL fields default to null.
+ */
+@Serializable
+data class Image(
+    @SerialName("id") val id: Long,
+    @SerialName("category") val category: String,
+    @SerialName("captured_at") val capturedAt: String? = null,
+    @SerialName("uploaded_at") val uploadedAt: String,
+    @SerialName("immutable") val immutable: Boolean,
+)
+
+/** `#/components/schemas/ImageView`: the [Image] row plus presigned URLs, from `list_images`. */
 @Serializable
 data class ImageView(
     @SerialName("id") val id: Long,
@@ -332,7 +351,7 @@ data class CompleteBody(@SerialName("ticket") val ticket: String)
 @Serializable
 data class Completed(
     @SerialName("type") val type: String,
-    @SerialName("image") val image: ImageView? = null,
+    @SerialName("image") val image: Image? = null,
     @SerialName("document") val document: CompletedDocument? = null,
     @SerialName("created") val created: Boolean = false,
 )
@@ -382,7 +401,7 @@ data class EmailMessage(
     @SerialName("attachments") val attachments: List<AttachmentRef> = emptyList(),
     @SerialName("status") val status: String,
     @SerialName("error") val error: String? = null,
-    @SerialName("attempts") val attempts: Int,
+    @SerialName("attempts") val attempts: Long,
     @SerialName("queued_at") val queuedAt: String,
     @SerialName("sent_at") val sentAt: String? = null,
 )
@@ -601,7 +620,7 @@ data class StalledOrder(
     @SerialName("partner_name") val partnerName: String,
     @SerialName("stage_key") val stageKey: String,
     @SerialName("stage_label") val stageLabel: String,
-    @SerialName("days_in_stage") val daysInStage: Int,
+    @SerialName("days_in_stage") val daysInStage: Long,
     @SerialName("open_blockers") val openBlockers: Long = 0,
 )
 
@@ -774,7 +793,7 @@ data class ZoneTemplate(
     @SerialName("id") val id: Long,
     @SerialName("set_key") val setKey: String,
     @SerialName("zone_key") val zoneKey: String,
-    @SerialName("position") val position: Int,
+    @SerialName("position") val position: Long,
     @SerialName("instruction") val instruction: String,
     @SerialName("optional") val optional: Boolean,
     @SerialName("required") val required: Boolean,

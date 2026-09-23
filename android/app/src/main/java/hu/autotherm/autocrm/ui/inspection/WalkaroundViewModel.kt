@@ -171,7 +171,7 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
             } catch (e: Exception) {
                 null
             } ?: FALLBACK_ZONES.mapIndexed { i, (key, instruction) ->
-                ZoneTemplate(0, "default", key, i + 1, instruction, key == "roof", true)
+                ZoneTemplate(0, "default", key, (i + 1).toLong(), instruction, key == "roof", true)
             }
             // Check-in links the latest signed check-out when online; otherwise the
             // sync resolves it (and fails visibly if none exists by then).

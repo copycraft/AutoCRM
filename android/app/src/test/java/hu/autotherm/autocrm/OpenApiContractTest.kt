@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -54,6 +55,34 @@ class OpenApiContractTest {
         }
     }
 
+    /** For an allOf schema: one arm must be a $ref to [refName]. */
+    private fun assertHasAllOfRef(schemaName: String, refName: String) {
+        val allOf = schema(schemaName)["allOf"]?.jsonArray
+        assertTrue("$schemaName is no longer an allOf composition", allOf != null)
+        val refs = allOf!!.map { it.jsonObject["\$ref"]?.jsonPrimitive?.content }.filterNotNull()
+        assertTrue(
+            "$schemaName no longer composes $refName (refs: $refs)",
+            refs.any { it.endsWith("/$refName") },
+        )
+    }
+
+    /** Fields carried by the inline (non-$ref) arms of an allOf schema. */
+    private fun assertHasAllOfFields(schemaName: String, vararg fields: String) {
+        val allOf = schema(schemaName)["allOf"]?.jsonArray
+        assertTrue("$schemaName is no longer an allOf composition", allOf != null)
+        val inline = allOf!!
+            .map { it.jsonObject }
+            .flatMap { arm -> arm["properties"]?.jsonObject?.keys ?: emptySet() }
+            .toSet()
+        for (field in fields) {
+            assertTrue(
+                "$schemaName no longer carries $field in its inline arms, but the " +
+                    "Android client still reads it (see data/api/Dto.kt)",
+                field in inline,
+            )
+        }
+    }
+
     private fun assertHasFields(schemaName: String, vararg fields: String) {
         val properties = schema(schemaName)["properties"]?.jsonObject
         assertTrue("$schemaName has no properties block", properties != null)
@@ -90,6 +119,18 @@ class OpenApiContractTest {
         assertHasFields("CompleteBody", "ticket")
         // Completed is a oneOf discriminated by `type`; the phone only reads the image arm.
         assertHasOneOfArmFields("Completed", "image", "type", "image", "created")
+    }
+
+    @Test
+    fun `image views still compose the row shape with presigned urls`() {
+        // ImageView is Image + urls (allOf). The phone reads a subset of the row
+        // plus both urls; if the composition breaks up or a side moves, gallery
+        // and thumbnail code reads the wrong shape.
+        assertHasAllOfRef("ImageView", "Image")
+        assertHasAllOfFields("ImageView", "thumb_url", "display_url")
+        assertHasFields(
+            "Image", "id", "category", "captured_at", "uploaded_at", "immutable",
+        )
     }
 
     @Test

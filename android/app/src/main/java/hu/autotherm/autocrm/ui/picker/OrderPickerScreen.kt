@@ -42,11 +42,13 @@ import hu.autotherm.autocrm.ui.theme.MonoSmall
 import hu.autotherm.autocrm.ui.theme.Steel500
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -72,6 +74,10 @@ class OrderPickerViewModel(
     val state: StateFlow<State> = _state.asStateFlow()
     private val queryFlow = MutableStateFlow("")
     val query: StateFlow<String> = queryFlow.asStateFlow()
+
+    /** The van chosen last time: a fitter on one job for three days taps it, not a search. */
+    val last: StateFlow<CapturePrefs.CurrentOrder?> =
+        prefs.currentOrder.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
         // Immediate first load, then debounced typing.
@@ -141,9 +147,14 @@ class OrderPickerViewModel(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrderPickerScreen(viewModel: OrderPickerViewModel, onChosen: () -> Unit) {
+fun OrderPickerScreen(
+    viewModel: OrderPickerViewModel,
+    onMenu: () -> Unit,
+    onChoose: (orderId: Long) -> Unit,
+) {
     val state by viewModel.state.collectAsState()
     val query by viewModel.query.collectAsState()
+    val last by viewModel.last.collectAsState()
 
     // Fresh search on first entry — but only once per composition instance. A bare
     // LaunchedEffect(Unit) re-runs on rotation (the ViewModel survives it) and wipes
@@ -161,6 +172,7 @@ fun OrderPickerScreen(viewModel: OrderPickerViewModel, onChosen: () -> Unit) {
             ScreenTopBar(
                 title = "Jármű választása",
                 subtitle = if (state.orders.isNotEmpty()) "${state.orders.size} találat" else null,
+                onMenu = onMenu,
                 refreshing = state.refreshing,
                 onRefresh = viewModel::retry,
             )
@@ -189,6 +201,20 @@ fun OrderPickerScreen(viewModel: OrderPickerViewModel, onChosen: () -> Unit) {
                 )
             }
 
+            last?.takeIf { query.isBlank() }?.let { order ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    onClick = { onChoose(order.id) },
+                ) {
+                    Text("Legutóbbi", style = MaterialTheme.typography.labelMedium, color = Steel500)
+                    Text(
+                        "${order.number} · ${order.plate ?: "—"}",
+                        style = MonoSmall.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize),
+                    )
+                    Text(order.title, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+
             when {
                 state.loading -> ListSkeleton(Modifier.padding(top = 4.dp))
                 state.error != null && state.orders.isEmpty() ->
@@ -205,7 +231,7 @@ fun OrderPickerScreen(viewModel: OrderPickerViewModel, onChosen: () -> Unit) {
                         items(state.orders, key = { it.id }) { order ->
                             Card(
                                 modifier = Modifier.animateItem(),
-                                onClick = { viewModel.choose(order) { onChosen() } },
+                                onClick = { viewModel.choose(order) { onChoose(order.id) } },
                             ) {
                                 Text(
                                     "${order.number} · ${order.vehiclePlate ?: "—"}",

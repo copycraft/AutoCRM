@@ -74,15 +74,9 @@ class LoginViewModel(
                     _state.value = State(error = "a szerver nem adott munkamenet-jegyet")
                     return@launch
                 }
-                if (response.user.mustChangePassword) {
-                    // Every other endpoint would answer 422 until the password is changed,
-                    // and the phone has no screen for that. Saying so beats a working login
-                    // followed by an app where nothing loads.
-                    _state.value = State(
-                        error = "Jelszót kell változtatni. Jelentkezz be a webes felületen először.",
-                    )
-                    return@launch
-                }
+                // Saved even with must_change_password: MainActivity routes such an
+                // account to the change screen, and every other endpoint stays 422
+                // until the password is changed.
                 sessionStore.save(token, response.expiresAt, response.user)
                 onSuccess()
             } catch (e: ApiException) {

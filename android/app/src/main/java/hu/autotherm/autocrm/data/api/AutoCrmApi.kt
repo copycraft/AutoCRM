@@ -138,7 +138,10 @@ class AutoCrmApi(
             401 -> ApiException.Unauthenticated()
             403 -> ApiException.Forbidden()
             404 -> ApiException.NotFound(message ?: "record")
-            409, 422 -> ApiException.Rule(code, message)
+            // 400 carries the same envelope as 409/422 (backend/src/error.rs):
+            // a validation refusal, not a server fault. Treating it as Server
+            // hid field errors behind "server error" retries.
+            400, 409, 422 -> ApiException.Rule(code, message)
             else -> ApiException.Server(status, message ?: body.take(300))
         }
     }
@@ -166,6 +169,12 @@ class AutoCrmApi(
 
     suspend fun me(): MeResponse =
         send(Request.Builder().url(url("/auth/me").build()).get(), MeResponse.serializer())
+
+    suspend fun changePassword(currentPassword: String, newPassword: String) =
+        sendNoContent(
+            Request.Builder().url(url("/auth/password").build())
+                .post(body(ChangePasswordBody(currentPassword, newPassword))),
+        )
 
     suspend fun logout() =
         sendNoContent(Request.Builder().url(url("/auth/logout").build()).post(EMPTY))

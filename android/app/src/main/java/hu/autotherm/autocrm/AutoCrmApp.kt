@@ -3,10 +3,6 @@ package hu.autotherm.autocrm
 import android.app.Application
 import android.os.StrictMode
 import androidx.work.Configuration
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.db.AutoCrmDatabase
@@ -34,17 +30,6 @@ class AutoCrmApp : Application(), Configuration.Provider {
     val themePrefs: ThemePrefs by lazy { ThemePrefs(this) }
     val api: AutoCrmApi by lazy { AutoCrmApi(serverStore, sessionStore) }
     val uploadQueue: UploadQueue by lazy { UploadQueue(this, database.pendingUploads()) }
-
-    /**
-     * For the handful of writes that belong to the app rather than to a screen — setting the
-     * sticky order from the order detail, for instance. Deliberately not a ViewModel scope:
-     * the write must outlive the composable that started it.
-     */
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    fun selectOrderForCapture(order: CapturePrefs.CurrentOrder) {
-        appScope.launch { capturePrefs.setCurrentOrder(order) }
-    }
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().build()

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
@@ -59,6 +60,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.prefs.ThemePrefs
+import hu.autotherm.autocrm.ui.capture.CaptureScreen
+import hu.autotherm.autocrm.ui.capture.CaptureViewModel
 import hu.autotherm.autocrm.ui.directory.DirectoryScreen
 import hu.autotherm.autocrm.ui.directory.DirectoryViewModel
 import hu.autotherm.autocrm.ui.emails.EmailComposeScreen
@@ -79,6 +82,8 @@ import hu.autotherm.autocrm.ui.leads.LeadEditScreen
 import hu.autotherm.autocrm.ui.leads.LeadEditViewModel
 import hu.autotherm.autocrm.ui.leads.LeadListScreen
 import hu.autotherm.autocrm.ui.leads.LeadListViewModel
+import hu.autotherm.autocrm.ui.login.ChangePasswordScreen
+import hu.autotherm.autocrm.ui.login.ChangePasswordViewModel
 import hu.autotherm.autocrm.ui.login.LoginScreen
 import hu.autotherm.autocrm.ui.login.LoginViewModel
 import hu.autotherm.autocrm.ui.orders.OrderDetailScreen
@@ -92,6 +97,8 @@ import hu.autotherm.autocrm.ui.partners.PartnerDetailViewModel
 import hu.autotherm.autocrm.ui.partners.PartnerEditScreen
 import hu.autotherm.autocrm.ui.partners.PartnerEditViewModel
 import hu.autotherm.autocrm.ui.photos.OrderPhotoViewModel
+import hu.autotherm.autocrm.ui.picker.OrderPickerScreen
+import hu.autotherm.autocrm.ui.picker.OrderPickerViewModel
 import hu.autotherm.autocrm.ui.queue.QueueScreen
 import hu.autotherm.autocrm.ui.queue.QueueViewModel
 import hu.autotherm.autocrm.ui.reports.ReportsScreen
@@ -143,6 +150,15 @@ class MainActivity : ComponentActivity() {
                         onSignedIn = { /* the account flow re-composes this away */ },
                     )
 
+                    // Forced rotation: the backend 422s everything except me/password/
+                    // logout until this is done, so it gates the whole app like login.
+                    // (Delegated val: no smart cast, hence !!.)
+                    account!!.mustChangePassword -> ChangePasswordScreen(
+                        viewModel = viewModel { ChangePasswordViewModel(app.api, app.sessionStore) },
+                        onChanged = { /* me() already re-saved; the flow moves on */ },
+                        onSignedOut = { /* session cleared; the flow falls back to login */ },
+                    )
+
                     else -> AppScaffold(app, account!!)
                 }
             }
@@ -158,6 +174,8 @@ class MainActivity : ComponentActivity() {
  */
 private sealed class Destination(val route: String, val label: String, val icon: ImageVector) {
     data object Orders : Destination("orders", "Munkák", Icons.Filled.Build)
+    /** Capture-first photography: pick the van, shoot, pick the next one. */
+    data object Capture : Destination("capture", "Fotózás", Icons.Filled.PhotoCamera)
     data object Leads : Destination("leads", "Leadek", Icons.AutoMirrored.Filled.TrendingUp)
     data object Directory : Destination("directory", "Névjegyzék", Icons.Filled.Contacts)
     data object Emails : Destination("emails", "E-mailek", Icons.Filled.Email)
@@ -169,6 +187,7 @@ private sealed class Destination(val route: String, val label: String, val icon:
 
 private val DESTINATIONS = listOf(
     Destination.Orders,
+    Destination.Capture,
     Destination.Leads,
     Destination.Directory,
     Destination.Emails,
@@ -182,6 +201,7 @@ private val DESTINATIONS = listOf(
 private fun parentOf(route: String?): Destination = when {
     route == null -> Destination.Orders
     route.startsWith("order") -> Destination.Orders
+    route.startsWith("capture") -> Destination.Capture
     route.startsWith("lead") -> Destination.Leads
     route.startsWith("partner") || route.startsWith("directory") -> Destination.Directory
     route.startsWith("email") -> Destination.Emails
@@ -223,7 +243,9 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
                 HorizontalDivider()
                 val entry by navController.currentBackStackEntryAsState()
                 val current = parentOf(entry?.destination?.route)
-                DESTINATIONS.forEach { dest ->
+                // Hidden like every other capability gate: the server refuses
+                // uploads from roles without media rights anyway.
+                DESTINATIONS.filter { it != Destination.Capture || account.canUploadMedia }.forEach { dest ->
                     NavigationDrawerItem(
                         label = { Text(dest.label) },
                         selected = current == dest,
@@ -325,6 +347,22 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
                         onInspections = { navController.navigate("inspections/$id") },
                     )
                 }
+            composable(Destination.Capture.route) {
+                OrderPickerScreen(
+                    viewModel = viewModel { OrderPickerViewModel(app.api, app.capturePrefs) },
+                    onMenu = openDrawer,
+                    onChoose = { id -> navController.navigate("capture/$id") },
+                )
+            }
+            composable("capture/{id}") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                CaptureScreen(
+                    orderId = id,
+                    viewModel = viewModel { CaptureViewModel(app.api) },
+                    photoViewModel = viewModel { OrderPhotoViewModel(app.uploadQueue, app.capturePrefs) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable("order/{id}/edit") { entry ->
                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                 OrderEditScreen(
