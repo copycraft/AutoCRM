@@ -10902,6 +10902,7 @@
           "currency",
           "issue_date",
           "delivery_date",
+          "payment_method",
           "net_amount",
           "vat_amount",
           "gross_amount",
@@ -10953,6 +10954,10 @@
               "null"
             ],
             "format": "date"
+          },
+          "payment_method": {
+            "type": "string",
+            "description": "How the customer pays: one of TRANSFER, CASH, CARD, VOUCHER, OTHER."
           },
           "net_amount": {
             "type": "integer",
@@ -11206,7 +11211,7 @@
               "string",
               "null"
             ],
-            "description": "`TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`."
+            "description": "`TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`. Anything else\nis refused before a number is drawn."
           },
           "send_email": {
             "type": "boolean",
@@ -12068,6 +12073,7 @@
                 "currency",
                 "issue_date",
                 "delivery_date",
+                "payment_method",
                 "net_amount",
                 "vat_amount",
                 "gross_amount",
@@ -12119,6 +12125,10 @@
                     "null"
                   ],
                   "format": "date"
+                },
+                "payment_method": {
+                  "type": "string",
+                  "description": "How the customer pays: one of TRANSFER, CASH, CARD, VOUCHER, OTHER."
                 },
                 "net_amount": {
                   "type": "integer",

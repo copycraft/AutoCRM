@@ -56,6 +56,66 @@ impl InvoiceStatus {
     }
 }
 
+/// How the customer pays. The closed set NAV accepts — an invoice is reported with one
+/// of these, so anything else is refused at issue time rather than rejected by NAV
+/// after drawing a number (Q-INV-14).
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema,
+)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum PaymentMethod {
+    Transfer,
+    Cash,
+    Card,
+    Voucher,
+    Other,
+}
+
+impl PaymentMethod {
+    /// The wire values, in the order the UI offers them.
+    pub const ALL: [&'static str; 5] = ["TRANSFER", "CASH", "CARD", "VOUCHER", "OTHER"];
+
+    /// The default when the office does not choose: a bank transfer.
+    pub const DEFAULT: PaymentMethod = PaymentMethod::Transfer;
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PaymentMethod::Transfer => "TRANSFER",
+            PaymentMethod::Cash => "CASH",
+            PaymentMethod::Card => "CARD",
+            PaymentMethod::Voucher => "VOUCHER",
+            PaymentMethod::Other => "OTHER",
+        }
+    }
+
+    /// What the customer reads on the letter.
+    pub fn hu_label(self) -> &'static str {
+        match self {
+            PaymentMethod::Transfer => "Átutalás",
+            PaymentMethod::Cash => "Készpénz",
+            PaymentMethod::Card => "Kártya",
+            PaymentMethod::Voucher => "Utalvány",
+            PaymentMethod::Other => "Egyéb",
+        }
+    }
+
+    /// Case-insensitive: `"cash"` and `" Cash "` are what they mean.
+    pub fn parse(raw: &str) -> Result<PaymentMethod, UnknownPaymentMethod> {
+        match raw.trim().to_uppercase().as_str() {
+            "TRANSFER" => Ok(PaymentMethod::Transfer),
+            "CASH" => Ok(PaymentMethod::Cash),
+            "CARD" => Ok(PaymentMethod::Card),
+            "VOUCHER" => Ok(PaymentMethod::Voucher),
+            "OTHER" => Ok(PaymentMethod::Other),
+            _ => Err(UnknownPaymentMethod(raw.to_string())),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("payment method must be one of TRANSFER, CASH, CARD, VOUCHER, OTHER, not '{0}'")]
+pub struct UnknownPaymentMethod(pub String);
+
 /// A NAV-shaped address: the parts, not a line of text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Address {
@@ -295,5 +355,18 @@ mod tests {
     fn invoice_numbers_are_padded() {
         assert_eq!(format_invoice_number("AT", 2026, 1), "AT2026-0001");
         assert_eq!(format_invoice_number("DB", 2026, 1234), "DB2026-1234");
+    }
+
+    #[test]
+    fn payment_methods_parse_leniently_and_render_canonically() {
+        assert_eq!(PaymentMethod::parse("CASH"), Ok(PaymentMethod::Cash));
+        assert_eq!(PaymentMethod::parse(" cash "), Ok(PaymentMethod::Cash));
+        assert_eq!(PaymentMethod::parse("transfer"), Ok(PaymentMethod::Transfer));
+        assert_eq!(PaymentMethod::Cash.as_str(), "CASH");
+        assert_eq!(PaymentMethod::Cash.hu_label(), "Készpénz");
+        assert_eq!(PaymentMethod::Transfer.hu_label(), "Átutalás");
+        assert_eq!(PaymentMethod::DEFAULT, PaymentMethod::Transfer);
+        assert!(PaymentMethod::parse("CHEQUE").is_err());
+        assert!(PaymentMethod::parse("").is_err());
     }
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, order_id, number, kind AS \"kind: InvoiceKind\", status AS \"status: InvoiceStatus\",\n                  original_invoice_id, currency, issue_date, delivery_date, payment_date,\n                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,\n                  nav_error_code, nav_message, nav_messages, annulment_transaction_id,\n                  annulment_code, annulment_reason, annulled_at, document_id, submitted_at,\n                  issued_at, created_by, created_at, updated_at\n             FROM invoices WHERE order_id = $1 ORDER BY id DESC",
+  "query": "SELECT id, order_id, number, kind AS \"kind: InvoiceKind\", status AS \"status: InvoiceStatus\",\n                  original_invoice_id, currency, issue_date, delivery_date, payment_date,\n                  payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,\n                  nav_error_code, nav_message, nav_messages, annulment_transaction_id,\n                  annulment_code, annulment_reason, annulled_at, document_id, submitted_at,\n                  issued_at, created_by, created_at, updated_at\n             FROM invoices WHERE order_id = $1 ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -78,91 +78,96 @@
       },
       {
         "ordinal": 10,
+        "name": "payment_method",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
         "name": "net_amount",
         "type_info": "Int8"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "vat_amount",
         "type_info": "Int8"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "gross_amount",
         "type_info": "Int8"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "nav_transaction_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "nav_status",
         "type_info": "Text"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "nav_error_code",
         "type_info": "Text"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "nav_message",
         "type_info": "Text"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "nav_messages",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "annulment_transaction_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "annulment_code",
         "type_info": "Text"
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "annulment_reason",
         "type_info": "Text"
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "annulled_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "document_id",
         "type_info": "Int8"
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "submitted_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "issued_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "created_by",
         "type_info": "Int8"
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -186,6 +191,7 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       true,
@@ -203,5 +209,5 @@
       false
     ]
   },
-  "hash": "02301a0ca451f2af67bf8f484e386043bbde14a299a5e014c70fb17e603a71ae"
+  "hash": "0ca288b5a1e1b12d20c2268cbc74d348b2d8539c82797b2cfa698a02e4e84966"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE invoices\n              SET status = 'annulled', annulment_transaction_id = $2, annulment_code = $3,\n                  annulment_reason = $4, annulled_at = now()\n            WHERE id = $1\n        RETURNING id, order_id, number, kind AS \"kind: InvoiceKind\", status AS \"status: InvoiceStatus\",\n                  original_invoice_id, currency, issue_date, delivery_date, payment_date,\n                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,\n                  nav_error_code, nav_message, nav_messages, annulment_transaction_id,\n                  annulment_code, annulment_reason, annulled_at, document_id, submitted_at,\n                  issued_at, created_by, created_at, updated_at",
+  "query": "UPDATE invoices\n              SET status = 'annulled', annulment_transaction_id = $2, annulment_code = $3,\n                  annulment_reason = $4, annulled_at = now()\n            WHERE id = $1\n        RETURNING id, order_id, number, kind AS \"kind: InvoiceKind\", status AS \"status: InvoiceStatus\",\n                  original_invoice_id, currency, issue_date, delivery_date, payment_date,\n                  payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,\n                  nav_error_code, nav_message, nav_messages, annulment_transaction_id,\n                  annulment_code, annulment_reason, annulled_at, document_id, submitted_at,\n                  issued_at, created_by, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -78,91 +78,96 @@
       },
       {
         "ordinal": 10,
+        "name": "payment_method",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
         "name": "net_amount",
         "type_info": "Int8"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "vat_amount",
         "type_info": "Int8"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "gross_amount",
         "type_info": "Int8"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "nav_transaction_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "nav_status",
         "type_info": "Text"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "nav_error_code",
         "type_info": "Text"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "nav_message",
         "type_info": "Text"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "nav_messages",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "annulment_transaction_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "annulment_code",
         "type_info": "Text"
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "annulment_reason",
         "type_info": "Text"
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "annulled_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "document_id",
         "type_info": "Int8"
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "submitted_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "issued_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "created_by",
         "type_info": "Int8"
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -189,6 +194,7 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       true,
@@ -206,5 +212,5 @@
       false
     ]
   },
-  "hash": "3fc8e0c7e809b0ebb98dd117458fd7148d4a4aa1f5a03eef30d0255af4697163"
+  "hash": "604e699493f53660f5c2ed09e2434c4b9ee207da15e7b2296a8009bbab11037d"
 }

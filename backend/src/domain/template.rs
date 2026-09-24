@@ -30,6 +30,7 @@ pub const VARIABLES: &[(&str, &str)] = &[
     ("invoice.issue_date", "Számla kelte"),
     ("invoice.payment_date", "Számla fizetési határideje"),
     ("invoice.total", "Számla végösszege"),
+    ("invoice.payment_method", "Számla fizetési módja"),
     ("proforma.number", "Díjbekérő sorszáma"),
     ("proforma.payment_date", "Díjbekérő fizetési határideje"),
     ("proforma.total", "Díjbekérő végösszege"),

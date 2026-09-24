@@ -1,10 +1,11 @@
 // Invoicing logic fixes: behaviour the order screen's invoice and proforma sections owe
 // the office, each named after the rule it checks.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderPage } from './harness';
 import * as f from './fixtures';
 import { overrides, resetOverrides } from './client-mock';
+import { invoicesApi } from '@/lib/api/endpoints';
 import { InvoicesSection, invoicePollInterval } from '@/components/orders/InvoicesSection';
 import { ProformasSection } from '@/components/orders/ProformasSection';
 import type { Invoice } from '@/lib/api/types';
@@ -101,6 +102,36 @@ describe('InvoicesSection', () => {
     renderPage(<InvoicesSection orderId={3} currency="HUF" />);
     await screen.findByText('PDF');
     expect(screen.queryByRole('button', { name: 'PDF újratöltése' })).toBeNull();
+  });
+
+  it('shows the payment method on each row', async () => {
+    withInvoices([
+      f.issuedInvoice,
+      { ...f.issuedInvoice, id: 504, number: 'AT2026-0004', payment_method: 'CASH' },
+    ]);
+    renderPage(<InvoicesSection orderId={3} currency="HUF" />);
+    await screen.findByText(f.issuedInvoice.number);
+    expect(screen.getByText('Átutalás')).toBeInTheDocument();
+    expect(screen.getByText('Készpénz')).toBeInTheDocument();
+  });
+
+  it('issues a cash invoice when cash is chosen, nothing extra by default', async () => {
+    withInvoices([]);
+    const create = vi.spyOn(invoicesApi, 'create').mockResolvedValue(f.submittingInvoice);
+    try {
+      renderPage(<InvoicesSection orderId={3} currency="HUF" />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Számla kiállítása' }));
+      const dialog = await screen.findByRole('dialog');
+      const method = within(dialog).getByLabelText('Fizetési mód');
+      expect((method as HTMLSelectElement).value).toBe('TRANSFER');
+      fireEvent.change(method, { target: { value: 'CASH' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Számla kiállítása' }));
+      await waitFor(() =>
+        expect(create).toHaveBeenCalledWith(3, expect.objectContaining({ payment_method: 'CASH' })),
+      );
+    } finally {
+      create.mockRestore();
+    }
   });
 });
 

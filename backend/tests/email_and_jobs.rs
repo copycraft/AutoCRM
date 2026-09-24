@@ -427,7 +427,7 @@ async fn a_document_attached_and_embedded_is_not_reported_deleted(pool: PgPool) 
             filename: "kep.png",
             content_type: "image/png",
             storage_key: "test/kep.png",
-            content_hash: b"hash-kep",
+            content_hash: &[9u8; 32],
             byte_size: 10,
             uploaded_by: Some(user.user_id),
             source_ref: None,

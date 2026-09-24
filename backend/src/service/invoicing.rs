@@ -22,8 +22,8 @@ use sqlx::PgConnection;
 use crate::AppState;
 use crate::config::{Config, NavConfig};
 use crate::domain::invoice::{
-    InvoiceKind, InvoiceStatus, line_amounts, minor_to_decimal_string, split_address_line,
-    validate_vat_rate,
+    InvoiceKind, InvoiceStatus, PaymentMethod, line_amounts, minor_to_decimal_string,
+    split_address_line, validate_vat_rate,
 };
 use crate::domain::media::{DocumentKind, document_storage_key};
 use crate::domain::money::{Currency, Money};
@@ -74,7 +74,8 @@ pub struct IssueRequest {
     pub delivery_date: Option<NaiveDate>,
     /// Defaults to the issue date plus `NAV_PAYMENT_DAYS`.
     pub payment_date: Option<NaiveDate>,
-    /// `TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`.
+    /// `TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`. Anything else
+    /// is refused before a number is drawn.
     pub payment_method: Option<String>,
     /// Send the customer the invoice once NAV has stored it.
     #[serde(default = "default_true")]
@@ -340,6 +341,13 @@ pub async fn create_invoice(
         Some(rate) => validate_vat_rate(rate).map_err(AppError::validation)?,
         None => nav.default_vat_rate,
     };
+    // Closed set, validated here: the sidecar would refuse anything else after the
+    // number is drawn, spending it. Absent means a bank transfer.
+    let payment_method = match &req.payment_method {
+        None => PaymentMethod::DEFAULT,
+        Some(raw) => PaymentMethod::parse(raw)
+            .map_err(|e| AppError::validation(e.to_string()))?,
+    };
     let today = business_today(state.config.business_tz);
     let issue_date = req.issue_date.unwrap_or(today);
     let delivery_date = req.delivery_date.unwrap_or(issue_date);
@@ -408,6 +416,7 @@ pub async fn create_invoice(
             issue_date,
             delivery_date,
             payment_date: Some(payment_date),
+            payment_method: payment_method.as_str(),
             net_amount: snapshot.net,
             vat_amount: snapshot.vat,
             gross_amount: snapshot.net + snapshot.vat,
@@ -561,6 +570,7 @@ pub async fn create_storno(
             issue_date,
             delivery_date: original.delivery_date,
             payment_date: original.payment_date,
+            payment_method: &original.payment_method,
             // The reversal, so the figures are the original's negated. NAV builds the same
             // document from the original it holds; storing it this way means our own books
             // add up without special-casing the sign at every reading.
@@ -1444,6 +1454,12 @@ async fn queue_invoice_email(
         "invoice.total",
         money_text(invoice.gross_amount, &invoice.currency),
     );
+    values.insert(
+        "invoice.payment_method",
+        PaymentMethod::parse(&invoice.payment_method)
+            .map(|m| m.hu_label().to_string())
+            .unwrap_or_else(|_| invoice.payment_method.clone()),
+    );
     if let Some(day) = invoice.payment_date {
         values.insert("invoice.payment_date", hu_date(day));
     }
@@ -1569,6 +1585,12 @@ async fn build_request(
         .map_err(|e| AppError::internal(format!("{e}")))?;
     let lines = invoices::lines_for(&mut *conn, invoice.id).await?;
     let exchange_rate = exchange_rate(&mut conn, currency, invoice.issue_date).await?;
+    // The stored method is the record; the job payload wins when it parses, so jobs
+    // enqueued before the method was validated still report what the office chose.
+    let method = payment_method
+        .and_then(|raw| PaymentMethod::parse(raw).ok())
+        .or_else(|| PaymentMethod::parse(&invoice.payment_method).ok())
+        .unwrap_or(PaymentMethod::DEFAULT);
 
     Ok(nav::InvoiceRequest {
         invoice_number: invoice.number.clone(),
@@ -1577,7 +1599,7 @@ async fn build_request(
         payment_date: invoice.payment_date,
         currency: currency.code().to_string(),
         exchange_rate,
-        payment_method: Some(payment_method.unwrap_or("TRANSFER").to_string()),
+        payment_method: Some(method.as_str().to_string()),
         order_numbers: Some(vec![order.number.clone()]),
         supplier: supplier_party(nav_cfg),
         customer: customer_party(&partner)?,
@@ -1663,6 +1685,7 @@ mod tests {
             issue_date: NaiveDate::from_ymd_opt(2026, 9, 21).unwrap(),
             delivery_date: NaiveDate::from_ymd_opt(2026, 9, 21).unwrap(),
             payment_date: None,
+            payment_method: "TRANSFER".into(),
             net_amount: 100_000_000,
             vat_amount: 27_000_000,
             gross_amount: 127_000_000,

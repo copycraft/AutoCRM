@@ -27,6 +27,8 @@ pub struct Invoice {
     pub issue_date: NaiveDate,
     pub delivery_date: NaiveDate,
     pub payment_date: Option<NaiveDate>,
+    /// How the customer pays: one of TRANSFER, CASH, CARD, VOUCHER, OTHER.
+    pub payment_method: String,
     /// Minor units (fillér / eurocent). Negative on a storno: it is the reversal.
     pub net_amount: i64,
     pub vat_amount: i64,
@@ -97,6 +99,7 @@ pub struct NewInvoice<'a> {
     pub issue_date: NaiveDate,
     pub delivery_date: NaiveDate,
     pub payment_date: Option<NaiveDate>,
+    pub payment_method: &'a str,
     pub net_amount: i64,
     pub vat_amount: i64,
     pub gross_amount: i64,
@@ -178,12 +181,12 @@ pub async fn insert(conn: &mut PgConnection, i: &NewInvoice<'_>) -> sqlx::Result
     sqlx::query_as!(
         Invoice,
         r#"INSERT INTO invoices (order_id, number, kind, status, original_invoice_id, currency,
-                                 issue_date, delivery_date, payment_date, net_amount, vat_amount,
-                                 gross_amount, created_by, submitted_at)
-           VALUES ($1, $2, $3, 'submitting', $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
+                                 issue_date, delivery_date, payment_date, payment_method, net_amount,
+                                 vat_amount, gross_amount, created_by, submitted_at)
+           VALUES ($1, $2, $3, 'submitting', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
            RETURNING id, order_id, number, kind AS "kind: InvoiceKind", status AS "status: InvoiceStatus",
                      original_invoice_id, currency, issue_date, delivery_date, payment_date,
-                     net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
+                     payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
                      nav_error_code, nav_message, nav_messages, annulment_transaction_id,
                      annulment_code, annulment_reason, annulled_at, document_id, submitted_at,
                      issued_at, created_by, created_at, updated_at"#,
@@ -195,6 +198,7 @@ pub async fn insert(conn: &mut PgConnection, i: &NewInvoice<'_>) -> sqlx::Result
         i.issue_date,
         i.delivery_date,
         i.payment_date,
+        i.payment_method,
         i.net_amount,
         i.vat_amount,
         i.gross_amount,
@@ -233,7 +237,7 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Invoi
         Invoice,
         r#"SELECT id, order_id, number, kind AS "kind: InvoiceKind", status AS "status: InvoiceStatus",
                   original_invoice_id, currency, issue_date, delivery_date, payment_date,
-                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
+                  payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
                   nav_error_code, nav_message, nav_messages, annulment_transaction_id,
                   annulment_code, annulment_reason, annulled_at, document_id, submitted_at,
                   issued_at, created_by, created_at, updated_at
@@ -251,7 +255,7 @@ pub async fn lock(conn: &mut PgConnection, id: i64) -> sqlx::Result<Option<Invoi
         Invoice,
         r#"SELECT id, order_id, number, kind AS "kind: InvoiceKind", status AS "status: InvoiceStatus",
                   original_invoice_id, currency, issue_date, delivery_date, payment_date,
-                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
+                  payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
                   nav_error_code, nav_message, nav_messages, annulment_transaction_id,
                   annulment_code, annulment_reason, annulled_at, document_id, submitted_at,
                   issued_at, created_by, created_at, updated_at
@@ -267,7 +271,7 @@ pub async fn list_for_order(db: impl PgExecutor<'_>, order_id: i64) -> sqlx::Res
         Invoice,
         r#"SELECT id, order_id, number, kind AS "kind: InvoiceKind", status AS "status: InvoiceStatus",
                   original_invoice_id, currency, issue_date, delivery_date, payment_date,
-                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
+                  payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
                   nav_error_code, nav_message, nav_messages, annulment_transaction_id,
                   annulment_code, annulment_reason, annulled_at, document_id, submitted_at,
                   issued_at, created_by, created_at, updated_at
@@ -309,7 +313,7 @@ pub async fn mark_issued(
             WHERE id = $1
         RETURNING id, order_id, number, kind AS "kind: InvoiceKind", status AS "status: InvoiceStatus",
                   original_invoice_id, currency, issue_date, delivery_date, payment_date,
-                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
+                  payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
                   nav_error_code, nav_message, nav_messages, annulment_transaction_id,
                   annulment_code, annulment_reason, annulled_at, document_id, submitted_at,
                   issued_at, created_by, created_at, updated_at"#,
@@ -342,7 +346,7 @@ pub async fn mark_rejected(
             WHERE id = $1
         RETURNING id, order_id, number, kind AS "kind: InvoiceKind", status AS "status: InvoiceStatus",
                   original_invoice_id, currency, issue_date, delivery_date, payment_date,
-                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
+                  payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
                   nav_error_code, nav_message, nav_messages, annulment_transaction_id,
                   annulment_code, annulment_reason, annulled_at, document_id, submitted_at,
                   issued_at, created_by, created_at, updated_at"#,
@@ -409,7 +413,7 @@ pub async fn mark_annulled(
             WHERE id = $1
         RETURNING id, order_id, number, kind AS "kind: InvoiceKind", status AS "status: InvoiceStatus",
                   original_invoice_id, currency, issue_date, delivery_date, payment_date,
-                  net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
+                  payment_method, net_amount, vat_amount, gross_amount, nav_transaction_id, nav_status,
                   nav_error_code, nav_message, nav_messages, annulment_transaction_id,
                   annulment_code, annulment_reason, annulled_at, document_id, submitted_at,
                   issued_at, created_by, created_at, updated_at"#,

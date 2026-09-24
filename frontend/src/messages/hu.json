@@ -962,6 +962,14 @@
     "vatRate": "Áfakulcs",
     "vatRateHint": "Tizedes tört, nem százalék: 27% helyett 0.27. Üresen hagyva az alapértelmezett.",
     "paymentDate": "Fizetési határidő",
+    "paymentMethod": "Fizetési mód",
+    "paymentMethods": {
+      "TRANSFER": "Átutalás",
+      "CASH": "Készpénz",
+      "CARD": "Kártya",
+      "VOUCHER": "Utalvány",
+      "OTHER": "Egyéb"
+    },
     "showChain": "Számlalánc",
     "hideChain": "Számlalánc elrejtése",
     "chainLoading": "Számlalánc lekérdezése…",

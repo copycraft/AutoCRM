@@ -2700,6 +2700,8 @@ export interface components {
             delivery_date: string;
             /** Format: date */
             payment_date?: string | null;
+            /** @description How the customer pays: one of TRANSFER, CASH, CARD, VOUCHER, OTHER. */
+            payment_method: string;
             /**
              * Format: int64
              * @description Minor units (fillér / eurocent). Negative on a storno: it is the reversal.
@@ -2801,7 +2803,10 @@ export interface components {
              * @description Defaults to the issue date plus `NAV_PAYMENT_DAYS`.
              */
             payment_date?: string | null;
-            /** @description `TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`. */
+            /**
+             * @description `TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`. Anything else
+             *     is refused before a number is drawn.
+             */
             payment_method?: string | null;
             /** @description Send the customer the invoice once NAV has stored it. */
             send_email?: boolean;
@@ -3076,6 +3081,8 @@ export interface components {
                 delivery_date: string;
                 /** Format: date */
                 payment_date?: string | null;
+                /** @description How the customer pays: one of TRANSFER, CASH, CARD, VOUCHER, OTHER. */
+                payment_method: string;
                 /**
                  * Format: int64
                  * @description Minor units (fillér / eurocent). Negative on a storno: it is the reversal.

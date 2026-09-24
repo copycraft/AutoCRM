@@ -587,6 +587,8 @@ struct StubDoc {
 struct StubSidecar {
     url: String,
     doc: Arc<Mutex<Option<StubDoc>>>,
+    /// Raw CREATE bodies, in arrival order: what the backend actually reported.
+    created: Arc<Mutex<Vec<String>>>,
 }
 
 impl StubSidecar {
@@ -594,16 +596,19 @@ impl StubSidecar {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let doc: Arc<Mutex<Option<StubDoc>>> = Arc::new(Mutex::new(None));
+        let created: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let served = doc.clone();
+        let recorded = created.clone();
         tokio::spawn(async move {
             loop {
                 let Ok((mut socket, _)) = listener.accept().await else {
                     return;
                 };
                 let served = served.clone();
+                let recorded = recorded.clone();
                 tokio::spawn(async move {
-                    // Read through the end of the headers; the POST body is
-                    // irrelevant (the connection closes after the answer).
+                    // Read through the end of the headers, then any body: the CREATE
+                    // body is what the reported document claims.
                     let mut head = Vec::new();
                     let mut byte = [0u8; 1];
                     while !head.ends_with(b"\r\n\r\n") && head.len() < 65536 {
@@ -613,10 +618,36 @@ impl StubSidecar {
                         }
                     }
                     let head = String::from_utf8_lossy(&head);
-                    let mut parts = head.lines().next().unwrap_or("").split_whitespace();
+                    let mut lines = head.lines();
+                    let mut parts = lines.next().unwrap_or("").split_whitespace();
                     let method = parts.next().unwrap_or("");
                     let path = parts.next().unwrap_or("");
+                    let content_length = lines
+                        .filter_map(|line| line.strip_prefix("content-length:"))
+                        .filter_map(|v| v.trim().parse::<usize>().ok())
+                        .next()
+                        .unwrap_or(0);
+                    // Header names arrive lowercase from reqwest; tolerate either.
+                    let content_length = if content_length == 0 {
+                        head.lines()
+                            .filter_map(|line| line.strip_prefix("Content-Length:"))
+                            .filter_map(|v| v.trim().parse::<usize>().ok())
+                            .next()
+                            .unwrap_or(0)
+                    } else {
+                        content_length
+                    };
+                    let mut body_bytes = vec![0u8; content_length.min(65536)];
+                    let mut read = 0;
+                    while read < body_bytes.len() {
+                        match socket.read(&mut body_bytes[read..]).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(n) => read += n,
+                        }
+                    }
+                    let request_body = String::from_utf8_lossy(&body_bytes[..read]).into_owned();
                     let (status, body) = if method == "POST" && path == "/invoices" {
+                        recorded.lock().unwrap().push(request_body);
                         (
                             "422 Unprocessable Entity",
                             r#"{"error":{"kind":"nav_rejected","message":"NAV rejected the invoice: INVOICE_NUMBER_ALREADY_EXISTS: Invoice number already exists","messages":[{"source":"business","level":"ERROR","code":"INVOICE_NUMBER_ALREADY_EXISTS","message":"Invoice number already exists","path":"/InvoiceData/invoiceNumber"}]}}"#
@@ -651,7 +682,11 @@ impl StubSidecar {
                 });
             }
         });
-        StubSidecar { url, doc }
+        StubSidecar { url, doc, created }
+    }
+
+    fn created_bodies(&self) -> Vec<String> {
+        self.created.lock().unwrap().clone()
     }
 
     fn minor_to_decimal(minor: i64) -> String {
@@ -850,7 +885,8 @@ async fn an_unbuildable_submit_is_rejected_when_the_queue_gives_up(pool: PgPool)
 #[sqlx::test(migrations = "./migrations")]
 async fn refetching_a_pdf_needs_an_issued_invoice_missing_its_file(pool: PgPool) {
     use autocrm::error::AppError;
-    let state = common::state(pool.clone());
+    // The guards run before any HTTP, so the sidecar address is never called.
+    let state = common::state_with_nav(pool.clone(), "http://127.0.0.1:9/", "12345678");
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
     let queued =
@@ -879,7 +915,7 @@ async fn refetching_a_pdf_needs_an_issued_invoice_missing_its_file(pool: PgPool)
             filename: "AT2026-x.pdf",
             content_type: "application/pdf",
             storage_key: "test/AT2026-x.pdf",
-            content_hash: b"hash-pdf",
+            content_hash: &[7u8; 32],
             byte_size: 10,
             uploaded_by: Some(user.user_id),
             source_ref: None,
@@ -903,4 +939,105 @@ async fn refetching_a_pdf_needs_an_issued_invoice_missing_its_file(pool: PgPool)
         invoicing::refetch_pdf(&state, 999_999_999).await.unwrap_err(),
         AppError::NotFound(_)
     ));
+}
+
+// ── Cash vs transfer: one series, a stored method ────────────────────────────
+
+fn issue_with_method(method: Option<&str>) -> IssueRequest {
+    IssueRequest {
+        payment_method: method.map(str::to_string),
+        ..IssueRequest::default()
+    }
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn cash_and_transfer_invoices_share_one_series_with_a_stored_method(pool: PgPool) {
+    // No HTTP happens at issue time, so any sidecar address configures invoicing on.
+    let state = common::state_with_nav(pool.clone(), "http://127.0.0.1:9/", "12345678");
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
+
+    // Absent means a bank transfer.
+    let transfer =
+        invoicing::create_invoice(&state, &user, order.id, &issue_with_method(None))
+            .await
+            .unwrap();
+    assert_eq!(transfer.payment_method, "TRANSFER");
+
+    // Cash is stored as chosen — and on the same consecutive series.
+    sqlx::query("UPDATE invoices SET status = 'rejected' WHERE id = $1")
+        .bind(transfer.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let cash = invoicing::create_invoice(&state, &user, order.id, &issue_with_method(Some("cash")))
+        .await
+        .unwrap();
+    assert_eq!(cash.payment_method, "CASH");
+    let cash_no: i32 = cash.number.rsplit('-').next().unwrap().parse().unwrap();
+    let transfer_no: i32 = transfer.number.rsplit('-').next().unwrap().parse().unwrap();
+    assert_eq!(cash_no, transfer_no + 1, "one series, not one per method");
+
+    // Anything outside the closed set is refused before a number is drawn.
+    let before: i64 = sqlx::query_scalar("SELECT count(*) FROM invoices")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let error = invoicing::create_invoice(&state, &user, order.id, &issue_with_method(Some("CHEQUE")))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&error, AppError::Validation(m) if m.contains("payment method must be one of")),
+        "got {error:?}",
+    );
+    let after: i64 = sqlx::query_scalar("SELECT count(*) FROM invoices")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(before, after, "a refused method must not spend a number");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_cash_invoice_is_reported_as_cash(pool: PgPool) {
+    let stub = StubSidecar::start().await;
+    // The stub answers the CREATE with a duplicate number, so submit reconciles —
+    // but only after sending the report it was asked to send.
+    let state = common::state_with_nav(pool.clone(), &stub.url, common::MOCK_SUPPLIER_TAX_NUMBER);
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
+    let queued =
+        invoicing::create_invoice(&state, &user, order.id, &issue_with_method(Some("CASH")))
+            .await
+            .unwrap();
+    // NAV holds exactly this cash document (its totals are the stored ones).
+    stub.serve(
+        &queued.number,
+        &queued.issue_date.to_string(),
+        &queued.currency,
+        queued.net_amount,
+        queued.vat_amount,
+        queued.gross_amount,
+    );
+
+    invoicing::submit_invoice(
+        &state,
+        &SubmitPayload {
+            invoice_id: queued.id,
+            send_email: false,
+            payment_method: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let bodies = stub.created_bodies();
+    assert_eq!(bodies.len(), 1, "one report, even on the reconcile path");
+    assert!(
+        bodies[0].contains(r#""paymentMethod":"CASH""#),
+        "the report carries the stored method, got: {}",
+        bodies[0]
+    );
+    let adopted = invoices::find(&pool, queued.id).await.unwrap().unwrap();
+    assert_eq!(adopted.status, InvoiceStatus::Issued);
+    assert_eq!(adopted.payment_method, "CASH");
 }

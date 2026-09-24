@@ -138,7 +138,7 @@ export function InvoicesSection({
   const onError = (e: unknown) => setError(errorMessage(e, ter, ter('unknownError')));
 
   const issue = useMutation({
-    mutationFn: (body: { vat_rate?: string; payment_date?: string }) =>
+    mutationFn: (body: { vat_rate?: string; payment_date?: string; payment_method?: string }) =>
       invoicesApi.create(orderId, body),
     onSuccess: () => {
       setIssueOpen(false);
@@ -288,6 +288,7 @@ function InvoiceRow({
           <StatusBadge tone="steel">{t('kindStorno')}</StatusBadge>
         )}
         <DateDisplay value={invoice.issue_date} className="text-metadata text-steel-500" />
+        <span className="text-metadata text-steel-500">{t(`paymentMethods.${invoice.payment_method}`)}</span>
         <Money minor={invoice.gross_amount} currency={currency} className="ml-auto" />
       </div>
 
@@ -418,9 +419,13 @@ export function DocumentLink({ documentId, label }: { documentId: number; label:
 
 /**
  * Issuing an invoice is a confirmation, not a form: the order already carries the lines,
- * the customer and the currency. The two fields that are ever worth overriding are here,
- * both pre-filled by the server when left alone.
+ * the customer and the currency. The fields ever worth overriding are here: the VAT rate
+ * and the due date (both pre-filled by the server when left alone), and how the customer
+ * pays — cash and transfer invoices share one series, but each document records its own
+ * method.
  */
+const PAYMENT_METHODS = ['TRANSFER', 'CASH', 'CARD', 'VOUCHER', 'OTHER'] as const;
+
 function IssueDialog({
   busy,
   onClose,
@@ -428,12 +433,13 @@ function IssueDialog({
 }: {
   busy: boolean;
   onClose: () => void;
-  onSubmit: (body: { vat_rate?: string; payment_date?: string }) => void;
+  onSubmit: (body: { vat_rate?: string; payment_date?: string; payment_method?: string }) => void;
 }) {
   const t = useTranslations('invoices');
   const tc = useTranslations('common');
   const [vatRate, setVatRate] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('TRANSFER');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4">
@@ -469,6 +475,23 @@ function IssueDialog({
               onChange={(e) => setPaymentDate(e.target.value)}
             />
           </div>
+          <div>
+            <label className="label" htmlFor="invoice-payment-method">
+              {t('paymentMethod')}
+            </label>
+            <select
+              id="invoice-payment-method"
+              className="input"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+            >
+              {PAYMENT_METHODS.map((value) => (
+                <option key={value} value={value}>
+                  {t(`paymentMethods.${value}`)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="card-footer justify-end">
           <button className="btn-ghost" onClick={onClose} disabled={busy}>
@@ -481,6 +504,7 @@ function IssueDialog({
               onSubmit({
                 ...(vatRate.trim() ? { vat_rate: vatRate.trim() } : {}),
                 ...(paymentDate ? { payment_date: paymentDate } : {}),
+                ...(paymentMethod !== 'TRANSFER' ? { payment_method: paymentMethod } : {}),
               })
             }
           >

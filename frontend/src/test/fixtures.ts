@@ -526,6 +526,7 @@ export const issuedInvoice: Invoice = {
   issue_date: '2026-09-21',
   delivery_date: '2026-09-21',
   payment_date: '2026-09-29',
+  payment_method: 'TRANSFER',
   net_amount: 100_000_000,
   vat_amount: 27_000_000,
   gross_amount: 127_000_000,
