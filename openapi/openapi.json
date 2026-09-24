@@ -4626,6 +4626,7 @@
           "media"
         ],
         "summary": "Validity and vehicle on an existing document (V2.5, V2.1). The bytes never change.",
+        "description": "A PATCH like everywhere else: an omitted field keeps its value, `null` clears it.\nThe validity order is checked against the merged dates, not just the body.",
         "operationId": "media_update_document",
         "parameters": [
           {

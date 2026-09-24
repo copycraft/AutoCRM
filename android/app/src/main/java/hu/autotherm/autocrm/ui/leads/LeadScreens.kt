@@ -73,6 +73,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(FlowPreview::class)
 class LeadListViewModel(private val api: AutoCrmApi) : ViewModel() {
@@ -489,8 +490,10 @@ fun LeadDetailScreen(
 }
 
 /** Plain `YYYY-MM-DD` from the API, compared as a date rather than a timestamp. */
-internal fun isExpired(validUntil: String): Boolean =
-    runCatching { LocalDate.parse(validUntil).isBefore(LocalDate.now()) }.getOrDefault(false)
+internal fun isExpired(
+    validUntil: String,
+    today: LocalDate = LocalDate.now(ZoneId.of("Europe/Budapest")),
+): Boolean = runCatching { LocalDate.parse(validUntil).isBefore(today) }.getOrDefault(false)
 
 /**
  * The conversion body. Currency follows the partner's default (EUR stays EUR), HUF when

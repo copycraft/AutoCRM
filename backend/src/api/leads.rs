@@ -239,6 +239,10 @@ async fn update(
         .await?
         .ok_or(AppError::NotFound("lead"))?;
     let input = merge(Some(&current), b)?;
+    // Create refuses dangling and mismatched relations; an update that swaps the
+    // partner under a kept contact must not smuggle one in (N1). Archived partners
+    // take no new work here either, like on orders (N6).
+    service::leads::check_relations(&mut tx, input.partner_id, input.contact_id).await?;
     let updated = leads::update(&mut *tx, id, &input)
         .await?
         .ok_or(AppError::NotFound("lead"))?;

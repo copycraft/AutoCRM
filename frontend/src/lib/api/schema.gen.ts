@@ -1044,7 +1044,11 @@ export interface paths {
         delete: operations["media_delete_document"];
         options?: never;
         head?: never;
-        /** Validity and vehicle on an existing document (V2.5, V2.1). The bytes never change. */
+        /**
+         * Validity and vehicle on an existing document (V2.5, V2.1). The bytes never change.
+         * @description A PATCH like everywhere else: an omitted field keeps its value, `null` clears it.
+         *     The validity order is checked against the merged dates, not just the body.
+         */
         patch: operations["media_update_document"];
         trace?: never;
     };

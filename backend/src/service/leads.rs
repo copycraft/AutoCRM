@@ -11,24 +11,40 @@ use crate::repo::orders::{Order, OrderFields};
 use crate::repo::{audit, config, contacts, leads, partners, stages};
 use crate::service::auth::AuthUser;
 use crate::service::orders::{NewItem, create_in_tx};
+use sqlx::PgConnection;
 
-pub async fn create(db: &PgPool, user: &AuthUser, input: LeadInput) -> AppResult<Lead> {
-    let mut tx = db.begin().await?;
-    if let Some(partner_id) = input.partner_id {
-        partners::find(&mut *tx, partner_id)
+/// The relations create enforces, checked against the merged pair on update too (N1):
+/// the partner exists and is not archived (an archived partner takes no new work,
+/// like on orders), the contact exists, and it belongs to the lead's partner.
+pub async fn check_relations(
+    conn: &mut PgConnection,
+    partner_id: Option<i64>,
+    contact_id: Option<i64>,
+) -> AppResult<()> {
+    if let Some(partner_id) = partner_id {
+        let partner = partners::find(&mut *conn, partner_id)
             .await?
             .ok_or_else(|| AppError::validation("partner does not exist"))?;
+        if partner.archived_at.is_some() {
+            return Err(AppError::validation("partner is archived"));
+        }
     }
-    if let Some(contact_id) = input.contact_id {
-        let contact = contacts::find(&mut *tx, contact_id)
+    if let Some(contact_id) = contact_id {
+        let contact = contacts::find(&mut *conn, contact_id)
             .await?
             .ok_or_else(|| AppError::validation("contact does not exist"))?;
-        if Some(contact.partner_id) != input.partner_id {
+        if Some(contact.partner_id) != partner_id {
             return Err(AppError::validation(
                 "contact belongs to a different partner",
             ));
         }
     }
+    Ok(())
+}
+
+pub async fn create(db: &PgPool, user: &AuthUser, input: LeadInput) -> AppResult<Lead> {
+    let mut tx = db.begin().await?;
+    check_relations(&mut tx, input.partner_id, input.contact_id).await?;
     let lead = leads::insert(&mut *tx, &input, user.user_id).await?;
     let definitions = config::stage_definitions(&mut *tx, StageEntity::Lead).await?;
     let initial = initial_stage(&definitions)

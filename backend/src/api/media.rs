@@ -13,7 +13,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
-use super::{Items, page_limit, page_offset};
+use super::{Items, page_limit, page_offset, patch as patch_field, patch_text};
 use crate::AppState;
 use crate::domain::media::{DocumentKind, ImageCategory};
 use crate::domain::role::Capability;
@@ -322,14 +322,21 @@ async fn search_documents(
 #[derive(Deserialize, ToSchema)]
 struct DocumentPatch {
     /// Who issued it — the ATP inspection body, the designer, the supplier.
-    issuer: Option<String>,
-    valid_from: Option<NaiveDate>,
-    valid_until: Option<NaiveDate>,
+    #[serde(default, deserialize_with = "patch_field")]
+    issuer: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    valid_from: Option<Option<NaiveDate>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    valid_until: Option<Option<NaiveDate>>,
     /// Which vehicle on a multi-vehicle order this covers.
-    vehicle_id: Option<i64>,
+    #[serde(default, deserialize_with = "patch_field")]
+    vehicle_id: Option<Option<i64>>,
 }
 
 /// Validity and vehicle on an existing document (V2.5, V2.1). The bytes never change.
+///
+/// A PATCH like everywhere else: an omitted field keeps its value, `null` clears it.
+/// The validity order is checked against the merged dates, not just the body.
 #[utoipa::path(
     patch, path = "/documents/{id}", tag = "media",
     params(("id" = i64, Path)),
@@ -343,24 +350,105 @@ async fn update_document(
     ApiJson(body): ApiJson<DocumentPatch>,
 ) -> AppResult<Json<Document>> {
     me.require(Capability::UploadMedia)?;
-    if let (Some(from), Some(until)) = (body.valid_from, body.valid_until)
+    let current = documents::find(&state.db, id)
+        .await?
+        .filter(|d| d.deleted_at.is_none())
+        .ok_or(AppError::NotFound("document"))?;
+    let (validity, vehicle_id) = merge_validity(&current, body)?;
+    let updated = documents::set_validity(&state.db, id, &validity, vehicle_id)
+        .await?
+        .ok_or(AppError::NotFound("document"))?;
+    Ok(Json(updated))
+}
+
+/// Merges a document PATCH over the stored row (N10): an omitted field keeps its
+/// value, `null` clears it — the API-wide PATCH contract. The validity order is
+/// checked against the merged dates, so narrowing one end past the stored other end
+/// is refused rather than stored.
+fn merge_validity(
+    current: &Document,
+    body: DocumentPatch,
+) -> AppResult<(documents::Validity, Option<i64>)> {
+    let valid_from = body.valid_from.unwrap_or(current.valid_from);
+    let valid_until = body.valid_until.unwrap_or(current.valid_until);
+    if let (Some(from), Some(until)) = (valid_from, valid_until)
         && from > until
     {
         return Err(AppError::validation("valid_from is after valid_until"));
     }
-    let updated = documents::set_validity(
-        &state.db,
-        id,
-        &documents::Validity {
-            issuer: super::optional(body.issuer),
-            valid_from: body.valid_from,
-            valid_until: body.valid_until,
+    Ok((
+        documents::Validity {
+            issuer: patch_text(&current.issuer, body.issuer),
+            valid_from,
+            valid_until,
         },
-        body.vehicle_id,
-    )
-    .await?
-    .ok_or(AppError::NotFound("document"))?;
-    Ok(Json(updated))
+        body.vehicle_id.unwrap_or(current.vehicle_id),
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::media::DocumentKind;
+    use chrono::{TimeZone, Utc};
+
+    fn stored() -> Document {
+        Document {
+            id: 9,
+            order_id: Some(7),
+            lead_id: None,
+            vehicle_id: Some(3),
+            kind: DocumentKind::Certificate,
+            filename: "atp.pdf".into(),
+            content_type: "application/pdf".into(),
+            storage_key: "orders/7/atp.pdf".into(),
+            content_hash: vec![0u8; 32],
+            byte_size: 10,
+            issuer: Some("TÜV".into()),
+            valid_from: NaiveDate::from_ymd_opt(2025, 1, 1),
+            valid_until: NaiveDate::from_ymd_opt(2026, 1, 1),
+            uploaded_at: Utc.with_ymd_and_hms(2025, 1, 2, 9, 0, 0).unwrap(),
+            uploaded_by: None,
+            deleted_at: None,
+        }
+    }
+
+    fn patch(json: serde_json::Value) -> DocumentPatch {
+        serde_json::from_value(json).unwrap()
+    }
+
+    #[test]
+    fn an_omitted_field_keeps_its_value_while_null_clears_it() {
+        // Only the issuer is touched: everything else survives.
+        let (v, vehicle) = merge_validity(&stored(), patch(serde_json::json!({"issuer": "DEKRA"}))).unwrap();
+        assert_eq!(v.issuer.as_deref(), Some("DEKRA"));
+        assert_eq!(v.valid_from, stored().valid_from);
+        assert_eq!(v.valid_until, stored().valid_until);
+        assert_eq!(vehicle, Some(3));
+
+        // Explicit nulls clear.
+        let (v, vehicle) = merge_validity(
+            &stored(),
+            patch(serde_json::json!({"issuer": null, "vehicle_id": null})),
+        )
+        .unwrap();
+        assert_eq!(v.issuer, None);
+        assert_eq!(vehicle, None);
+        assert_eq!(v.valid_from, stored().valid_from);
+    }
+
+    #[test]
+    fn narrowing_one_end_past_the_stored_other_end_is_refused() {
+        let err = merge_validity(
+            &stored(),
+            patch(serde_json::json!({"valid_until": "2024-06-01"})),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(&err, AppError::Validation(m) if m == "valid_from is after valid_until"),
+            "got {err:?}",
+        );
+    }
 }
 
 #[derive(Serialize, ToSchema)]

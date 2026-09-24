@@ -3,6 +3,9 @@ package hu.autotherm.autocrm
 import hu.autotherm.autocrm.data.api.OrderRef
 import hu.autotherm.autocrm.ui.leads.canChangeLeadStage
 import hu.autotherm.autocrm.ui.leads.convertBody
+import hu.autotherm.autocrm.ui.leads.isExpired
+import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -35,5 +38,17 @@ class SalesLeadConvertTest {
     fun convertedLeadOffersNoStageChange() {
         assertFalse(canChangeLeadStage(listOf(OrderRef(1, "2026-0001"))))
         assertTrue(canChangeLeadStage(emptyList()))
+    }
+
+    @Test
+    fun quoteExpiryIsDecidedOnTheBudapestCalendarDay() {
+        // Like the web (SALES-49) and the reports window (TIME-L1): "today" is the
+        // Europe/Budapest date, not the device zone.
+        val budapest = ZoneId.of("Europe/Budapest")
+        val today = LocalDate.now(budapest)
+        assertTrue(isExpired(today.minusDays(1).toString(), today))
+        assertFalse(isExpired(today.toString(), today))
+        assertFalse(isExpired(today.plusDays(1).toString(), today))
+        assertFalse(isExpired("not-a-date", today))
     }
 }

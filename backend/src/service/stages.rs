@@ -44,6 +44,7 @@ fn transition_options(
     definitions: &[StageDefinition],
     current_key: &str,
     image_counts: &HashMap<ImageCategory, i64>,
+    mileage_in: Option<i32>,
 ) -> Vec<TransitionOption> {
     definitions
         .iter()
@@ -59,7 +60,8 @@ fn transition_options(
             );
             let gates_met =
                 check_transition(definitions, current_key, &d.key, Some("note"), image_counts)
-                    .is_ok();
+                    .is_ok()
+                    && (entity != StageEntity::Order || !intake_gate_blocks(current_key, d, mileage_in));
             TransitionOption {
                 stage_key: d.key.clone(),
                 label_hu: d.label_hu.clone(),
@@ -71,12 +73,30 @@ fn transition_options(
         .collect()
 }
 
+/// Whether leaving the current stage is blocked for want of the intake slip (ORD-44).
+///
+/// In `intake`, moving anywhere but staying requires a recorded mileage — except to an
+/// exit stage: cancelling needs no odometer reading, and exit stages skip gates by
+/// definition (migration 0002). Shared by the move itself and `/transitions`, so the UI
+/// never offers what the move refuses (Q-ORD-3) and cancellation never needs a slip
+/// (Q-ORD-4).
+fn intake_gate_blocks(
+    current_key: &str,
+    to: &StageDefinition,
+    mileage_in: Option<i32>,
+) -> bool {
+    current_key == keys::ORDER_INTAKE
+        && to.key != keys::ORDER_INTAKE
+        && !to.is_exit
+        && mileage_in.is_none()
+}
+
 /// Manual targets for an order, evaluated against its image counts.
 pub async fn order_transitions(
     state: &AppState,
     order_id: i64,
 ) -> AppResult<Vec<TransitionOption>> {
-    orders::find(&state.db, order_id)
+    let order = orders::find(&state.db, order_id)
         .await?
         .ok_or(AppError::NotFound("order"))?;
     let definitions = config::stage_definitions(&state.db, StageEntity::Order).await?;
@@ -89,6 +109,7 @@ pub async fn order_transitions(
         &definitions,
         &current.stage_key,
         &image_counts,
+        order.mileage_in,
     ))
 }
 
@@ -106,6 +127,7 @@ pub async fn lead_transitions(db: &PgPool, lead_id: i64) -> AppResult<Vec<Transi
         &definitions,
         &current.stage_key,
         &HashMap::new(),
+        None,
     ))
 }
 
@@ -132,16 +154,19 @@ pub async fn change_order_stage(
     // and the job sheet have no starting point. Checked here (not in domain) so the
     // pure transition rules stay signature-stable. Runs before the insert, so a refusal
     // writes nothing.
-    if current.stage_key == keys::ORDER_INTAKE && to != keys::ORDER_INTAKE {
-        let mileage = orders::find(&mut *tx, order_id)
+    if intake_gate_blocks(
+        &current.stage_key,
+        find(&definitions, to).ok_or_else(|| {
+            AppError::internal(format!("order stage definition missing for {to}"))
+        })?,
+        orders::find(&mut *tx, order_id)
             .await?
-            .and_then(|o| o.mileage_in);
-        if mileage.is_none() {
-            return Err(AppError::rule(
-                "intake_slip_missing",
-                "leaving intake requires the intake slip (mileage_in); record it on the order first",
-            ));
-        }
+            .and_then(|o| o.mileage_in),
+    ) {
+        return Err(AppError::rule(
+            "intake_slip_missing",
+            "leaving intake requires the intake slip (mileage_in); record it on the order first",
+        ));
     }
     let stage_row_id =
         stages::insert_order_stage(&mut *tx, order_id, to, Some(user.user_id), note).await?;
@@ -263,7 +288,7 @@ mod tests {
     #[test]
     fn won_is_listed_but_never_a_manual_target() {
         let defs = lead_pipeline();
-        let opts = transition_options(StageEntity::Lead, &defs, "new", &HashMap::new());
+        let opts = transition_options(StageEntity::Lead, &defs, "new", &HashMap::new(), None);
         let won = opts.iter().find(|o| o.stage_key == "won").unwrap();
         assert!(!won.manual);
         assert!(
@@ -274,19 +299,67 @@ mod tests {
     }
 
     #[test]
-    fn forward_needs_no_note_backward_does() {
-        let defs = lead_pipeline();
-        let from_new = transition_options(StageEntity::Lead, &defs, "new", &HashMap::new());
+    fn forward_needs_no_note_backward_does() {        let defs = lead_pipeline();
+        let from_new = transition_options(StageEntity::Lead, &defs, "new", &HashMap::new(), None);
         assert!(
             from_new.iter().all(|o| !o.requires_note),
             "every move out of the first stage is forward"
         );
-        let from_quoted = transition_options(StageEntity::Lead, &defs, "quoted", &HashMap::new());
+        let from_quoted = transition_options(StageEntity::Lead, &defs, "quoted", &HashMap::new(), None);
         let back = from_quoted
             .iter()
             .find(|o| o.stage_key == "contacted")
             .unwrap();
         assert!(back.requires_note);
         assert!(back.gates_met);
+    }
+
+    fn order_def(key: &str, position: i32, terminal: bool, exit: bool) -> StageDefinition {
+        StageDefinition {
+            entity: StageEntity::Order.as_str().into(),
+            ..lead_def(key, position, terminal, exit)
+        }
+    }
+
+    // Q-ORD-4: cancelling from intake needs no odometer reading — exit stages skip
+    // gates by definition. Q-ORD-3: `/transitions` shares the rule, so the UI never
+    // offers what the move refuses.
+    #[test]
+    fn the_intake_slip_blocks_work_but_never_cancellation() {
+        let design = order_def("design", 20, false, false);
+        let cancelled = order_def("cancelled", 60, true, true);
+        let intake = order_def("intake", 10, false, false);
+
+        assert!(intake_gate_blocks("intake", &design, None));
+        assert!(!intake_gate_blocks("intake", &design, Some(120000)));
+        assert!(
+            !intake_gate_blocks("intake", &cancelled, None),
+            "cancelling must not need a mileage reading"
+        );
+        assert!(!intake_gate_blocks("intake", &intake, None));
+        assert!(!intake_gate_blocks("design", &design, None));
+    }
+
+    #[test]
+    fn transitions_hide_gated_targets_but_offer_cancellation() {
+        let defs = vec![
+            order_def("intake", 10, false, false),
+            order_def("design", 20, false, false),
+            order_def("cancelled", 60, true, true),
+        ];
+        let without_slip =
+            transition_options(StageEntity::Order, &defs, "intake", &HashMap::new(), None);
+        let design = without_slip.iter().find(|o| o.stage_key == "design").unwrap();
+        let cancelled = without_slip
+            .iter()
+            .find(|o| o.stage_key == "cancelled")
+            .unwrap();
+        assert!(!design.gates_met);
+        assert!(cancelled.gates_met);
+
+        let with_slip =
+            transition_options(StageEntity::Order, &defs, "intake", &HashMap::new(), Some(1));
+        let design = with_slip.iter().find(|o| o.stage_key == "design").unwrap();
+        assert!(design.gates_met);
     }
 }
