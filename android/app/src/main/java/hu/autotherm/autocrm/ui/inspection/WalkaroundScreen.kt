@@ -380,6 +380,14 @@ private fun ZoneStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifi
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // An optional zone ("Tető (ha elérhető)") may be skipped: sign-off only
+                // requires overviews of the non-optional zones.
+                if (zone.optional) {
+                    OutlinedButton(
+                        onClick = viewModel::nextZone,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Kihagyás") }
+                }
             }
         }
         state.error?.let {

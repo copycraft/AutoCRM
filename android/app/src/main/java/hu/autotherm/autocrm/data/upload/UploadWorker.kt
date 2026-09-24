@@ -41,11 +41,11 @@ class UploadWorker(
 
         var retryLater = false
         while (true) {
+            // Inspection photos belong to the inspection sync, not this drain: it
+            // creates damages and attaches metadata around the same rows, and two
+            // owners sweeping them would lose the image ids the attach needs.
+            // dueForUpload already leaves them out (before its LIMIT).
             val due = dao.dueForUpload(System.currentTimeMillis())
-                // Inspection photos belong to the inspection sync, not this drain: it
-                // creates damages and attaches metadata around the same rows, and two
-                // owners sweeping them would lose the image ids the attach needs.
-                .filter { it.category != "inspection" }
             if (due.isEmpty()) break
 
             for (row in due) {

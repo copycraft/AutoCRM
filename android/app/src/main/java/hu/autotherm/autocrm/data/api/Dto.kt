@@ -415,6 +415,7 @@ data class Partner(
     @SerialName("name") val name: String,
     @SerialName("tax_number") val taxNumber: String? = null,
     @SerialName("country") val country: String,
+    @SerialName("default_currency") val defaultCurrency: String? = null,
     @SerialName("email") val email: String? = null,
     @SerialName("phone") val phone: String? = null,
     @SerialName("city") val city: String? = null,

@@ -181,6 +181,23 @@ fn money_text(minor: i64, currency: Option<&str>) -> String {
     format!("{}", Money::new(minor, parsed))
 }
 
+/// Ids in first-seen order, each once. A document picked twice (from the order's list and
+/// from the library, or attached and embedded) is still one document to look up.
+fn distinct_ids(ids: &[i64]) -> Vec<i64> {
+    let mut out: Vec<i64> = Vec::with_capacity(ids.len());
+    for id in ids {
+        if !out.contains(id) {
+            out.push(*id);
+        }
+    }
+    out
+}
+
+/// The distinct documents a stored email refers to, attached and embedded alike.
+fn requested_document_ids(requested: &[AttachmentRef]) -> Vec<i64> {
+    distinct_ids(&requested.iter().map(|a| a.document_id).collect::<Vec<_>>())
+}
+
 fn has_unresolved_markers(s: &str) -> bool {
     s.contains("{{MISSING:") || s.contains("{{UNKNOWN:")
 }
@@ -382,7 +399,8 @@ async fn apply_embeds(
         }
         return Ok((body_html, body_text, Vec::new()));
     }
-    let docs = documents::find_many(&mut *conn, embed_ids).await?;
+    let embed_ids = distinct_ids(embed_ids);
+    let docs = documents::find_many(&mut *conn, &embed_ids).await?;
     if docs.len() != embed_ids.len() {
         return Err(AppError::validation(
             "embedded images must be existing documents",
@@ -508,8 +526,9 @@ async fn prepare(
         // could not be emailed from this system at all — the whole point of a lead is that
         // no order exists yet. A letter about nothing (newsletter, standalone) may attach
         // any company document: the senders are office staff either way.
-        let docs = documents::find_many(&mut *conn, &req.attachment_document_ids).await?;
-        if docs.len() != req.attachment_document_ids.len() {
+        let ids = distinct_ids(&req.attachment_document_ids);
+        let docs = documents::find_many(&mut *conn, &ids).await?;
+        if docs.len() != ids.len() {
             return Err(AppError::validation(
                 "attachments must be existing documents",
             ));
@@ -725,8 +744,9 @@ pub async fn send_quotation(
     let mut attachments = Vec::new();
     if !req.attachment_document_ids.is_empty() {
         let owner = documents::Owner::Lead(lead_id);
-        let docs = documents::find_many(&mut *tx, &req.attachment_document_ids).await?;
-        if docs.len() != req.attachment_document_ids.len()
+        let ids = distinct_ids(&req.attachment_document_ids);
+        let docs = documents::find_many(&mut *tx, &ids).await?;
+        if docs.len() != ids.len()
             || docs.iter().any(|d| !owner.owns(d))
         {
             return Err(AppError::validation(
@@ -870,8 +890,9 @@ pub async fn send_newsletter(
 
     let mut attachments = Vec::new();
     if !req.attachment_document_ids.is_empty() {
-        let docs = documents::find_many(&mut *tx, &req.attachment_document_ids).await?;
-        if docs.len() != req.attachment_document_ids.len() {
+        let ids = distinct_ids(&req.attachment_document_ids);
+        let docs = documents::find_many(&mut *tx, &ids).await?;
+        if docs.len() != ids.len() {
             return Err(AppError::validation(
                 "attachments must be existing documents",
             ));
@@ -1122,7 +1143,7 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
     // Resolve attachments before committing to `sending`, so storage hiccups retry cleanly.
     let requested: Vec<AttachmentRef> =
         serde_json::from_value(email.attachments.clone()).unwrap_or_default();
-    let ids: Vec<i64> = requested.iter().map(|a| a.document_id).collect();
+    let ids: Vec<i64> = requested_document_ids(&requested);
     let docs = if ids.is_empty() {
         Vec::new()
     } else {
@@ -1320,6 +1341,27 @@ mod tests {
         ));
         assert!(has_unresolved_markers("{{UNKNOWN:x}}"));
         assert!(!has_unresolved_markers("all good {{ braces }}"));
+    }
+
+    fn doc_ref(id: i64, content_id: Option<&str>) -> AttachmentRef {
+        AttachmentRef {
+            document_id: id,
+            filename: None,
+            byte_size: None,
+            mode: None,
+            content_id: content_id.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn a_document_attached_and_embedded_is_looked_up_once() {
+        // The web compose lets one image be both attached and embedded (library picker),
+        // and an order document can be picked from the order list and the library alike.
+        // Delivery compares "found" with "requested"; counting the same id twice made a
+        // perfectly present document read as "deleted before sending".
+        let requested = vec![doc_ref(42, None), doc_ref(42, Some("doc-42")), doc_ref(7, None)];
+        assert_eq!(requested_document_ids(&requested), vec![42, 7]);
+        assert_eq!(distinct_ids(&[5, 9, 5]), vec![5, 9]);
     }
 
     #[test]

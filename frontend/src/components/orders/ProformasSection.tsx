@@ -96,7 +96,7 @@ export function ProformasSection({
               />
               {proforma.payment_date && (
                 <span className="text-metadata text-steel-500">
-                  {t('paymentDate')}: {proforma.payment_date}
+                  {t('paymentDate')}: <DateDisplay value={proforma.payment_date} />
                 </span>
               )}
               <DocumentLink documentId={proforma.document_id} label={t('pdf')} />

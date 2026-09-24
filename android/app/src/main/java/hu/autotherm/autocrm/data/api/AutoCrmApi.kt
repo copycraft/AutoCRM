@@ -100,13 +100,18 @@ class AutoCrmApi(
         val token = sessionStore.token()
         if (token != null) request.header("Authorization", "Bearer $token")
         request.header("Accept", "application/json")
-        try {
+        val raw = try {
             http.newCall(request.build()).execute().use { response ->
                 Raw(response.code, response.body?.string().orEmpty())
             }
         } catch (e: IOException) {
             throw ApiException.Network(e)
         }
+        // A 401 on a request that carried our token means the session is gone. Forgetting
+        // it returns the app to the login screen (MainActivity keys off the stored account);
+        // the upload queue is untouched and resumes after the next sign-in.
+        if (raw.code == 401 && token != null) sessionStore.clearIfToken(token)
+        raw
     }
 
     /** Maps the response to [T], or throws. */
@@ -220,6 +225,18 @@ class AutoCrmApi(
     suspend fun patchOrder(id: Long, body: OrderBody): Order =
         send(
             Request.Builder().url(url("/orders/$id").build()).patch(body(body)),
+            Order.serializer(),
+        )
+
+    /**
+     * PATCH with explicit nulls. The shared [json] omits nulls (`explicitNulls = false`),
+     * so an [OrderBody] cannot say "clear this field"; the edit form needs exactly that.
+     * `JsonObject.toString()` writes `null` literally.
+     */
+    suspend fun patchOrder(id: Long, body: kotlinx.serialization.json.JsonObject): Order =
+        send(
+            Request.Builder().url(url("/orders/$id").build())
+                .patch(body.toString().toRequestBody(jsonMedia)),
             Order.serializer(),
         )
 

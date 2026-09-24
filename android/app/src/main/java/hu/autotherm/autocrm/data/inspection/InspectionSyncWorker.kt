@@ -38,6 +38,8 @@ class InspectionSyncWorker(
                 is SyncResult.Done -> Unit
                 is SyncResult.Retry -> retryLater = true
                 is SyncResult.Failed -> Unit
+                // Still being walked: it syncs after the local sign-off enqueues us.
+                is SyncResult.NotReady -> Unit
             }
             if (isStopped) break
         }
@@ -78,6 +80,12 @@ class InspectionSyncWorker(
         suspend fun discard(app: AutoCrmApp, uuid: String) {
             val dao = app.database.inspectionDrafts()
             val draft = dao.byUuid(uuid)
+            // A draft that already reached the server also exists there as a draft; left
+            // behind, an open check-out blocks every new one on the order (`checkout_open`)
+            // and no screen can discard it. Best effort: a signed row answers `locked`.
+            draft?.serverId?.let { serverId ->
+                runCatching { app.api.deleteInspection(serverId) }
+            }
             dao.delete(uuid)
             if (draft != null) {
                 val payload = runCatching {

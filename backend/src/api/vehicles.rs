@@ -14,7 +14,9 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
-use super::{Items, optional, page_limit, page_offset};
+use super::{
+    Items, apply_patch, optional, page_limit, page_offset, patch as patch_field, patch_text,
+};
 use crate::AppState;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
@@ -59,35 +61,60 @@ async fn search(
     ))
 }
 
+// PATCH semantics (docs/API.md): an omitted field keeps its value, `null` clears it.
 #[derive(Deserialize, ToSchema)]
 struct VehicleBody {
-    vin: Option<String>,
-    plate: Option<String>,
-    make: Option<String>,
-    model: Option<String>,
-    year: Option<i32>,
-    partner_id: Option<i64>,
-    notes: Option<String>,
+    #[serde(default, deserialize_with = "patch_field")]
+    vin: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    plate: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    make: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    model: Option<Option<String>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    year: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    partner_id: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "patch_field")]
+    notes: Option<Option<String>>,
 }
 
 impl VehicleBody {
+    /// Create: every field as sent.
     fn fields(self) -> AppResult<VehicleFields> {
-        let f = VehicleFields {
-            vin: optional(self.vin).map(|v| v.to_uppercase()),
-            plate: optional(self.plate).map(|p| p.to_uppercase()),
-            make: optional(self.make),
-            model: optional(self.model),
-            year: self.year,
-            partner_id: self.partner_id,
-            notes: optional(self.notes),
-        };
-        if f.vin.is_none() && f.plate.is_none() {
-            return Err(AppError::validation(
-                "a vehicle needs a plate or a VIN: a make and model do not identify a van",
-            ));
-        }
-        Ok(f)
+        identified(VehicleFields {
+            vin: optional(self.vin.flatten()).map(|v| v.to_uppercase()),
+            plate: optional(self.plate.flatten()).map(|p| p.to_uppercase()),
+            make: optional(self.make.flatten()),
+            model: optional(self.model.flatten()),
+            year: self.year.flatten(),
+            partner_id: self.partner_id.flatten(),
+            notes: optional(self.notes.flatten()),
+        })
     }
+
+    /// PATCH: omitted fields keep the stored value, `null` clears.
+    fn merged(self, current: &Vehicle) -> AppResult<VehicleFields> {
+        identified(VehicleFields {
+            vin: patch_text(&current.vin, self.vin).map(|v| v.to_uppercase()),
+            plate: patch_text(&current.plate, self.plate).map(|p| p.to_uppercase()),
+            make: patch_text(&current.make, self.make),
+            model: patch_text(&current.model, self.model),
+            year: apply_patch(&current.year, &self.year),
+            partner_id: apply_patch(&current.partner_id, &self.partner_id),
+            notes: patch_text(&current.notes, self.notes),
+        })
+    }
+}
+
+fn identified(f: VehicleFields) -> AppResult<VehicleFields> {
+    if f.vin.is_none() && f.plate.is_none() {
+        return Err(AppError::validation(
+            "a vehicle needs a plate or a VIN: a make and model do not identify a van",
+        ));
+    }
+    Ok(f)
 }
 
 #[derive(Serialize, ToSchema)]
@@ -179,7 +206,10 @@ async fn update(
     ApiJson(body): ApiJson<VehicleBody>,
 ) -> AppResult<Json<Vehicle>> {
     me.require(Capability::EditOrders)?;
-    let fields = body.fields()?;
+    let current = vehicles::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("vehicle"))?;
+    let fields = body.merged(&current)?;
     Ok(Json(
         vehicles::update(&state.db, id, &fields)
             .await?
@@ -249,4 +279,62 @@ async fn detach(
         return Err(AppError::NotFound("vehicle"));
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn stored() -> Vehicle {
+        Vehicle {
+            id: 3,
+            vin: Some("WDB9066331S123456".into()),
+            plate: Some("ABC-123".into()),
+            plate_norm: Some("ABC123".into()),
+            make: Some("Mercedes".into()),
+            model: Some("Sprinter".into()),
+            year: Some(2021),
+            partner_id: Some(9),
+            notes: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    fn body(json: &str) -> VehicleBody {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn vehicle_patch_keeps_omitted_fields() {
+        // Before the fix PATCH went through the create path, which reads a notes-only
+        // body as "no plate, no VIN" and refuses it (or, with a plate, wipes the rest).
+        assert!(body(r#"{"notes":"hátsó ajtó sérült"}"#).fields().is_err());
+
+        let f = body(r#"{"notes":"hátsó ajtó sérült"}"#).merged(&stored()).unwrap();
+        assert_eq!(f.plate.as_deref(), Some("ABC-123"));
+        assert_eq!(f.vin.as_deref(), Some("WDB9066331S123456"));
+        assert_eq!(f.make.as_deref(), Some("Mercedes"));
+        assert_eq!(f.model.as_deref(), Some("Sprinter"));
+        assert_eq!(f.year, Some(2021));
+        assert_eq!(f.partner_id, Some(9));
+        assert_eq!(f.notes.as_deref(), Some("hátsó ajtó sérült"));
+    }
+
+    #[test]
+    fn vehicle_patch_null_clears_but_never_both_identifiers() {
+        let f = body(r#"{"make":null,"year":null,"partner_id":null}"#).merged(&stored()).unwrap();
+        assert_eq!(f.make, None);
+        assert_eq!(f.year, None);
+        assert_eq!(f.partner_id, None);
+        assert_eq!(f.plate.as_deref(), Some("ABC-123"));
+        assert!(body(r#"{"plate":null,"vin":null}"#).merged(&stored()).is_err());
+    }
+
+    #[test]
+    fn vehicle_patch_uppercases_a_new_plate() {
+        let f = body(r#"{"plate":"xyz-987"}"#).merged(&stored()).unwrap();
+        assert_eq!(f.plate.as_deref(), Some("XYZ-987"));
+    }
 }

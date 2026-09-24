@@ -34,6 +34,29 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+/**
+ * The edit form's PATCH body. A field the user emptied is sent as an explicit `null`,
+ * which is how the API clears it (docs/API.md: "send null to clear"). Omitting it, as the
+ * shared nulls-dropping serializer does for [OrderBody], silently keeps the old value.
+ */
+internal fun orderPatchJson(s: OrderEditViewModel.State): JsonObject = buildJsonObject {
+    fun text(key: String, value: String) {
+        val v = value.trim()
+        if (v.isEmpty()) put(key, JsonNull) else put(key, v)
+    }
+    put("title", s.title.trim())
+    text("vehicle_make", s.vehicleMake)
+    text("vehicle_model", s.vehicleModel)
+    text("vehicle_plate", s.vehiclePlate)
+    text("vehicle_vin", s.vehicleVin)
+    text("description", s.description)
+    text("due_date", s.dueDate)
+}
 
 class OrderEditViewModel(private val api: AutoCrmApi) : ViewModel() {
 
@@ -98,18 +121,7 @@ class OrderEditViewModel(private val api: AutoCrmApi) : ViewModel() {
                         ),
                     ).id
                 } else {
-                    api.patchOrder(
-                        orderId,
-                        OrderBody(
-                            title = s.title.trim(),
-                            vehicleMake = blankToNull(s.vehicleMake),
-                            vehicleModel = blankToNull(s.vehicleModel),
-                            vehiclePlate = blankToNull(s.vehiclePlate),
-                            vehicleVin = blankToNull(s.vehicleVin),
-                            description = blankToNull(s.description),
-                            dueDate = blankToNull(s.dueDate),
-                        ),
-                    ).id
+                    api.patchOrder(orderId, orderPatchJson(s)).id
                 }
                 _state.value = _state.value.copy(busy = false)
                 onSaved(id)

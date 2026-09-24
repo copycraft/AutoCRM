@@ -99,7 +99,9 @@ pub fn unknown_variables(src: &str) -> Vec<String> {
             _ => None,
         })
         .collect();
-    unknown.dedup();
+    // Each name once, in first-seen order (`dedup` alone only drops adjacent repeats).
+    let mut seen = std::collections::BTreeSet::new();
+    unknown.retain(|name| seen.insert(name.clone()));
     unknown
 }
 
@@ -368,6 +370,14 @@ mod tests {
         assert_eq!(
             unknown_variables("{{order.number}} {{nope}} {{nope}}"),
             vec!["nope"]
+        );
+    }
+
+    #[test]
+    fn unknown_variables_are_listed_once_each() {
+        assert_eq!(
+            unknown_variables("{{nope}} {{order.number}} {{other}} {{nope}}"),
+            vec!["nope", "other"]
         );
     }
 

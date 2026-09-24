@@ -246,7 +246,9 @@ function ComparisonView({ inspectionId }: { inspectionId: number }) {
     queryKey: qk.inspectionComparison(inspectionId),
     queryFn: () => inspectionsApi.comparison(inspectionId),
   });
-  const review = canChangeStage(user);
+  // Reviewing needs the capability, and only a draft check-in takes verdicts:
+  // a signed inspection is locked (the API answers 422 `locked`).
+  const review = canChangeStage(user) && query.data?.checkin.inspection.status === 'draft';
 
   const verdict = useMutation({
     mutationFn: (body: { checkin_damage_id: number; checkout_damage_id: number | null; verdict: string }) =>
@@ -319,7 +321,12 @@ function ComparisonView({ inspectionId }: { inspectionId: number }) {
                         onClick={() =>
                           verdict.mutate({
                             checkin_damage_id: damage.id,
-                            checkout_damage_id: suggestion?.checkout_damage_id ?? null,
+                            // Only a pre-existing verdict points at a check-out damage;
+                            // "new" and "dismissed" stand alone (as the phone sends them).
+                            checkout_damage_id:
+                              value === 'preexisting'
+                                ? (suggestion?.checkout_damage_id ?? null)
+                                : null,
                             verdict: value,
                           })
                         }

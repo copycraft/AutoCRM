@@ -208,7 +208,11 @@ async fn variables(Auth(_): Auth) -> Json<Items<TemplateVariable>> {
 
 fn check_variables(subject: &str, body: &str) -> AppResult<()> {
     let mut unknown = unknown_variables(subject);
-    unknown.extend(unknown_variables(body));
+    for name in unknown_variables(body) {
+        if !unknown.contains(&name) {
+            unknown.push(name);
+        }
+    }
     if unknown.is_empty() {
         Ok(())
     } else {

@@ -321,7 +321,15 @@ async fn update(
     let updated = partners::update(&mut *tx, id, &input)
         .await?
         .ok_or(AppError::NotFound("partner"))?;
-    let changes = audit::diff(&[
+    let changes = partner_changes(&current, &updated);
+    audit::record(&mut *tx, Some(me.user_id), "partner", id, "update", changes).await?;
+    tx.commit().await?;
+    Ok(Json(updated))
+}
+
+/// Field-by-field audit diff of a partner update: every stored column the PATCH can change.
+fn partner_changes(current: &Partner, updated: &Partner) -> serde_json::Value {
+    audit::diff(&[
         ("kind", json!(current.kind), json!(updated.kind)),
         ("name", json!(current.name), json!(updated.name)),
         (
@@ -355,10 +363,9 @@ async fn update(
             json!(updated.address_line),
         ),
         ("notes", json!(current.notes), json!(updated.notes)),
-    ]);
-    audit::record(&mut *tx, Some(me.user_id), "partner", id, "update", changes).await?;
-    tx.commit().await?;
-    Ok(Json(updated))
+        // V2.6: customer/supplier classification decides who shows in the pickers.
+        ("role", json!(current.role), json!(updated.role)),
+    ])
 }
 
 async fn set_archived(
@@ -561,4 +568,46 @@ async fn archive_contact(
     .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn partner(role: Option<&str>) -> Partner {
+        Partner {
+            id: 1,
+            kind: PartnerKind::Business,
+            name: "Festő Kft.".into(),
+            tax_number: None,
+            eu_tax_number: None,
+            country: "HU".into(),
+            default_currency: "HUF".into(),
+            email: None,
+            phone: None,
+            website: None,
+            postal_code: None,
+            city: None,
+            address_line: None,
+            notes: None,
+            role: role.map(str::to_string),
+            minicrm_id: None,
+            archived_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn partner_update_audit_records_a_role_change() {
+        let changes = partner_changes(&partner(None), &partner(Some("supplier")));
+        assert_eq!(changes["role"], json!([null, "supplier"]));
+    }
+
+    #[test]
+    fn partner_update_audit_is_empty_when_nothing_changed() {
+        let p = partner(Some("both"));
+        assert_eq!(partner_changes(&p, &p), json!({}));
+    }
 }

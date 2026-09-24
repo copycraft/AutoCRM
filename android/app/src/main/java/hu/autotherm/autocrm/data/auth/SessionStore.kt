@@ -94,4 +94,13 @@ class SessionStore(private val context: Context) {
     suspend fun clear() {
         context.sessionDataStore.edit { it.clear() }
     }
+
+    /**
+     * Forgets the session only if it is still the one that [token] belongs to. The server
+     * answered 401 for that token (expired, revoked, account disabled or re-roled); a newer
+     * sign-in that happened while the request was in flight must survive it.
+     */
+    suspend fun clearIfToken(token: String) {
+        context.sessionDataStore.edit { if (it[Keys.TOKEN] == token) it.clear() }
+    }
 }

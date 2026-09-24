@@ -329,12 +329,12 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
             update {
                 val payload = it.payload ?: return@update it
                 it.copy(
+                    // Only the shot under review is replaced. Earlier kept shots of the
+                    // same zone (several overviews, "Még egy közeli") stay: their files
+                    // and queue rows were not deleted above.
                     payload = payload.copy(
                         photos = payload.photos.filterNot {
-                            it.zoneKey == request.zoneKey &&
-                                it.purpose == request.purpose &&
-                                it.damageLocalId == request.damageLocalId &&
-                                it.attachedPhotoId == null
+                            it.fileName == file.name && it.attachedPhotoId == null
                         },
                     ),
                     review = null,
@@ -436,10 +436,29 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
 
     fun loadComparison() {
         val s = _state.value
-        val checkoutId = s.payload?.checkoutServerId ?: return
+        val payload = s.payload ?: return
         viewModelScope.launch {
             update { it.copy(comparisonLoading = true, error = null) }
             try {
+                // A check-in started offline has no check-out link yet: resolve it now
+                // (latest signed check-out, as the server links it) instead of leaving
+                // "Újrapróbálás" a button that can never succeed.
+                val checkoutId = payload.checkoutServerId ?: app.api.inspections(s.orderId)
+                    .filter { it.kind == "checkout" && it.status == "signed" }
+                    .maxByOrNull { it.signedAt.orEmpty() }?.id
+                if (checkoutId == null) {
+                    update {
+                        it.copy(
+                            comparisonLoading = false,
+                            error = "nincs lezárt átadás ehhez az összehasonlításhoz",
+                        )
+                    }
+                    return@launch
+                }
+                if (payload.checkoutServerId == null) {
+                    update { st -> st.copy(payload = st.payload?.copy(checkoutServerId = checkoutId)) }
+                    persist()
+                }
                 // The review needs the checkout's damages and photos: fetch its detail.
                 // Suggestions pair same-zone + same-type items as pre-existing.
                 val checkoutDetail = app.api.inspection(checkoutId)
@@ -525,8 +544,11 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
             return
         }
         if (s.kind == "checkin") {
+            // Same set the comparison screen reviews: an unfinished damage (no type)
+            // has no verdict chip and is not synced, so it cannot block signing.
             val pending = payload.damages.filter { d ->
-                payload.verdicts.none { it.damageLocalId == d.localId }
+                d.damageType.isNotBlank() && d.severity.isNotBlank() &&
+                    payload.verdicts.none { it.damageLocalId == d.localId }
             }
             if (pending.isNotEmpty() && s.comparison == null) {
                 update { it.copy(error = "az összehasonlításhoz jel kell", phase = Phase.Comparison) }

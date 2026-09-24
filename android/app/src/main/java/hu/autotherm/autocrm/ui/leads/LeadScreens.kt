@@ -38,6 +38,7 @@ import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.api.LeadDetail
 import hu.autotherm.autocrm.data.api.LeadSummary
 import hu.autotherm.autocrm.data.api.OrderBody
+import hu.autotherm.autocrm.data.api.OrderRef
 import hu.autotherm.autocrm.data.api.TransitionOption
 import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.AutoCrmTextField
@@ -239,6 +240,8 @@ class LeadDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
         val convertOpen: Boolean = false,
         val convertBusy: Boolean = false,
         val convertError: String? = null,
+        /** Order currency for the conversion: the partner's default, changeable. */
+        val convertCurrency: String = "HUF",
     )
 
     private val _state = MutableStateFlow(State())
@@ -293,7 +296,17 @@ class LeadDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
     }
 
     fun openConvert() {
-        _state.value = _state.value.copy(convertOpen = true, convertError = null)
+        _state.value = _state.value.copy(convertOpen = true, convertError = null, convertCurrency = "HUF")
+        // Same prefill as the web dialog: the partner's default currency (MAJOR-03).
+        val partnerId = _state.value.detail?.lead?.partnerId ?: return
+        viewModelScope.launch {
+            val default = runCatching { api.partner(partnerId).partner.defaultCurrency }.getOrNull()
+            _state.value = _state.value.copy(convertCurrency = convertBody("", default).currency ?: "HUF")
+        }
+    }
+
+    fun setConvertCurrency(currency: String) {
+        _state.value = _state.value.copy(convertCurrency = currency)
     }
 
     fun closeConvert() {
@@ -304,7 +317,7 @@ class LeadDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
         viewModelScope.launch {
             _state.value = _state.value.copy(convertBusy = true, convertError = null)
             try {
-                val order = api.convertLead(id, OrderBody(title = title, currency = "HUF"))
+                val order = api.convertLead(id, convertBody(title, _state.value.convertCurrency))
                 _state.value = _state.value.copy(convertBusy = false, convertOpen = false)
                 onDone(order.id)
             } catch (e: Throwable) {
@@ -385,10 +398,13 @@ fun LeadDetailScreen(
                         if (canEdit) {
                             item {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(
-                                        onClick = { viewModel.openStageDialog(leadId) },
-                                        modifier = Modifier.weight(1f),
-                                    ) { Text("Fázisváltás") }
+                                    // A converted lead cannot change stage (lead_converted).
+                                    if (canChangeLeadStage(detail.orders)) {
+                                        OutlinedButton(
+                                            onClick = { viewModel.openStageDialog(leadId) },
+                                            modifier = Modifier.weight(1f),
+                                        ) { Text("Fázisváltás") }
+                                    }
                                     OutlinedButton(
                                         onClick = viewModel::openConvert,
                                         modifier = Modifier.weight(1f),
@@ -464,6 +480,8 @@ fun LeadDetailScreen(
             busy = state.convertBusy,
             error = state.convertError,
             initialTitle = state.detail?.lead?.title.orEmpty(),
+            currency = state.convertCurrency,
+            onCurrency = viewModel::setConvertCurrency,
             onDismiss = viewModel::closeConvert,
             onConfirm = { title -> viewModel.convert(leadId, title, onConverted) },
         )
@@ -474,12 +492,24 @@ fun LeadDetailScreen(
 internal fun isExpired(validUntil: String): Boolean =
     runCatching { LocalDate.parse(validUntil).isBefore(LocalDate.now()) }.getOrDefault(false)
 
+/**
+ * The conversion body. Currency follows the partner's default (EUR stays EUR), HUF when
+ * there is none — the web dialog's rule (REMEDIATION.md MAJOR-03).
+ */
+internal fun convertBody(title: String, currency: String?): OrderBody =
+    OrderBody(title = title, currency = if (currency == "EUR") "EUR" else "HUF")
+
+/** A lead that became an order is worked on the order; its stage is fixed. */
+internal fun canChangeLeadStage(orders: List<OrderRef>): Boolean = orders.isEmpty()
+
 /** Turns the lead into an order: the new job opens when the server answers. */
 @Composable
 private fun ConvertDialog(
     busy: Boolean,
     error: String?,
     initialTitle: String,
+    currency: String,
+    onCurrency: (String) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -502,8 +532,17 @@ private fun ConvertDialog(
             label = "Megrendelés címe *",
             modifier = Modifier.fillMaxWidth(),
         )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("HUF", "EUR").forEach { code ->
+                FilterChip(
+                    selected = currency == code,
+                    onClick = { onCurrency(code) },
+                    label = { Text(code) },
+                )
+            }
+        }
         Text(
-            "Az új megrendelés a lead partnerével és HUF pénznemmel jön létre.",
+            "Az új megrendelés a lead partnerével jön létre; a pénznem a partner alapértelmezése.",
             style = MaterialTheme.typography.labelMedium,
             color = Steel500,
         )

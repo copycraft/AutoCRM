@@ -33,7 +33,12 @@ sealed class SyncResult {
     data object Retry : SyncResult()
     /** Will not succeed on its own (validation, conflict): recorded on the draft. */
     data class Failed(val message: String) : SyncResult()
+    /** Not signed off on the phone yet: nothing is sent until the local sign-off. */
+    data object NotReady : SyncResult()
 }
+
+/** A damage the inspector finished classifying; an abandoned one has no type or severity. */
+internal fun DraftDamage.isComplete(): Boolean = damageType.isNotBlank() && severity.isNotBlank()
 
 /**
  * Pushes one draft to the server, in dependency order: inspection → damages →
@@ -45,7 +50,6 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
     val uploadDao = app.database.pendingUploads()
     val draft = draftDao.byUuid(uuid) ?: return SyncResult.Done
     if (draft.state == InspectionDraft.STATE_SYNCED) return SyncResult.Done
-    draftDao.setState(uuid, InspectionDraft.STATE_SYNCING)
 
     val payload = try {
         json.decodeFromString(DraftPayload.serializer(), draft.payloadJson)
@@ -53,6 +57,11 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
         draftDao.setState(uuid, InspectionDraft.STATE_DRAFT, "sérült piszkozat")
         return SyncResult.Failed("sérült piszkozat")
     }
+    // The server sign is the last sync step, and it must only follow the phone's own
+    // sign-off checks (overview per zone, both signatures, verdicts: WalkaroundViewModel
+    // .signNow). A walk still in progress stays entirely on the phone.
+    if (!payload.signed) return SyncResult.NotReady
+    draftDao.setState(uuid, InspectionDraft.STATE_SYNCING)
 
     try {
         var serverId = draft.serverId
@@ -89,7 +98,9 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
         val id = serverId
 
         // Damages first: close-up photos reference them.
-        for (damage in current.damages.filter { it.serverId == null }) {
+        // Unfinished damages (no type / severity) were never recorded: the damage step
+        // refuses "Kész" without both, and the server would reject them with a 400.
+        for (damage in current.damages.filter { it.serverId == null && it.isComplete() }) {
             val created = app.api.addInspectionDamage(
                 id,
                 DamageBody(
@@ -229,6 +240,13 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
         inspectionDir(app, uuid).deleteRecursively()
         return SyncResult.Done
     } catch (e: ApiException) {
+        // A previous sync signed on the server and died before deleting the draft: any
+        // later step answers `locked`. The sign already happened, so the draft is done.
+        if (e is ApiException.Rule && e.code == "locked" && alreadySigned(app, uuid)) {
+            draftDao.delete(uuid)
+            inspectionDir(app, uuid).deleteRecursively()
+            return SyncResult.Done
+        }
         return if (e.isRetryable) {
             draftDao.setState(uuid, InspectionDraft.STATE_DRAFT)
             SyncResult.Retry
@@ -239,6 +257,12 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
         draftDao.setState(uuid, InspectionDraft.STATE_DRAFT)
         return SyncResult.Retry
     }
+}
+
+private suspend fun alreadySigned(app: AutoCrmApp, uuid: String): Boolean {
+    val serverId = app.database.inspectionDrafts().byUuid(uuid)?.serverId ?: return false
+    return runCatching { app.api.inspection(serverId).inspection.status == "signed" }
+        .getOrDefault(false)
 }
 
 private suspend fun persist(app: AutoCrmApp, uuid: String, payload: DraftPayload) {

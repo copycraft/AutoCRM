@@ -10,7 +10,7 @@
 // Proformas are NOT here. A díjbekérő is reported nowhere and has no status, no chain and
 // no NAV transaction, so it lives in its own section (`ProformasSection`).
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { invoicesApi, mediaApi } from '@/lib/api/endpoints';
@@ -25,6 +25,30 @@ import type { Currency, Invoice, InvoiceStatus, NavMessage } from '@/lib/api/typ
 
 /** How often to ask NAV's verdict while an invoice is in flight. */
 const POLL_MS = 3000;
+
+/**
+ * How long after NAV stored a report to keep asking for its PDF. The backend marks the
+ * invoice issued first and files the PDF afterwards (a separate step, so a slow object
+ * store never un-issues an invoice); a PDF that has not arrived by then is a failure the
+ * row shows, not something to poll for forever.
+ */
+const PDF_WAIT_MS = 2 * 60 * 1000;
+
+/**
+ * Whether the invoice list still has an answer coming: an invoice NAV has not decided
+ * yet, or one NAV just stored whose PDF is still being filed.
+ */
+export function invoicePollInterval(items: Invoice[], now: number = Date.now()): number | false {
+  const pending = items.some(
+    (i) =>
+      i.status === 'submitting' ||
+      (i.status === 'issued' &&
+        i.document_id == null &&
+        i.issued_at != null &&
+        now - Date.parse(i.issued_at) < PDF_WAIT_MS),
+  );
+  return pending ? POLL_MS : false;
+}
 
 const ANNULMENT_CODES = [
   'ERRATIC_DATA',
@@ -78,13 +102,33 @@ export function InvoicesSection({
     queryKey: qk.invoices(orderId),
     queryFn: () => invoicesApi.forOrder(orderId),
     // While NAV is deciding, the answer arrives on its own rather than on a reload.
-    refetchInterval: (query) =>
-      query.state.data?.items.some((i) => i.status === 'submitting') ? POLL_MS : false,
+    refetchInterval: (query) => invoicePollInterval(query.state.data?.items ?? []),
   });
 
   const items = invoices.data?.items ?? [];
   const live = items.find((i) => i.kind === 'invoice' && i.status === 'issued');
   const inFlight = items.some((i) => i.status === 'submitting');
+  // A storno that is being reported, or already stored, makes a second one pointless: the
+  // server refuses it (one live storno per invoice). A rejected attempt does not count.
+  const stornoPending = new Set(
+    items
+      .filter((i) => i.kind === 'storno' && i.status !== 'rejected' && i.original_invoice_id != null)
+      .map((i) => i.original_invoice_id as number),
+  );
+
+  // The PDF is filed after NAV's verdict, so when a row gains one the order's document
+  // list is stale too.
+  const filedDocuments = invoices.data
+    ? invoices.data.items.map((i) => i.document_id ?? '').join(',')
+    : null;
+  const lastFiled = useRef<string | null>(null);
+  useEffect(() => {
+    if (filedDocuments === null) return;
+    if (lastFiled.current !== null && lastFiled.current !== filedDocuments) {
+      void qc.invalidateQueries({ queryKey: qk.documents(orderId) });
+    }
+    lastFiled.current = filedDocuments;
+  }, [filedDocuments, orderId, qc]);
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: qk.invoices(orderId) });
@@ -158,7 +202,7 @@ export function InvoicesSection({
               key={invoice.id}
               invoice={invoice}
               currency={currency}
-              canIssue={canIssue}
+              canIssue={canIssue && !stornoPending.has(invoice.id)}
               canAnnul={canAnnul}
               onStorno={() => setStornoFor(invoice)}
               onAnnul={() => setAnnulFor(invoice)}
@@ -263,6 +307,15 @@ function InvoiceRow({
           </p>
           {invoice.nav_message && <p className="text-metadata">{invoice.nav_message}</p>}
         </div>
+      )}
+
+      {invoice.status !== 'rejected' && invoice.status !== 'annulled' && invoice.nav_message && (
+        // A failed attempt the queue is retrying, or NAV refusing the annulment of an
+        // invoice that therefore keeps its status: recorded on the row for the screen.
+        <p className="mt-1 text-metadata text-signal">
+          {invoice.nav_error_code ? `${invoice.nav_error_code} — ` : ''}
+          {invoice.nav_message}
+        </p>
       )}
 
       {messages.length > 0 && (

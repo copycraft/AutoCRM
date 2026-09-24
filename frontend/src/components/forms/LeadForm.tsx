@@ -52,13 +52,19 @@ function fromMinor(minor: number | null | undefined): string {
   return minor == null ? '' : minorToMajorString(minor);
 }
 
+/** A contact belongs to the lead's partner (backend: "contact belongs to a different
+ * partner"), so with no partner there is no contact to send. */
+function contactOf(v: LeadFormValues): number | null {
+  return v.partner && v.contact_id ? Number(v.contact_id) : null;
+}
+
 export function leadCreateBody(v: LeadFormValues, meId: number | undefined): LeadBody {
   const clean = (s: string | undefined) => (s?.trim() ? s.trim() : undefined);
   const assigned = assignee(v.assigned_to, meId);
   return {
     title: v.title.trim(),
     partner_id: v.partner?.id ?? null,
-    contact_id: v.contact_id ? Number(v.contact_id) : null,
+    contact_id: contactOf(v),
     contact_name: clean(v.contact_name),
     contact_email: clean(v.contact_email),
     contact_phone: clean(v.contact_phone),
@@ -77,7 +83,7 @@ export function leadPatchBody(original: Lead, v: LeadFormValues, meId: number | 
   if (v.title.trim() !== original.title) body.title = v.title.trim();
   const origPartner = original.partner_id ?? null;
   if ((v.partner?.id ?? null) !== origPartner) body.partner_id = v.partner?.id ?? null;
-  const newContact = v.contact_id ? Number(v.contact_id) : null;
+  const newContact = contactOf(v);
   if (newContact !== (original.contact_id ?? null)) body.contact_id = newContact;
   for (const f of ['contact_name', 'contact_email', 'contact_phone', 'source', 'description'] as const) {
     const nv = v[f]?.trim() ?? '';
@@ -206,7 +212,17 @@ export function LeadForm({
           control={control}
           name="partner"
           render={({ field }) => (
-            <PartnerPicker value={field.value} onChange={field.onChange} label={t('partner')} />
+            <PartnerPicker
+              value={field.value}
+              onChange={(p) => {
+                // The previous partner's contact is not one of the new partner's.
+                if ((p?.id ?? null) !== (field.value?.id ?? null)) {
+                  setValue('contact_id', '', { shouldDirty: true });
+                }
+                field.onChange(p);
+              }}
+              label={t('partner')}
+            />
           )}
         />
         <div>

@@ -120,11 +120,17 @@ pub fn check_transition(
     let has_note = note.is_some_and(|n| !n.trim().is_empty());
 
     if from.is_terminal {
-        return if has_note {
-            Ok(TransitionKind::Reopen)
-        } else {
-            Err(TransitionError::NoteRequired)
-        };
+        if !has_note {
+            return Err(TransitionError::NoteRequired);
+        }
+        // A reopen into a stage that lies past a gate must meet that gate, exactly as a
+        // forward move would: otherwise design -> cancelled -> completed dodges the MEO
+        // photo requirement. The path is unknown, so every gate before the target applies.
+        // Exit targets stay ungated.
+        if !to.is_exit {
+            check_gates(stages, i32::MIN, to.position, image_counts)?;
+        }
+        return Ok(TransitionKind::Reopen);
     }
     if to.is_exit {
         return Ok(TransitionKind::Exit);
@@ -137,12 +143,23 @@ pub fn check_transition(
         };
     }
 
+    check_gates(stages, from.position, to.position, image_counts)?;
+    Ok(TransitionKind::Forward)
+}
+
+/// Every active, non-exit image gate positioned in `[from_position, to_position)` must be met.
+fn check_gates(
+    stages: &[StageDefinition],
+    from_position: i32,
+    to_position: i32,
+    image_counts: &HashMap<ImageCategory, i64>,
+) -> Result<(), TransitionError> {
     let gates = stages.iter().filter(|s| {
         s.is_active
             && !s.is_exit
             && s.min_images > 0
-            && s.position >= from.position
-            && s.position < to.position
+            && s.position >= from_position
+            && s.position < to_position
     });
     for gate in gates {
         let Some(category) = gate.required_image_category else {
@@ -158,7 +175,7 @@ pub fn check_transition(
             });
         }
     }
-    Ok(TransitionKind::Forward)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -320,6 +337,41 @@ mod tests {
                 Some("ügyfél mégis kéri"),
                 &no_images()
             ),
+            Ok(TransitionKind::Reopen)
+        );
+    }
+
+    #[test]
+    fn reopening_past_a_gate_still_requires_its_images() {
+        // design -> cancelled (exit, no gates) -> completed (reopen) must not dodge the
+        // MEO photo requirement that a straight forward move would enforce.
+        let s = order_stages();
+        assert!(matches!(
+            check_transition(&s, "cancelled", "completed", Some("ügyfél mégis kéri"), &no_images()),
+            Err(TransitionError::GateNotMet { .. })
+        ));
+        assert_eq!(
+            check_transition(
+                &s,
+                "cancelled",
+                "completed",
+                Some("ügyfél mégis kéri"),
+                &with(ImageCategory::Completion, 1)
+            ),
+            Ok(TransitionKind::Reopen)
+        );
+        // Reopening to a stage before the gate is not gated, and the note rule comes first.
+        assert_eq!(
+            check_transition(&s, "cancelled", "production", Some("újra"), &no_images()),
+            Ok(TransitionKind::Reopen)
+        );
+        assert_eq!(
+            check_transition(&s, "cancelled", "completed", None, &no_images()),
+            Err(TransitionError::NoteRequired)
+        );
+        // Leaving `completed` for the exit stays ungated.
+        assert_eq!(
+            check_transition(&s, "completed", "cancelled", Some("storno"), &no_images()),
             Ok(TransitionKind::Reopen)
         );
     }

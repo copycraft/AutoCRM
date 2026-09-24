@@ -348,7 +348,9 @@ pub async fn create_invoice(
         .unwrap_or(issue_date + chrono::TimeDelta::days(nav.payment_days));
 
     let mut tx = state.db.begin().await?;
-    let order = orders::find(&mut *tx, order_id)
+    // Locked, not just read: the one-live-invoice check below is only a guarantee if two
+    // concurrent requests for the same order cannot both pass it before either inserts.
+    let order = orders::lock(&mut *tx, order_id)
         .await?
         .ok_or(AppError::NotFound("order"))?;
     let currency = crate::service::orders::order_currency(&order)?;
@@ -482,6 +484,20 @@ async fn enqueue_submit(
     Ok(())
 }
 
+/// Whether `candidate` is a storno of invoice `original_id` that still counts: one being
+/// reported, or one NAV stored. A rejected attempt was never reported and does not count,
+/// the same rule as the `invoices_one_storno_per_invoice` index.
+fn blocks_another_storno(
+    kind: InvoiceKind,
+    status: InvoiceStatus,
+    original_invoice_id: Option<i64>,
+    original_id: i64,
+) -> bool {
+    kind == InvoiceKind::Storno
+        && original_invoice_id == Some(original_id)
+        && status != InvoiceStatus::Rejected
+}
+
 /// Storno an issued invoice: a second document that reverses the first.
 pub async fn create_storno(
     state: &AppState,
@@ -510,6 +526,24 @@ pub async fn create_storno(
                 "only an issued invoice can be stornoed; {} is {}",
                 original.number,
                 original.status.as_str()
+            ),
+        ));
+    }
+
+    // The original stays `issued` until NAV stores its storno, so the status alone does not
+    // say whether a storno is already on its way. Refuse by name rather than drawing a
+    // number and tripping over `invoices_one_storno_per_invoice`.
+    let siblings = invoices::list_for_order(&mut *tx, original.order_id).await?;
+    if let Some(existing) = siblings.iter().find(|i| {
+        blocks_another_storno(i.kind, i.status, i.original_invoice_id, original.id)
+    }) {
+        return Err(AppError::rule(
+            "not_stornoable",
+            format!(
+                "a storno of {} already exists ({}, {})",
+                original.number,
+                existing.number,
+                existing.status.as_str()
             ),
         ));
     }
@@ -891,7 +925,16 @@ pub async fn annul_job(state: &AppState, payload: &AnnulPayload) -> anyhow::Resu
     {
         Ok(response) => response,
         Err(error) if error.is_retryable() => {
-            note_attempt(state, invoice.id, &error).await?;
+            // `note_attempt` only writes to a row still `submitting`, and an invoice being
+            // annulled is `issued` or `stornoed`: record the attempt on it directly, so the
+            // screen can say why the annulment has not happened yet.
+            sqlx::query(
+                "UPDATE invoices SET nav_message = $2 WHERE id = $1 AND status <> 'annulled'",
+            )
+            .bind(invoice.id)
+            .bind(format!("annulment not yet filed: {error}"))
+            .execute(&state.db)
+            .await?;
             return Err(anyhow!("{error}"));
         }
         Err(error) => {
@@ -985,14 +1028,17 @@ pub async fn create_proforma(
         .ok_or(AppError::NotFound("partner"))?;
     let snapshot = snapshot_lines(&items, currency, vat_rate, 1)?;
     let exchange_rate = exchange_rate(&mut conn, currency, issue_date).await?;
+    let customer = customer_party(&partner)?;
+    drop(conn);
 
-    // The number is drawn inside a transaction of its own, before the render: a díjbekérő
-    // number is cheap, and a failed render should not leave a gap that looks like a lost
-    // document.
+    // The number is drawn in the same transaction that records the proforma, and the
+    // series lock is held across the render. The number is `max + 1` over stored rows, so
+    // releasing the lock before the row exists would let a concurrent request draw the
+    // same number, render and file a PDF under it, and only then fail on the unique index.
+    // A failed render rolls back and leaves no gap.
     let mut tx = state.db.begin().await?;
     let number =
         invoices::next_proforma_number(&mut tx, &nav.proforma_prefix, issue_date.year()).await?;
-    tx.commit().await?;
 
     let request = nav::ProformaRequest {
         invoice: nav::InvoiceRequest {
@@ -1005,7 +1051,7 @@ pub async fn create_proforma(
             payment_method: Some("TRANSFER".into()),
             order_numbers: Some(vec![order.number.clone()]),
             supplier: supplier_party(nav),
-            customer: customer_party(&partner)?,
+            customer,
             lines: snapshot.lines.iter().map(|(_, l)| l.clone()).collect(),
         },
         id: number.clone(),
@@ -1030,7 +1076,6 @@ pub async fn create_proforma(
     .await
     .map_err(|e| AppError::internal(format!("storing the proforma: {e}")))?;
 
-    let mut tx = state.db.begin().await?;
     let proforma = invoices::insert_proforma(
         &mut tx,
         &NewProforma {
@@ -1292,4 +1337,51 @@ fn base64_decode(value: &str) -> AppResult<Vec<u8>> {
     base64::engine::general_purpose::STANDARD
         .decode(value)
         .map_err(|e| AppError::internal(format!("the rendered PDF was not valid base64: {e}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_storno_being_reported_blocks_another_storno_of_the_same_invoice() {
+        assert!(blocks_another_storno(
+            InvoiceKind::Storno,
+            InvoiceStatus::Submitting,
+            Some(7),
+            7
+        ));
+        assert!(blocks_another_storno(
+            InvoiceKind::Storno,
+            InvoiceStatus::Issued,
+            Some(7),
+            7
+        ));
+    }
+
+    #[test]
+    fn a_rejected_storno_attempt_does_not_block_the_next_one() {
+        assert!(!blocks_another_storno(
+            InvoiceKind::Storno,
+            InvoiceStatus::Rejected,
+            Some(7),
+            7
+        ));
+    }
+
+    #[test]
+    fn only_stornos_of_this_invoice_count() {
+        assert!(!blocks_another_storno(
+            InvoiceKind::Storno,
+            InvoiceStatus::Submitting,
+            Some(8),
+            7
+        ));
+        assert!(!blocks_another_storno(
+            InvoiceKind::Invoice,
+            InvoiceStatus::Issued,
+            None,
+            7
+        ));
+    }
 }

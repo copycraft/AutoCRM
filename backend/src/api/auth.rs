@@ -131,9 +131,10 @@ async fn login(
     let user = SessionUser::from_user(&outcome.user, body.client);
     match body.client {
         SessionKind::Web => {
-            let max_age = (outcome.expires_at - chrono::Utc::now())
-                .num_seconds()
-                .max(0);
+            // Until the absolute cap, not `expires_at`: the cookie is never re-issued, and
+            // the server's sliding `expires_at` already enforces the idle timeout.
+            let now = chrono::Utc::now();
+            let max_age = auth::cookie_max_age_secs(SessionKind::Web, now, now);
             let cookie = Cookie::build((SESSION_COOKIE, outcome.token))
                 .http_only(true)
                 .secure(state.config.cookie_secure)

@@ -1,13 +1,26 @@
 'use client';
 
-import { QueryClient, QueryClientProvider, keepPreviousData } from '@tanstack/react-query';
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+  keepPreviousData,
+} from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { ApiError } from '@/lib/api/errors';
 
 export function QueryProvider({ children }: { children: ReactNode }) {
-  const [client] = useState(
-    () =>
-      new QueryClient({
+  const [client] = useState(() => {
+    // FRONTEND_PLAN.md §14: "401 returns to login". The AppShell redirects when the cached
+    // `me` is empty, so a 401 from any request (session expired, revoked, or the account
+    // deactivated) empties it; otherwise only a reload would notice.
+    const signOutOn401 = (err: unknown) => {
+      if (err instanceof ApiError && err.status === 401) qc.setQueryData(qk.me, null);
+    };
+    const qc: QueryClient = new QueryClient({
+        queryCache: new QueryCache({ onError: signOutOn401 }),
+        mutationCache: new MutationCache({ onError: signOutOn401 }),
         defaultOptions: {
           queries: {
             staleTime: 30_000,
@@ -24,8 +37,9 @@ export function QueryProvider({ children }: { children: ReactNode }) {
           },
           mutations: { retry: false },
         },
-      }),
-  );
+      });
+    return qc;
+  });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 

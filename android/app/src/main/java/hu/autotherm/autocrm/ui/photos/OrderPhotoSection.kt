@@ -124,7 +124,17 @@ class OrderPhotoViewModel(
             file.delete()
             return
         }
-        add(listOf(uri), orderId, orderNumber)
+        // The camera already wrote into the queue's own directory: move that file into the
+        // queue (enqueue), rather than copying it through its URI and leaving the original
+        // behind as orphaned bytes nothing ever deletes.
+        viewModelScope.launch {
+            val message = when (queue.enqueue(file, orderId, orderNumber, _state.value.category)) {
+                is UploadQueue.Enqueued.Queued -> "1 fotó sorba állítva."
+                is UploadQueue.Enqueued.Duplicate -> "1 már sorban állt."
+                is UploadQueue.Enqueued.Unreadable -> "1 nem olvasható."
+            }
+            _state.value = _state.value.copy(message = message)
+        }
     }
 
     fun clearMessage() {

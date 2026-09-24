@@ -34,12 +34,25 @@ import hu.autotherm.autocrm.ui.common.StatusBadge
 import hu.autotherm.autocrm.ui.common.Tone
 import hu.autotherm.autocrm.ui.common.describeError
 import hu.autotherm.autocrm.ui.theme.Steel500
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+/**
+ * The last 30 days, today inclusive: (from, to). "Today" is the Budapest business day,
+ * as on the backend (service::business_today) and the web (budapestIsoPlus), not the
+ * phone's own zone: a phone set to UTC or abroad would otherwise ask for the wrong window
+ * around midnight.
+ */
+internal fun workloadWindow(now: Instant = Instant.now()): Pair<LocalDate, LocalDate> {
+    val to = now.atZone(ZoneId.of("Europe/Budapest")).toLocalDate()
+    return to.minusDays(29) to to
+}
 
 /**
  * The Monday-meeting numbers in pocket form: workshop load over the last 30 days
@@ -68,8 +81,7 @@ class ReportsViewModel(private val api: AutoCrmApi) : ViewModel() {
                 error = null,
             )
             try {
-                val to = LocalDate.now()
-                val from = to.minusDays(29)
+                val (from, to) = workloadWindow()
                 val workloadDeferred = async { api.workload(from.toString(), to.toString()) }
                 val stalledDeferred = async { api.stalled() }
                 _state.value = State(

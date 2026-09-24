@@ -123,7 +123,8 @@ class Uploader(
             if (!it.isSuccessful) {
                 val detail = it.body?.string()?.take(300).orEmpty()
                 // A presigned URL that has expired answers 403. That is retryable: the next
-                // attempt asks for a fresh ticket, because markRetryable clears this one.
+                // attempt asks for a fresh ticket, because a ticket is only stored after
+                // its PUT succeeded.
                 throw if (it.code in 500..599 || it.code == 403) {
                     ApiException.Server(it.code, detail)
                 } else {

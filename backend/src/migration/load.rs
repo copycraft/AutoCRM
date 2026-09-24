@@ -314,9 +314,16 @@ pub fn parse_timestamp(s: &str, tz: Tz) -> Option<DateTime<Utc>> {
         "%Y-%m-%d %H:%M",
     ] {
         if let Ok(naive) = NaiveDateTime::parse_from_str(s, format) {
+            // A wall-clock time inside the spring-forward gap (02:00–03:00 on the last
+            // Sunday of March in Budapest) does not exist; read it as the clock after
+            // the jump rather than dropping a real record's timestamp.
             return tz
                 .from_local_datetime(&naive)
                 .earliest()
+                .or_else(|| {
+                    tz.from_local_datetime(&(naive + chrono::TimeDelta::hours(1)))
+                        .earliest()
+                })
                 .map(|d| d.with_timezone(&Utc));
         }
     }
@@ -1421,6 +1428,20 @@ mod tests {
         );
         assert!(parse_timestamp("2019.05.10", tz).is_some());
         assert!(parse_timestamp("garbage", tz).is_none());
+    }
+
+    #[test]
+    fn timestamps_in_the_spring_forward_gap_still_parse_to_that_day() {
+        // 2019-03-31 02:00–03:00 does not exist in Budapest (clocks jump to 03:00).
+        // A MiniCRM CreatedAt inside that hour is still a real record from that day;
+        // dropping it would set the valuation date to "today at load time".
+        let tz = chrono_tz::Europe::Budapest;
+        let parsed = parse_timestamp("2019-03-31 02:30:00", tz).expect("gap time must parse");
+        assert_eq!(
+            parsed.with_timezone(&tz).date_naive(),
+            NaiveDate::from_ymd_opt(2019, 3, 31).unwrap()
+        );
+        assert_eq!(parsed.to_rfc3339(), "2019-03-31T01:30:00+00:00");
     }
 
     #[test]

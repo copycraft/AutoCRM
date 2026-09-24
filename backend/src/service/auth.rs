@@ -37,8 +37,28 @@ pub fn session_expiry(
     created_at: DateTime<Utc>,
     now: DateTime<Utc>,
 ) -> DateTime<Utc> {
-    let (idle, absolute) = lifetimes(kind);
-    (now + idle).min(created_at + absolute)
+    let (idle, _) = lifetimes(kind);
+    (now + idle).min(session_absolute_expiry(kind, created_at))
+}
+
+/// The hard end of a session, however active it is.
+pub fn session_absolute_expiry(kind: SessionKind, created_at: DateTime<Utc>) -> DateTime<Utc> {
+    let (_, absolute) = lifetimes(kind);
+    created_at + absolute
+}
+
+/// `Max-Age` for the web session cookie, in seconds. The cookie is set once, at login, and
+/// never re-issued, so it must outlive every server-side renewal: it lasts until the
+/// absolute cap and the server's `expires_at` enforces the idle timeout. Tying it to the
+/// first idle window would make the browser drop an active session after 7 days.
+pub fn cookie_max_age_secs(
+    kind: SessionKind,
+    created_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> i64 {
+    (session_absolute_expiry(kind, created_at) - now)
+        .num_seconds()
+        .max(0)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -275,6 +295,23 @@ mod tests {
         assert_eq!(
             session_expiry(SessionKind::Web, created, late),
             created + TimeDelta::days(30)
+        );
+    }
+
+    #[test]
+    fn web_cookie_outlives_the_idle_window_until_the_absolute_cap() {
+        // DECISIONS.md: web sessions are 7-day idle / 30-day absolute. The cookie is only
+        // set at login, so an active user must keep it for 30 days, not 7.
+        let now: DateTime<Utc> = "2026-01-01T00:00:00Z".parse().unwrap();
+        let idle_expiry = session_expiry(SessionKind::Web, now, now);
+        assert_eq!(idle_expiry, now + TimeDelta::days(7));
+        assert_eq!(
+            cookie_max_age_secs(SessionKind::Web, now, now),
+            TimeDelta::days(30).num_seconds()
+        );
+        assert_eq!(
+            cookie_max_age_secs(SessionKind::Web, now, now + TimeDelta::days(31)),
+            0
         );
     }
 

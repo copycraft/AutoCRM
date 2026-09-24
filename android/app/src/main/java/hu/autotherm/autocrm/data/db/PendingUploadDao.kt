@@ -30,11 +30,16 @@ interface PendingUploadDao {
      * The worker's work list. `uploading` rows are included because a process death leaves
      * them stranded in that state; whoever picks them up next re-checks with the server,
      * which is idempotent.
+     *
+     * Inspection rows are excluded here, in SQL, not after the LIMIT: they belong to the
+     * inspection sync, and a walkaround's 20+ older inspection photos would otherwise fill
+     * every batch and starve the production photos queued behind them.
      */
     @Query(
         """
         SELECT * FROM pending_uploads
          WHERE state IN ('pending', 'uploading')
+           AND category != 'inspection'
            AND next_attempt_at <= :now
          ORDER BY created_at, id
          LIMIT :limit
@@ -81,13 +86,18 @@ interface PendingUploadDao {
     )
     suspend fun markDone(id: Long, imageId: Long?)
 
-    /** A failure that may pass: record it, back off, leave it queued. */
+    /**
+     * A failure that may pass: record it, back off, leave it queued.
+     *
+     * The ticket is kept: it is only stored after a successful PUT, so it means "the bytes
+     * are already in storage" and the next attempt goes straight to complete while it is
+     * still valid (see [PendingUpload.isTicketUsable]).
+     */
     @Query(
         """
         UPDATE pending_uploads
            SET state = 'pending', attempts = attempts + 1,
-               last_error = :error, next_attempt_at = :nextAttemptAt,
-               ticket = NULL, ticket_expires_at = NULL
+               last_error = :error, next_attempt_at = :nextAttemptAt
          WHERE id = :id
         """,
     )
@@ -101,13 +111,22 @@ interface PendingUploadDao {
     @Query(
         """
         UPDATE pending_uploads
-           SET state = 'pending', attempts = 0, next_attempt_at = 0, last_error = NULL
+           SET state = 'pending', attempts = 0, next_attempt_at = 0, last_error = NULL,
+               ticket = NULL, ticket_expires_at = NULL
          WHERE state IN ('blocked', 'pending')
         """,
     )
     suspend fun retryAll()
 
-    @Query("UPDATE pending_uploads SET state = 'pending', attempts = 0, next_attempt_at = 0 WHERE id = :id")
+    /** A manual retry starts clean, with a fresh ticket. */
+    @Query(
+        """
+        UPDATE pending_uploads
+           SET state = 'pending', attempts = 0, next_attempt_at = 0,
+               ticket = NULL, ticket_expires_at = NULL
+         WHERE id = :id
+        """,
+    )
     suspend fun retryOne(id: Long)
 
     @Query("DELETE FROM pending_uploads WHERE id = :id")

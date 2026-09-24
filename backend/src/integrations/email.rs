@@ -245,6 +245,11 @@ pub fn apply_redirect(email: &mut OutgoingEmail, redirect_to: &str) {
     if !email.cc.is_empty() {
         original = format!("{original}, cc: {}", email.cc.join(", "));
     }
+    // A newsletter's audience is in BCC: say how many, never who (the subject may be
+    // forwarded), and never deliver to them.
+    if !email.bcc.is_empty() {
+        original = format!("{original}, bcc: {}", email.bcc.len());
+    }
     let notice = format!("TESZT – eredeti címzett: {original}");
     email.subject = format!("[{notice}] {}", email.subject);
     email.body_text = format!("*** {notice} ***\n\n{}", email.body_text);
@@ -263,6 +268,7 @@ pub fn apply_redirect(email: &mut OutgoingEmail, redirect_to: &str) {
     }
     email.to = redirect_to.to_string();
     email.cc.clear();
+    email.bcc.clear();
 }
 
 /// Plain-language hints for the errors Google Workspace's SMTP relay commonly returns, so
@@ -450,6 +456,21 @@ mod tests {
             "{}",
             e.body_html
         );
+    }
+
+    #[test]
+    fn redirect_reaches_only_the_redirect_address_even_with_bcc() {
+        // A newsletter blast carries its audience in BCC. Under a redirect (staging, the
+        // first days after cutover) nobody but the redirect inbox may receive it.
+        let mut e = sample();
+        e.bcc = vec!["reader1@example.hu".into(), "reader2@example.hu".into()];
+        apply_redirect(&mut e, "teszt@autotherm.hu");
+        assert_eq!(e.to, "teszt@autotherm.hu");
+        assert!(e.cc.is_empty());
+        assert!(e.bcc.is_empty(), "bcc survived the redirect: {:?}", e.bcc);
+        let text = formatted(&e);
+        assert!(!text.contains("reader1@example.hu"), "{text}");
+        assert!(e.subject.contains("bcc: 2"), "{}", e.subject);
     }
 
     #[test]

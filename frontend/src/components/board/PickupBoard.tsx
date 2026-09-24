@@ -7,8 +7,7 @@
 
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { useQuery } from '@tanstack/react-query';
-import { AppShell } from '@/components/layout/AppShell';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { DateDisplay } from '@/components/ui/DateDisplay';
@@ -28,24 +27,34 @@ export function PickupBoard() {
     refetchInterval: 30_000,
     staleTime: 15_000,
   });
-  const working = useQuery({
-    queryKey: qk.orders({ open: true, board: true }),
-    queryFn: () => ordersApi.list({ open: true, limit: 100 }),
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+  // One query per workshop stage, filtered on the server. Fetching the first page of
+  // *all* open orders and filtering here dropped older in-work cars as soon as newer
+  // intake orders filled that page.
+  const workingQueries = useQueries({
+    queries: WORK_STAGES.map((stage) => ({
+      queryKey: qk.orders({ stage, board: true }),
+      queryFn: () => ordersApi.list({ stage, limit: 200 }),
+      refetchInterval: 30_000,
+      staleTime: 15_000,
+    })),
   });
+  const working = {
+    isPending: workingQueries.some((q) => q.isPending),
+    isError: workingQueries.some((q) => q.isError),
+    error: workingQueries.find((q) => q.isError)?.error ?? null,
+    refetch: () => Promise.all(workingQueries.map((q) => q.refetch())),
+  };
 
   // Progressive: each half paints when its own query lands instead of holding
   // the whole wall display behind the slower of the two.
   const readyCars = [...(ready.data?.items ?? [])].sort((a, b) =>
     a.stage_entered_at > b.stage_entered_at ? -1 : 1,
   );
-  const inWork = (working.data?.items ?? []).filter((o) =>
-    WORK_STAGES.includes(o.stage_key),
-  );
+  const inWork = workingQueries.flatMap((q) => q.data?.items ?? []);
 
+  // The route (app/[locale]/board/page.tsx) supplies the one AppShell.
   return (
-    <AppShell>
+    <>
       <section aria-label={t('readyTitle')}>
         <h2 className="text-page-title font-semibold">{t('readyTitle')}</h2>
         {ready.isPending ? (
@@ -108,6 +117,6 @@ export function PickupBoard() {
           </ul>
         )}
       </section>
-    </AppShell>
+    </>
   );
 }
