@@ -63,9 +63,13 @@ export default function NewEmailPage({
         <ComposeForm
           about={Object.keys(about).length > 0 ? about : undefined}
           defaultTo={params.to}
-          onSent={(id) => {
+          onSent={(id, newsletterRecipients) => {
             void qc.invalidateQueries({ queryKey: ['emails'] });
-            toast.success(t('queuedNote'));
+            toast.success(
+              newsletterRecipients != null
+                ? t('newsletterQueuedNote', { count: newsletterRecipients })
+                : t('queuedNote'),
+            );
             router.replace(`/${locale}/emails/${id}`);
           }}
         />

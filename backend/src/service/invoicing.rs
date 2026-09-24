@@ -710,9 +710,25 @@ pub async fn submit_invoice(state: &AppState, payload: &SubmitPayload) -> anyhow
 
     let outcome = match invoice.kind {
         InvoiceKind::Invoice => {
-            let request = build_request(state, nav, &invoice, payload.payment_method.as_deref())
-                .await
-                .map_err(|e| anyhow!("building the invoice: {e}"))?;
+            let request = match build_request(
+                state,
+                nav,
+                &invoice,
+                payload.payment_method.as_deref(),
+            )
+            .await
+            {
+                Ok(request) => request,
+                Err(e) => {
+                    // Unbuildable, not unreported: the partner may be fixed or the FX
+                    // may arrive while the queue retries, but when it gives up the row
+                    // must reach a terminal state (INV-L10). The marker tells the
+                    // dead-letter branch what this is.
+                    let message = format!("building the invoice: {e}");
+                    note_attempt(state, invoice.id, &message).await?;
+                    return Err(anyhow!("{UNBUILDABLE_MARKER}{message}"));
+                }
+            };
             client.create_invoice(&request).await
         }
         InvoiceKind::Storno => {
@@ -742,17 +758,36 @@ pub async fn submit_invoice(state: &AppState, payload: &SubmitPayload) -> anyhow
         Err(error) if error.is_retryable() => {
             // The report may or may not have reached NAV, so the row stays `submitting`:
             // saying "rejected" here would be a guess, and the wrong one costs an invoice.
-            note_attempt(state, invoice.id, &error).await?;
+            note_attempt(state, invoice.id, &error.to_string()).await?;
             Err(anyhow!("{error}"))
         }
         Err(error) => {
+            // A duplicate-number answer after a timeout is not a rejection of our
+            // document: the first attempt may have been stored. Read back what NAV
+            // holds before deciding (INV-L8).
+            let mut reconcile_note: Option<String> = None;
+            if error.nav_error_code() == Some("INVOICE_NUMBER_ALREADY_EXISTS")
+                && invoice.kind == InvoiceKind::Invoice
+            {
+                match try_adopt(state, &invoice, payload.send_email).await {
+                    Ok(Adopt::Yes) => return Ok(()),
+                    Ok(Adopt::No(note)) => reconcile_note = Some(note),
+                    // The read-back is itself of unknown outcome: stay `submitting`
+                    // and retry later, like any other unreachable error.
+                    Err(e) => return Err(e),
+                }
+            }
             let fault = error.fault();
+            let message = match reconcile_note {
+                Some(note) => format!("{error} ({note})"),
+                None => error.to_string(),
+            };
             let mut tx = state.db.begin().await?;
             invoices::mark_rejected(
                 &mut tx,
                 invoice.id,
                 error.nav_error_code(),
-                &error.to_string(),
+                &message,
                 error.messages(),
                 fault.and_then(|f| f.transaction_id.as_deref()),
             )
@@ -767,7 +802,7 @@ pub async fn submit_invoice(state: &AppState, payload: &SubmitPayload) -> anyhow
                     "invoice_id": invoice.id,
                     "number": invoice.number,
                     "nav_error_code": error.nav_error_code(),
-                    "message": error.to_string(),
+                    "message": message,
                 }),
             )
             .await?;
@@ -787,11 +822,11 @@ pub async fn submit_invoice(state: &AppState, payload: &SubmitPayload) -> anyhow
 ///
 /// The screen shows this while the queue keeps trying, so "nothing is happening" is never
 /// the whole story a user gets.
-async fn note_attempt(state: &AppState, invoice_id: i64, error: &NavError) -> anyhow::Result<()> {
+async fn note_attempt(state: &AppState, invoice_id: i64, message: &str) -> anyhow::Result<()> {
     sqlx::query!(
         "UPDATE invoices SET nav_message = $2 WHERE id = $1 AND status = 'submitting'",
         invoice_id,
-        error.to_string()
+        message
     )
     .execute(&state.db)
     .await?;
@@ -822,7 +857,24 @@ async fn record_success(
     // The PDF is a separate concern from the report: NAV has the data either way, and an
     // object store that is briefly unavailable must not turn a stored invoice into a
     // failed one. A missing PDF is visible on the row and can be fetched again.
-    let document_id = match store_invoice_pdf(state, &updated).await {
+    finish_issuance(state, &updated, send_email).await?;
+    tracing::info!(
+        invoice_id = updated.id,
+        number = %updated.number,
+        transaction_id = %response.transaction_id,
+        "NAV stored the report"
+    );
+    Ok(())
+}
+
+/// What follows every stored report — fresh or reconciled: the PDF and the customer
+/// letter. Both are best effort; neither changes the stored status.
+async fn finish_issuance(
+    state: &AppState,
+    updated: &Invoice,
+    send_email: bool,
+) -> anyhow::Result<()> {
+    let document_id = match store_invoice_pdf(state, updated).await {
         Ok(id) => Some(id),
         Err(e) => {
             tracing::error!(invoice_id = updated.id, error = %e, "the invoice was reported but its PDF could not be stored");
@@ -831,15 +883,219 @@ async fn record_success(
     };
 
     if send_email {
-        if let Err(e) = queue_invoice_email(state, &updated, document_id).await {
+        if let Err(e) = queue_invoice_email(state, updated, document_id).await {
             tracing::error!(invoice_id = updated.id, error = %e, "the invoice was reported but its letter could not be queued");
         }
     }
+    Ok(())
+}
+
+/// The outcome of reading back a duplicate number (INV-L8).
+enum Adopt {
+    /// NAV holds exactly our document: adopt it, file nothing new.
+    Yes,
+    /// Not ours (or nothing there): the human-readable reason, kept on the row so the
+    /// rejection that follows says why adoption was refused.
+    No(String),
+}
+
+/// A retry answered `INVOICE_NUMBER_ALREADY_EXISTS` after a timeout: read back what
+/// NAV holds under the number and adopt it when it is our document.
+///
+/// `Ok(Yes)` adopted and finished (PDF, letter) like any stored report. `Ok(No)` means
+/// the row should be rejected with the reason attached. `Err` means the read-back is
+/// itself of unknown outcome (unreachable sidecar): the row stays `submitting` and the
+/// job retries, because guessing here is exactly the bug being fixed.
+async fn try_adopt(
+    state: &AppState,
+    invoice: &Invoice,
+    send_email: bool,
+) -> anyhow::Result<Adopt> {
+    let (client, _) = sidecar(&state.config)?;
+    let fetched = match client.fetch_invoice(&invoice.number).await {
+        Ok(fetched) => fetched,
+        Err(error) if error.is_retryable() => {
+            note_attempt(state, invoice.id, &error.to_string()).await?;
+            return Err(anyhow!("{error}"));
+        }
+        Err(error) => {
+            return Ok(Adopt::No(format!(
+                "NAV holds nothing under {} to adopt ({error})",
+                invoice.number
+            )));
+        }
+    };
+    match reconcile_decision(invoice, &fetched) {
+        Ok(()) => {
+            adopt_reconciled(state, invoice, send_email).await?;
+            Ok(Adopt::Yes)
+        }
+        Err(reason) => Ok(Adopt::No(format!(
+            "NAV holds a different document under {}: {reason}; not adopted",
+            invoice.number
+        ))),
+    }
+}
+
+/// Pure identity check between the stored row and what NAV holds: the number, the
+/// issue date and the totals in the stored currency. Amounts are compared as minor
+/// units, never as floats. Unit-tested below.
+fn reconcile_decision(
+    stored: &Invoice,
+    fetched: &nav::FetchedInvoice,
+) -> Result<(), String> {
+    if fetched.invoice_number != stored.number {
+        return Err(format!(
+            "read-back names {}, not {}",
+            fetched.invoice_number, stored.number
+        ));
+    }
+    let held_date: NaiveDate = fetched.issue_date.parse().map_err(|_| {
+        format!(
+            "NAV reports an unreadable issue date: {}",
+            fetched.issue_date
+        )
+    })?;
+    if held_date != stored.issue_date {
+        return Err(format!(
+            "issue date {held_date}, ours is {}",
+            stored.issue_date
+        ));
+    }
+    let Some(totals) = &fetched.totals else {
+        return Err("NAV reports no totals for this number".to_string());
+    };
+    if totals.currency != stored.currency {
+        return Err(format!(
+            "currency {}, ours is {}",
+            totals.currency, stored.currency
+        ));
+    }
+    for (label, held, ours) in [
+        ("net", totals.net.as_str(), stored.net_amount),
+        ("vat", totals.vat.as_str(), stored.vat_amount),
+        ("gross", totals.gross.as_str(), stored.gross_amount),
+    ] {
+        let held_minor =
+            nav_decimal_to_minor(held).ok_or_else(|| format!("unreadable {label} total: {held}"))?;
+        if held_minor != ours {
+            return Err(format!(
+                "{label} total {held} {}, ours is {} {}",
+                totals.currency,
+                minor_to_decimal_string(ours, stored.currency.parse().map_err(|_| format!(
+                    "stored currency is not a known currency: {}",
+                    stored.currency
+                ))?),
+                stored.currency
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// A NAV decimal total ("1270000.00") as minor units. More than two fraction digits is
+/// not a money amount we could have sent: refuse rather than round.
+fn nav_decimal_to_minor(value: &str) -> Option<i64> {
+    let amount: Decimal = value.trim().parse().ok()?;
+    if amount.scale() > 2 {
+        return None;
+    }
+    (amount * Decimal::new(100, 0)).try_into().ok()
+}
+
+/// Prefix on a submit-job failure that means the request could not be built (INV-L10).
+///
+/// The partner may be fixed or the FX may arrive while the queue retries, but when the
+/// queue gives up, the dead-letter branch must recognise this failure and move the row
+/// to a terminal state instead of leaving it `submitting` forever.
+const UNBUILDABLE_MARKER: &str = "invoice_unbuildable: ";
+
+/// Whether a dead-lettered submit job failed because the request could not be built.
+/// Same crate as the worker, so the branch in `jobs::run_one` can ask.
+pub(crate) fn is_unbuildable_dead_letter(message: &str) -> bool {
+    message.starts_with(UNBUILDABLE_MARKER)
+}
+
+/// Called by the worker when a submit job that could never build its request runs out
+/// of attempts (INV-L10).
+///
+/// The row becomes `rejected` with a local `unbuildable` code: nothing was ever sent
+/// to NAV, the message says so (the number is still spent — a corrected invoice is a
+/// new document, like any other rejection), and the order is free for a new invoice.
+/// Without this the row stays `submitting` forever, the screen polls it forever, and
+/// no invoice can ever be issued for the order again.
+pub async fn job_dead_lettered_unbuildable(
+    state: &AppState,
+    invoice_id: i64,
+    error: &str,
+) -> anyhow::Result<()> {
+    let mut tx = state.db.begin().await?;
+    let Some(invoice) = invoices::lock(&mut tx, invoice_id).await? else {
+        return Ok(());
+    };
+    if invoice.status != InvoiceStatus::Submitting {
+        // Decided meanwhile (a human intervened, or a late retry built it after all).
+        return Ok(());
+    }
+    let cause = error
+        .strip_prefix(UNBUILDABLE_MARKER)
+        .unwrap_or(error);
+    let message = format!(
+        "the invoice could not be built for reporting ({cause}); nothing was sent to NAV, but the number is spent: fix the data and issue a new invoice"
+    );
+    invoices::mark_rejected(&mut tx, invoice.id, Some("unbuildable"), &message, &[], None)
+        .await?;
+    audit::record(
+        &mut *tx,
+        None,
+        "order",
+        invoice.order_id,
+        "invoice_rejected",
+        json!({
+            "invoice_id": invoice.id,
+            "number": invoice.number,
+            "nav_error_code": "unbuildable",
+            "message": message,
+        }),
+    )
+    .await?;
+    tx.commit().await?;
+    tracing::warn!(invoice_id, "submit job dead-lettered an unbuildable invoice; marked rejected");
+    Ok(())
+}
+
+/// Adopts the stored report NAV already holds: same `issued` a fresh success produces,
+/// minus the transaction id the timed-out attempt never gave us. Then the PDF and the
+/// letter, like any stored report.
+async fn adopt_reconciled(
+    state: &AppState,
+    invoice: &Invoice,
+    send_email: bool,
+) -> anyhow::Result<()> {
+    let message = format!(
+        "NAV already held {} with identical totals (reconciled after INVOICE_NUMBER_ALREADY_EXISTS); adopted without a new report. The first attempt's transaction id is unknown.",
+        invoice.number
+    );
+    let mut tx = state.db.begin().await?;
+    invoices::mark_issued_reconciled(&mut tx, invoice.id, &message).await?;
+    audit::record(
+        &mut *tx,
+        None,
+        "order",
+        invoice.order_id,
+        "invoice_reconciled",
+        json!({ "invoice_id": invoice.id, "number": invoice.number }),
+    )
+    .await?;
+    tx.commit().await?;
+    let updated = invoices::find(&state.db, invoice.id)
+        .await?
+        .ok_or_else(|| anyhow!("invoice {} vanished while being adopted", invoice.id))?;
+    finish_issuance(state, &updated, send_email).await?;
     tracing::info!(
         invoice_id = updated.id,
         number = %updated.number,
-        transaction_id = %response.transaction_id,
-        "NAV stored the report"
+        "NAV already held the report; adopted it"
     );
     Ok(())
 }
@@ -862,6 +1118,39 @@ pub async fn store_invoice_pdf(state: &AppState, invoice: &Invoice) -> anyhow::R
     let mut conn = state.db.acquire().await?;
     invoices::set_document(&mut conn, invoice.id, document_id).await?;
     Ok(document_id)
+}
+
+/// Fetches the PDF of an issued invoice again (INV-L9).
+///
+/// The report is already stored at NAV; this only re-renders it from what NAV holds
+/// and files it with the order's documents. Refused when there is nothing to fetch
+/// (the invoice is not issued) or nothing missing (the PDF is already filed).
+pub async fn refetch_pdf(state: &AppState, id: i64) -> AppResult<Invoice> {
+    let invoice = invoices::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("invoice"))?;
+    if invoice.status != InvoiceStatus::Issued {
+        return Err(AppError::rule(
+            "not_issued",
+            format!(
+                "only an issued invoice has a report to render; {} is {}",
+                invoice.number,
+                invoice.status.as_str()
+            ),
+        ));
+    }
+    if invoice.document_id.is_some() {
+        return Err(AppError::conflict(
+            "duplicate",
+            format!("invoice {} already has its PDF", invoice.number),
+        ));
+    }
+    let _document_id = store_invoice_pdf(state, &invoice)
+        .await
+        .map_err(|e| AppError::rule("pdf_unavailable", format!("the PDF could not be fetched again: {e:#}")))?;
+    invoices::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("invoice"))
 }
 
 /// Stores a PDF the sidecar produced as a document of the order.
@@ -1344,6 +1633,138 @@ mod tests {
     use super::*;
 
     #[test]
+    fn only_stornos_of_this_invoice_count() {
+        assert!(!blocks_another_storno(
+            InvoiceKind::Storno,
+            InvoiceStatus::Submitting,
+            Some(8),
+            7
+        ));
+        assert!(!blocks_another_storno(
+            InvoiceKind::Invoice,
+            InvoiceStatus::Issued,
+            None,
+            7
+        ));
+    }
+
+    // INV-L8: adopting a duplicate-number answer is only safe when NAV holds exactly
+    // our document. The decision is pure so it is tested without a database.
+    fn stored_row() -> Invoice {
+        use chrono::{TimeZone, Utc};
+        Invoice {
+            id: 1,
+            order_id: 7,
+            number: "AT2026-0001".into(),
+            kind: InvoiceKind::Invoice,
+            status: InvoiceStatus::Submitting,
+            original_invoice_id: None,
+            currency: "HUF".into(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 9, 21).unwrap(),
+            delivery_date: NaiveDate::from_ymd_opt(2026, 9, 21).unwrap(),
+            payment_date: None,
+            net_amount: 100_000_000,
+            vat_amount: 27_000_000,
+            gross_amount: 127_000_000,
+            nav_transaction_id: None,
+            nav_status: None,
+            nav_error_code: None,
+            nav_message: None,
+            nav_messages: serde_json::Value::Array(Vec::new()),
+            annulment_transaction_id: None,
+            annulment_code: None,
+            annulment_reason: None,
+            annulled_at: None,
+            document_id: None,
+            submitted_at: None,
+            issued_at: None,
+            created_by: None,
+            created_at: Utc.with_ymd_and_hms(2026, 9, 21, 9, 0, 0).unwrap(),
+            updated_at: Utc.with_ymd_and_hms(2026, 9, 21, 9, 0, 0).unwrap(),
+        }
+    }
+
+    fn held_row() -> nav::FetchedInvoice {
+        nav::FetchedInvoice {
+            invoice_number: "AT2026-0001".into(),
+            issue_date: "2026-09-21".into(),
+            totals: Some(nav::Totals {
+                currency: "HUF".into(),
+                net: "1000000.00".into(),
+                vat: "270000.00".into(),
+                gross: "1270000.00".into(),
+            }),
+        }
+    }
+
+    #[test]
+    fn a_retry_is_adopted_when_nav_holds_our_exact_document() {
+        assert_eq!(reconcile_decision(&stored_row(), &held_row()), Ok(()));
+    }
+
+    #[test]
+    fn a_retry_is_refused_when_any_total_differs() {
+        let mut held = held_row();
+        held.totals.as_mut().unwrap().gross = "1270000.01".into();
+        let Err(reason) = reconcile_decision(&stored_row(), &held) else {
+            panic!("a different gross must not be adopted");
+        };
+        assert!(reason.contains("gross"), "reason was {reason}");
+    }
+
+    #[test]
+    fn a_retry_is_refused_when_currency_or_date_differ() {
+        let mut held = held_row();
+        held.totals.as_mut().unwrap().currency = "EUR".into();
+        assert!(reconcile_decision(&stored_row(), &held).is_err());
+
+        let mut held = held_row();
+        held.issue_date = "2026-09-22".into();
+        let Err(reason) = reconcile_decision(&stored_row(), &held) else {
+            panic!("a different issue date must not be adopted");
+        };
+        assert!(reason.contains("2026-09-22"), "reason was {reason}");
+    }
+
+    #[test]
+    fn a_retry_is_refused_without_totals_or_with_unreadable_ones() {
+        let mut held = held_row();
+        held.totals = None;
+        assert!(reconcile_decision(&stored_row(), &held).is_err());
+
+        let mut held = held_row();
+        held.totals.as_mut().unwrap().net = "a lot".into();
+        assert!(reconcile_decision(&stored_row(), &held).is_err());
+
+        // Three fraction digits is not an amount we could have sent.
+        let mut held = held_row();
+        held.totals.as_mut().unwrap().net = "1000000.001".into();
+        assert!(reconcile_decision(&stored_row(), &held).is_err());
+    }
+
+    #[test]
+    fn nav_decimals_become_minor_units_exactly() {
+        assert_eq!(nav_decimal_to_minor("1270000.00"), Some(127_000_000));
+        assert_eq!(nav_decimal_to_minor("0.27"), Some(27));
+        assert_eq!(nav_decimal_to_minor("1000000.001"), None);
+        assert_eq!(nav_decimal_to_minor("a lot"), None);
+    }
+
+    #[test]
+    fn only_unbuildable_submit_failures_are_terminal_on_dead_letter() {
+        assert!(is_unbuildable_dead_letter(
+            "invoice_unbuildable: building the invoice: invoice_data_missing: ..."
+        ));
+        assert!(!is_unbuildable_dead_letter(
+            "the NAV sidecar is unreachable: connection refused"
+        ));
+        assert!(!is_unbuildable_dead_letter(
+            "NAV rejected the invoice: INVOICE_NUMBER_ALREADY_EXISTS: ..."
+        ));
+        assert!(!is_unbuildable_dead_letter("timed out after 600s"));
+    }
+
+    #[test]
     fn a_storno_being_reported_blocks_another_storno_of_the_same_invoice() {
         assert!(blocks_another_storno(
             InvoiceKind::Storno,
@@ -1365,22 +1786,6 @@ mod tests {
             InvoiceKind::Storno,
             InvoiceStatus::Rejected,
             Some(7),
-            7
-        ));
-    }
-
-    #[test]
-    fn only_stornos_of_this_invoice_count() {
-        assert!(!blocks_another_storno(
-            InvoiceKind::Storno,
-            InvoiceStatus::Submitting,
-            Some(8),
-            7
-        ));
-        assert!(!blocks_another_storno(
-            InvoiceKind::Invoice,
-            InvoiceStatus::Issued,
-            None,
             7
         ));
     }

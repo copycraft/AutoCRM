@@ -473,6 +473,7 @@
     "audience_direct": "Közvetlen",
     "audience_newsletter": "Hírlevél",
     "newsletterAudience": "{count} feliratkozó kapja meg BCC-ben.",
+    "newsletterQueuedNote": "Hírlevél sorba állítva, {count} címzettnek elküldve.",
     "ccHint": "Több cím pontosvesszővel",
     "noTemplate": "Nincs sablon",
     "theme": "Téma",
@@ -717,7 +718,9 @@
     "notFailed": "Csak véglegesen elakadt feladat indítható újra.",
     "invoiceDataMissing": "A partnernél hiányzik egy számlázási adat. Pótolja, majd próbálja újra.",
     "fxRateMissing": "Nincs árfolyam a teljesítés napjára. Próbálja újra az árfolyam letöltése után.",
-    "navRejected": "A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja."
+    "navRejected": "A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja.",
+    "notIssued": "Csak kiállított számlának van letölthető bizonylata.",
+    "pdfUnavailable": "A PDF most nem tölthető le. Próbálja újra később."
   },
   "stageRail": {
     "title": "Fázisok",
@@ -954,6 +957,7 @@
     "transactionId": "NAV tranzakcióazonosító",
     "rejected": "A NAV elutasította",
     "pdf": "PDF",
+    "refetchPdf": "PDF újratöltése",
     "kindStorno": "Sztornó",
     "vatRate": "Áfakulcs",
     "vatRateHint": "Tizedes tört, nem százalék: 27% helyett 0.27. Üresen hagyva az alapértelmezett.",

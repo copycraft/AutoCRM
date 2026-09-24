@@ -563,3 +563,344 @@ async fn invoicing_says_so_when_it_is_not_configured(pool: PgPool) {
         other => panic!("expected a configuration rule error, got {other:?}"),
     }
 }
+
+// ── INV-L8: reconciling a duplicate-number answer ────────────────────────────
+// The `nav_rejected` path cannot be reached through the mock sidecar (it settles
+// everything it is given), so these tests stub the sidecar's HTTP surface directly:
+// the CREATE is answered INVOICE_NUMBER_ALREADY_EXISTS — the first attempt timed out
+// after NAV stored the report — while the read-back serves a document the test
+// controls. No object store is needed: a missing PDF never fails a stored invoice.
+
+use std::sync::{Arc, Mutex};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+#[derive(Debug, Clone)]
+struct StubDoc {
+    number: String,
+    issue_date: String,
+    currency: String,
+    net: String,
+    vat: String,
+    gross: String,
+}
+
+struct StubSidecar {
+    url: String,
+    doc: Arc<Mutex<Option<StubDoc>>>,
+}
+
+impl StubSidecar {
+    async fn start() -> Self {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let doc: Arc<Mutex<Option<StubDoc>>> = Arc::new(Mutex::new(None));
+        let served = doc.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    return;
+                };
+                let served = served.clone();
+                tokio::spawn(async move {
+                    // Read through the end of the headers; the POST body is
+                    // irrelevant (the connection closes after the answer).
+                    let mut head = Vec::new();
+                    let mut byte = [0u8; 1];
+                    while !head.ends_with(b"\r\n\r\n") && head.len() < 65536 {
+                        match socket.read(&mut byte).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(_) => head.extend_from_slice(&byte),
+                        }
+                    }
+                    let head = String::from_utf8_lossy(&head);
+                    let mut parts = head.lines().next().unwrap_or("").split_whitespace();
+                    let method = parts.next().unwrap_or("");
+                    let path = parts.next().unwrap_or("");
+                    let (status, body) = if method == "POST" && path == "/invoices" {
+                        (
+                            "422 Unprocessable Entity",
+                            r#"{"error":{"kind":"nav_rejected","message":"NAV rejected the invoice: INVOICE_NUMBER_ALREADY_EXISTS: Invoice number already exists","messages":[{"source":"business","level":"ERROR","code":"INVOICE_NUMBER_ALREADY_EXISTS","message":"Invoice number already exists","path":"/InvoiceData/invoiceNumber"}]}}"#
+                                .to_string(),
+                        )
+                    } else if method == "GET" && path.starts_with("/invoices/") {
+                        match served.lock().unwrap().clone() {
+                            Some(d) => (
+                                "200 OK",
+                                format!(
+                                    r#"{{"invoiceNumber":"{}","issueDate":"{}","totals":{{"currency":"{}","net":"{}","vat":"{}","gross":"{}"}}}}"#,
+                                    d.number, d.issue_date, d.currency, d.net, d.vat, d.gross
+                                ),
+                            ),
+                            None => (
+                                "404 Not Found",
+                                r#"{"error":{"kind":"not_found","message":"NAV holds nothing under this number"}}"#
+                                    .to_string(),
+                            ),
+                        }
+                    } else {
+                        (
+                            "404 Not Found",
+                            r#"{"error":{"kind":"not_found","message":"unknown stub path"}}"#.to_string(),
+                        )
+                    };
+                    let response = format!(
+                        "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = socket.write_all(response.as_bytes()).await;
+                });
+            }
+        });
+        StubSidecar { url, doc }
+    }
+
+    fn minor_to_decimal(minor: i64) -> String {
+        format!("{}.{:02}", minor / 100, minor % 100)
+    }
+
+    fn serve(
+        &self,
+        number: &str,
+        issue_date: &str,
+        currency: &str,
+        net: i64,
+        vat: i64,
+        gross: i64,
+    ) {
+        *self.doc.lock().unwrap() = Some(StubDoc {
+            number: number.to_string(),
+            issue_date: issue_date.to_string(),
+            currency: currency.to_string(),
+            net: Self::minor_to_decimal(net),
+            vat: Self::minor_to_decimal(vat),
+            gross: Self::minor_to_decimal(gross),
+        });
+    }
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_retry_answered_duplicate_number_adopts_our_stored_report(pool: PgPool) {
+    let stub = StubSidecar::start().await;
+    let state = common::state_with_nav(pool.clone(), &stub.url, common::MOCK_SUPPLIER_TAX_NUMBER);
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
+    let queued =
+        invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+            .await
+            .unwrap();
+    // NAV holds exactly what we sent: the timed-out first attempt stored it.
+    stub.serve(
+        &queued.number,
+        &queued.issue_date.to_string(),
+        &queued.currency,
+        queued.net_amount,
+        queued.vat_amount,
+        queued.gross_amount,
+    );
+
+    invoicing::submit_invoice(
+        &state,
+        &SubmitPayload {
+            invoice_id: queued.id,
+            send_email: false,
+            payment_method: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let adopted = invoices::find(&pool, queued.id).await.unwrap().unwrap();
+    assert_eq!(
+        adopted.status, InvoiceStatus::Issued,
+        "our stored report must be adopted, not rejected; message was {:?}",
+        adopted.nav_message
+    );
+    assert_eq!(adopted.nav_status.as_deref(), Some("DONE"));
+    assert!(
+        adopted.nav_transaction_id.is_none(),
+        "the timed-out attempt's transaction id is unknowable"
+    );
+    assert!(
+        adopted
+            .nav_message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("reconciled"),
+        "the row must say why there is no transaction id"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_retry_is_rejected_when_nav_holds_a_different_document(pool: PgPool) {
+    let stub = StubSidecar::start().await;
+    let state = common::state_with_nav(pool.clone(), &stub.url, common::MOCK_SUPPLIER_TAX_NUMBER);
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
+    let queued =
+        invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+            .await
+            .unwrap();
+    // Same number, someone else's totals: adopting it would bless a foreign document.
+    stub.serve(
+        &queued.number,
+        &queued.issue_date.to_string(),
+        &queued.currency,
+        queued.net_amount,
+        queued.vat_amount,
+        queued.gross_amount + 1,
+    );
+
+    invoicing::submit_invoice(
+        &state,
+        &SubmitPayload {
+            invoice_id: queued.id,
+            send_email: false,
+            payment_method: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let refused = invoices::find(&pool, queued.id).await.unwrap().unwrap();
+    assert_eq!(refused.status, InvoiceStatus::Rejected);
+    let message = refused.nav_message.unwrap_or_default();
+    assert!(
+        message.contains("INVOICE_NUMBER_ALREADY_EXISTS"),
+        "the duplicate answer stays on the row, was: {message}"
+    );
+    assert!(
+        message.contains("not adopted"),
+        "the row must say why it was not adopted, was: {message}"
+    );
+}
+
+// ── INV-L10: an unbuildable submit reaches a terminal state ──────────────────
+// No sidecar is needed: breaking the partner's address fails the request before any
+// HTTP happens, which is exactly the stuck case (the sidecar never sees it).
+
+#[sqlx::test(migrations = "./migrations")]
+async fn an_unbuildable_submit_is_rejected_when_the_queue_gives_up(pool: PgPool) {
+    // No HTTP ever happens (the request cannot be built), so the sidecar address is
+    // never called; any URL configures invoicing on.
+    let state = common::state_with_nav(pool.clone(), "http://127.0.0.1:9/", "12345678");
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
+    let queued =
+        invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+            .await
+            .unwrap();
+    // The partner is edited while the invoice is in flight: the address the report
+    // needs is gone.
+    sqlx::query("UPDATE partners SET postal_code = NULL, city = NULL, address_line = NULL")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let error = invoicing::submit_invoice(
+        &state,
+        &SubmitPayload {
+            invoice_id: queued.id,
+            send_email: false,
+            payment_method: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        format!("{error:#}").starts_with("invoice_unbuildable: "),
+        "the dead-letter branch keys on this marker, got: {error:#}"
+    );
+    let stuck = invoices::find(&pool, queued.id).await.unwrap().unwrap();
+    assert_eq!(stuck.status, InvoiceStatus::Submitting);
+
+    // The queue gives up: the row must become terminal, with the reason on it.
+    invoicing::job_dead_lettered_unbuildable(&state, queued.id, &format!("{error:#}"))
+        .await
+        .unwrap();
+    let terminal = invoices::find(&pool, queued.id).await.unwrap().unwrap();
+    assert_eq!(terminal.status, InvoiceStatus::Rejected);
+    assert_eq!(
+        terminal.nav_error_code.as_deref(),
+        Some("unbuildable"),
+        "a local code, not NAV's: NAV never saw this invoice"
+    );
+    let message = terminal.nav_message.unwrap_or_default();
+    assert!(
+        message.contains("nothing was sent to NAV"),
+        "the accountant must see the number died unreported, was: {message}"
+    );
+
+    // And the order is free again: a fixed partner can be invoiced anew.
+    sqlx::query(
+        "UPDATE partners SET postal_code = '1117', city = 'Budapest', address_line = 'Kossuth utca 12' WHERE id = (SELECT partner_id FROM orders WHERE id = $1)",
+    )
+    .bind(order.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let retry = invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+        .await
+        .unwrap();
+    assert_eq!(retry.status, InvoiceStatus::Submitting);
+}
+
+// ── INV-L9: fetching the missing PDF again ───────────────────────────────────
+// The guards are deterministic without a sidecar: no HTTP happens before them.
+
+#[sqlx::test(migrations = "./migrations")]
+async fn refetching_a_pdf_needs_an_issued_invoice_missing_its_file(pool: PgPool) {
+    use autocrm::error::AppError;
+    let state = common::state(pool.clone());
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
+    let queued =
+        invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+            .await
+            .unwrap();
+
+    // Still being reported: there is no report to render yet.
+    match invoicing::refetch_pdf(&state, queued.id).await.unwrap_err() {
+        AppError::Rule { code, .. } => assert_eq!(code, "not_issued"),
+        other => panic!("expected not_issued, got {other:?}"),
+    }
+
+    // Filed already: nothing missing.
+    sqlx::query("UPDATE invoices SET status = 'issued'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let mut conn = pool.acquire().await.unwrap();
+    let (document, _) = documents::insert(
+        &mut conn,
+        &documents::NewDocument {
+            owner: documents::Owner::Order(order.id),
+            vehicle_id: None,
+            kind: DocumentKind::Design,
+            filename: "AT2026-x.pdf",
+            content_type: "application/pdf",
+            storage_key: "test/AT2026-x.pdf",
+            content_hash: b"hash-pdf",
+            byte_size: 10,
+            uploaded_by: Some(user.user_id),
+            source_ref: None,
+        },
+    )
+    .await
+    .unwrap();
+    drop(conn);
+    sqlx::query("UPDATE invoices SET document_id = $1")
+        .bind(document.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    match invoicing::refetch_pdf(&state, queued.id).await.unwrap_err() {
+        AppError::Conflict { .. } => {}
+        other => panic!("expected a conflict, got {other:?}"),
+    }
+
+    // Unknown invoice.
+    assert!(matches!(
+        invoicing::refetch_pdf(&state, 999_999_999).await.unwrap_err(),
+        AppError::NotFound(_)
+    ));
+}

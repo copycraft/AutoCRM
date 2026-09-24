@@ -11,7 +11,7 @@ Findings are sorted by severity, then confidence. **Confidence** legend:
 
 ## Summary
 
-44 findings: 1 critical, 7 high, 20 medium, 16 low. 39 fixed, 5 not fixed. By confidence: 30 proven, 3 proven†, 11 likely, 0 suspected.
+44 findings: 1 critical, 7 high, 20 medium, 16 low. 44 fixed, 0 not fixed. By confidence: 32 proven, 6 proven†, 6 likely, 0 suspected.
 
 | ID | Title | Severity | Confidence | Status |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@ Findings are sorted by severity, then confidence. **Confidence** legend:
 | [INSP-L3](#insp-l3) | The sync pushes and signs inspections that were never signed off on the phone | high | proven | fixed |
 | [SALES-L4](#sales-l4) | Android converts every lead to a HUF order | high | proven† | fixed |
 | [INV-L5](#inv-l5) | two concurrent "issue invoice" requests for one order can both pass the one-live-invoice check | high | likely | fixed |
-| [INV-L8](#inv-l8) | a retry after a timeout re-files the CREATE, and NAV's duplicate-number answer marks a stored invoice as rejected | high | likely | **not fixed** |
+| [INV-L8](#inv-l8) | a retry after a timeout re-files the CREATE, and NAV's duplicate-number answer marks a stored invoice as rejected | high | proven† | fixed |
 | [AUTH-L1](#auth-l1) | Web does not return to login when the session dies mid-use | medium | proven | fixed |
 | [AUTH-L3](#auth-l3) | Android keeps a dead session after any 401 and cannot get back to login | medium | proven | fixed |
 | [SALES-L1](#sales-l1) | Partner update audit silently drops `role` changes | medium | proven | fixed |
@@ -39,8 +39,8 @@ Findings are sorted by severity, then confidence. **Confidence** legend:
 | [INSP-L7](#insp-l7) | "Újra" (retake) drops earlier kept photos of the same zone and orphans their queue rows | medium | likely | fixed |
 | [INSP-L9](#insp-l9) | A check-in started offline can never load its comparison | medium | likely | fixed |
 | [INV-L6](#inv-l6) | proforma number lock is released before the proforma exists, so concurrent proformas draw the same number and one PDF is filed as an orphan | medium | likely | fixed |
-| [INV-L9](#inv-l9) | a PDF that failed to store "can be fetched again", but nothing can fetch it | medium | likely | **not fixed** |
-| [INV-L10](#inv-l10) | an invoice whose request cannot be built at submit time is retried to death and stays `submitting` forever | medium | likely | **not fixed** |
+| [INV-L9](#inv-l9) | a PDF that failed to store "can be fetched again", but nothing can fetch it | medium | proven | fixed |
+| [INV-L10](#inv-l10) | an invoice whose request cannot be built at submit time is retried to death and stays `submitting` forever | medium | proven† | fixed |
 | [MAIL-L4](#mail-l4) | A dead-lettered `send_email` job leaves the email "queued" forever, invisible and not retryable | medium | proven | fixed |
 | [INSP-L10](#insp-l10) | A retried check-out create after a lost response becomes a permanent `checkout_open` | medium | proven | fixed |
 | [AUTH-L2](#auth-l2) | Web session cookie expires 7 days after login even for active users (30-day absolute lifetime never applies) | low | proven | fixed |
@@ -55,20 +55,20 @@ Findings are sorted by severity, then confidence. **Confidence** legend:
 | [IMP-L1](#imp-l1) | MiniCRM timestamps inside the spring-forward DST hour were dropped | low | proven | fixed |
 | [TIME-L1](#time-l1) | Android Reports window used the phone's time zone for "today" | low | proven | fixed |
 | [SALES-L5](#sales-l5) | Android offers "Fázisváltás" on a converted lead | low | proven† | fixed |
-| [ORD-L6](#ord-l6) | The intake-slip gate is enforced but the phone cannot record the slip | low | likely | **not fixed** |
+| [ORD-L6](#ord-l6) | The intake-slip gate is enforced but the phone cannot record the slip | low | proven† | fixed |
 | [INSP-L8](#insp-l8) | An optional zone (roof) cannot be skipped in the walkaround | low | likely | fixed |
 | [INV-L7](#inv-l7) | retries of a technical annulment are never recorded on the invoice | low | likely | fixed |
-| [MAIL-L5](#mail-l5) | Web newsletter send discards the server's recipient count; the pre-send count includes suppressed addresses | low | likely | **not fixed** |
+| [MAIL-L5](#mail-l5) | Web newsletter send discards the server's recipient count; the pre-send count includes suppressed addresses | low | proven | fixed |
 
 ## Verification
 
 These are the final runs on the combined tree, after every agent finished:
 
-- Backend: `SQLX_OFFLINE=true cargo test --lib`: **137 passed, 0 failed**. `cargo test --test openapi`: **2 passed** (the committed `openapi/openapi.json` was regenerated for the new `client_key` field). `cargo clippy --lib` shows 3 warnings, none of them on changed lines (`repo/inspections.rs:204,289` `patch_draft`-era functions, `service/email.rs:912`).
-- Backend integration tests (`backend/tests/*`) were **not run**, because there was no Postgres and Docker Desktop would not start from the session. With `SQLX_OFFLINE=true`, `tests/newsletter.rs` and `tests/migration.rs` do not compile: their queries are missing from the `.sqlx` cache. Those files are untouched and the cache is unchanged, so this was already the case before the audit. The two new `tests/email_and_jobs.rs` cases (MAIL-L4, MAIL-L2) therefore compile but have not executed here; they need a live Postgres in CI.
-- Web: `npx vitest run`: **10 files, 80 tests passed**. `npx tsc --noEmit`: clean. `eslint` on the changed files: 0 errors (1 existing `<img>` warning).
-- Android: `./gradlew :app:testDebugUnitTest` (with `JAVA_HOME=C:/Users/vasta/android-tools/jdk`): **58 tests passed, 0 failed**.
-- Sidecar: `npm test` in `nav-sidecar/`: **20 passed, 0 failed** (incl. the 2 new read-back cases for INV-L8).
+- Backend: `SQLX_OFFLINE=true cargo test --lib`: **143 passed, 0 failed**. `cargo test --test openapi`: **2 passed** (the committed `openapi/openapi.json` was regenerated for the new `client_key` field and the `POST /invoices/{id}/pdf` route). `cargo test --test error_codes`: **3 passed** (new `not_issued`/`pdf_unavailable` codes catalogued). `cargo clippy --lib` shows 3 warnings, none of them on changed lines.
+- Backend integration tests (`backend/tests/*`) were **not run**, because there was no Postgres and Docker Desktop would not start from the session. With `SQLX_OFFLINE=true`, `tests/newsletter.rs` and `tests/migration.rs` do not compile: their queries are missing from the `.sqlx` cache. Those files are untouched and the cache is unchanged, so this was already the case before the audit. The new `tests/invoicing.rs` cases (INV-L8 × 2, INV-L10, INV-L9 guards) and the two new `tests/email_and_jobs.rs` cases (MAIL-L4, MAIL-L2) compile offline (`cargo test --no-run`) but need a live Postgres (+ sidecar/MinIO where noted) in CI.
+- Web: `npx vitest run`: **11 files, 85 tests passed**. `npx tsc --noEmit`: clean. `eslint` on the changed files: 0 errors (1 existing `<img>` warning).
+- Android: `./gradlew :app:testDebugUnitTest` (with `JAVA_HOME=C:/Users/vasta/android-tools/jdk`): **61 tests passed, 0 failed**.
+- Sidecar: `npm test` in `nav-sidecar/`: **20 passed, 0 failed**.
 
 ## Findings
 
@@ -177,9 +177,9 @@ These are the final runs on the combined tree, after every agent finished:
 - **Reproduction:** set `NAV_SIDECAR_TIMEOUT_SECONDS` below the sidecar's NAV polling time (or have the network drop after submission), then issue an invoice. The retry comes back "Elutasítva — INVOICE_NUMBER_ALREADY_EXISTS", yet the invoice is in the Online Számla portal.
 - **Impact:** a reported invoice is shown as rejected. Its number is treated as spent, and the office issues a second invoice for the same work, so two invoices reach NAV.
 - **Severity:** high
-- **Confidence:** likely
-- **Proof:** none (needs a sidecar that times out after submitting; the mock settles immediately).
-- **Fix:** not fixed end to end. One prerequisite now exists: `GET /invoices/:number` on the sidecar reads back what NAV holds for a number (issue date + totals, 404 when NAV holds nothing; `nav-sidecar/src/routes/invoices.ts`, tested against the mock in `nav-sidecar/test/e2e.test.js`). What is still missing is the backend reconcile step: on `INVOICE_NUMBER_ALREADY_EXISTS` after a timeout, query the number via the sidecar and adopt the stored report (including its transaction id) instead of marking the row `rejected`. How to adopt a report whose transaction id is unknown is still a design decision.
+- **Confidence:** proven†
+- **Proof:** `service::invoicing::tests::a_retry_is_adopted_when_nav_holds_our_exact_document` + 4 refusal/parse cases in `backend/src/service/invoicing.rs` (unit; fail to compile before the fix, pass after). End to end: `a_retry_answered_duplicate_number_adopts_our_stored_report` and `a_retry_is_rejected_when_nav_holds_a_different_document` in `backend/tests/invoicing.rs` run a stub sidecar (the mock can never emit this fault): the CREATE is answered `INVOICE_NUMBER_ALREADY_EXISTS` and the read-back serves our document, or a foreign one. Both fail on the old code (adopted→rejected; refusal note missing). They need a live Postgres, so they compile here and run in CI.
+- **Fix:** on a non-retryable `INVOICE_NUMBER_ALREADY_EXISTS` for an invoice, the job reads back what NAV holds (`NavSidecar::fetch_invoice`, the round-2 `GET /invoices/:number`) and adopts it when number, issue date and totals (compared as minor units, never floats) match the stored row: same `issued` as a fresh success, PDF and letter included, with `nav_transaction_id` NULL and the row saying why (the timed-out attempt's transaction id is unknowable). Anything else — nothing there, a different document — stays `rejected`, with the refusal reason on the row. A read-back that is itself of unknown outcome (unreachable) stays `submitting` and retries. Stornos are excluded: their totals' sign convention at NAV is unverified, so a duplicate storno still marks rejected.
 - **Journey:** Invoicing & money
 
 <a id="auth-l1"></a>
@@ -409,9 +409,9 @@ These are the final runs on the combined tree, after every agent finished:
 - **Reproduction:** make object storage fail briefly while an invoice is being reported. The invoice becomes "Kiállítva" with no "PDF" link and nothing in the UI or API brings it back.
 - **Impact:** no PDF for an issued invoice, and a letter without its attachment.
 - **Severity:** medium
-- **Confidence:** likely (static: no caller)
-- **Proof:** `grep store_invoice_pdf backend/src` → one call site.
-- **Fix:** not fixed. It needs a new endpoint or job (and an OpenAPI contract change in shared files), which is larger than a minimal fix.
+- **Confidence:** proven
+- **Proof:** `frontend/src/test/logicfix-invoicing.test.tsx`: "offers to fetch the PDF again for an issued invoice filed without one" (no such button before; passes after) and "offers no PDF refetch once the invoice already has its PDF". Backend guards: `refetching_a_pdf_needs_an_issued_invoice_missing_its_file` in `backend/tests/invoicing.rs` (`not_issued`, `duplicate`, `not_found`; compiles here, runs in CI).
+- **Fix:** new `POST /invoices/{id}/pdf` (`IssueInvoices` gate): re-renders the PDF from what NAV holds and files it with the order's documents. Refused with `not_issued` (422) when the invoice is not issued, `duplicate` (409) when the PDF is already filed, and `pdf_unavailable` (422, retryable) when the fetch fails. Both codes are in the error catalog (`backend/src/error.rs`, `docs/error-codes.md`, web `hu.json`, Android `Errors.kt`). The web shows "PDF újratöltése" on an issued row without a file. The letter queued at issue time is deliberately left alone: it may already have gone out without the attachment, and re-sending mail is the office's call.
 - **Journey:** Invoicing & money
 
 <a id="inv-l10"></a>
@@ -422,9 +422,9 @@ These are the final runs on the combined tree, after every agent finished:
 - **Reproduction:** issue an invoice while the sidecar is down, clear the partner's address, then restore the sidecar.
 - **Impact:** an order stuck with a phantom in-flight invoice and no UI path out.
 - **Severity:** medium
-- **Confidence:** likely
-- **Proof:** none executable here.
-- **Fix:** not fixed. The only consistent terminal state today is `rejected`, which spends the number although NAV never saw it. That is exactly the open numbering question Q-INV-9, and it needs an accountant's answer.
+- **Confidence:** proven†
+- **Proof:** `service::invoicing::tests::only_unbuildable_submit_failures_are_terminal_on_dead_letter` (unit predicate; fail to compile before, passes after). End to end: `an_unbuildable_submit_is_rejected_when_the_queue_gives_up` in `backend/tests/invoicing.rs` wipes the partner address mid-flight, submits (marked error, row still `submitting`), runs the dead-letter step, and asserts `rejected` + "nothing was sent to NAV" + a new invoice issuable for the order. Fails on the old code (no such function; row stuck). Compiles here, runs in CI.
+- **Fix:** a build failure now carries an `invoice_unbuildable:` marker (and is noted on the row while retrying, so the screen shows the cause during the retry window). When the queue gives up, `jobs::run_one` recognises the marker and calls the new `invoicing::job_dead_lettered_unbuildable`, which locks the row and — only if still `submitting` — marks it `rejected` with the local code `unbuildable` and an audit entry. The message is explicit that NAV never saw the invoice. On Q-INV-9 (does a non-report spend a number?): yes, like any other rejection the number stays spent — a gap the row explains, instead of an order that can never be invoiced again. Unreachable/timeout failures are untouched: still unknown, still retried, never terminal.
 - **Journey:** Invoicing & money
 
 <a id="mail-l4"></a>
@@ -625,9 +625,9 @@ These are the final runs on the combined tree, after every agent finished:
 - **Reproduction:** Phone → open a new order (in Átvétel) → Fázisváltás → Tervezés. An English error appears, and no screen offers the slip.
 - **Impact:** Work stalls on the phone until someone at a desk records the mileage.
 - **Severity:** low
-- **Confidence:** likely
-- **Proof:** none (a missing feature, not a wrong computation)
-- **Fix:** not fixed. An Android intake-slip form is a feature-sized change (UI, DTO fields, contract test).
+- **Confidence:** proven†
+- **Proof:** `IntakeSlipJsonTest` (`android/.../IntakeSlipJsonTest.kt`): full slip, explicit nulls on cleared fields, nulls surviving the wire serialisation. Fail to compile before the fix (no builder); all pass after (61 Android tests green).
+- **Fix:** the phone now has the slip: an "Átvételi lap" card on the order detail shows the recorded values (or that none are recorded) with a Rögzítés/Szerkesztés action for `canEdit` users, opening `IntakeSlipDialog` (mileage required, fuel gauge chips E–F, keys, condition, valuables checkbox+text with the web's always-definite semantics). Saving PATCHes through the explicit-nulls path (ORD-L4), so cleared fields clear. The `Order` DTO carries the six slip fields. Designers remain unable to record it: that needs `EditOrders` (admin/office) server-side, which is the role matrix as documented (see Q-ORD-2).
 - **Journey:** Order lifecycle
 
 <a id="insp-l8"></a>
@@ -664,9 +664,9 @@ These are the final runs on the combined tree, after every agent finished:
 - **Reproduction:** Subscribe 3 addresses and suppress 1 of them. Compose a newsletter: the form says "3 feliratkozó". Send it: the toast says only "queued", while the API answered `recipients: 2`.
 - **Impact:** The office overestimates the audience and cannot confirm what was sent.
 - **Severity:** low
-- **Confidence:** likely (read from code)
-- **Proof:** none
-- **Fix:** not fixed. It is UI-only and needs a new string in the shared i18n catalogue (`frontend/src/messages/hu.json`), which other agents are editing. Suggested change: pass `recipients` to `onSent` and toast "N címzettnek elküldve".
+- **Confidence:** proven
+- **Proof:** `frontend/src/test/logicfix-newsletter.test.tsx`: "excludes unsubscribed and suppressed addresses from the pre-send count" (old code showed 3, not 2), "counts every active subscriber when nothing is suppressed", "hands the server recipient count to onSent instead of just the email id" (old `onSent` received no count). All fail before, pass after.
+- **Fix:** `ComposeForm` reads the suppression list (`GET /email-suppressions`, already `SendEmail`-gated) and excludes suppressed addresses (case-insensitive) from the audience count; `newsletterApi.send`'s `recipients` answer is passed to `onSent` and toasted as "Hírlevél sorba állítva, {count} címzettnek elküldve." (new `newsletterQueuedNote` string).
 - **Journey:** Email & communications
 
 ## Appendix: needs decision (not acted on)

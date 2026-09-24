@@ -76,6 +76,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 
 class OrderDetailViewModel(
     private val api: AutoCrmApi,
@@ -109,6 +110,10 @@ class OrderDetailViewModel(
         val taskDialog: Boolean = false,
         val taskBusy: Boolean = false,
         val taskError: String? = null,
+        /** True while the intake-slip dialog is open (ORD-L6). */
+        val intakeDialog: Boolean = false,
+        val intakeBusy: Boolean = false,
+        val intakeError: String? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -322,6 +327,29 @@ class OrderDetailViewModel(
             }
         }
     }
+
+    // ── Intake slip (ORD-L6) ──
+
+    fun openIntakeDialog() {
+        _state.value = _state.value.copy(intakeDialog = true, intakeError = null)
+    }
+
+    fun closeIntakeDialog() {
+        _state.value = _state.value.copy(intakeDialog = false, intakeError = null)
+    }
+
+    fun saveIntakeSlip(orderId: Long, body: JsonObject) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(intakeBusy = true, intakeError = null)
+            try {
+                api.patchOrder(orderId, body)
+                _state.value = _state.value.copy(intakeBusy = false, intakeDialog = false)
+                load(orderId)
+            } catch (e: Throwable) {
+                _state.value = _state.value.copy(intakeBusy = false, intakeError = describeError(e))
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -477,6 +505,66 @@ fun OrderDetailScreen(
                                         Info("Fűtőkészülék", listOfNotNull(spec.heaterMake, spec.heaterModel).joinToString(" ").ifBlank { null })
                                         Info("Teljesítmény", spec.heatOutputKw?.let { "$it kW" }, mono = true)
                                     }
+                                }
+                            }
+                        }
+
+                        // The intake slip unblocks leaving `intake` (ORD-L6): without it the
+                        // stage dialog answers `intake_slip_missing` and the phone cannot fix it.
+                        item {
+                            val order = detail.order
+                            val filled = order.mileageIn != null ||
+                                order.intakeCondition != null ||
+                                order.fuelLevel != null ||
+                                order.keyCount != null ||
+                                order.valuablesDeclared != null
+                            Card {
+                                SectionTitle(
+                                    "Átvételi lap",
+                                    actionLabel = if (state.canEdit) {
+                                        if (filled) "Szerkesztés" else "Rögzítés"
+                                    } else {
+                                        null
+                                    },
+                                    onAction = if (state.canEdit) {
+                                        { viewModel.openIntakeDialog() }
+                                    } else {
+                                        null
+                                    },
+                                )
+                                if (filled) {
+                                    Info(
+                                        "Km-óra",
+                                        order.mileageIn?.let { "$it km" },
+                                        mono = true,
+                                    )
+                                    Info("Üzemanyag", order.fuelLevel, mono = true)
+                                    Info(
+                                        "Kulcsok",
+                                        order.keyCount?.toString(),
+                                        mono = true,
+                                    )
+                                    Info("Állapot", order.intakeCondition)
+                                    Info(
+                                        "Értéktárgy",
+                                        when (order.valuablesDeclared) {
+                                            null -> null
+                                            true -> order.valuables?.takeIf { it.isNotBlank() }
+                                                ?: "van, listázatlan"
+                                            false -> "nincs"
+                                        },
+                                    )
+                                } else {
+                                    val hint = if (state.canEdit) {
+                                        "Még nincs rögzítve. Enélkül az átvétel nem zárható le."
+                                    } else {
+                                        "Még nincs rögzítve."
+                                    }
+                                    Text(
+                                        hint,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Steel500,
+                                    )
                                 }
                             }
                         }
@@ -703,6 +791,15 @@ fun OrderDetailScreen(
             error = state.taskError,
             onDismiss = viewModel::closeTaskDialog,
             onConfirm = { title, due -> viewModel.createTask(orderId, title, due) },
+        )
+    }
+    if (state.intakeDialog && state.detail != null) {
+        IntakeSlipDialog(
+            order = state.detail!!.order,
+            busy = state.intakeBusy,
+            error = state.intakeError,
+            onDismiss = viewModel::closeIntakeDialog,
+            onSave = { body -> viewModel.saveIntakeSlip(orderId, body) },
         )
     }
 }

@@ -127,6 +127,8 @@ export const invoicesApi = {
     request(`/invoices/${id}/annul`, s.zInvoicesAnnulResponse, { method: 'POST', body }),
   chain: (id: number): Promise<S['Items_ChainStep']> =>
     request(`/invoices/${id}/chain`, s.zInvoicesChainResponse),
+  refetchPdf: (id: number): Promise<S['Invoice']> =>
+    request(`/invoices/${id}/pdf`, s.zInvoicesRefetchPdfResponse, { method: 'POST' }),
   proformas: (orderId: number): Promise<S['Items_Proforma']> =>
     request(`/orders/${orderId}/proformas`, s.zInvoicesListProformasResponse),
   createProforma: (orderId: number, body: S['ProformaRequest']): Promise<S['ProformaCreated']> =>

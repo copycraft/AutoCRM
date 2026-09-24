@@ -1860,6 +1860,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/invoices/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch the PDF of an issued invoice again (INV-L9).
+         * @description For the invoice whose report NAV stored but whose file never arrived — a slow
+         *     object store at the wrong moment. Re-renders from what NAV holds and files it with
+         *     the order's documents. The letter queued at issue time is left alone: it may already
+         *     have gone out without the attachment, and re-sending mail is the office's call.
+         */
+        post: operations["invoices_refetch_pdf"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders/{id}/proformas": {
         parameters: {
             query?: never;
@@ -2167,6 +2190,13 @@ export interface components {
             /** Format: int32 */
             battery_pct?: number | null;
             warning_lights?: string | null;
+            /**
+             * @description Optional idempotency key (1..100 chars), e.g. the phone's local draft UUID.
+             *     A repeat create with the same key returns the inspection it already created
+             *     (200) instead of a second row or `checkout_open`. Reusing a key for a
+             *     different order or kind answers 409 `duplicate`.
+             */
+            client_key?: string | null;
         };
         CreatePartner: {
             kind: components["schemas"]["PartnerKind"];
@@ -2458,7 +2488,7 @@ export interface components {
          * @description Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.
          * @enum {string}
          */
-        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "nav_rejected" | "nav_unreachable";
+        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "nav_rejected" | "nav_unreachable" | "not_issued" | "pdf_unavailable";
         ErrorDetail: {
             /** @description Stable machine-readable code, e.g. `validation`, `stage_gate`, `currency_locked`. */
             code: string;
@@ -6489,7 +6519,10 @@ export interface operations {
                 assigned_to?: number;
                 /** @description Only orders not in a terminal stage. */
                 open?: boolean;
-                /** @description Sort key, `-` prefix for descending: created_at, due_date, total, number. */
+                /**
+                 * @description Sort key, `-` prefix for descending: created_at, due_date, total, number,
+                 *     stage_entered_at (when the order entered its current stage).
+                 */
                 sort?: string;
                 limit?: number;
                 offset?: number;
@@ -7409,6 +7442,16 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Already created under this `client_key` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inspection"];
+                };
+            };
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -10585,6 +10628,59 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Items_ChainStep"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_refetch_pdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description The invoice already has its PDF */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Only an issued invoice has a report to render */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {

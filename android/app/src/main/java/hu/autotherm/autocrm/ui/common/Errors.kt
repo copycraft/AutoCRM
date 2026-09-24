@@ -86,4 +86,6 @@ internal val ERROR_TEXT: Map<String, String> = mapOf(
     "no_items" to "A számlához legalább egy tétel kell a megrendelésen.",
     "nav_rejected" to "A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja.",
     "nav_unreachable" to "A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később.",
+    "not_issued" to "Csak kiállított számlának van letölthető bizonylata.",
+    "pdf_unavailable" to "A PDF most nem tölthető le. Próbálja újra később.",
 )

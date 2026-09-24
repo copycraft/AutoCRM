@@ -31,6 +31,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(storno))
         .routes(routes!(annul))
         .routes(routes!(chain))
+        .routes(routes!(refetch_pdf))
         .routes(routes!(list_proformas, create_proforma))
 }
 
@@ -173,6 +174,30 @@ async fn annul(
     me.require(Capability::AnnulInvoices)?;
     let invoice = invoicing::annul_invoice(&state, &me, id, &body).await?;
     Ok((StatusCode::ACCEPTED, Json(invoice)))
+}
+
+/// Fetch the PDF of an issued invoice again (INV-L9).
+///
+/// For the invoice whose report NAV stored but whose file never arrived — a slow
+/// object store at the wrong moment. Re-renders from what NAV holds and files it with
+/// the order's documents. The letter queued at issue time is left alone: it may already
+/// have gone out without the attachment, and re-sending mail is the office's call.
+#[utoipa::path(
+    post, path = "/invoices/{id}/pdf", tag = "invoices",
+    params(("id" = i64, Path)),
+    responses(
+        (status = 200, body = Invoice),
+        (status = 409, description = "The invoice already has its PDF"),
+        (status = 422, description = "Only an issued invoice has a report to render"),
+    )
+)]
+async fn refetch_pdf(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<Invoice>> {
+    me.require(Capability::IssueInvoices)?;
+    Ok(Json(invoicing::refetch_pdf(&state, id).await?))
 }
 
 /// The invoice's modification chain, straight from NAV.

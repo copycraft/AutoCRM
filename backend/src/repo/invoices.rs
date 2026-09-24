@@ -356,6 +356,34 @@ pub async fn mark_rejected(
     .await
 }
 
+/// NAV already held the number with our exact totals: adopt the report instead of
+/// filing it twice (INV-L8).
+///
+/// The transaction id of the timed-out first attempt is unknowable — NAV never tells us
+/// — so it stays NULL and the row says why in `nav_message`. Everything else is the
+/// same `issued` a normal success produces, and the row is returned by re-reading it,
+/// so this adds no compile-time-checked query (no `.sqlx` cache entry needed).
+pub async fn mark_issued_reconciled(
+    conn: &mut PgConnection,
+    id: i64,
+    message: &str,
+) -> sqlx::Result<()> {
+    let messages = Value::Array(Vec::new());
+    sqlx::query(
+        "UPDATE invoices
+            SET status = 'issued', nav_status = 'DONE', nav_transaction_id = NULL,
+                nav_error_code = NULL, nav_message = $2, nav_messages = $3,
+                issued_at = now()
+          WHERE id = $1",
+    )
+    .bind(id)
+    .bind(message)
+    .bind(messages)
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
 pub async fn mark_stornoed(conn: &mut PgConnection, id: i64) -> sqlx::Result<()> {
     sqlx::query!(
         "UPDATE invoices SET status = 'stornoed' WHERE id = $1 AND status = 'issued'",

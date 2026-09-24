@@ -113,6 +113,20 @@ async fn run_one(state: &AppState, mailer: &Mailer, job: Job) {
                         }
                     }
                 }
+                // An invoice whose request could never be built must not stay
+                // `submitting` forever, blocking the order (INV-L10).
+                if job.kind == kinds::NAV_SUBMIT_INVOICE
+                    && invoicing::is_unbuildable_dead_letter(&message)
+                {
+                    if let Ok(p) = payload::<invoicing::SubmitPayload>(&job) {
+                        if let Err(e) =
+                            invoicing::job_dead_lettered_unbuildable(state, p.invoice_id, &message)
+                                .await
+                        {
+                            tracing::error!(error = %e, invoice_id = p.invoice_id, "could not reject an unbuildable invoice");
+                        }
+                    }
+                }
                 jobs::fail(&state.db, job.id, &message, None).await
             } else {
                 let retry_at = Utc::now() + jobs::backoff(job.attempts);

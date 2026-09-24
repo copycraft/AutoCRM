@@ -79,3 +79,5 @@ Status mapping on Android: 400/409/422 → `ApiException.Rule` (rendered from th
 | `no_items` | 422 | no | A számlához legalább egy tétel kell a megrendelésen. |
 | `nav_rejected` | 422 | no | A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja. |
 | `nav_unreachable` | 422 | yes | A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később. |
+| `not_issued` | 422 | no | Csak kiállított számlának van letölthető bizonylata. |
+| `pdf_unavailable` | 422 | yes | A PDF most nem tölthető le. Próbálja újra később. |

@@ -186,7 +186,8 @@ export const zCreateBody = z.object({
     odometer: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
     fuel_level: z.string().nullish(),
     battery_pct: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
-    warning_lights: z.string().nullish()
+    warning_lights: z.string().nullish(),
+    client_key: z.string().nullish()
 });
 
 export const zCreateProjectType = z.object({
@@ -431,7 +432,9 @@ export const zErrorCode = z.enum([
     'not_annullable',
     'no_items',
     'nav_rejected',
-    'nav_unreachable'
+    'nav_unreachable',
+    'not_issued',
+    'pdf_unavailable'
 ]);
 
 export const zErrorDetail = z.object({
@@ -2781,6 +2784,9 @@ export const zInspectionsListResponse = zItemsInspection;
 
 export const zInspectionsCreateBody = zCreateBody;
 
+/**
+ * Already created under this `client_key`
+ */
 export const zInspectionsCreateResponse = zInspection;
 
 export const zInspectionsRemovePath = z.object({
@@ -3296,6 +3302,12 @@ export const zInvoicesChainPath = z.object({
 });
 
 export const zInvoicesChainResponse = zItemsChainStep;
+
+export const zInvoicesRefetchPdfPath = z.object({
+    id: z.number().int()
+});
+
+export const zInvoicesRefetchPdfResponse = zInvoice;
 
 export const zInvoicesListProformasPath = z.object({
     id: z.number().int()

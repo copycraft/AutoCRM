@@ -1,7 +1,7 @@
 // Invoicing logic fixes: behaviour the order screen's invoice and proforma sections owe
 // the office, each named after the rule it checks.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderPage } from './harness';
 import * as f from './fixtures';
 import { overrides, resetOverrides } from './client-mock';
@@ -76,6 +76,31 @@ describe('InvoicesSection', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Sztornó' })).toBeInTheDocument(),
     );
+  });
+
+  it('offers to fetch the PDF again for an issued invoice filed without one', async () => {
+    withInvoices([{ ...f.issuedInvoice, document_id: null }]);
+    const filed = { ...f.issuedInvoice, document_id: 801 };
+    let refetched = 0;
+    overrides.set('/invoices/501/pdf', () => {
+      refetched += 1;
+      // The next list poll sees the filed PDF.
+      overrides.set('/orders/3/invoices', () => ({ items: [filed] }));
+      return filed;
+    });
+    renderPage(<InvoicesSection orderId={3} currency="HUF" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'PDF újratöltése' }));
+    await waitFor(() => expect(refetched).toBe(1));
+    // The row now links the filed PDF instead of offering the refetch.
+    await screen.findByText('PDF');
+    expect(screen.queryByRole('button', { name: 'PDF újratöltése' })).toBeNull();
+  });
+
+  it('offers no PDF refetch once the invoice already has its PDF', async () => {
+    withInvoices([f.issuedInvoice]);
+    renderPage(<InvoicesSection orderId={3} currency="HUF" />);
+    await screen.findByText('PDF');
+    expect(screen.queryByRole('button', { name: 'PDF újratöltése' })).toBeNull();
   });
 });
 

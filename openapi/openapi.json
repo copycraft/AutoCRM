@@ -7798,6 +7798,65 @@
         }
       }
     },
+    "/invoices/{id}/pdf": {
+      "post": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Fetch the PDF of an issued invoice again (INV-L9).",
+        "description": "For the invoice whose report NAV stored but whose file never arrived — a slow\nobject store at the wrong moment. Re-renders from what NAV holds and files it with\nthe order's documents. The letter queued at issue time is left alone: it may already\nhave gone out without the attachment, and re-sending mail is the office's call.",
+        "operationId": "invoices_refetch_pdf",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The invoice already has its PDF"
+          },
+          "422": {
+            "description": "Only an issued invoice has a report to render"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/orders/{id}/proformas": {
       "get": {
         "tags": [
@@ -9850,7 +9909,9 @@
           "not_annullable",
           "no_items",
           "nav_rejected",
-          "nav_unreachable"
+          "nav_unreachable",
+          "not_issued",
+          "pdf_unavailable"
         ],
         "x-error-catalog": [
           {
@@ -10165,6 +10226,20 @@
             "code": "nav_unreachable",
             "en": "The invoicing service is unreachable.",
             "hu": "A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később.",
+            "retryable": true,
+            "status": 422
+          },
+          {
+            "code": "not_issued",
+            "en": "Only an issued invoice has a document to fetch.",
+            "hu": "Csak kiállított számlának van letölthető bizonylata.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "pdf_unavailable",
+            "en": "The PDF cannot be fetched right now.",
+            "hu": "A PDF most nem tölthető le. Próbálja újra később.",
             "retryable": true,
             "status": 422
           }

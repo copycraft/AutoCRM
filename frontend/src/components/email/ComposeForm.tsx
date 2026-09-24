@@ -53,7 +53,7 @@ export function ComposeForm({
   about?: { order_id?: number; lead_id?: number; partner_id?: number };
   defaultTo?: string;
   defaultAudience?: Audience;
-  onSent: (emailId: number) => void;
+  onSent: (emailId: number, newsletterRecipients?: number) => void;
 }) {
   const t = useTranslations('emails');
   const ter = useTranslations('errors');
@@ -147,10 +147,21 @@ export function ComposeForm({
     queryFn: () => newsletterApi.subscriptions(),
     enabled: audience === 'newsletter',
   });
-  const activeCount = useMemo(
-    () => (subscribers.data?.items ?? []).filter((s) => !s.unsubscribed_at).length,
-    [subscribers.data],
-  );
+  // Globally suppressed addresses never make the BCC list, even when still
+  // subscribed — so they must not count as the audience either (MAIL-L5).
+  const suppressions = useQuery({
+    queryKey: ['email-suppressions'],
+    queryFn: () => emailApi.suppressions(),
+    enabled: audience === 'newsletter',
+  });
+  const activeCount = useMemo(() => {
+    const suppressed = new Set(
+      (suppressions.data?.items ?? []).map((s) => s.email.trim().toLowerCase()),
+    );
+    return (subscribers.data?.items ?? []).filter(
+      (s) => !s.unsubscribed_at && !suppressed.has(s.email.trim().toLowerCase()),
+    ).length;
+  }, [subscribers.data, suppressions.data]);
 
   const applyTemplate = (key: string) => {
     setTemplateKey(key);
@@ -214,7 +225,7 @@ export function ComposeForm({
   }, [audience, to, subject, body]);
 
   const send = useMutation({
-    mutationFn: async (): Promise<number> => {
+    mutationFn: async (): Promise<{ id: number; newsletterRecipients?: number }> => {
       if (audience === 'newsletter') {
         const sent = await newsletterApi.send({
           subject: subject.trim(),
@@ -224,16 +235,18 @@ export function ComposeForm({
           attachment_document_ids: attachmentIds,
           embed_document_ids: embedIds,
         });
-        return sent.email_id;
+        // The server's answer says how many addresses made the list — that, not
+        // the client-side estimate, is what "sent" meant (MAIL-L5).
+        return { id: sent.email_id, newsletterRecipients: sent.recipients };
       }
       const mail = await emailApi.send({
         ...draft,
         to: to.trim(),
         subject: subject.trim(),
       });
-      return mail.id;
+      return { id: mail.id };
     },
-    onSuccess: (id) => onSent(id),
+    onSuccess: ({ id, newsletterRecipients }) => onSent(id, newsletterRecipients),
     onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
   });
 

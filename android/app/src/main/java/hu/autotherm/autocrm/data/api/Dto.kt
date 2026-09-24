@@ -115,6 +115,14 @@ data class Order(
     @SerialName("due_date") val dueDate: String? = null,
     @SerialName("assigned_to") val assignedTo: Long? = null,
     @SerialName("minicrm_id") val minicrmId: Long? = null,
+    // Intake slip (átvételi lap). Leaving `intake` requires `mileage_in`; the rest is
+    // optional but printed next to it (ORD-L6). All absent until recorded.
+    @SerialName("mileage_in") val mileageIn: Int? = null,
+    @SerialName("intake_condition") val intakeCondition: String? = null,
+    @SerialName("fuel_level") val fuelLevel: String? = null,
+    @SerialName("key_count") val keyCount: Int? = null,
+    @SerialName("valuables_declared") val valuablesDeclared: Boolean? = null,
+    @SerialName("valuables") val valuables: String? = null,
     @SerialName("created_at") val createdAt: String,
 )
 

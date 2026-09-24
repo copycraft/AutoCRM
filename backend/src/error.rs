@@ -130,6 +130,8 @@ pub const ERROR_CODES: &[ErrorCode] = &[
     code("no_items", 422, false, "A számlához legalább egy tétel kell a megrendelésen.", "The order has no items to invoice."),
     code("nav_rejected", 422, false, "A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja.", "The tax authority rejected the invoice."),
     code("nav_unreachable", 422, true, "A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később.", "The invoicing service is unreachable."),
+    code("not_issued", 422, false, "Csak kiállított számlának van letölthető bizonylata.", "Only an issued invoice has a document to fetch."),
+    code("pdf_unavailable", 422, true, "A PDF most nem tölthető le. Próbálja újra később.", "The PDF cannot be fetched right now."),
 ];
 
 impl AppError {

@@ -157,6 +157,23 @@ pub struct SubmissionResponse {
     pub original_invoice_number: Option<String>,
 }
 
+/// What NAV holds under one invoice number, read back through the sidecar.
+///
+/// For reconciling an unknown outcome: a submission that timed out may already be
+/// stored, and a retry is then answered `INVOICE_NUMBER_ALREADY_EXISTS`. The only way
+/// to tell our document from somebody else's number is to compare what NAV holds with
+/// what we sent — the number, the issue date and the totals.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchedInvoice {
+    pub invoice_number: String,
+    /// `YYYY-MM-DD`, as NAV reports it.
+    pub issue_date: String,
+    /// Absent when NAV holds the number but reports no summary for it.
+    #[serde(default)]
+    pub totals: Option<Totals>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProformaResponse {
@@ -374,6 +391,16 @@ impl NavSidecar {
             ));
         }
         Ok(bytes.to_vec())
+    }
+
+    /// What NAV holds under one invoice number: its issue date and totals.
+    ///
+    /// A read, never a report: retrying it files nothing. A number NAV does not hold
+    /// comes back `not_found`.
+    pub async fn fetch_invoice(&self, invoice_number: &str) -> NavResult<FetchedInvoice> {
+        let path = format!("/invoices/{}", encode_segment(invoice_number));
+        let response = self.send(reqwest::Method::GET, &path, None::<&()>).await?;
+        Self::json(response).await
     }
 
     /// Liveness. Uses no credentials and does not contact NAV, so it is safe to poll.

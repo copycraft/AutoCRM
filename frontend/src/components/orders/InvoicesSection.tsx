@@ -169,6 +169,17 @@ export function InvoicesSection({
     onError,
   });
 
+  // The report is stored but its PDF never arrived: re-render it from what NAV
+  // holds and file it (INV-L9). The letter is left alone (see the endpoint docs).
+  const refetchPdf = useMutation({
+    mutationFn: (invoice: Invoice) => invoicesApi.refetchPdf(invoice.id),
+    onSuccess: () => {
+      setError(null);
+      refresh();
+    },
+    onError,
+  });
+
   return (
     <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
       <div className="flex items-center justify-between">
@@ -204,8 +215,10 @@ export function InvoicesSection({
               currency={currency}
               canIssue={canIssue && !stornoPending.has(invoice.id)}
               canAnnul={canAnnul}
+              refetchingPdf={refetchPdf.isPending}
               onStorno={() => setStornoFor(invoice)}
               onAnnul={() => setAnnulFor(invoice)}
+              onRefetchPdf={() => refetchPdf.mutate(invoice)}
             />
           ))}
         </ul>
@@ -246,15 +259,19 @@ function InvoiceRow({
   currency,
   canIssue,
   canAnnul,
+  refetchingPdf,
   onStorno,
   onAnnul,
+  onRefetchPdf,
 }: {
   invoice: Invoice;
   currency: Currency;
   canIssue: boolean;
   canAnnul: boolean;
+  refetchingPdf: boolean;
   onStorno: () => void;
   onAnnul: () => void;
+  onRefetchPdf: () => void;
 }) {
   const t = useTranslations('invoices');
   const [chainOpen, setChainOpen] = useState(false);
@@ -282,6 +299,15 @@ function InvoiceRow({
         )}
         {invoice.status === 'submitting' && <span>{t('submittingHint')}</span>}
         {invoice.document_id && <DocumentLink documentId={invoice.document_id} label={t('pdf')} />}
+        {canIssue && invoice.status === 'issued' && !invoice.document_id && (
+          <button
+            className="underline hover:text-steel-900"
+            disabled={refetchingPdf}
+            onClick={onRefetchPdf}
+          >
+            {t('refetchPdf')}
+          </button>
+        )}
         {invoice.status !== 'submitting' && (
           <button className="underline hover:text-steel-900" onClick={() => setChainOpen((open) => !open)}>
             {chainOpen ? t('hideChain') : t('showChain')}
