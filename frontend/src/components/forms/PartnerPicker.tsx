@@ -21,10 +21,14 @@ export function PartnerPicker({
   value,
   onChange,
   label,
+  role,
 }: {
   value: PartnerOption | null;
   onChange: (p: PartnerOption | null) => void;
   label: string;
+  /** restricts the search server-side; customer pickers pass 'customer' so suppliers
+      don't show up where only a customer can be chosen (SALES-17). */
+  role?: 'customer' | 'supplier';
 }) {
   const t = useTranslations('partners');
   const tc = useTranslations('common');
@@ -39,8 +43,9 @@ export function PartnerPicker({
   const listRef = useRef<HTMLDivElement>(null);
   const debounced = useDebouncedValue(q);
   const search = useQuery({
-    queryKey: ['partner-picker', debounced],
-    queryFn: () => partnersApi.list({ q: debounced || undefined, limit: 8 }),
+    queryKey: ['partner-picker', debounced, role ?? null],
+    queryFn: () =>
+      partnersApi.list({ q: debounced || undefined, role: role ?? undefined, limit: 8 }),
     enabled: open,
   });
   const results = search.data?.items ?? [];

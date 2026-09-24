@@ -469,6 +469,7 @@ export function OrderForm({
                   if (p) setPartnerError(false);
                 }}
                 label={`${tc('partner')} *`}
+                role="customer"
               />
               {partnerError && <p className="mt-1 text-metadata text-steel-900">{tv('required')}</p>}
             </div>

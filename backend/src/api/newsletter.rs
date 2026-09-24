@@ -60,10 +60,30 @@ async fn add_subscription(
     ApiJson(body): ApiJson<SubscriptionBody>,
 ) -> AppResult<(StatusCode, Json<Subscription>)> {
     me.require(Capability::SendEmail)?;
-    normalize_address(&body.email)
+    let email = normalize_address(&body.email)
         .ok_or_else(|| AppError::validation("email address is invalid"))?;
-    let sub = newsletter::subscribe(&state.db, &body.email, &body.name, "office").await?;
+    // An opted-out address stays opted out until they come back themselves: the office
+    // hand-add must not silently resubscribe someone, or the tombstone that guards the
+    // next import is pointless (MAIL-L6).
+    refuse_resubscribe(&newsletter::list(&state.db).await?, &email)?;
+    let sub = newsletter::subscribe(&state.db, &email, &body.name, "office").await?;
     Ok((StatusCode::CREATED, Json(sub)))
+}
+
+/// Whether the office may hand-add this address. Pure, so the rule is unit-tested:
+/// website resubscribes ("coming back is saying yes again") keep working through the
+/// public endpoint, which does not call this.
+fn refuse_resubscribe(existing: &[newsletter::Subscription], email: &str) -> AppResult<()> {
+    if existing
+        .iter()
+        .any(|s| s.unsubscribed_at.is_some() && s.email == email)
+    {
+        return Err(AppError::conflict(
+            "duplicate",
+            "this address previously unsubscribed from the newsletter; only they can resubscribe via the website form",
+        ));
+    }
+    Ok(())
 }
 
 #[utoipa::path(
@@ -188,4 +208,36 @@ fn check_website_key(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
         return Err(AppError::Forbidden);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+
+    fn sub(email: &str, unsubscribed: bool) -> newsletter::Subscription {
+        newsletter::Subscription {
+            id: 1,
+            email: email.into(),
+            name: "".into(),
+            source: "website".into(),
+            subscribed_at: Utc.with_ymd_and_hms(2026, 1, 1, 9, 0, 0).unwrap(),
+            unsubscribed_at: unsubscribed.then(|| Utc.with_ymd_and_hms(2026, 2, 1, 9, 0, 0).unwrap()),
+        }
+    }
+
+    #[test]
+    fn the_office_cannot_resubscribe_an_opted_out_address() {
+        let existing = vec![sub("a@example.hu", false), sub("x@example.hu", true)];
+        // Active and unknown addresses are fine.
+        assert!(refuse_resubscribe(&existing, "a@example.hu").is_ok());
+        assert!(refuse_resubscribe(&existing, "new@example.hu").is_ok());
+        // An opted-out address is refused, with a message that names the way back.
+        let err = refuse_resubscribe(&existing, "x@example.hu").unwrap_err();
+        let message = format!("{err:?}");
+        assert!(
+            message.contains("previously unsubscribed") && message.contains("website"),
+            "got {message}",
+        );
+    }
 }

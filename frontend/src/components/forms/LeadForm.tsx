@@ -222,6 +222,7 @@ export function LeadForm({
                 field.onChange(p);
               }}
               label={t('partner')}
+              role="customer"
             />
           )}
         />

@@ -15,8 +15,9 @@ failed to *compile*; **likely** = traced through the code with no failing test.
 
 ## Summary
 
-6 findings: 1 high, 3 medium, 2 low. 4 fixed, 2 reported without a code change (genuine
-owner decisions). By confidence: 4 proven†, 2 likely.
+6 findings: 1 high, 3 medium, 2 low. 4 fixed in this sweep, 2 reported — and both
+reported items were subsequently fixed in [04](04-bugfixes-and-optimisations.md), so all
+6 are now fixed. By confidence: 6 proven†, 0 suspected.
 
 | ID | Title | Severity | Confidence | Status |
 |---|---|---|---|---|
@@ -24,8 +25,8 @@ owner decisions). By confidence: 4 proven†, 2 likely.
 | [MEDIA-L4](#media-l4) | `PATCH /documents/{id}` wipes every field the request omits, and checks dates against the body only | high | proven† | fixed |
 | [ORD-L7](#ord-l7) | Cancelling from intake needs a mileage reading, and `/transitions` offers gated moves as allowed | medium | proven† | fixed |
 | [TIME-L2](#time-l2) | Android "quote expired" badge uses the phone's date, not Budapest | low | proven† | fixed |
-| [MAIL-L6](#mail-l6) | An office hand-add silently resubscribes an address that opted out | medium | likely | **reported** |
-| [REP-L2](#rep-l2) | The workload window allows 63 calendar days while the text says 62 | low | likely | **reported** |
+| [MAIL-L6](#mail-l6) | An office hand-add silently resubscribes an address that opted out | medium | proven† | fixed in 04 |
+| [REP-L2](#rep-l2) | The workload window allows 63 calendar days while the text says 62 | low | proven† | fixed in 04 |
 
 ## Verification
 
@@ -161,12 +162,13 @@ owner decisions). By confidence: 4 proven†, 2 likely.
 - **Impact:** marketing mail to people who opted out — a GDPR consent problem (Grt. 6. §,
   GDPR Art. 7) and the precise failure the schema comment guards against.
 - **Severity:** medium
-- **Confidence:** likely (traced; no test — the fix direction needs an owner decision)
-- **Proof:** none.
-- **Fix:** not fixed. Two consistent options: (a) the office endpoint refuses
-  re-adding an unsubscribed address with a message pointing at the website resubscribe
-  ("coming back is saying yes again" stays website-only); (b) it re-adds but records an
-  explicit consent note. Either way the silent path should go. Awaiting product/legal.
+- **Confidence:** proven†
+- **Proof:** `api::newsletter::tests::the_office_cannot_resubscribe_an_opted_out_address`
+  (fails to compile before the fix, passes after).
+- **Fix (in 04):** the office endpoint refuses a previously-unsubscribed address with
+  409 `duplicate` ("only they can resubscribe via the website form"); website
+  resubscribe untouched. The silent path is gone; the explicit consent path (the
+  subscriber coming back themselves) stays.
 
 <a id="rep-l2"></a>
 
@@ -180,8 +182,9 @@ owner decisions). By confidence: 4 proven†, 2 likely.
   day buckets, despite "caps at 62 days".
 - **Impact:** cosmetic boundary disagreement only; no wrong data either way.
 - **Severity:** low
-- **Confidence:** likely
-- **Proof:** none (boundary reading; one line either way).
-- **Fix:** not fixed. If the rule is "at most 62 days apart", only the comment/message
-  want rewording ("63 calendar days"); if it is "at most 62 calendar days", the check
-  wants `>= 62`. Awaiting owner.
+- **Confidence:** proven†
+- **Proof:** `api::reports::tests::the_workload_cap_counts_calendar_days` (fails to
+  compile before the fix, passes after).
+- **Fix (in 04):** extracted `workload_span_days` (inclusive) and capped that at 62 —
+  the "at most 62 calendar days" reading, which matches the bar-chart rationale. No
+  client requests more than 31 days, so nothing breaks.

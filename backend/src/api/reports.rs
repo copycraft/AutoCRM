@@ -313,7 +313,7 @@ async fn workload(
     if from > to {
         return Err(AppError::validation("from must not be after to"));
     }
-    if (to - from).num_days() > 62 {
+    if workload_span_days(from, to) > 62 {
         return Err(AppError::validation("workload range caps at 62 days"));
     }
     let intervals =
@@ -339,4 +339,29 @@ async fn workload(
         day += TimeDelta::days(1);
     }
     Ok(Json(WorkloadReport { from, to, days }))
+}
+
+/// The inclusive calendar-day span of a workload window. The cap is on days the chart
+/// draws (REP-L2): `from` = Jan 1, `to` = Mar 4 is 63 days, not 62.
+fn workload_span_days(from: NaiveDate, to: NaiveDate) -> i64 {
+    (to - from).num_days() + 1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_workload_cap_counts_calendar_days() {
+        let jan1 = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        assert_eq!(workload_span_days(jan1, jan1), 1);
+        assert_eq!(
+            workload_span_days(jan1, NaiveDate::from_ymd_opt(2026, 3, 3).unwrap()),
+            62
+        );
+        assert_eq!(
+            workload_span_days(jan1, NaiveDate::from_ymd_opt(2026, 3, 4).unwrap()),
+            63
+        );
+    }
 }
