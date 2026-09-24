@@ -11,7 +11,7 @@ Findings are sorted by severity, then confidence. **Confidence** legend:
 
 ## Summary
 
-44 findings: 1 critical, 7 high, 20 medium, 16 low. 36 fixed, 8 not fixed. By confidence: 27 proven, 3 proven†, 13 likely, 1 suspected.
+44 findings: 1 critical, 7 high, 20 medium, 16 low. 39 fixed, 5 not fixed. By confidence: 30 proven, 3 proven†, 11 likely, 0 suspected.
 
 | ID | Title | Severity | Confidence | Status |
 |---|---|---|---|---|
@@ -35,14 +35,14 @@ Findings are sorted by severity, then confidence. **Confidence** legend:
 | [INV-L1](#inv-l1) | NAV messages recorded "for the screen" are never shown unless the invoice is rejected | medium | proven | fixed |
 | [INV-L2](#inv-l2) | the invoice list stops polling before the PDF is attached, so the PDF link never appears without a reload | medium | proven | fixed |
 | [MAIL-L2](#mail-l2) | A document attached and embedded, or picked twice, makes the letter fail as "deleted before sending" | medium | proven† | fixed |
-| [ORD-L5](#ord-l5) | The pickup board's "ready" list selects by creation date, not by completion | medium | likely | **not fixed** |
+| [ORD-L5](#ord-l5) | The pickup board's "ready" list selects by creation date, not by completion | medium | proven | fixed |
 | [INSP-L7](#insp-l7) | "Újra" (retake) drops earlier kept photos of the same zone and orphans their queue rows | medium | likely | fixed |
 | [INSP-L9](#insp-l9) | A check-in started offline can never load its comparison | medium | likely | fixed |
 | [INV-L6](#inv-l6) | proforma number lock is released before the proforma exists, so concurrent proformas draw the same number and one PDF is filed as an orphan | medium | likely | fixed |
 | [INV-L9](#inv-l9) | a PDF that failed to store "can be fetched again", but nothing can fetch it | medium | likely | **not fixed** |
 | [INV-L10](#inv-l10) | an invoice whose request cannot be built at submit time is retried to death and stays `submitting` forever | medium | likely | **not fixed** |
-| [MAIL-L4](#mail-l4) | A dead-lettered `send_email` job leaves the email "queued" forever, invisible and not retryable | medium | likely | **not fixed** |
-| [INSP-L10](#insp-l10) | A retried check-out create after a lost response becomes a permanent `checkout_open` | medium | suspected | **not fixed** |
+| [MAIL-L4](#mail-l4) | A dead-lettered `send_email` job leaves the email "queued" forever, invisible and not retryable | medium | proven | fixed |
+| [INSP-L10](#insp-l10) | A retried check-out create after a lost response becomes a permanent `checkout_open` | medium | proven | fixed |
 | [AUTH-L2](#auth-l2) | Web session cookie expires 7 days after login even for active users (30-day absolute lifetime never applies) | low | proven | fixed |
 | [ORD-L3](#ord-l3) | The pickup board rendered two nested app shells | low | proven | fixed |
 | [INSP-L1](#insp-l1) | Web offers verdict buttons on a signed (locked) check-in | low | proven | fixed |
@@ -64,10 +64,11 @@ Findings are sorted by severity, then confidence. **Confidence** legend:
 
 These are the final runs on the combined tree, after every agent finished:
 
-- Backend: `SQLX_OFFLINE=true cargo test --lib`: **133 passed, 0 failed**. `cargo clippy --lib` shows 3 warnings, none of them on changed lines.
-- Backend integration tests (`backend/tests/*`) were **not run**, because there was no Postgres and Docker Desktop would not start from the session. With `SQLX_OFFLINE=true`, `tests/newsletter.rs` and `tests/migration.rs` do not compile: their queries are missing from the `.sqlx` cache. Those files are untouched and the cache is unchanged, so this was already the case before the audit.
-- Web: `npx vitest run`: **10 files, 79 tests passed**. `npx tsc --noEmit`: clean. `eslint` on the changed files: 0 errors (1 existing `<img>` warning).
-- Android: `./gradlew :app:testDebugUnitTest` (with `JAVA_HOME=C:/Users/vasta/android-tools/jdk`): **57 tests passed, 0 failed**.
+- Backend: `SQLX_OFFLINE=true cargo test --lib`: **137 passed, 0 failed**. `cargo test --test openapi`: **2 passed** (the committed `openapi/openapi.json` was regenerated for the new `client_key` field). `cargo clippy --lib` shows 3 warnings, none of them on changed lines (`repo/inspections.rs:204,289` `patch_draft`-era functions, `service/email.rs:912`).
+- Backend integration tests (`backend/tests/*`) were **not run**, because there was no Postgres and Docker Desktop would not start from the session. With `SQLX_OFFLINE=true`, `tests/newsletter.rs` and `tests/migration.rs` do not compile: their queries are missing from the `.sqlx` cache. Those files are untouched and the cache is unchanged, so this was already the case before the audit. The two new `tests/email_and_jobs.rs` cases (MAIL-L4, MAIL-L2) therefore compile but have not executed here; they need a live Postgres in CI.
+- Web: `npx vitest run`: **10 files, 80 tests passed**. `npx tsc --noEmit`: clean. `eslint` on the changed files: 0 errors (1 existing `<img>` warning).
+- Android: `./gradlew :app:testDebugUnitTest` (with `JAVA_HOME=C:/Users/vasta/android-tools/jdk`): **58 tests passed, 0 failed**.
+- Sidecar: `npm test` in `nav-sidecar/`: **20 passed, 0 failed** (incl. the 2 new read-back cases for INV-L8).
 
 ## Findings
 
@@ -178,7 +179,7 @@ These are the final runs on the combined tree, after every agent finished:
 - **Severity:** high
 - **Confidence:** likely
 - **Proof:** none (needs a sidecar that times out after submitting; the mock settles immediately).
-- **Fix:** not fixed. A correct fix must reconcile with NAV before deciding (query the number via the sidecar, then adopt the stored report, including its transaction id, or reject). That is a new sidecar/backend flow, and how to adopt a report whose transaction id is unknown is a design decision.
+- **Fix:** not fixed end to end. One prerequisite now exists: `GET /invoices/:number` on the sidecar reads back what NAV holds for a number (issue date + totals, 404 when NAV holds nothing; `nav-sidecar/src/routes/invoices.ts`, tested against the mock in `nav-sidecar/test/e2e.test.js`). What is still missing is the backend reconcile step: on `INVOICE_NUMBER_ALREADY_EXISTS` after a timeout, query the number via the sidecar and adopt the stored report (including its transaction id) instead of marking the row `rejected`. How to adopt a report whose transaction id is unknown is still a design decision.
 - **Journey:** Invoicing & money
 
 <a id="auth-l1"></a>
@@ -343,7 +344,7 @@ These are the final runs on the combined tree, after every agent finished:
 - **Impact:** The letter is never delivered, with a false error message. The office thinks a file was deleted and loses time.
 - **Severity:** medium
 - **Confidence:** proven† (compile-only). proven (helper-level). The unit test failed to compile before the fix because the id-dedup did not exist. A DB-level delivery test was not possible because no Postgres was available.
-- **Proof:** `service::email::tests::a_document_attached_and_embedded_is_looked_up_once` in `backend/src/service/email.rs`
+- **Proof:** `service::email::tests::a_document_attached_and_embedded_is_looked_up_once` in `backend/src/service/email.rs`. DB-level: `a_document_attached_and_embedded_is_not_reported_deleted` in `backend/tests/email_and_jobs.rs` (needs a live Postgres; compiles, not executed here).
 - **Fix:** `backend/src/service/email.rs`: new `distinct_ids` / `requested_document_ids` helpers. `deliver`, `prepare` (attachments), `apply_embeds`, `send_quotation` and `send_newsletter` now look up and count each document once. An image that is both attached and embedded is still sent both ways, as requested.
 - **Journey:** Email & communications
 
@@ -355,10 +356,10 @@ These are the final runs on the combined tree, after every agent finished:
 - **Reproduction:** Have 30 or more completed orders. Take an order created earlier than all of them and move it to Kész today. Open `/hu/board`: the car is missing from "ready".
 - **Impact:** The shop display can hide exactly the car that has just become ready.
 - **Severity:** medium
-- **Confidence:** likely (traced; no test)
-- **Proof:** none. It needs a server sort key.
-- **Fix:** not fixed. Changing the search SQL (the `query_as!` in repo/orders.rs) requires regenerating the sqlx offline cache (`backend/.sqlx`) against a live Postgres, and none is available (nothing listens on localhost:5432 and Docker is not running). The suggested fix is to add a `stage_entered_at` sort key to `ORDER_SORTS` and the ORDER BY CASE list, then have the board request `sort: '-stage_entered_at'`. Whether "ready" should exclude collected cars is Q-ORD-10 (there is no "picked up" stage).
-- **Also affects:** the web dashboard "Átvehető" section reads the same `stage=completed, limit 30` list, sorted by `-created_at` (`frontend/src/components/dashboard/DashboardView.tsx:81-85`). The reports agent reported this separately as REP-L1; it is merged here.
+- **Confidence:** proven
+- **Proof:** `frontend/src/test/logicfix-orders-board.test.tsx`: "asks the server for the most recently completed cars, not created ones" (fails before: the board sent no `sort`; passes after). Backend: `repo::orders::tests::orders_can_be_sorted_by_when_they_entered_their_stage` asserts `parse_sort` accepts `-stage_entered_at` and the SQL orders by `cs.entered_at` (the full end-to-end sort needs a live Postgres).
+- **Fix:** backend `search` accepts `stage_entered_at` in `ORDER_SORTS` with `ORDER BY cs.entered_at` branches (`backend/src/repo/orders.rs`; runtime-checked SQL so no `.sqlx` cache regen was needed). The board (`frontend/src/components/board/PickupBoard.tsx`) and the dashboard "Átvehető" section (`frontend/src/components/dashboard/DashboardView.tsx`) now request `sort: '-stage_entered_at'`; the client-side re-sort stays only as a tiebreak.
+- **Also affects:** the web dashboard "Átvehető" section read the same `stage=completed, limit 30` list; it now requests the same sort (fixed together). The reports agent reported this separately as REP-L1; it is merged here. Whether "ready" should exclude collected cars is still Q-ORD-10 (there is no "picked up" stage).
 - **Journey:** Order lifecycle
 
 <a id="insp-l7"></a>
@@ -434,9 +435,9 @@ These are the final runs on the combined tree, after every agent finished:
 - **Reproduction:** Queue a letter with an attachment while object storage is unreachable for ~1h (5 attempts with backoff). The job appears under /admin/jobs?state=failed, while the email detail still says "Várakozik" and has no Retry button.
 - **Impact:** A customer letter silently never goes out, and the email log says it is still pending.
 - **Severity:** medium
-- **Confidence:** likely
-- **Proof:** none. It needs a DB-backed test (`#[sqlx::test]`), and no Postgres is available in this environment.
-- **Fix:** not fixed. It needs a DB-backed test to prove, and the fix must choose the right terminal status: `failed` if nothing was sent, but `needs_review` if the row is already `sending`, because a dead-letter after SMTP success must not be reported as failed.
+- **Confidence:** proven
+- **Proof:** `service::email::tests::a_dead_lettered_send_leaves_queued_and_never_claims_failure_when_unknown` in `backend/src/service/email.rs` (unit: `queued → failed`, `sending → needs_review`, settled rows untouched). DB-level: `a_dead_lettered_send_job_makes_the_email_failed_and_retryable` in `backend/tests/email_and_jobs.rs` (needs a live Postgres; compiles, not executed here).
+- **Fix:** `backend/src/jobs/mod.rs` (`run_one`): when a `send_email` job is dead-lettered, it calls the new `service::email::job_dead_lettered`, which locks the email row and moves `queued → failed` ("the delivery job gave up; nothing was sent") or `sending → needs_review` (SMTP may already have accepted it — never claim failure when the outcome is unknown). Settled rows are untouched. The row then appears under "needs attention" and retries through the normal `POST /emails/{id}/retry` path.
 - **Journey:** Email & communications
 
 <a id="insp-l10"></a>
@@ -447,9 +448,9 @@ These are the final runs on the combined tree, after every agent finished:
 - **Reproduction:** Android: sign a check-out while the network drops just after `POST /inspections` reaches the server. The next sync fails with "this order already has an open check-out".
 - **Impact:** The order is stuck until an admin removes the orphan server draft.
 - **Severity:** medium
-- **Confidence:** suspected (a timing window; not reproduced in a test)
-- **Proof:** none.
-- **Fix:** not fixed. A safe fix needs a client idempotency key on `POST /inspections` (new column plus unique index, API and OpenAPI change) or a server-side way to find "my" draft. That is a schema and contract change beyond a minimal fix.
+- **Confidence:** proven
+- **Proof:** backend `api::inspections::tests::client_key_is_optional_trimmed_and_bounded` and `a_key_replay_must_name_the_same_order_and_kind` in `backend/src/api/inspections.rs` (fail before: no `client_key` concept; pass after). Android `the inspection create carries the draft uuid as its idempotency key` in `InspectionLogicTest.kt` (MockWebServer: asserts the create body contains `"client_key":"<draft uuid>"`; fails before, passes after).
+- **Fix:** new nullable `inspections.client_key` with a partial unique index (`backend/migrations/0027_inspection_client_key.sql`; old rows and key-less callers keep the old behaviour). `POST /inspections` accepts an optional `client_key` (blank = none, >100 chars = 400): a replay with the same key returns the existing row with 200 instead of a second row or `checkout_open`; a key reused for a different order/kind answers 409 `duplicate`; a lost race between two retries resolves to the same row. The phone sends its stable local draft UUID as the key (`InspectionSync.kt`; `InspectionBody.clientKey`).
 - **Journey:** Inspection & media
 
 <a id="auth-l2"></a>

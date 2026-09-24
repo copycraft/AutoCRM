@@ -80,7 +80,8 @@ export function DashboardView() {
       },
       {
         queryKey: qk.orders({ stage: 'completed', dashboard: true }),
-        queryFn: () => ordersApi.list({ stage: 'completed', limit: 30 }),
+        // Most recently *completed* first (ORD-L5), not most recently created.
+        queryFn: () => ordersApi.list({ stage: 'completed', limit: 30, sort: '-stage_entered_at' }),
         staleTime: 60_000,
       },
     ],

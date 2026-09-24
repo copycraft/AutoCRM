@@ -80,7 +80,8 @@ struct SearchQuery {
     /// Only orders not in a terminal stage.
     #[serde(default)]
     open: bool,
-    /// Sort key, `-` prefix for descending: created_at, due_date, total, number.
+    /// Sort key, `-` prefix for descending: created_at, due_date, total, number,
+    /// stage_entered_at (when the order entered its current stage).
     sort: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,

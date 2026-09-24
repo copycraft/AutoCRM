@@ -23,7 +23,10 @@ export function PickupBoard() {
 
   const ready = useQuery({
     queryKey: qk.orders({ stage: 'completed', board: true }),
-    queryFn: () => ordersApi.list({ stage: 'completed', limit: 30 }),
+    // Server-side sort: the 30 most recently *completed* cars, not the 30 most
+    // recently created completed orders (ORD-L5). The client re-sort below is
+    // only a tiebreak for rows the server already ordered.
+    queryFn: () => ordersApi.list({ stage: 'completed', limit: 30, sort: '-stage_entered_at' }),
     refetchInterval: 30_000,
     staleTime: 15_000,
   });

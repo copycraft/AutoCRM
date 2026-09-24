@@ -365,3 +365,95 @@ async fn the_inbox_search_runs_on_the_server(pool: PgPool) {
     .unwrap();
     assert!(literal.is_empty());
 }
+
+// ── Logic audit round 2 (MAIL-L4, MAIL-L2) ──
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_dead_lettered_send_job_makes_the_email_failed_and_retryable(pool: PgPool) {
+    let state = common::state(pool.clone());
+    let user = common::user(&pool, Role::Office).await;
+    let queued = manual_email(&pool, user.user_id, EmailStatus::Queued).await;
+    let sending = manual_email(&pool, user.user_id, EmailStatus::Sending).await;
+
+    autocrm::service::email::job_dead_lettered(&state, queued, "storage unreachable")
+        .await
+        .unwrap();
+    autocrm::service::email::job_dead_lettered(&state, sending, "db down after SMTP")
+        .await
+        .unwrap();
+
+    let failed = emails::find(&pool, queued).await.unwrap().unwrap();
+    assert_eq!(failed.status, EmailStatus::Failed);
+    assert!(failed.error.unwrap().contains("storage unreachable"));
+    // The outcome of a row already handed to SMTP is unknown: never call it failed.
+    assert_eq!(
+        emails::find(&pool, sending).await.unwrap().unwrap().status,
+        EmailStatus::NeedsReview
+    );
+    // Visible where failed mail is shown, and retryable through the normal path.
+    let attention = emails::list(
+        &pool,
+        &emails::EmailFilter {
+            needs_attention: true,
+            ..Default::default()
+        },
+        10,
+        0,
+    )
+    .await
+    .unwrap();
+    assert!(attention.iter().any(|m| m.id == queued));
+    autocrm::service::email::retry(&state, queued).await.unwrap();
+    assert_eq!(
+        emails::find(&pool, queued).await.unwrap().unwrap().status,
+        EmailStatus::Queued
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_document_attached_and_embedded_is_not_reported_deleted(pool: PgPool) {
+    use autocrm::domain::media::DocumentKind;
+    use autocrm::repo::documents::{self, NewDocument, Owner};
+    let state = common::state(pool.clone());
+    let user = common::user(&pool, Role::Office).await;
+    let order = common::order(&pool, &user, "HUF", vec![]).await;
+    let mut conn = pool.acquire().await.unwrap();
+    let (doc, _) = documents::insert(
+        &mut conn,
+        &NewDocument {
+            owner: Owner::Order(order.id),
+            vehicle_id: None,
+            kind: DocumentKind::Design,
+            filename: "kep.png",
+            content_type: "image/png",
+            storage_key: "test/kep.png",
+            content_hash: b"hash-kep",
+            byte_size: 10,
+            uploaded_by: Some(user.user_id),
+            source_ref: None,
+        },
+    )
+    .await
+    .unwrap();
+    drop(conn);
+    let id = manual_email(&pool, user.user_id, EmailStatus::Queued).await;
+    sqlx::query("UPDATE email_messages SET attachments = $2 WHERE id = $1")
+        .bind(id)
+        .bind(json!([
+            { "document_id": doc.id },
+            { "document_id": doc.id, "content_id": format!("doc-{}", doc.id) }
+        ]))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Storage is unreachable in tests, so delivery errors out after the lookup and the row
+    // stays queued for the job to retry. What it must not do is claim the file was deleted.
+    let _ = deliver(&state, &Mailer::DryRun, id).await;
+    let email = emails::find(&pool, id).await.unwrap().unwrap();
+    assert_ne!(
+        email.error.as_deref(),
+        Some("an attached document was deleted before sending")
+    );
+    assert_ne!(email.status, EmailStatus::Failed);
+}

@@ -253,7 +253,7 @@ pub async fn update(
     .await
 }
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema, sqlx::FromRow)]
 pub struct OrderSummary {
     pub id: i64,
     pub number: String,
@@ -296,27 +296,23 @@ pub struct OrderFilter {
 /// Sort keys accepted by order search (`-` prefix for descending).
 /// The value travels to SQL as a bind parameter matched against static CASE
 /// branches, so the query stays fully compile-time checked.
-pub const ORDER_SORTS: &[&str] = &["created_at", "due_date", "total", "number"];
+/// `stage_entered_at` orders by when the order entered its *current* stage: the pickup
+/// board and the dashboard ask for `stage=completed&sort=-stage_entered_at` to list the
+/// most recently finished cars rather than the most recently created orders.
+pub const ORDER_SORTS: &[&str] = &["created_at", "due_date", "total", "number", "stage_entered_at"];
 
 pub const DEFAULT_SORT: &str = "-created_at";
 
-pub async fn search(
-    db: impl PgExecutor<'_>,
-    f: &OrderFilter,
-    sort_key: &str,
-    limit: i64,
-    offset: i64,
-) -> sqlx::Result<Vec<OrderSummary>> {
-    sqlx::query_as!(
-        OrderSummary,
-        r#"SELECT o.id, o.number, o.title, o.partner_id, p.name AS "partner_name!",
-                  o.project_type_id, pt.label_hu AS "project_type_label?",
-                  o.currency, ov.total_minor AS "total_minor!",
+/// Runtime-checked (not `query_as!`) so a new sort branch doesn't need the offline query
+/// cache regenerated against a live database. Column names match `OrderSummary` fields.
+const SEARCH_SQL: &str = r#"SELECT o.id, o.number, o.title, o.partner_id, p.name AS partner_name,
+                  o.project_type_id, pt.label_hu AS project_type_label,
+                  o.currency, ov.total_minor AS total_minor,
                   o.vehicle_make, o.vehicle_model, o.vehicle_plate, o.due_date,
-                  o.assigned_to, u.display_name AS "assigned_name?",
-                  cs.stage_key AS "stage_key!", sd.label_hu AS "stage_label!", sd.is_terminal AS "stage_is_terminal!",
-                  cs.entered_at AS "stage_entered_at!",
-                  (SELECT count(*) FROM blockers b WHERE b.order_id = o.id AND b.resolved_at IS NULL) AS "open_blockers!",
+                  o.assigned_to, u.display_name AS assigned_name,
+                  cs.stage_key AS stage_key, sd.label_hu AS stage_label, sd.is_terminal AS stage_is_terminal,
+                  cs.entered_at AS stage_entered_at,
+                  (SELECT count(*) FROM blockers b WHERE b.order_id = o.id AND b.resolved_at IS NULL) AS open_blockers,
                   o.created_at, o.updated_at
            FROM orders o
            JOIN partners p ON p.id = o.partner_id
@@ -348,21 +344,31 @@ pub async fn search(
                 CASE WHEN $10 = '-total' THEN ov.total_huf_minor END DESC NULLS LAST,
                CASE WHEN $10 = 'number' THEN o.number END ASC,
                CASE WHEN $10 = '-number' THEN o.number END DESC,
+               CASE WHEN $10 = 'stage_entered_at' THEN cs.entered_at END ASC,
+               CASE WHEN $10 = '-stage_entered_at' THEN cs.entered_at END DESC,
                o.id DESC
-           LIMIT $8 OFFSET $9"#,
-        f.pattern,
-        f.plate_pattern,
-        f.stage_key,
-        f.partner_id,
-        f.project_type_id,
-        f.assigned_to,
-        f.open_only,
-        limit,
-        offset,
-        sort_key
-    )
-    .fetch_all(db)
-    .await
+           LIMIT $8 OFFSET $9"#;
+
+pub async fn search(
+    db: impl PgExecutor<'_>,
+    f: &OrderFilter,
+    sort_key: &str,
+    limit: i64,
+    offset: i64,
+) -> sqlx::Result<Vec<OrderSummary>> {
+    sqlx::query_as::<_, OrderSummary>(SEARCH_SQL)
+        .bind(&f.pattern)
+        .bind(&f.plate_pattern)
+        .bind(&f.stage_key)
+        .bind(f.partner_id)
+        .bind(f.project_type_id)
+        .bind(f.assigned_to)
+        .bind(f.open_only)
+        .bind(limit)
+        .bind(offset)
+        .bind(sort_key)
+        .fetch_all(db)
+        .await
 }
 
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
@@ -386,4 +392,22 @@ pub async fn value(db: impl PgExecutor<'_>, order_id: i64) -> sqlx::Result<Optio
     )
     .fetch_optional(db)
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repo::parse_sort;
+
+    /// ORD-59 / ORD-L5: the pickup board and the dashboard list the most recently
+    /// *completed* cars, which needs a sort on when the order entered its current stage.
+    #[test]
+    fn orders_can_be_sorted_by_when_they_entered_their_stage() {
+        assert_eq!(
+            parse_sort(Some("-stage_entered_at"), ORDER_SORTS, DEFAULT_SORT),
+            Ok("-stage_entered_at".to_string())
+        );
+        assert!(SEARCH_SQL.contains("$10 = '-stage_entered_at' THEN cs.entered_at END DESC"));
+        assert!(SEARCH_SQL.contains("$10 = 'stage_entered_at' THEN cs.entered_at END ASC"));
+    }
 }

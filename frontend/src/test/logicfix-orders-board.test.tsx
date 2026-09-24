@@ -59,6 +59,15 @@ describe('pickup board', () => {
     await waitFor(() => expect(screen.getByText('OLD-001')).toBeInTheDocument());
   });
 
+  it('asks the server for the most recently completed cars, not created ones', async () => {
+    wrap(<PickupBoard />);
+    await waitFor(() => expect(api.list).toHaveBeenCalled());
+    const completedCall = api.list.mock.calls.find(
+      (call) => (call[0] as Record<string, unknown>).stage === 'completed',
+    );
+    expect(completedCall?.[0]).toMatchObject({ sort: '-stage_entered_at' });
+  });
+
   it('renders the board inside exactly one app shell', async () => {
     wrap(<BoardPage />);
     await waitFor(() => expect(api.list).toHaveBeenCalled());

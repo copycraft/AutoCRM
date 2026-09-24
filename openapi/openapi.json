@@ -2292,7 +2292,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "Sort key, `-` prefix for descending: created_at, due_date, total, number.",
+            "description": "Sort key, `-` prefix for descending: created_at, due_date, total, number,\nstage_entered_at (when the order entered its current stage).",
             "required": false,
             "schema": {
               "type": "string"
@@ -3539,8 +3539,18 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "description": "Already created under this `client_key`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inspection"
+                }
+              }
+            }
+          },
           "201": {
-            "description": "",
+            "description": "Created",
             "content": {
               "application/json": {
                 "schema": {
@@ -8791,6 +8801,13 @@
               "string",
               "null"
             ]
+          },
+          "client_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional idempotency key (1..100 chars), e.g. the phone's local draft UUID.\nA repeat create with the same key returns the inspection it already created\n(200) instead of a second row or `checkout_open`. Reusing a key for a\ndifferent order or kind answers 409 `duplicate`."
           }
         }
       },

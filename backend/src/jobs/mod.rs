@@ -104,6 +104,15 @@ async fn run_one(state: &AppState, mailer: &Mailer, job: Job) {
             let message = format!("{e:#}");
             if job.attempts >= job.max_attempts {
                 tracing::error!(error = %message, "job dead-lettered after final attempt");
+                // The email log must not keep saying "queued" for a letter no job will
+                // send any more (MAIL-L4).
+                if job.kind == kinds::SEND_EMAIL {
+                    if let Ok(p) = payload::<EmailPayload>(&job) {
+                        if let Err(e) = email::job_dead_lettered(state, p.email_id, &message).await {
+                            tracing::error!(error = %e, email_id = p.email_id, "could not mark the email of a dead send job");
+                        }
+                    }
+                }
                 jobs::fail(&state.db, job.id, &message, None).await
             } else {
                 let retry_at = Utc::now() + jobs::backoff(job.attempts);

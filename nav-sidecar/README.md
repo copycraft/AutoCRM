@@ -21,6 +21,7 @@ Node 22, Express 5, ESM, no database.
 | `POST /invoices/:number/annul`     | **yes** — `manageAnnulment`, then polls        |
 | `GET /invoices/:number/chain`      | **yes** — `queryInvoiceChainDigest`            |
 | `GET /invoices/:number/pdf`        | **yes** — `queryInvoiceData`, then renders     |
+| `GET /invoices/:number`            | **yes** — `queryInvoiceData`: number, issue date, totals |
 | `POST /proformas`                  | **no**                                         |
 | `GET /proformas/:id/pdf`           | **no**                                         |
 | `GET /health`                      | **no**                                         |

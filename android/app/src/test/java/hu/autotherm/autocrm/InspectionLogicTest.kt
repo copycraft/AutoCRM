@@ -172,6 +172,30 @@ class InspectionLogicTest {
         assertNull(row.error)
     }
 
+    // INSP-L10: the create carries the draft's stable local UUID as the
+    // idempotency key, so a retry after a lost response replays to the same
+    // server row instead of failing forever on `checkout_open`.
+    @Test
+    fun `the inspection create carries the draft uuid as its idempotency key`() = runBlocking {
+        val uuid = draft(
+            DraftPayload(vehiclePlate = "ABC-123", inspectorName = "Sanyi", signed = true),
+            uuid = "draft-uuid-7",
+        )
+        server.enqueue(MockResponse().setResponseCode(201).setBody(inspectionJson(42)))
+        server.enqueue(MockResponse().setBody(inspectionJson(42, "signed")))
+
+        val result = syncDraft(app, uuid)
+
+        assertEquals(SyncResult.Done, result)
+        val create = server.takeRequest()
+        assertEquals("/api/inspections", create.path)
+        val body = create.body.readUtf8()
+        assertTrue(
+            "create must send client_key=$uuid for idempotent retry, got: $body",
+            body.contains("\"client_key\":\"$uuid\""),
+        )
+    }
+
     // INSP-19 / INSP-20: a damage without type and severity was never finished
     // ("válassz típust és súlyosságot"), so it is not part of the record.
     @Test

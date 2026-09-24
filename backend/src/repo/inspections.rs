@@ -78,6 +78,65 @@ pub async fn create(db: impl PgExecutor<'_>, n: &NewInspection) -> sqlx::Result<
     .await
 }
 
+/// The inspection a client already created under this idempotency key, if any.
+/// Runtime query (no offline-cache entry needed); the row itself comes from [`find`].
+pub async fn find_by_client_key(
+    db: &sqlx::PgPool,
+    client_key: &str,
+) -> sqlx::Result<Option<Inspection>> {
+    let id: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM inspections WHERE client_key = $1")
+            .bind(client_key)
+            .fetch_optional(db)
+            .await?;
+    match id {
+        Some(id) => find(db, id).await,
+        None => Ok(None),
+    }
+}
+
+/// Idempotent create: inserts the inspection and records `client_key` in one
+/// transaction. When the key is already taken (a retried create whose first
+/// response was lost, or two racing retries), nothing new is written and the
+/// existing row comes back with `created = false`.
+///
+/// Any other error (e.g. the one-draft-checkout index) is returned unchanged;
+/// the caller translates it.
+pub async fn create_with_client_key(
+    db: &sqlx::PgPool,
+    n: &NewInspection,
+    client_key: &str,
+) -> sqlx::Result<(Inspection, bool)> {
+    if let Some(existing) = find_by_client_key(db, client_key).await? {
+        return Ok((existing, false));
+    }
+    let attempt: sqlx::Result<Inspection> = async {
+        let mut tx = db.begin().await?;
+        let inspection = create(&mut *tx, n).await?;
+        sqlx::query("UPDATE inspections SET client_key = $2 WHERE id = $1")
+            .bind(inspection.id)
+            .bind(client_key)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(inspection)
+    }
+    .await;
+    match attempt {
+        Ok(inspection) => Ok((inspection, true)),
+        Err(e) => {
+            // Lost a race against a concurrent retry with the same key: its row is
+            // the answer. (For a check-out the loser may also trip the
+            // one-draft-checkout index first; the key lookup covers both.)
+            if let Some(existing) = find_by_client_key(db, client_key).await? {
+                Ok((existing, false))
+            } else {
+                Err(e)
+            }
+        }
+    }
+}
+
 pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Inspection>> {
     sqlx::query_as!(
         Inspection,

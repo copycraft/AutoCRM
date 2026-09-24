@@ -740,6 +740,10 @@ data class InspectionBody(
     @SerialName("battery_pct") val batteryPct: Int? = null,
     @SerialName("warning_lights") val warningLights: String? = null,
     @SerialName("customer_comment") val customerComment: String? = null,
+    // Idempotency key: the phone's stable local draft UUID. A retried create whose
+    // first response was lost returns the already-created inspection (200) instead
+    // of a second row or `checkout_open` (INSP-L10).
+    @SerialName("client_key") val clientKey: String? = null,
 )
 
 @Serializable

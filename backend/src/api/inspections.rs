@@ -137,12 +137,46 @@ struct CreateBody {
     fuel_level: Option<String>,
     battery_pct: Option<i32>,
     warning_lights: Option<String>,
+    /// Optional idempotency key (1..100 chars), e.g. the phone's local draft UUID.
+    /// A repeat create with the same key returns the inspection it already created
+    /// (200) instead of a second row or `checkout_open`. Reusing a key for a
+    /// different order or kind answers 409 `duplicate`.
+    #[serde(default)]
+    client_key: Option<String>,
+}
+
+/// Normalises the optional idempotency key: blank means "no key".
+fn client_key(raw: Option<&str>) -> AppResult<Option<String>> {
+    match raw.map(str::trim).filter(|k| !k.is_empty()) {
+        None => Ok(None),
+        Some(k) if k.chars().count() > 100 => {
+            Err(AppError::validation("client_key is at most 100 characters"))
+        }
+        Some(k) => Ok(Some(k.to_string())),
+    }
+}
+
+/// A key replay is only the same request when it names the same order and kind;
+/// anything else is a client reusing a key, which must not hand back an
+/// unrelated inspection.
+fn replay_matches(existing: &Inspection, order_id: i64, kind: &str) -> AppResult<()> {
+    if existing.order_id == order_id && existing.kind == kind {
+        Ok(())
+    } else {
+        Err(AppError::conflict(
+            "duplicate",
+            "client_key was already used for a different inspection",
+        ))
+    }
 }
 
 #[utoipa::path(
     post, path = "/inspections", tag = "inspections",
     request_body(content = CreateBody),
-    responses((status = 201, body = Inspection))
+    responses(
+        (status = 201, description = "Created", body = Inspection),
+        (status = 200, description = "Already created under this `client_key`", body = Inspection)
+    )
 )]
 async fn create(
     State(state): State<AppState>,
@@ -156,6 +190,15 @@ async fn create(
     let order = orders::find(&state.db, b.order_id)
         .await?
         .ok_or(AppError::NotFound("order"))?;
+    let key = client_key(b.client_key.as_deref())?;
+    // Replay first: the row exists, so the rules that guard creating it (e.g.
+    // `checkout_open` against itself) no longer apply.
+    if let Some(key) = &key {
+        if let Some(existing) = inspections::find_by_client_key(&state.db, key).await? {
+            replay_matches(&existing, b.order_id, &b.kind)?;
+            return Ok((StatusCode::OK, Json(existing)));
+        }
+    }
     let inspector_name = super::required("inspector_name", &b.inspector_name)?;
     if let Some(o) = b.odometer {
         if o < 0 {
@@ -184,9 +227,7 @@ async fn create(
     } else {
         None
     };
-    let inspection = inspections::create(
-        &state.db,
-        &inspections::NewInspection {
+    let new = inspections::NewInspection {
             order_id: b.order_id,
             kind: std::mem::take(&mut b.kind),
             vehicle_plate: b
@@ -204,10 +245,12 @@ async fn create(
             warning_lights: super::optional(b.warning_lights),
             checkout_id,
             created_by: me.user_id,
-        },
-    )
-    .await
-    .map_err(|e| {
+        };
+    let created = match &key {
+        Some(key) => inspections::create_with_client_key(&state.db, &new, key).await,
+        None => inspections::create(&state.db, &new).await.map(|i| (i, true)),
+    };
+    let (inspection, is_new) = created.map_err(|e| {
         // The one-draft-checkout-per-order unique index surfaces as a DB error;
         // translate it into the rule the phone explains.
         let msg = e.to_string();
@@ -220,6 +263,11 @@ async fn create(
             AppError::Database(e)
         }
     })?;
+    if !is_new {
+        // Lost a race to a concurrent retry with the same key.
+        replay_matches(&inspection, new.order_id, &new.kind)?;
+        return Ok((StatusCode::OK, Json(inspection)));
+    }
     Ok((StatusCode::CREATED, Json(inspection)))
 }
 
@@ -874,3 +922,62 @@ async fn replace_templates(
     Ok(Items::new(out))
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn inspection(order_id: i64, kind: &str) -> Inspection {
+        let now = Utc::now();
+        Inspection {
+            id: 1,
+            order_id,
+            kind: kind.into(),
+            status: "draft".into(),
+            vehicle_plate: "ABC-123".into(),
+            vehicle_vin: None,
+            inspector_name: "Sanyi".into(),
+            driver_name: None,
+            location: None,
+            odometer: None,
+            fuel_level: None,
+            battery_pct: None,
+            warning_lights: None,
+            checkout_id: None,
+            customer_comment: None,
+            signed_at: None,
+            created_by: 1,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    // INSP-L10: the key is optional; blank means none, and it is bounded like the column.
+    #[test]
+    fn client_key_is_optional_trimmed_and_bounded() {
+        assert_eq!(client_key(None).unwrap(), None);
+        assert_eq!(client_key(Some("  ")).unwrap(), None);
+        assert_eq!(client_key(Some(" u-1 ")).unwrap().as_deref(), Some("u-1"));
+        assert!(client_key(Some(&"k".repeat(100))).is_ok());
+        assert!(matches!(
+            client_key(Some(&"k".repeat(101))),
+            Err(AppError::Validation(_))
+        ));
+    }
+
+    // INSP-L10: a retried create with the same key is the same request only for the
+    // same order and kind; otherwise it must not return someone else's inspection.
+    #[test]
+    fn a_key_replay_must_name_the_same_order_and_kind() {
+        let existing = inspection(7, "checkout");
+        assert!(replay_matches(&existing, 7, "checkout").is_ok());
+        assert!(matches!(
+            replay_matches(&existing, 8, "checkout"),
+            Err(AppError::Conflict { code: "duplicate", .. })
+        ));
+        assert!(matches!(
+            replay_matches(&existing, 7, "checkin"),
+            Err(AppError::Conflict { code: "duplicate", .. })
+        ));
+    }
+}

@@ -9,6 +9,7 @@ import {
   fetchInvoice,
   invoiceChain,
   stornoInvoice,
+  totalsOf,
 } from '../invoices.js';
 import type { NavContext } from '../nav.js';
 import {
@@ -76,6 +77,26 @@ export function invoiceRoutes(context: NavContext): Router {
       `inline; filename="${safeFilename(invoiceNumber)}.pdf"`,
     );
     response.send(pdf);
+  });
+
+  /**
+   * What NAV holds under a number: its issue date and totals, read back from NAV.
+   *
+   * For reconciling an unknown outcome. A caller whose submission timed out and whose
+   * retry was answered INVOICE_NUMBER_ALREADY_EXISTS needs to know whether the stored
+   * document is the one it sent, and this is the only authoritative copy.
+   */
+  router.get('/:invoiceNumber', async (request: Request, response: Response) => {
+    const invoiceNumber = pathInvoiceNumber(request);
+    const direction = readDirection(request);
+    const supplierTaxNumber = readString(request, 'supplierTaxNumber');
+    const invoice = await fetchInvoice(context, invoiceNumber, direction, supplierTaxNumber);
+    const totals = totalsOf(invoice);
+    response.json({
+      invoiceNumber: invoice.invoiceNumber,
+      issueDate: invoice.invoiceIssueDate,
+      ...(totals ? { totals } : {}),
+    });
   });
 
   return router;

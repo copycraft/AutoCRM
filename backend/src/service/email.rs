@@ -1305,6 +1305,43 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
     }
 }
 
+/// What an email becomes when its `send_email` job is dead-lettered. A job that gives up
+/// before `mark_sending` left the row `queued` (nothing reached the transport): that is a
+/// failure. A row already committed as `sending` may have been accepted by SMTP, so it goes
+/// to review instead, never to failed. Settled rows are not touched.
+pub(crate) fn status_after_dead_letter(status: EmailStatus) -> Option<EmailStatus> {
+    match status {
+        EmailStatus::Queued => Some(EmailStatus::Failed),
+        EmailStatus::Sending => Some(EmailStatus::NeedsReview),
+        EmailStatus::Sent
+        | EmailStatus::Failed
+        | EmailStatus::Cancelled
+        | EmailStatus::NeedsReview => None,
+    }
+}
+
+/// Called by the worker when a `send_email` job runs out of attempts, so the email log
+/// never shows "queued" for a letter nobody will send any more. The row then appears under
+/// "needs attention" and can be re-queued with the normal retry.
+pub async fn job_dead_lettered(state: &AppState, email_id: i64, error: &str) -> anyhow::Result<()> {
+    let mut tx = state.db.begin().await?;
+    let Some(email) = emails::lock(&mut *tx, email_id).await? else {
+        return Ok(());
+    };
+    if let Some(next) = status_after_dead_letter(email.status) {
+        let message = match next {
+            EmailStatus::NeedsReview => format!(
+                "the delivery job gave up after the message was handed to the mail server; it may or may not have been delivered: {error}"
+            ),
+            _ => format!("the delivery job gave up; nothing was sent: {error}"),
+        };
+        emails::set_status(&mut *tx, email_id, next, Some(&message)).await?;
+        tracing::warn!(email_id, status = ?next, "send job dead-lettered; email marked for attention");
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
 /// Admin action: put a failed or needs-review email back in the queue.
 pub async fn retry(state: &AppState, email_id: i64) -> AppResult<()> {
     let mut tx = state.db.begin().await?;
@@ -1362,6 +1399,29 @@ mod tests {
         let requested = vec![doc_ref(42, None), doc_ref(42, Some("doc-42")), doc_ref(7, None)];
         assert_eq!(requested_document_ids(&requested), vec![42, 7]);
         assert_eq!(distinct_ids(&[5, 9, 5]), vec![5, 9]);
+    }
+
+    #[test]
+    fn a_dead_lettered_send_leaves_queued_and_never_claims_failure_when_unknown() {
+        // Nothing reached the transport: the letter did not go out, say so.
+        assert_eq!(
+            status_after_dead_letter(EmailStatus::Queued),
+            Some(EmailStatus::Failed)
+        );
+        // Committed as `sending`: SMTP may have accepted it. Never call that failed.
+        assert_eq!(
+            status_after_dead_letter(EmailStatus::Sending),
+            Some(EmailStatus::NeedsReview)
+        );
+        // Settled rows are left alone.
+        for settled in [
+            EmailStatus::Sent,
+            EmailStatus::Failed,
+            EmailStatus::Cancelled,
+            EmailStatus::NeedsReview,
+        ] {
+            assert_eq!(status_after_dead_letter(settled), None);
+        }
     }
 
     #[test]

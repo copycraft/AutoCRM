@@ -90,6 +90,9 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
                     fuelLevel = current.fuelLevel,
                     batteryPct = current.batteryPct.toIntOrNull(),
                     warningLights = current.warningLights.takeIf { it.isNotBlank() },
+                    // The draft's stable local UUID: a retried create after a lost
+                    // response replays to the same server row (INSP-L10).
+                    clientKey = uuid,
                 ),
             )
             serverId = created.id

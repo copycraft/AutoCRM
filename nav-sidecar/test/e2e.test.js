@@ -138,6 +138,25 @@ describe('nav-sidecar against the mock NAV service', () => {
     assert.equal(body.subarray(0, 5).toString('latin1'), '%PDF-');
   });
 
+  it('reads back what NAV holds for a number, so a caller can reconcile an unknown outcome', async () => {
+    const { status, body } = await call('GET', '/invoices/SIDECAR-TEST-001');
+    assert.equal(status, 200, JSON.stringify(body));
+    assert.equal(body.invoiceNumber, 'SIDECAR-TEST-001');
+    assert.equal(body.issueDate, TODAY);
+    assert.deepEqual(body.totals, {
+      currency: 'HUF',
+      net: '110000.00',
+      vat: '29700.00',
+      gross: '139700.00',
+    });
+  });
+
+  it('answers 404 for a number NAV does not hold', async () => {
+    const { status, body } = await call('GET', '/invoices/NEVER-REPORTED-999');
+    assert.equal(status, 404, JSON.stringify(body));
+    assert.equal(body.error.kind, 'not_found');
+  });
+
   it('stornoes an invoice, fetching the original from NAV', async () => {
     const { status, body } = await call('POST', '/invoices/SIDECAR-TEST-001/storno', {
       stornoInvoiceNumber: 'SIDECAR-TEST-001-S',
