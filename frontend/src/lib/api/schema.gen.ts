@@ -2804,8 +2804,8 @@ export interface components {
              */
             payment_date?: string | null;
             /**
-             * @description `TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`. Anything else
-             *     is refused before a number is drawn.
+             * @description `TRANSFER` (the default) or `CASH`. Anything else is refused before a number
+             *     is drawn.
              */
             payment_method?: string | null;
             /** @description Send the customer the invoice once NAV has stored it. */

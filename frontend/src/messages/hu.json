@@ -965,10 +965,7 @@
     "paymentMethod": "Fizetési mód",
     "paymentMethods": {
       "TRANSFER": "Átutalás",
-      "CASH": "Készpénz",
-      "CARD": "Kártya",
-      "VOUCHER": "Utalvány",
-      "OTHER": "Egyéb"
+      "CASH": "Készpénz"
     },
     "showChain": "Számlalánc",
     "hideChain": "Számlalánc elrejtése",

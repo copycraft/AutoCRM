@@ -74,8 +74,8 @@ pub struct IssueRequest {
     pub delivery_date: Option<NaiveDate>,
     /// Defaults to the issue date plus `NAV_PAYMENT_DAYS`.
     pub payment_date: Option<NaiveDate>,
-    /// `TRANSFER` (the default), `CASH`, `CARD`, `VOUCHER` or `OTHER`. Anything else
-    /// is refused before a number is drawn.
+    /// `TRANSFER` (the default) or `CASH`. Anything else is refused before a number
+    /// is drawn.
     pub payment_method: Option<String>,
     /// Send the customer the invoice once NAV has stored it.
     #[serde(default = "default_true")]

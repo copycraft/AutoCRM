@@ -56,9 +56,9 @@ impl InvoiceStatus {
     }
 }
 
-/// How the customer pays. The closed set NAV accepts — an invoice is reported with one
-/// of these, so anything else is refused at issue time rather than rejected by NAV
-/// after drawing a number (Q-INV-14).
+/// How the customer pays. Cash or bank transfer, nothing else: an invoice is reported
+/// with one of these, so anything else is refused at issue time rather than rejected
+/// by NAV after drawing a number (Q-INV-14).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema,
 )]
@@ -66,14 +66,11 @@ impl InvoiceStatus {
 pub enum PaymentMethod {
     Transfer,
     Cash,
-    Card,
-    Voucher,
-    Other,
 }
 
 impl PaymentMethod {
     /// The wire values, in the order the UI offers them.
-    pub const ALL: [&'static str; 5] = ["TRANSFER", "CASH", "CARD", "VOUCHER", "OTHER"];
+    pub const ALL: [&'static str; 2] = ["TRANSFER", "CASH"];
 
     /// The default when the office does not choose: a bank transfer.
     pub const DEFAULT: PaymentMethod = PaymentMethod::Transfer;
@@ -82,9 +79,6 @@ impl PaymentMethod {
         match self {
             PaymentMethod::Transfer => "TRANSFER",
             PaymentMethod::Cash => "CASH",
-            PaymentMethod::Card => "CARD",
-            PaymentMethod::Voucher => "VOUCHER",
-            PaymentMethod::Other => "OTHER",
         }
     }
 
@@ -93,9 +87,6 @@ impl PaymentMethod {
         match self {
             PaymentMethod::Transfer => "Átutalás",
             PaymentMethod::Cash => "Készpénz",
-            PaymentMethod::Card => "Kártya",
-            PaymentMethod::Voucher => "Utalvány",
-            PaymentMethod::Other => "Egyéb",
         }
     }
 
@@ -104,16 +95,13 @@ impl PaymentMethod {
         match raw.trim().to_uppercase().as_str() {
             "TRANSFER" => Ok(PaymentMethod::Transfer),
             "CASH" => Ok(PaymentMethod::Cash),
-            "CARD" => Ok(PaymentMethod::Card),
-            "VOUCHER" => Ok(PaymentMethod::Voucher),
-            "OTHER" => Ok(PaymentMethod::Other),
             _ => Err(UnknownPaymentMethod(raw.to_string())),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("payment method must be one of TRANSFER, CASH, CARD, VOUCHER, OTHER, not '{0}'")]
+#[error("payment method must be TRANSFER or CASH, not '{0}'")]
 pub struct UnknownPaymentMethod(pub String);
 
 /// A NAV-shaped address: the parts, not a line of text.

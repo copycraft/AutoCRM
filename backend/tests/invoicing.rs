@@ -987,7 +987,7 @@ async fn cash_and_transfer_invoices_share_one_series_with_a_stored_method(pool: 
         .await
         .unwrap_err();
     assert!(
-        matches!(&error, AppError::Validation(m) if m.contains("payment method must be one of")),
+        matches!(&error, AppError::Validation(m) if m.contains("payment method must be TRANSFER or CASH")),
         "got {error:?}",
     );
     let after: i64 = sqlx::query_scalar("SELECT count(*) FROM invoices")

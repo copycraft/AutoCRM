@@ -424,7 +424,7 @@ export function DocumentLink({ documentId, label }: { documentId: number; label:
  * pays — cash and transfer invoices share one series, but each document records its own
  * method.
  */
-const PAYMENT_METHODS = ['TRANSFER', 'CASH', 'CARD', 'VOUCHER', 'OTHER'] as const;
+const PAYMENT_METHODS = ['TRANSFER', 'CASH'] as const;
 
 function IssueDialog({
   busy,
