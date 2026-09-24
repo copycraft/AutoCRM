@@ -37,6 +37,7 @@ import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.ui.common.AutoCrmTextField
 import hu.autotherm.autocrm.ui.common.PrimaryButton
+import hu.autotherm.autocrm.ui.common.describeError
 import hu.autotherm.autocrm.ui.theme.Signal
 import hu.autotherm.autocrm.ui.theme.Steel500
 import kotlinx.coroutines.CancellationException
@@ -101,16 +102,8 @@ class ChangePasswordViewModel(
         }
     }
 
-    private fun message(e: ApiException): String = when (e) {
-        is ApiException.Unauthenticated -> "Hibás e-mail vagy jelszó."
-        is ApiException.Rule -> when (e.code) {
-            "wrong_password" -> "Hibás a jelenlegi jelszó."
-            "account_locked" -> "A fiók zárolva. Szólj az irodának."
-            else -> e.detail ?: "Nem sikerült jelszót változtatni."
-        }
-        is ApiException.Network -> "Nincs kapcsolat a szerverrel."
-        else -> e.message ?: "Nem sikerült jelszót változtatni."
-    }
+    // wrong_password and the length rule both come from the shared catalog.
+    private fun message(e: ApiException): String = describeError(e)
 }
 
 @Composable

@@ -2454,6 +2454,11 @@ export interface components {
         ErrorBody: {
             error: components["schemas"]["ErrorDetail"];
         };
+        /**
+         * @description Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.
+         * @enum {string}
+         */
+        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "nav_rejected" | "nav_unreachable";
         ErrorDetail: {
             /** @description Stable machine-readable code, e.g. `validation`, `stage_gate`, `currency_locked`. */
             code: string;

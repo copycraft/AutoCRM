@@ -3,6 +3,8 @@
 
 use utoipa::openapi::path::Operation;
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::openapi::extensions::ExtensionsBuilder;
+use utoipa::openapi::schema::{ObjectBuilder, Schema, Type};
 use utoipa::openapi::{ContentBuilder, Ref, RefOr, ResponseBuilder};
 use utoipa::{Modify, OpenApi};
 use utoipa_axum::router::OpenApiRouter;
@@ -44,6 +46,34 @@ impl Modify for SecurityAndErrors {
         components.add_security_scheme(
             "bearer",
             SecurityScheme::Http(HttpBuilder::new().scheme(HttpAuthScheme::Bearer).build()),
+        );
+
+        // The shared error-code catalog: every `error.code` value as an enum, with the
+        // full table (status, retryable, HU/EN text) as an extension both clients test
+        // against. `ErrorDetail.code` stays a plain string so an older client decodes a
+        // newer code instead of failing the whole response.
+        components.schemas.insert(
+            "ErrorCode".to_string(),
+            RefOr::T(Schema::Object(
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .description(Some(
+                        "Every machine code `error.code` can carry. `x-error-catalog` gives \
+                         each one's HTTP status, whether a retry can succeed, and the \
+                         user-facing text.",
+                    ))
+                    .enum_values(Some(crate::error::ERROR_CODES.iter().map(|c| c.code)))
+                    .extensions(Some(
+                        ExtensionsBuilder::new()
+                            .add(
+                                "x-error-catalog",
+                                serde_json::to_value(crate::error::ERROR_CODES)
+                                    .expect("the catalog serializes"),
+                            )
+                            .build(),
+                    ))
+                    .build(),
+            )),
         );
 
         let error = |description: &str| {

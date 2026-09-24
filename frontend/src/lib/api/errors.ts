@@ -36,7 +36,7 @@ export class ContractError extends Error {
 }
 
 /** snake_case backend code → camelCase catalogue key: stage_gate → stageGate. */
-function codeKey(code: string): string {
+export function codeKey(code: string): string {
   return code.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 

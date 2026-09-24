@@ -9785,6 +9785,374 @@
           }
         }
       },
+      "ErrorCode": {
+        "type": "string",
+        "description": "Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.",
+        "enum": [
+          "unauthenticated",
+          "forbidden",
+          "not_found",
+          "validation",
+          "too_many_requests",
+          "duplicate",
+          "invalid_reference",
+          "constraint_violation",
+          "immutable",
+          "internal",
+          "password_change_required",
+          "wrong_password",
+          "last_admin",
+          "stage_gate",
+          "note_required",
+          "invalid_transition",
+          "intake_slip_missing",
+          "use_conversion",
+          "lead_converted",
+          "stage_required",
+          "currency_locked",
+          "already_resolved",
+          "not_resolved",
+          "upload_missing",
+          "upload_mismatch",
+          "invalid_ticket",
+          "already_attached",
+          "checkout_open",
+          "checkout_required",
+          "locked",
+          "signatures_required",
+          "verdicts_pending",
+          "not_cancellable",
+          "not_retryable",
+          "not_failed",
+          "invoicing_not_configured",
+          "invoice_exists",
+          "invoice_in_flight",
+          "invoice_data_missing",
+          "fx_rate_missing",
+          "not_stornoable",
+          "not_annullable",
+          "no_items",
+          "nav_rejected",
+          "nav_unreachable"
+        ],
+        "x-error-catalog": [
+          {
+            "code": "unauthenticated",
+            "en": "Authentication required.",
+            "hu": "Nincs bejelentkezve. Jelentkezzen be újra.",
+            "retryable": false,
+            "status": 401
+          },
+          {
+            "code": "forbidden",
+            "en": "You do not have permission to do this.",
+            "hu": "Nincs jogosultsága ehhez a művelethez.",
+            "retryable": false,
+            "status": 403
+          },
+          {
+            "code": "not_found",
+            "en": "Not found.",
+            "hu": "A kért adat nem található.",
+            "retryable": false,
+            "status": 404
+          },
+          {
+            "code": "validation",
+            "en": "Validation failed; the message names the field.",
+            "hu": "Érvényesítési hiba. Ellenőrizze a megadott adatokat.",
+            "retryable": false,
+            "status": 400
+          },
+          {
+            "code": "too_many_requests",
+            "en": "Too many attempts; try again later.",
+            "hu": "Túl sok próbálkozás. Próbálja újra később.",
+            "retryable": true,
+            "status": 429
+          },
+          {
+            "code": "duplicate",
+            "en": "A record with these values already exists.",
+            "hu": "Ilyen adat már létezik.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "invalid_reference",
+            "en": "A referenced record does not exist or is still in use.",
+            "hu": "Érvénytelen hivatkozás, vagy a hivatkozott adat még használatban van.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "constraint_violation",
+            "en": "A value violates a data rule.",
+            "hu": "Az adat sérti az adatbázis szabályait.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "immutable",
+            "en": "Write-once evidence; cannot be changed or deleted.",
+            "hu": "Ez bizonyítási célból védett adat, nem módosítható és nem törölhető.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "internal",
+            "en": "Internal error.",
+            "hu": "Szerverhiba. Próbálja újra később.",
+            "retryable": true,
+            "status": 500
+          },
+          {
+            "code": "password_change_required",
+            "en": "The password must be changed before anything else.",
+            "hu": "Első bejelentkezéskor kötelező jelszót változtatni.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "wrong_password",
+            "en": "The current password is incorrect.",
+            "hu": "Hibás a jelenlegi jelszó.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "last_admin",
+            "en": "The last active admin cannot be deactivated.",
+            "hu": "Az utolsó aktív adminisztrátor nem tiltható le.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "stage_gate",
+            "en": "A stage gate is not met.",
+            "hu": "A megrendelés nem léphet tovább, mert egy szükséges feltétel még nem teljesült.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "note_required",
+            "en": "Moving backwards requires a note.",
+            "hu": "A visszalépéshez indoklás szükséges.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "invalid_transition",
+            "en": "This stage transition is not allowed.",
+            "hu": "Ez a fázisváltás nem engedélyezett.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "intake_slip_missing",
+            "en": "Record the intake slip (odometer) first.",
+            "hu": "Az átvétel lezárásához előbb rögzítsd az átvételi lapot (km-óra).",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "use_conversion",
+            "en": "Use lead conversion to reach the won stage.",
+            "hu": "A megnyert fázishoz használja az átalakítás funkciót.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "lead_converted",
+            "en": "The lead has already been converted.",
+            "hu": "Ez a lead már megrendeléssé lett alakítva.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "stage_required",
+            "en": "The won lead stage is required by conversion.",
+            "hu": "A megnyert lead-fázist az átalakítás használja, nem kapcsolható ki.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "currency_locked",
+            "en": "Currency cannot change while the order has items.",
+            "hu": "A pénznem nem módosítható, amíg a megrendelésnek vannak tételei.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "already_resolved",
+            "en": "The blocker is already resolved.",
+            "hu": "Ez az akadály már meg van oldva.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "not_resolved",
+            "en": "The blocker is not resolved.",
+            "hu": "Ez az akadály nincs megoldva, ezért nem nyitható újra.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "upload_missing",
+            "en": "The upload was not found or has expired.",
+            "hu": "A feltöltés nem található vagy lejárt. Kezdje újra.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "upload_mismatch",
+            "en": "The uploaded file does not match what was announced.",
+            "hu": "A feltöltött fájl nem egyezik a bejelentettel.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "invalid_ticket",
+            "en": "Invalid or expired upload ticket.",
+            "hu": "Érvénytelen vagy lejárt feltöltési jegy.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "already_attached",
+            "en": "The photo is already attached.",
+            "hu": "Ez a fotó már csatolva van.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "checkout_open",
+            "en": "An open check-out already exists for this order.",
+            "hu": "Már van nyitott kiadási jegyzőkönyv. Előbb írassa alá vagy dobja el.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "checkout_required",
+            "en": "Check-in needs a signed check-out first.",
+            "hu": "A visszavételhez előbb aláírt kiadási jegyzőkönyv kell.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "locked",
+            "en": "The signed inspection is locked.",
+            "hu": "Az aláírt jegyzőkönyv már nem módosítható; utólagos megjegyzést lehet hozzáfűzni.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "signatures_required",
+            "en": "Both signatures are required.",
+            "hu": "A lezáráshoz mindkét aláírás szükséges.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "verdicts_pending",
+            "en": "Every new damage needs a verdict first.",
+            "hu": "Előbb minden új sérülésnél dönteni kell.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "not_cancellable",
+            "en": "The email can no longer be cancelled.",
+            "hu": "Ez az e-mail már nem vonható vissza.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "not_retryable",
+            "en": "The email cannot be retried.",
+            "hu": "Ez a művelet nem próbálható újra.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "not_failed",
+            "en": "Only a failed job can be retried.",
+            "hu": "Csak véglegesen elakadt feladat indítható újra.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "invoicing_not_configured",
+            "en": "Invoicing is not configured.",
+            "hu": "A számlázás nincs beállítva ezen a szerveren. Szóljon a rendszergazdának.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "invoice_exists",
+            "en": "A live invoice already exists.",
+            "hu": "Ehhez a megrendeléshez már tartozik élő számla. Előbb sztornózza.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "invoice_in_flight",
+            "en": "The invoice is still being reported.",
+            "hu": "A számla bejelentése még folyamatban van a NAV felé. Várja meg a választ.",
+            "retryable": true,
+            "status": 409
+          },
+          {
+            "code": "invoice_data_missing",
+            "en": "Invoice data is missing.",
+            "hu": "A partnernél hiányzik egy számlázási adat. Pótolja, majd próbálja újra.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "fx_rate_missing",
+            "en": "No exchange rate for the fulfilment date.",
+            "hu": "Nincs árfolyam a teljesítés napjára. Próbálja újra az árfolyam letöltése után.",
+            "retryable": true,
+            "status": 422
+          },
+          {
+            "code": "not_stornoable",
+            "en": "Only an issued invoice can be cancelled.",
+            "hu": "Csak kiállított számla sztornózható.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "not_annullable",
+            "en": "Only a reported invoice can be annulled.",
+            "hu": "Csak bejelentett számla érvényteleníthető technikailag.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "no_items",
+            "en": "The order has no items to invoice.",
+            "hu": "A számlához legalább egy tétel kell a megrendelésen.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "nav_rejected",
+            "en": "The tax authority rejected the invoice.",
+            "hu": "A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "nav_unreachable",
+            "en": "The invoicing service is unreachable.",
+            "hu": "A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később.",
+            "retryable": true,
+            "status": 422
+          }
+        ]
+      },
       "ErrorDetail": {
         "type": "object",
         "required": [
