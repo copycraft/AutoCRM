@@ -144,7 +144,7 @@ Sizes: S (<1 day), M (1–3 days), L (3+ days). Risks: low/medium/high.
 - What: `docs/glossary.md` + Android `strings.xml` migration for product terms (damage types,
   verdicts, statuses — now referencing the Step-6 `meta` endpoint as canonical, glossary as
   the human-readable mirror); `docs/design-tokens.md` + explicit dark-mode-on-web decision;
-  refresh `AUDIT.md`/`VIABILITY.md`/`README.md`/READMEs that contradict the tree;
+  refresh `docs/history/AUDIT.md`/`docs/history/VIABILITY.md`/`README.md`/READMEs that contradict the tree;
   document "web is online-only" (D3) and the deliberate asymmetries (03, "stays split").
 - Resolves: D4, D5, B2 (human mirror), D3 (documented), contracts-agent §8.7/8.9, docs-agent findings.
 - Notes: do last so it documents what was actually built, not what was planned.

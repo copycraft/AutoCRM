@@ -1,6 +1,6 @@
 // Centralised backend error handling.
 // Backend contract: { error: { code, message } } with HTTP status (ErrorBody in the OpenAPI document).
-// Human-readable messages live in the `errors` catalogue (FRONTEND_PLAN.md §14);
+// Human-readable messages live in the `errors` catalogue (docs/history/FRONTEND_PLAN.md §14);
 // this module only maps codes to catalogue keys. Validation errors surface the
 // backend's own message, which carries the field-level detail.
 

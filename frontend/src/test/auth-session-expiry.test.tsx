@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { QueryProvider, qk } from '@/lib/query/provider';
 import { ApiError } from '@/lib/api/errors';
 
-// FRONTEND_PLAN.md §14: "401 returns to login". The AppShell redirects when the cached
+// docs/history/FRONTEND_PLAN.md §14: "401 returns to login". The AppShell redirects when the cached
 // `me` is empty, so any 401 — not only one from /auth/me — has to empty it.
 
 function grabClient(): QueryClient {

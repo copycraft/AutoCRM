@@ -13,7 +13,7 @@ import org.junit.Test
 
 /**
  * Sales journey (SALES-L): converting a lead on the phone must follow the same rules as
- * the web. The order currency starts from the partner's default (REMEDIATION.md MAJOR-03),
+ * the web. The order currency starts from the partner's default (docs/history/REMEDIATION.md MAJOR-03),
  * and a converted lead cannot change stage (DECISIONS.md, `lead_converted`).
  */
 class SalesLeadConvertTest {

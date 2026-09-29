@@ -110,7 +110,7 @@ These are the final runs on the combined tree, after every agent finished:
   1. Web or phone: take an order in `design`, record the intake slip, and move it to Törölve (cancelled).
   2. Open Fázisváltás again, choose Kész (completed), and type any note.
   3. Before the fix: the order becomes Kész and the customer is sent the pickup email, with no MEO photo. `/transitions` also reported `gates_met: true` for this target.
-- **Impact:** This bypasses the only evidence gate in the system (VIABILITY.md:277). A car could be reported to the customer as ready with no completion photos on file.
+- **Impact:** This bypasses the only evidence gate in the system (docs/history/VIABILITY.md:277). A car could be reported to the customer as ready with no completion photos on file.
 - **Severity:** high
 - **Confidence:** proven
 - **Proof:** `domain::stage::tests::reopening_past_a_gate_still_requires_its_images` (backend/src/domain/stage.rs). It fails before the fix at the first assertion and passes after.
@@ -146,7 +146,7 @@ These are the final runs on the combined tree, after every agent finished:
 <a id="sales-l4"></a>
 
 ### SALES-L4: Android converts every lead to a HUF order
-- **Expected:** SALES-69: the conversion currency is pre-filled from the partner's `default_currency` and stays changeable, because an EUR job for an EUR partner must be possible (frontend/src/components/forms/LeadConvertDialog.tsx:52-55; REMEDIATION.md:13; AUDIT.md:140-156 MAJOR-03). Line items share the order currency, and the currency is locked once items exist (docs/DECISIONS.md:22-24).
+- **Expected:** SALES-69: the conversion currency is pre-filled from the partner's `default_currency` and stays changeable, because an EUR job for an EUR partner must be possible (frontend/src/components/forms/LeadConvertDialog.tsx:52-55; docs/history/REMEDIATION.md:13; docs/history/AUDIT.md:140-156 MAJOR-03). Line items share the order currency, and the currency is locked once items exist (docs/DECISIONS.md:22-24).
 - **Actual:** The Android view model always sent `currency = "HUF"` (android/.../ui/leads/LeadScreens.kt:307 before the fix), and the dialog said so ("…HUF pénznemmel jön létre", :506). The web fix for MAJOR-03 was never applied to the phone.
 - **Reproduction:** Phone → Leadek → a lead whose partner has default currency EUR (for example an Austrian customer) → Megrendeléssé → Létrehozás → the new order shows HUF.
 - **Impact:** Orders for EUR customers are created in the wrong currency. Once items are added the currency is locked (`currency_locked`), so the order must be recreated. Reports normalise the value at the wrong currency.
@@ -185,7 +185,7 @@ These are the final runs on the combined tree, after every agent finished:
 <a id="auth-l1"></a>
 
 ### AUTH-L1: Web does not return to login when the session dies mid-use
-- **Expected:** AUTH-64: an unauthenticated user on an app page is sent to `/{locale}/login`, and "`401` returns to login" (FRONTEND_PLAN.md:193, `frontend/src/components/layout/AppShell.tsx:56-58`). Sessions end on idle expiry, admin revoke, deactivation, role change or password reset (AUTH-17, AUTH-55, AUTH-56, AUTH-57).
+- **Expected:** AUTH-64: an unauthenticated user on an app page is sent to `/{locale}/login`, and "`401` returns to login" (docs/history/FRONTEND_PLAN.md:193, `frontend/src/components/layout/AppShell.tsx:56-58`). Sessions end on idle expiry, admin revoke, deactivation, role change or password reset (AUTH-17, AUTH-55, AUTH-56, AUTH-57).
 - **Actual:** only the `/auth/me` query drives `isAuthenticated` (`frontend/src/lib/auth/context.tsx:22-26,47-52`). That query is cached (staleTime 30 s, `refetchOnWindowFocus: false`, `frontend/src/lib/query/provider.tsx`) and never re-runs on its own, so every later 401 from another query or mutation just shows the inline error "Nincs bejelentkezve…" (`frontend/src/components/ui/ErrorState.tsx:16-20`) and the user stays on the page until they reload.
 - **Reproduction:** sign in on web as office. As admin, `PATCH /api/users/{id} {"role":"viewer"}` (or `POST /users/{id}/revoke-sessions`). Back in the office tab, open another list or save a form: an error box appears, but the sidebar and page stay and no redirect to `/hu/login` happens.
 - **Impact:** after a revoke, role change or expiry, staff keep working in a dead UI. Every save fails, and they may lose typed work without knowing they need to sign in again. It also leaves the previous user's cached screens visible on shared PCs.
@@ -547,7 +547,7 @@ These are the final runs on the combined tree, after every agent finished:
 <a id="inv-l4"></a>
 
 ### INV-L4: proforma payment due date printed as a raw ISO string
-- **Expected:** every date on the web goes through `<DateDisplay>` (`FRONTEND_PLAN.md:81`, M3). The invoice rows follow this (`InvoicesSection.tsx:229`).
+- **Expected:** every date on the web goes through `<DateDisplay>` (`docs/history/FRONTEND_PLAN.md:81`, M3). The invoice rows follow this (`InvoicesSection.tsx:229`).
 - **Actual:** `ProformasSection.tsx:97-100` printed `{proforma.payment_date}` verbatim, e.g. "Fizetési határidő: 2026-09-29", next to the issue date rendered as "2026. 09. 21.".
 - **Reproduction:** Order → Számlák → Díjbekérők: compare the issue date and the payment due date on a row.
 - **Impact:** inconsistent date format on a payment-request screen. Cosmetic, but it is the date the customer must pay by.
@@ -603,7 +603,7 @@ These are the final runs on the combined tree, after every agent finished:
 
 ### SALES-L5: Android offers "Fázisváltás" on a converted lead
 - **Expected:** SALES-44: once a lead has an order, any stage change is refused with 422 `lead_converted` (backend/src/service/stages.rs:191-201; docs/DECISIONS.md:61). The web shows the stage button only while `orders.length === 0` (frontend/src/app/[locale]/leads/[id]/page.tsx:147-156).
-- **Actual:** Android shows the button for every editable lead (android/.../ui/leads/LeadScreens.kt:385-397 before the fix). Transitions still list reopen targets (REMEDIATION.md:57), so the user can pick one, write a note and only then gets refused.
+- **Actual:** Android shows the button for every editable lead (android/.../ui/leads/LeadScreens.kt:385-397 before the fix). Transitions still list reopen targets (docs/history/REMEDIATION.md:57), so the user can pick one, write a note and only then gets refused.
 - **Reproduction:** Phone → a converted lead (the Megrendelések section is not empty) → Fázisváltás → choose "Elveszett" → Mentés → error "this lead was converted to order …".
 - **Impact:** A dead-end action and inconsistent behavior between clients. No data damage, because the backend refuses.
 - **Severity:** low
@@ -752,7 +752,7 @@ Not acted on: these rules are only "assumed" (law from memory), or they are open
 - **Q-INV-3 / INV-44: which date sets the MNB rate.** Code: issue date (`backend/src/service/invoicing.rs:395,1237`). Áfa tv. §80 (assumed) points to the tax-point/fulfilment date. Legal semantics were not changed.
 - **Q-INV-4: FX staleness.** Invoices accept an MNB rate of any age (`backend/src/repo/fx.rs:79-94`), while reports cap it at 10 days (`backend/migrations/0006_reporting.sql:66`). No documented rule for invoices.
 - **Q-INV-5: FX rate not snapshotted.** It is looked up at issue and again at submit.
-- **Q-INV-6 / Q-INV-7: VAT in HUF on EUR invoices, and whole-forint rounding of HUF invoices.** The brief's "no fillér" rule contradicts `FRONTEND_PLAN.md:182-183` and `REMEDIATION.md:16`. Unchanged.
+- **Q-INV-6 / Q-INV-7: VAT in HUF on EUR invoices, and whole-forint rounding of HUF invoices.** The brief's "no fillér" rule contradicts `docs/history/FRONTEND_PLAN.md:182-183` and `docs/history/REMEDIATION.md:16`. Unchanged.
 - **Q-INV-8: per-line vs per-rate VAT.** The sidecar's returned `totals` are never compared with the stored totals (`backend/src/service/invoicing.rs:767-811`).
 - **Q-INV-9: whether a non-NAV failure (local validation, bad credentials) should spend a number.** This blocks INV-L10.
 - **Q-INV-10: dead-lettered submissions leave the row `submitting` forever.** Related to INV-L10. Needs a resolution path (admin retry / manual reject).
@@ -762,7 +762,7 @@ Not acted on: these rules are only "assumed" (law from memory), or they are open
 - **Q-INV-15: more than 100 order items.** The sidecar limit is not checked before a number is drawn.
 - **Q-INV-16: customer letters print totals in the log format `1270000.00 HUF`.** The same convention is used by quote letters in `backend/src/service/email.rs:179-182`, so it was left for a product decision.
 - **Q-INV-17: no ordering rule between payment date, issue date and delivery date** (Áfa tv. §163 is assumed only).
-- **Q-INV-1 / Q-INV-2 / Q-INV-18: scope questions.** Corrective (MODIFY) invoices, `FRONTEND_PLAN.md` declaring invoicing out of scope, and an Android invoice view.
+- **Q-INV-1 / Q-INV-2 / Q-INV-18: scope questions.** Corrective (MODIFY) invoices, `docs/history/FRONTEND_PLAN.md` declaring invoicing out of scope, and an Android invoice view.
 - **INV-L8 and INV-L9 design choices.** Reconciliation after a timed-out CREATE, and a re-fetch path for a missing PDF.
 
 ### Email & communications

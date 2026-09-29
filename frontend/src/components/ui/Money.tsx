@@ -10,7 +10,7 @@ export function Money({
   currency: Currency;
   className?: string;
 }) {
-  // Presentation-only. Backend owns totals/FX (FRONTEND_PLAN.md §13).
+  // Presentation-only. Backend owns totals/FX (docs/history/FRONTEND_PLAN.md §13).
   return (
     <span className={`text-money ${className ?? ''}`} lang="hu">
       {formatMoney(minor, currency)}

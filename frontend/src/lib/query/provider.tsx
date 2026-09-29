@@ -12,7 +12,7 @@ import { ApiError } from '@/lib/api/errors';
 
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(() => {
-    // FRONTEND_PLAN.md §14: "401 returns to login". The AppShell redirects when the cached
+    // docs/history/FRONTEND_PLAN.md §14: "401 returns to login". The AppShell redirects when the cached
     // `me` is empty, so a 401 from any request (session expired, revoked, or the account
     // deactivated) empties it; otherwise only a reload would notice.
     const signOutOn401 = (err: unknown) => {
@@ -43,7 +43,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-// Canonical query keys — used for invalidation after mutations (FRONTEND_PLAN.md §14).
+// Canonical query keys — used for invalidation after mutations (docs/history/FRONTEND_PLAN.md §14).
 export const qk = {
   me: ['me'],
   preferences: ['preferences'],

@@ -63,6 +63,26 @@ jobs:
       - run: npm run test
       - run: npm run build
 
+  nav-sidecar:
+    # Everything NAV-shaped lives here, so this is where a broken signature or
+    # invoice schema would show. The tests run against the bundled mock NAV
+    # (MOCK_MODE): no credentials, no network. The image build is the deploy path.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nav-sidecar
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nav-sidecar/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: docker build -t autocrm-nav-sidecar .
+
   e2e:
     # The browser smoke run (V0.3): the whole stack, a real login, every tab of
     # an order opened and screenshotted. Artefacts are uploaded on every run.

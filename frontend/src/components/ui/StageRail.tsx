@@ -1,6 +1,6 @@
 'use client';
 
-// StageRail — signature traveller component (FRONTEND_PLAN.md §12).
+// StageRail — signature traveller component (docs/history/FRONTEND_PLAN.md §12).
 // Renders BACKEND stage definitions + history. Never hardcodes stages.
 
 import { Check, Circle } from 'lucide-react';

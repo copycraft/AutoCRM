@@ -497,7 +497,7 @@ internal fun isExpired(
 
 /**
  * The conversion body. Currency follows the partner's default (EUR stays EUR), HUF when
- * there is none — the web dialog's rule (REMEDIATION.md MAJOR-03).
+ * there is none — the web dialog's rule (docs/history/REMEDIATION.md MAJOR-03).
  */
 internal fun convertBody(title: String, currency: String?): OrderBody =
     OrderBody(title = title, currency = if (currency == "EUR") "EUR" else "HUF")
