@@ -39,14 +39,19 @@ fn rust_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
 /// Every string literal passed as the first argument of `rule(` or `conflict(`.
 fn codes_in_source() -> BTreeSet<String> {
     let mut files = Vec::new();
-    rust_files(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+    rust_files(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+        &mut files,
+    );
     let mut codes = BTreeSet::new();
     for file in files {
         let text = std::fs::read_to_string(&file).unwrap();
         for call in ["rule(", "conflict("] {
             for (at, _) in text.match_indices(call) {
                 let rest = text[at + call.len()..].trim_start();
-                let Some(rest) = rest.strip_prefix('"') else { continue };
+                let Some(rest) = rest.strip_prefix('"') else {
+                    continue;
+                };
                 let Some(end) = rest.find('"') else { continue };
                 let code = &rest[..end];
                 if !code.is_empty() && code.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
@@ -79,7 +84,10 @@ fn every_catalog_entry_is_sent_by_something() {
         .map(|c| c.code)
         .filter(|c| !sent.contains(*c) && !IMPLICIT.contains(c))
         .collect();
-    assert!(unused.is_empty(), "catalog entries nothing sends: {unused:?}");
+    assert!(
+        unused.is_empty(),
+        "catalog entries nothing sends: {unused:?}"
+    );
 }
 
 #[test]
@@ -89,6 +97,11 @@ fn catalog_entries_are_unique_and_complete() {
         assert!(seen.insert(c.code), "duplicate catalog code {}", c.code);
         assert!(!c.hu.trim().is_empty(), "{} has no Hungarian text", c.code);
         assert!(!c.en.trim().is_empty(), "{} has no English text", c.code);
-        assert!((400..600).contains(&c.status), "{} has status {}", c.code, c.status);
+        assert!(
+            (400..600).contains(&c.status),
+            "{} has status {}",
+            c.code,
+            c.status
+        );
     }
 }

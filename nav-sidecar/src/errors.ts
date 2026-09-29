@@ -28,6 +28,8 @@ export type ErrorKind =
   | 'nav_unreachable'
   /** No such invoice, or no such rendered proforma. */
   | 'not_found'
+  /** The caller did not present the sidecar token. Nothing reached NAV. */
+  | 'unauthorized'
   /** The sidecar is misconfigured. */
   | 'config'
   /** Anything else. */
@@ -112,6 +114,14 @@ export class ApiError extends Error {
 
 export function badRequest(message: string, messages: ApiMessage[] = []): ApiError {
   return new ApiError({ status: 400, kind: 'bad_request', message, messages });
+}
+
+export function unauthorized(): ApiError {
+  return new ApiError({
+    status: 401,
+    kind: 'unauthorized',
+    message: 'missing or wrong sidecar token (Authorization: Bearer <SIDECAR_TOKEN>)',
+  });
 }
 
 export function notFound(message: string): ApiError {

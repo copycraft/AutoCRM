@@ -299,7 +299,13 @@ pub struct OrderFilter {
 /// `stage_entered_at` orders by when the order entered its *current* stage: the pickup
 /// board and the dashboard ask for `stage=completed&sort=-stage_entered_at` to list the
 /// most recently finished cars rather than the most recently created orders.
-pub const ORDER_SORTS: &[&str] = &["created_at", "due_date", "total", "number", "stage_entered_at"];
+pub const ORDER_SORTS: &[&str] = &[
+    "created_at",
+    "due_date",
+    "total",
+    "number",
+    "stage_entered_at",
+];
 
 pub const DEFAULT_SORT: &str = "-created_at";
 

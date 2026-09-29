@@ -12,15 +12,24 @@ the migrations, not to §2 of the plan. The full table list:
 
 | Area | Tables |
 |---|---|
-| Foundation | `users`, `sessions`, `audit_log`, `settings` (single row), `jobs` |
+| Foundation | `users`, `sessions`, `audit_log`, `settings` (single row), `jobs`, `user_settings` |
 | Partners & leads | `partners`, `contacts`, `stage_definitions`, `leads`, `lead_stages` |
-| Orders | `project_types`, `orders`, `order_items`, `order_stages`, `blockers` |
+| Orders | `project_types`, `orders`, `order_items`, `order_stages`, `blockers`, `order_notes`, `order_specs`, `tasks` |
+| Vehicles & inspections | `vehicles`, `order_vehicles`, `inspections`, `inspection_damages`, `inspection_photos`, `inspection_verdicts`, `inspection_signatures`, `inspection_notes`, `inspection_zone_templates` |
 | Media | `images`, `documents` |
-| Email | `email_templates`, `email_messages`, `email_suppressions` |
+| Email | `email_templates`, `email_messages`, `email_suppressions`, `newsletter_subscriptions` |
+| Invoicing | `invoices`, `invoice_lines`, `proformas` |
 | Reporting | `fx_rates` + views `order_current_stage`, `lead_current_stage`, `order_stage_intervals`, `order_values` |
 
 **No VAT on line items.** The plan both added `vat_rate` and said not to. It is not there.
-Invoicing will add it with the rest of the VAT handling.
+VAT lives on `invoice_lines` instead (see Invoicing below): a rate belongs to a bill, not
+to a job.
+
+**Scope grew past the original plan, on purpose.** The plan and `docs/history/FRONTEND_PLAN.md`
+listed invoicing as out of scope. It was built (migrations `0020`–`0022`, `0028`–`0030`),
+along with tasks, the intake slip, handover inspections and a newsletter list. The README's
+Scope section is the current list. Inventory, cost tracking, purchase orders, time
+tracking, inbound mail and a customer portal remain out.
 
 **Orders carry `number`, `project_type_id` and `valuation_date`.** Reports group by project
 type (a configurable table, like stages) and normalise currency at the valuation date's
@@ -96,7 +105,18 @@ ones — a guaranteed schema divergence. The next migration is always max+1.
 - Manual mail with unresolved `{{variables}}` is rejected; automatic mail with them is marked
   `failed` (visible) instead of being sent.
 - Customer stage-change notifications go out on forward moves only, when enabled in settings.
-- Template bodies are plain text; the HTML part is derived and fully escaped.
+- Template bodies are plain text; the HTML part is derived and fully escaped. A body the
+  office writes in Markdown keeps the author's own markup, but every `{{variable}}` value is
+  backslash-escaped before parsing, so a record's data is always text, never a tag or link.
+- **Newsletter signups are double opt-in.** The website form stores a pending row and
+  mails a confirmation link (valid 7 days, at most one letter per address per day); only
+  the click makes the address part of the audience, and only the click lifts an earlier
+  opt-out. The public endpoint answers the same `202` whatever the address's history, and
+  unsubscribing by typed address always answers "done", so neither reveals who is on the
+  list. Office hand-adds are confirmed on insert: the office holds that consent. Rows from
+  before migration `0031` were kept active. The confirmation letter is automatic mail, so it
+  is cancelled while the kill switch is off: switch automatic mail on before putting the
+  signup form live.
 
 ## Reporting
 
@@ -130,12 +150,48 @@ Procedure: [docs/migration/README.md](migration/README.md). Tool: `autocrm-migra
 - **Reconciliation is a Markdown report with a sign-off section.** It checks counts, missing
   orders, file coverage, per-order file counts and value by year.
 
+## Invoicing
+
+The full rule set, with sources, is `INV-*` in
+[logic-audit/01-behavior-spec.md](logic-audit/01-behavior-spec.md). The decisions behind it:
+
+- **NAV lives in a sidecar.** `nav-sidecar/` (Node, wrapping `open-nav`) owns the XML, the
+  request signature, the token exchange and the polling. The backend sends flat JSON. It
+  is optional: without `NAV_SIDECAR_URL` every invoicing endpoint refuses with a rule error.
+- **The sidecar trusts one caller.** It holds the NAV technical user's credentials, so every
+  route but `/health` requires `Authorization: Bearer` with `SIDECAR_TOKEN` (the backend's
+  `NAV_SIDECAR_TOKEN`, ≥ 32 characters, required outside mock mode), and it listens on
+  loopback by default. A token mismatch is retried, never recorded as a rejection: it is a
+  deployment fault, and nothing reached NAV.
+- **Reporting is asynchronous.** Issuing writes an invoice in `submitting` and queues one
+  job per invoice (`nav_submit:{id}`). A NAV outage delays an invoice; it never loses one.
+- **An invoice is a snapshot.** `invoice_lines` copies the order's figures with the VAT
+  rate that applied, so editing the order later doesn't change the bill.
+- **Numbers are `{prefix}{year}-{seq:04}`**, drawn under an advisory lock and never
+  reused, not even after a rejection. Cash and transfer invoices share one series; each
+  invoice stores its `payment_method`, which is `TRANSFER` or `CASH` and nothing else.
+- **Corrections are stornos or technical annulments**, never edits. A storno is its own
+  numbered document with negative amounts.
+- **A retry re-files; the read-back decides.** The sidecar keeps nothing, so a submission
+  retried after a timeout is filed again. When NAV answers `INVOICE_NUMBER_ALREADY_EXISTS`,
+  the job reads back what NAV holds under the number and adopts it if the date and totals
+  match ours: for invoices and stornos alike (an adopted storno marks its original
+  `stornoed`, as a fresh one does). An annulment has no number to read back, so NAV's
+  refusal of a retried annulment is recorded as "may already have been filed; check the
+  portal", not as a plain refusal.
+- **Proformas (díjbekérő) are not invoices.** They have their own number series and lock,
+  are reported nowhere, and never consume an invoice number.
+
 ## Auth
 
 - Session tokens: 256-bit random, only their sha256 is stored. Web: httpOnly `SameSite=Lax`
   cookie (7-day idle / 30-day absolute). Mobile: bearer token (60-day idle / 365-day absolute).
 - CSRF: cookie-authenticated state-changing requests must carry an allowed `Origin`.
 - 10 failed logins lock the account for 15 minutes; unknown emails cost the same Argon2 time.
+  The password is checked before the lock: a locked account with a wrong password answers
+  401 like an unknown address, so locking cannot reveal which addresses have accounts; only
+  the right password learns about the lock (429). Anyone can still lock a known account by
+  guessing: per-IP throttling belongs in the reverse proxy (Caddy `rate_limit`), not here.
 - Admin-created accounts must change their password before doing anything else.
 - The last active admin can't be demoted or deactivated.
 

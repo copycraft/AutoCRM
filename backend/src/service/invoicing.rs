@@ -180,7 +180,10 @@ fn customer_party(partner: &Partner) -> AppResult<nav::Customer> {
         )
     };
 
-    let postal_code = partner.postal_code.clone().ok_or_else(|| missing("postal code"))?;
+    let postal_code = partner
+        .postal_code
+        .clone()
+        .ok_or_else(|| missing("postal code"))?;
     let city = partner.city.clone().ok_or_else(|| missing("city"))?;
     let address_line = partner
         .address_line
@@ -345,8 +348,7 @@ pub async fn create_invoice(
     // number is drawn, spending it. Absent means a bank transfer.
     let payment_method = match &req.payment_method {
         None => PaymentMethod::DEFAULT,
-        Some(raw) => PaymentMethod::parse(raw)
-            .map_err(|e| AppError::validation(e.to_string()))?,
+        Some(raw) => PaymentMethod::parse(raw).map_err(|e| AppError::validation(e.to_string()))?,
     };
     let today = business_today(state.config.business_tz);
     let issue_date = req.issue_date.unwrap_or(today);
@@ -442,7 +444,13 @@ pub async fn create_invoice(
         }),
     )
     .await?;
-    enqueue_submit(&mut tx, invoice.id, req.send_email, req.payment_method.clone()).await?;
+    enqueue_submit(
+        &mut tx,
+        invoice.id,
+        req.send_email,
+        req.payment_method.clone(),
+    )
+    .await?;
     tx.commit().await?;
 
     tracing::info!(invoice_id = invoice.id, number = %invoice.number, order_id, "invoice queued for reporting");
@@ -543,9 +551,10 @@ pub async fn create_storno(
     // say whether a storno is already on its way. Refuse by name rather than drawing a
     // number and tripping over `invoices_one_storno_per_invoice`.
     let siblings = invoices::list_for_order(&mut *tx, original.order_id).await?;
-    if let Some(existing) = siblings.iter().find(|i| {
-        blocks_another_storno(i.kind, i.status, i.original_invoice_id, original.id)
-    }) {
+    if let Some(existing) = siblings
+        .iter()
+        .find(|i| blocks_another_storno(i.kind, i.status, i.original_invoice_id, original.id))
+    {
         return Err(AppError::rule(
             "not_stornoable",
             format!(
@@ -710,7 +719,10 @@ pub struct AnnulPayload {
 pub async fn submit_invoice(state: &AppState, payload: &SubmitPayload) -> anyhow::Result<()> {
     let (client, nav) = sidecar(&state.config)?;
     let Some(invoice) = invoices::find(&state.db, payload.invoice_id).await? else {
-        tracing::warn!(invoice_id = payload.invoice_id, "invoice vanished before it was reported");
+        tracing::warn!(
+            invoice_id = payload.invoice_id,
+            "invoice vanished before it was reported"
+        );
         return Ok(());
     };
     if invoice.status != InvoiceStatus::Submitting {
@@ -718,47 +730,46 @@ pub async fn submit_invoice(state: &AppState, payload: &SubmitPayload) -> anyhow
         return Ok(());
     }
 
-    let outcome = match invoice.kind {
-        InvoiceKind::Invoice => {
-            let request = match build_request(
-                state,
-                nav,
-                &invoice,
-                payload.payment_method.as_deref(),
-            )
-            .await
-            {
-                Ok(request) => request,
-                Err(e) => {
-                    // Unbuildable, not unreported: the partner may be fixed or the FX
-                    // may arrive while the queue retries, but when it gives up the row
-                    // must reach a terminal state (INV-L10). The marker tells the
-                    // dead-letter branch what this is.
-                    let message = format!("building the invoice: {e}");
-                    note_attempt(state, invoice.id, &message).await?;
-                    return Err(anyhow!("{UNBUILDABLE_MARKER}{message}"));
-                }
-            };
-            client.create_invoice(&request).await
-        }
-        InvoiceKind::Storno => {
-            let original_id = invoice
-                .original_invoice_id
-                .ok_or_else(|| anyhow!("storno {} has no original", invoice.number))?;
-            let original = invoices::find(&state.db, original_id)
-                .await?
-                .ok_or_else(|| anyhow!("the invoice storno {} cancels is gone", invoice.number))?;
-            client
-                .storno(
-                    &original.number,
-                    &nav::StornoRequest {
-                        storno_invoice_number: invoice.number.clone(),
-                        issue_date: Some(invoice.issue_date),
-                    },
-                )
-                .await
-        }
-    };
+    let outcome =
+        match invoice.kind {
+            InvoiceKind::Invoice => {
+                let request =
+                    match build_request(state, nav, &invoice, payload.payment_method.as_deref())
+                        .await
+                    {
+                        Ok(request) => request,
+                        Err(e) => {
+                            // Unbuildable, not unreported: the partner may be fixed or the FX
+                            // may arrive while the queue retries, but when it gives up the row
+                            // must reach a terminal state (INV-L10). The marker tells the
+                            // dead-letter branch what this is.
+                            let message = format!("building the invoice: {e}");
+                            note_attempt(state, invoice.id, &message).await?;
+                            return Err(anyhow!("{UNBUILDABLE_MARKER}{message}"));
+                        }
+                    };
+                client.create_invoice(&request).await
+            }
+            InvoiceKind::Storno => {
+                let original_id = invoice
+                    .original_invoice_id
+                    .ok_or_else(|| anyhow!("storno {} has no original", invoice.number))?;
+                let original = invoices::find(&state.db, original_id)
+                    .await?
+                    .ok_or_else(|| {
+                        anyhow!("the invoice storno {} cancels is gone", invoice.number)
+                    })?;
+                client
+                    .storno(
+                        &original.number,
+                        &nav::StornoRequest {
+                            storno_invoice_number: invoice.number.clone(),
+                            issue_date: Some(invoice.issue_date),
+                        },
+                    )
+                    .await
+            }
+        };
 
     match outcome {
         Ok(response) => {
@@ -774,11 +785,12 @@ pub async fn submit_invoice(state: &AppState, payload: &SubmitPayload) -> anyhow
         Err(error) => {
             // A duplicate-number answer after a timeout is not a rejection of our
             // document: the first attempt may have been stored. Read back what NAV
-            // holds before deciding (INV-L8).
+            // holds before deciding (INV-L8). A storno is a numbered document like any
+            // other and is re-filed the same way on a retry, so it is reconciled the
+            // same way: otherwise NAV holds the reversal while our books say the
+            // original is still live, and the office is free to storno it twice.
             let mut reconcile_note: Option<String> = None;
-            if error.nav_error_code() == Some("INVOICE_NUMBER_ALREADY_EXISTS")
-                && invoice.kind == InvoiceKind::Invoice
-            {
+            if error.nav_error_code() == Some("INVOICE_NUMBER_ALREADY_EXISTS") {
                 match try_adopt(state, &invoice, payload.send_email).await {
                     Ok(Adopt::Yes) => return Ok(()),
                     Ok(Adopt::No(note)) => reconcile_note = Some(note),
@@ -916,11 +928,7 @@ enum Adopt {
 /// the row should be rejected with the reason attached. `Err` means the read-back is
 /// itself of unknown outcome (unreachable sidecar): the row stays `submitting` and the
 /// job retries, because guessing here is exactly the bug being fixed.
-async fn try_adopt(
-    state: &AppState,
-    invoice: &Invoice,
-    send_email: bool,
-) -> anyhow::Result<Adopt> {
+async fn try_adopt(state: &AppState, invoice: &Invoice, send_email: bool) -> anyhow::Result<Adopt> {
     let (client, _) = sidecar(&state.config)?;
     let fetched = match client.fetch_invoice(&invoice.number).await {
         Ok(fetched) => fetched,
@@ -950,10 +958,7 @@ async fn try_adopt(
 /// Pure identity check between the stored row and what NAV holds: the number, the
 /// issue date and the totals in the stored currency. Amounts are compared as minor
 /// units, never as floats. Unit-tested below.
-fn reconcile_decision(
-    stored: &Invoice,
-    fetched: &nav::FetchedInvoice,
-) -> Result<(), String> {
+fn reconcile_decision(stored: &Invoice, fetched: &nav::FetchedInvoice) -> Result<(), String> {
     if fetched.invoice_number != stored.number {
         return Err(format!(
             "read-back names {}, not {}",
@@ -986,16 +991,19 @@ fn reconcile_decision(
         ("vat", totals.vat.as_str(), stored.vat_amount),
         ("gross", totals.gross.as_str(), stored.gross_amount),
     ] {
-        let held_minor =
-            nav_decimal_to_minor(held).ok_or_else(|| format!("unreadable {label} total: {held}"))?;
+        let held_minor = nav_decimal_to_minor(held)
+            .ok_or_else(|| format!("unreadable {label} total: {held}"))?;
         if held_minor != ours {
             return Err(format!(
                 "{label} total {held} {}, ours is {} {}",
                 totals.currency,
-                minor_to_decimal_string(ours, stored.currency.parse().map_err(|_| format!(
-                    "stored currency is not a known currency: {}",
-                    stored.currency
-                ))?),
+                minor_to_decimal_string(
+                    ours,
+                    stored.currency.parse().map_err(|_| format!(
+                        "stored currency is not a known currency: {}",
+                        stored.currency
+                    ))?
+                ),
                 stored.currency
             ));
         }
@@ -1047,14 +1055,19 @@ pub async fn job_dead_lettered_unbuildable(
         // Decided meanwhile (a human intervened, or a late retry built it after all).
         return Ok(());
     }
-    let cause = error
-        .strip_prefix(UNBUILDABLE_MARKER)
-        .unwrap_or(error);
+    let cause = error.strip_prefix(UNBUILDABLE_MARKER).unwrap_or(error);
     let message = format!(
         "the invoice could not be built for reporting ({cause}); nothing was sent to NAV, but the number is spent: fix the data and issue a new invoice"
     );
-    invoices::mark_rejected(&mut tx, invoice.id, Some("unbuildable"), &message, &[], None)
-        .await?;
+    invoices::mark_rejected(
+        &mut tx,
+        invoice.id,
+        Some("unbuildable"),
+        &message,
+        &[],
+        None,
+    )
+    .await?;
     audit::record(
         &mut *tx,
         None,
@@ -1070,7 +1083,10 @@ pub async fn job_dead_lettered_unbuildable(
     )
     .await?;
     tx.commit().await?;
-    tracing::warn!(invoice_id, "submit job dead-lettered an unbuildable invoice; marked rejected");
+    tracing::warn!(
+        invoice_id,
+        "submit job dead-lettered an unbuildable invoice; marked rejected"
+    );
     Ok(())
 }
 
@@ -1088,6 +1104,10 @@ async fn adopt_reconciled(
     );
     let mut tx = state.db.begin().await?;
     invoices::mark_issued_reconciled(&mut tx, invoice.id, &message).await?;
+    // Same as a fresh success: a stored storno means the original is reversed.
+    if let Some(original_id) = invoice.original_invoice_id {
+        invoices::mark_stornoed(&mut tx, original_id).await?;
+    }
     audit::record(
         &mut *tx,
         None,
@@ -1155,9 +1175,12 @@ pub async fn refetch_pdf(state: &AppState, id: i64) -> AppResult<Invoice> {
             format!("invoice {} already has its PDF", invoice.number),
         ));
     }
-    let _document_id = store_invoice_pdf(state, &invoice)
-        .await
-        .map_err(|e| AppError::rule("pdf_unavailable", format!("the PDF could not be fetched again: {e:#}")))?;
+    let _document_id = store_invoice_pdf(state, &invoice).await.map_err(|e| {
+        AppError::rule(
+            "pdf_unavailable",
+            format!("the PDF could not be fetched again: {e:#}"),
+        )
+    })?;
     invoices::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("invoice"))
@@ -1203,7 +1226,17 @@ async fn store_pdf(
 }
 
 /// Annuls a report, then tells the customer.
-pub async fn annul_job(state: &AppState, payload: &AnnulPayload) -> anyhow::Result<()> {
+/// Files one technical annulment. `retried` is true from the job's second attempt on.
+///
+/// An attempt that timed out may still have reached NAV, and the sidecar keeps nothing,
+/// so a retry files the annulment again. NAV's refusal of that second filing is then not
+/// a verdict on the first one: the row says so, and points at the Online Számla portal,
+/// where the pending annulment (if the first attempt landed) waits for approval anyway.
+pub async fn annul_job(
+    state: &AppState,
+    payload: &AnnulPayload,
+    retried: bool,
+) -> anyhow::Result<()> {
     let (client, _) = sidecar(&state.config)?;
     let Some(invoice) = invoices::find(&state.db, payload.invoice_id).await? else {
         return Ok(());
@@ -1239,11 +1272,18 @@ pub async fn annul_job(state: &AppState, payload: &AnnulPayload) -> anyhow::Resu
         Err(error) => {
             // NAV refused the annulment itself. The invoice keeps its status — it is still
             // whatever it was — and the refusal is recorded where the screen can show it.
+            let message = if retried {
+                format!(
+                    "NAV refused this annulment attempt ({error}), but an earlier attempt timed out and may already have been filed: check the invoice in the Online Számla portal before annulling again"
+                )
+            } else {
+                error.to_string()
+            };
             sqlx::query!(
                 "UPDATE invoices SET nav_error_code = $2, nav_message = $3 WHERE id = $1",
                 invoice.id,
                 error.nav_error_code(),
-                error.to_string()
+                message
             )
             .execute(&state.db)
             .await?;
@@ -1434,15 +1474,15 @@ async fn queue_invoice_email(
         return Ok(None);
     };
     let Some(recipient) = automation::customer_recipient(&mut tx, &order).await? else {
-        tracing::warn!(invoice_id = invoice.id, "no customer address; not sending the invoice letter");
+        tracing::warn!(
+            invoice_id = invoice.id,
+            "no customer address; not sending the invoice letter"
+        );
         return Ok(None);
     };
 
     let (template_key, trigger) = match (invoice.status, invoice.kind) {
-        (InvoiceStatus::Annulled, _) => (
-            "invoice_annulled",
-            triggers::INVOICE_ANNULLED,
-        ),
+        (InvoiceStatus::Annulled, _) => ("invoice_annulled", triggers::INVOICE_ANNULLED),
         (_, InvoiceKind::Storno) => ("invoice_stornoed", triggers::INVOICE_STORNOED),
         (_, InvoiceKind::Invoice) => ("invoice_issued", triggers::INVOICE_ISSUED),
     };
@@ -1512,7 +1552,10 @@ async fn queue_proforma_email(
     document_id: i64,
 ) -> AppResult<Option<i64>> {
     let Some(recipient) = automation::customer_recipient(&mut *conn, order).await? else {
-        tracing::warn!(proforma_id = proforma.id, "no customer address; not sending the proforma");
+        tracing::warn!(
+            proforma_id = proforma.id,
+            "no customer address; not sending the proforma"
+        );
         return Ok(None);
     };
     let mut values = crate::domain::template::TemplateValues::new();

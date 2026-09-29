@@ -504,13 +504,18 @@
     "newsletterEmpty": "Még senki nem iratkozott fel.",
     "subscribedBadge": "feliratkozva",
     "unsubscribedBadge": "leiratkozott",
+    "pendingBadge": "megerősítésre vár",
     "unsubscribeRemoveTitle": "Végleges törlés?",
     "unsubscribeRemoveBody": "A cím többé nem szerepel a listán — de egy újabb feliratkozás újra felveheti.",
     "unsubscribeTitle": "Leiratkozás a hírlevélről",
-    "unsubscribedDone": "Leiratkoztattuk. Több hírlevelet nem küldünk erre a címre.",
+    "unsubscribedDone": "Kész: erre a címre nem küldünk több hírlevelet.",
     "unsubscribedAlready": "Ez a cím már le van iratkozva — nincs teendő.",
     "unsubscribeHint": "Adja meg az email-címet, amelyre a hírlevelet kapta.",
-    "unsubscribeGo": "Leiratkozom"
+    "unsubscribeGo": "Leiratkozom",
+    "confirmTitle": "Hírlevél-feliratkozás megerősítése",
+    "confirmedDone": "Köszönjük, a feliratkozást megerősítette. Hamarosan jelentkezünk.",
+    "confirmInvalid": "Ez a link már nem érvényes: felhasználták, vagy 7 napnál régebbi. Iratkozzon fel újra a honlapon.",
+    "confirmMissing": "A link hiányos. Nyissa meg újra a levélben kapott linket."
   },
   "reports": {
     "title": "Jelentések",

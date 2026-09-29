@@ -420,7 +420,8 @@ mod tests {
     #[test]
     fn an_omitted_field_keeps_its_value_while_null_clears_it() {
         // Only the issuer is touched: everything else survives.
-        let (v, vehicle) = merge_validity(&stored(), patch(serde_json::json!({"issuer": "DEKRA"}))).unwrap();
+        let (v, vehicle) =
+            merge_validity(&stored(), patch(serde_json::json!({"issuer": "DEKRA"}))).unwrap();
         assert_eq!(v.issuer.as_deref(), Some("DEKRA"));
         assert_eq!(v.valid_from, stored().valid_from);
         assert_eq!(v.valid_until, stored().valid_until);

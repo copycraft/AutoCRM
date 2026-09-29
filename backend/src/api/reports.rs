@@ -308,7 +308,8 @@ async fn workload(
     Auth(_): Auth,
     ApiQuery(q): ApiQuery<WorkloadQuery>,
 ) -> AppResult<Json<WorkloadReport>> {
-    let to = q.to.unwrap_or_else(|| business_today(state.config.business_tz));
+    let to =
+        q.to.unwrap_or_else(|| business_today(state.config.business_tz));
     let from = q.from.unwrap_or(to - TimeDelta::days(6));
     if from > to {
         return Err(AppError::validation("from must not be after to"));

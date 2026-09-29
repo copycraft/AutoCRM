@@ -19,6 +19,7 @@ import DashboardPage from '@/app/[locale]/page';
 import EmailDetailPage from '@/app/[locale]/emails/[id]/page';
 import NewEmailPage from '@/app/[locale]/emails/new/page';
 import UnsubscribePage from '@/app/[locale]/newsletter/unsubscribe/page';
+import ConfirmPage from '@/app/[locale]/newsletter/confirm/page';
 import EmailsPage from '@/app/[locale]/emails/page';
 import LeadDetailPage from '@/app/[locale]/leads/[id]/page';
 import LeadNewPage from '@/app/[locale]/leads/new/page';
@@ -89,6 +90,11 @@ const routes: Route[] = [
     path: '/hu/newsletter/unsubscribe',
     element: () => <UnsubscribePage searchParams={{}} />,
     expect: /Leiratkozás/,
+  },
+  {
+    path: '/hu/newsletter/confirm',
+    element: () => <ConfirmPage searchParams={{}} />,
+    expect: /megerősítése/,
   },
   { path: '/hu/reports', element: () => ReportsPage({ params: locale }), expect: /Jelentések/ },
   { path: '/hu/settings', element: () => <SettingsPage />, expect: /smtp\.example\.com|Beállítások/ },

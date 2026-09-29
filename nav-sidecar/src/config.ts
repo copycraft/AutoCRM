@@ -10,7 +10,15 @@ import type { NavCredentials } from '@open-nav/client';
  * for reporting invoices under someone else's tax number.
  */
 export interface Config {
+  /** 127.0.0.1 unless told otherwise; the Docker image sets 0.0.0.0 inside its namespace. */
   host: string;
+  /**
+   * The bearer token every caller but `/health` must present. Required outside mock
+   * mode: this service holds the NAV technical user's credentials, so anything that can
+   * reach its port could otherwise file, storno or annul invoices under the company's
+   * tax number. Optional in mock mode, and enforced there too when set.
+   */
+  callerToken?: string;
   port: number;
   /** Start an in-process mock NAV service and talk to that instead. */
   mockMode: boolean;
@@ -152,10 +160,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   const baseUrl = optional('NAV_BASE_URL');
 
+  const callerToken = mockMode ? optional('SIDECAR_TOKEN') : required('SIDECAR_TOKEN');
+  if (callerToken !== undefined && callerToken.length < 32) {
+    throw new ConfigError('SIDECAR_TOKEN must be at least 32 characters');
+  }
+
   return {
-    host: optional('HOST') ?? '0.0.0.0',
+    host: optional('HOST') ?? '127.0.0.1',
     port: port('PORT', 8080),
     mockMode,
+    ...(callerToken ? { callerToken } : {}),
     environment: environmentRaw,
     ...(baseUrl ? { baseUrl } : {}),
     credentials,

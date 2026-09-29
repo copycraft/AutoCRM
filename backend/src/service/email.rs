@@ -34,6 +34,7 @@ use crate::service::auth::AuthUser;
 pub mod triggers {
     pub const MANUAL: &str = "manual";
     pub const NEWSLETTER: &str = "newsletter";
+    pub const NEWSLETTER_CONFIRM: &str = "newsletter_confirm";
     pub const QUOTATION: &str = "quotation";
     pub const NUDGE_BLOCKER: &str = "nudge_blocker";
     pub const STAGE_CHANGED: &str = "stage_changed";
@@ -420,8 +421,8 @@ async fn apply_embeds(
         )));
     }
     let pairs: Vec<(i64, String)> = docs.iter().map(|d| (d.id, d.filename.clone())).collect();
-    let (html, text) = template::resolve_embed_refs(&body_html, &body_text, &pairs).map_err(
-        |unknown| {
+    let (html, text) =
+        template::resolve_embed_refs(&body_html, &body_text, &pairs).map_err(|unknown| {
             AppError::validation(format!(
                 "doc:{} is referenced but not embedded — pick it under embedded images",
                 unknown
@@ -430,8 +431,7 @@ async fn apply_embeds(
                     .collect::<Vec<_>>()
                     .join(", doc:")
             ))
-        },
-    )?;
+        })?;
     let refs = docs
         .into_iter()
         .map(|d| AttachmentRef {
@@ -512,10 +512,15 @@ async fn prepare(
             "body_markdown does not combine with a template: write the Markdown body directly",
         ));
     }
+    // Markdown gets its own rendering with every value escaped, so a value is text and
+    // never markup; the plain-text part below keeps the values as they are.
+    let markdown = || template::render_markdown(&body_src, &values).output;
     let mut body_html = match (req.hero.as_deref().map(str::trim), req.body_markdown) {
-        (Some(hero), true) if !hero.is_empty() => template::markdown_to_html_hero(hero, &body.output),
+        (Some(hero), true) if !hero.is_empty() => {
+            template::markdown_to_html_hero(hero, &markdown())
+        }
         (Some(hero), false) if !hero.is_empty() => template::email_html_hero(hero, &body.output),
-        (_, true) => template::markdown_to_html(&body.output),
+        (_, true) => template::markdown_to_html(&markdown()),
         (_, false) => template::text_to_html(&body.output),
     };
     let mut body_text = body.output.clone();
@@ -553,8 +558,14 @@ async fn prepare(
     }
 
     let owner = documents::Owner::from_about(about.order_id, about.lead_id);
-    let (embedded_html, embedded_text, mut embedded) =
-        apply_embeds(&mut *conn, owner, &req.embed_document_ids, body_html, body_text).await?;
+    let (embedded_html, embedded_text, mut embedded) = apply_embeds(
+        &mut *conn,
+        owner,
+        &req.embed_document_ids,
+        body_html,
+        body_text,
+    )
+    .await?;
     body_html = embedded_html;
     body_text = embedded_text;
     attachments.append(&mut embedded);
@@ -687,9 +698,13 @@ pub async fn send_quotation(
         lead_id: Some(lead_id),
         ..Default::default()
     };
-    let values =
-        template_values(&mut tx, &about, Some(&user.display_name), state.config.business_tz)
-            .await?;
+    let values = template_values(
+        &mut tx,
+        &about,
+        Some(&user.display_name),
+        state.config.business_tz,
+    )
+    .await?;
 
     let mut default_body = String::from(
         "Tisztelt {{contact.name}}!\n\nKöszönjük érdeklődését ({{lead.title}}). \
@@ -746,9 +761,7 @@ pub async fn send_quotation(
         let owner = documents::Owner::Lead(lead_id);
         let ids = distinct_ids(&req.attachment_document_ids);
         let docs = documents::find_many(&mut *tx, &ids).await?;
-        if docs.len() != ids.len()
-            || docs.iter().any(|d| !owner.owns(d))
-        {
+        if docs.len() != ids.len() || docs.iter().any(|d| !owner.owns(d)) {
             return Err(AppError::validation(
                 "attachments must be documents of this lead",
             ));
@@ -879,9 +892,7 @@ pub async fn send_newsletter(
         (Some(hero), true) if !hero.is_empty() => {
             template::markdown_to_html_hero(hero, &body.output)
         }
-        (Some(hero), false) if !hero.is_empty() => {
-            template::email_html_hero(hero, &body.output)
-        }
+        (Some(hero), false) if !hero.is_empty() => template::email_html_hero(hero, &body.output),
         (_, true) => template::markdown_to_html(&body.output),
         (_, false) => template::text_to_html(&body.output),
     };
@@ -908,14 +919,8 @@ pub async fn send_newsletter(
             })
             .collect();
     }
-    let (embedded_html, embedded_text, mut embedded) = apply_embeds(
-        &mut *tx,
-        None,
-        &req.embed_document_ids,
-        body_html,
-        body_text,
-    )
-    .await?;
+    let (embedded_html, embedded_text, mut embedded) =
+        apply_embeds(&mut tx, None, &req.embed_document_ids, body_html, body_text).await?;
     body_html = embedded_html;
     let body_text = embedded_text;
     attachments.append(&mut embedded);
@@ -963,6 +968,39 @@ pub async fn send_newsletter(
     Ok((id, count))
 }
 
+/// A website newsletter signup (double opt-in): records the request and queues the
+/// confirmation letter. Nothing is queued for an address that is already subscribed.
+///
+/// The letter is automatic mail, so the kill switch, send window, per-recipient cap and
+/// suppression list all apply to it; at most one is queued per address per day however
+/// often the form is sent, so the endpoint cannot be used to flood someone's inbox.
+pub async fn newsletter_signup(state: &AppState, address: &str, name: &str) -> AppResult<()> {
+    let mut tx = state.db.begin().await?;
+    if let Some(pending) = newsletter::request_confirmation(&mut *tx, address, name).await? {
+        let confirm_url = format!(
+            "{}/hu/newsletter/confirm?token={}",
+            state.config.public_base_url.trim_end_matches('/'),
+            pending.token
+        );
+        let mut mail = AutomaticEmail::new(
+            "newsletter_confirm",
+            About::default(),
+            &pending.email,
+            triggers::NEWSLETTER_CONFIRM,
+            format!(
+                "newsletter_confirm:{}:{}",
+                pending.id,
+                crate::service::business_today(state.config.business_tz)
+            ),
+        );
+        mail.extra_values
+            .insert("newsletter.confirm_url", confirm_url);
+        queue_automatic(&mut tx, &state.config, mail).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
 pub struct AutomaticEmail<'a> {
     pub template_key: &'a str,
     pub about: About,
@@ -983,7 +1021,13 @@ pub struct AutomaticEmail<'a> {
 
 impl<'a> AutomaticEmail<'a> {
     /// The common case: a template, a recipient, nothing attached.
-    pub fn new(template_key: &'a str, about: About, to: &'a str, trigger: &'a str, idempotency_key: String) -> Self {
+    pub fn new(
+        template_key: &'a str,
+        about: About,
+        to: &'a str,
+        trigger: &'a str,
+        idempotency_key: String,
+    ) -> Self {
         AutomaticEmail {
             template_key,
             about,
@@ -1396,7 +1440,11 @@ mod tests {
         // and an order document can be picked from the order list and the library alike.
         // Delivery compares "found" with "requested"; counting the same id twice made a
         // perfectly present document read as "deleted before sending".
-        let requested = vec![doc_ref(42, None), doc_ref(42, Some("doc-42")), doc_ref(7, None)];
+        let requested = vec![
+            doc_ref(42, None),
+            doc_ref(42, Some("doc-42")),
+            doc_ref(7, None),
+        ];
         assert_eq!(requested_document_ids(&requested), vec![42, 7]);
         assert_eq!(distinct_ids(&[5, 9, 5]), vec![5, 9]);
     }

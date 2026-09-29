@@ -86,11 +86,7 @@ pub async fn open_for_user(db: impl PgExecutor<'_>, user_id: i64) -> sqlx::Resul
     .await
 }
 
-pub async fn set_done(
-    db: impl PgExecutor<'_>,
-    id: i64,
-    done: bool,
-) -> sqlx::Result<Option<Task>> {
+pub async fn set_done(db: impl PgExecutor<'_>, id: i64, done: bool) -> sqlx::Result<Option<Task>> {
     sqlx::query_as!(
         Task,
         r#"UPDATE tasks SET done_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE id = $1

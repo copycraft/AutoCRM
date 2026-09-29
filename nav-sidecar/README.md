@@ -58,6 +58,13 @@ a caller that could name its own technical user would turn this into an open
 relay for reporting invoices under someone else's tax number. Request bodies are
 strict: an unknown field is a `400`, not a silent omission.
 
+**Callers authenticate.** Every route but `/health` requires
+`Authorization: Bearer <SIDECAR_TOKEN>` and answers `401` (kind `unauthorized`)
+otherwise. This service acts under the company's NAV credentials, so anything that
+can reach its port could otherwise file, storno or annul invoices under its tax
+number. It also listens on `127.0.0.1` by default, and docker-compose publishes it
+on the host's loopback only. Run it next to the backend and nowhere else.
+
 ### Required (unless `MOCK_MODE=true`)
 
 | Variable                   | Meaning                                                                     |
@@ -70,6 +77,7 @@ strict: an unknown field is a `400`, not a silent omission.
 | `NAV_SOFTWARE_ID`          | Exactly 18 characters of `[0-9A-Z-]`. No registry: prefix it with your tax number |
 | `NAV_SOFTWARE_NAME`        | Billing software name, for NAV's statistics and support                      |
 | `NAV_SOFTWARE_DEV_CONTACT` | Developer's electronic contact                                               |
+| `SIDECAR_TOKEN`            | Caller token, ≥ 32 characters (`openssl rand -hex 32`); the backend's `NAV_SIDECAR_TOKEN`. Enforced in mock mode too when set |
 
 `NAV_ENVIRONMENT` is `test` (the default) or `production`. The test and production
 systems issue **separate, non-interchangeable** technical users.
@@ -79,7 +87,7 @@ systems issue **separate, non-interchangeable** technical users.
 | Variable                        | Default                | Meaning                                                 |
 | ------------------------------- | ---------------------- | ------------------------------------------------------- |
 | `MOCK_MODE`                     | `false`                | Start a fake NAV in-process; no credentials needed       |
-| `PORT` / `HOST`                 | `8080` / `0.0.0.0`     | Where to listen                                          |
+| `PORT` / `HOST`                 | `8080` / `127.0.0.1`   | Where to listen (the Docker image sets `0.0.0.0`)        |
 | `NAV_SOFTWARE_DEV_NAME`         | `NAV_SOFTWARE_NAME`    | Developer's name                                         |
 | `NAV_SOFTWARE_VERSION`          | `1.0`                  | Release version (the version does **not** go in the id)  |
 | `NAV_SOFTWARE_OPERATION`        | `LOCAL_SOFTWARE`       | Or `ONLINE_SERVICE`                                      |

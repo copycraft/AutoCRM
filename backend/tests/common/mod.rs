@@ -207,6 +207,9 @@ fn sidecar_entrypoint() -> PathBuf {
         .join("index.js")
 }
 
+/// The token the test sidecar demands and the test config sends.
+pub const SIDECAR_TOKEN: &str = "test-sidecar-token-0123456789abcdef";
+
 /// Starts the sidecar in mock mode on a free port, or `None` when it is not built.
 ///
 /// `None` rather than a panic: the sidecar is a separate Node service, and a Rust-only
@@ -226,6 +229,8 @@ pub fn start_sidecar() -> Option<Sidecar> {
         .env("MOCK_MODE", "true")
         .env("PORT", "0")
         .env("HOST", "127.0.0.1")
+        // Mock mode would run without one; set it so every test goes through the check.
+        .env("SIDECAR_TOKEN", SIDECAR_TOKEN)
         // The mock settles a transaction immediately; no need to pace the polling.
         .env("NAV_POLL_INITIAL_DELAY_MS", "10")
         .stdout(Stdio::piped())
@@ -285,6 +290,7 @@ pub fn state_with_nav(pool: PgPool, sidecar_url: &str, supplier_tax_number: &str
     };
     config.nav = Some(NavConfig {
         sidecar_url: sidecar_url.trim_end_matches('/').to_string(),
+        sidecar_token: SIDECAR_TOKEN.into(),
         timeout: std::time::Duration::from_secs(30),
         supplier: SupplierConfig {
             name: "Autotherm Kft".into(),
@@ -340,7 +346,9 @@ pub async fn storage_available(state: &AppState) -> bool {
     if state.storage.check().await.is_ok() {
         return true;
     }
-    eprintln!("skipping: the object store is not reachable — run `docker compose up -d minio minio-init`");
+    eprintln!(
+        "skipping: the object store is not reachable — run `docker compose up -d minio minio-init`"
+    );
     false
 }
 

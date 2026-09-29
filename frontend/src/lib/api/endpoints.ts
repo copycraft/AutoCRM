@@ -214,7 +214,8 @@ export const emailApi = {
 
 // ── Newsletter ──
 // One blast, everyone in BCC. Subscriptions are managed here; the website signs up
-// through the keyed public endpoint, and readers leave from the unsubscribe page.
+// through the keyed public endpoint (double opt-in: readers confirm from the link in
+// their letter), and readers leave from the unsubscribe page.
 export const newsletterApi = {
   subscriptions: (): Promise<S['Items_Subscription']> =>
     request('/newsletter/subscriptions', s.zNewsletterSubscriptionsResponse),
@@ -224,6 +225,8 @@ export const newsletterApi = {
     requestNoContent(`/newsletter/subscriptions/${id}`, { method: 'DELETE' }),
   send: (body: S['NewsletterRequest']): Promise<S['NewsletterSent']> =>
     request('/newsletter/send', s.zNewsletterSendResponse, { method: 'POST', body }),
+  confirm: (token: string): Promise<S['Confirmed']> =>
+    request('/newsletter/confirm', s.zNewsletterConfirmResponse, { search: { token } }),
   unsubscribe: (search: { token?: string; email?: string }): Promise<S['Unsubscribed']> =>
     request('/newsletter/unsubscribe', s.zNewsletterUnsubscribeResponse, { search }),
 };

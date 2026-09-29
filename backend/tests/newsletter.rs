@@ -7,7 +7,7 @@
 mod common;
 
 use autocrm::domain::role::Role;
-use autocrm::repo::emails::{self, EmailFilter};
+use autocrm::repo::emails;
 use autocrm::repo::leads::LeadInput;
 use autocrm::repo::{leads, newsletter};
 use autocrm::service::email::{
@@ -29,7 +29,7 @@ fn lead_with_quote(contact_email: &str) -> LeadInput {
         source: None,
         description: None,
         assigned_to: None,
-        quoted_value_minor: Some(1_270_000_00),
+        quoted_value_minor: Some(127_000_000), // 1 270 000,00 Ft in fillér
         currency: Some("HUF".into()),
         quote_valid_until: Some(chrono::NaiveDate::from_ymd_opt(2026, 12, 31).unwrap()),
     }
@@ -110,7 +110,11 @@ async fn a_blast_is_one_row_with_everyone_in_bcc(pool: sqlx::PgPool) {
     assert_eq!(mail.bcc.len(), 2);
     assert!(mail.bcc.contains(&"a@example.hu".to_string()));
     // Markdown rendered, branded layout kept, unsubscribe footer appended.
-    assert!(mail.body_html.contains("<h1>Ujdonsag</h1>"), "{}", mail.body_html);
+    assert!(
+        mail.body_html.contains("<h1>Ujdonsag</h1>"),
+        "{}",
+        mail.body_html
+    );
     assert!(mail.body_html.contains("AUTOTHERM"));
     assert!(mail.body_html.contains("/hu/newsletter/unsubscribe"));
     assert!(mail.body_text.contains("Leiratkoz"), "{}", mail.body_text);
@@ -190,7 +194,11 @@ async fn a_quotation_shouts_and_quotes_the_lead(pool: sqlx::PgPool) {
     assert_eq!(mail.subject, "Árajánlatunk: Harom Sprinter hutose");
     assert!(mail.body_html.contains("Megjött az Autotherm árajánlatod!"));
     assert!(mail.body_html.contains("background-color:#b91c1c"));
-    assert!(mail.body_text.contains("1270000.00 HUF"), "{}", mail.body_text);
+    assert!(
+        mail.body_text.contains("1270000.00 HUF"),
+        "{}",
+        mail.body_text
+    );
     assert!(mail.body_text.contains("2026.12.31."));
 }
 
@@ -218,7 +226,11 @@ async fn a_quotation_without_an_address_names_the_lead(pool: sqlx::PgPool) {
     )
     .await
     .unwrap_err();
-    assert!(err.to_string().contains(&format!("lead #{} has no email", lead.id)), "{err}");
+    assert!(
+        err.to_string()
+            .contains(&format!("lead #{} has no email", lead.id)),
+        "{err}"
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -245,7 +257,11 @@ async fn manual_markdown_compose_renders_html(pool: sqlx::PgPool) {
     )
     .await
     .unwrap();
-    assert!(preview.body_html.contains("<h1>Cim</h1>"), "{}", preview.body_html);
+    assert!(
+        preview.body_html.contains("<h1>Cim</h1>"),
+        "{}",
+        preview.body_html
+    );
     assert!(preview.body_html.contains("<strong>felkover</strong>"));
     assert_eq!(preview.body_text, "# Cim\n\nSzoveg **felkover**.");
 }
@@ -316,7 +332,9 @@ async fn a_blast_carries_attachments_hero_and_inline_images(pool: sqlx::PgPool) 
         .map(|a| {
             (
                 a["document_id"].as_i64().unwrap(),
-                a.get("content_id").and_then(|c| c.as_str()).map(str::to_string),
+                a.get("content_id")
+                    .and_then(|c| c.as_str())
+                    .map(str::to_string),
             )
         })
         .collect();
@@ -349,4 +367,148 @@ async fn a_dangling_embed_reference_refuses_the_blast(pool: sqlx::PgPool) {
     .await
     .unwrap_err();
     assert!(err.to_string().contains("doc:99999"), "{err}");
+}
+
+// ── Double opt-in ────────────────────────────────────────────────────────────────
+
+/// The confirmation letters queued for an address, newest first: (subject, text body).
+async fn confirmation_letters(pool: &sqlx::PgPool, to: &str) -> Vec<(String, String)> {
+    sqlx::query_as::<_, (String, String)>(
+        "SELECT subject, body_text FROM email_messages
+          WHERE trigger = 'newsletter_confirm' AND to_address = $1 ORDER BY id DESC",
+    )
+    .bind(to)
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+fn token_in(body: &str) -> String {
+    let at = body.find("token=").expect("the letter carries the link") + "token=".len();
+    body[at..]
+        .chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect()
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_website_signup_waits_for_its_confirmation_click(pool: sqlx::PgPool) {
+    let state = common::state(pool.clone());
+    email::newsletter_signup(&state, "Uj.Olvaso@Example.HU", "Olvasó")
+        .await
+        .unwrap();
+
+    // Pending: on the list for the office to see, but not in the audience.
+    assert_eq!(newsletter::count_active(&state.db).await.unwrap(), 0);
+    let letters = confirmation_letters(&pool, "uj.olvaso@example.hu").await;
+    assert_eq!(letters.len(), 1);
+    let (_, body) = &letters[0];
+    assert!(body.contains("/hu/newsletter/confirm?token="), "{body}");
+
+    let token = token_in(body);
+    assert!(
+        newsletter::confirm(&state.db, &token)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(newsletter::count_active(&state.db).await.unwrap(), 1);
+    // A link works once.
+    assert!(
+        newsletter::confirm(&state.db, &token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_signup_cannot_undo_an_opt_out_without_the_owner(pool: sqlx::PgPool) {
+    let state = common::state(pool.clone());
+    let sub = newsletter::subscribe(&state.db, "leiratkozott@example.hu", "", "website")
+        .await
+        .unwrap();
+    sqlx::query("UPDATE newsletter_subscriptions SET unsubscribed_at = now() WHERE id = $1")
+        .bind(sub.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Someone else types the address into the website form.
+    email::newsletter_signup(&state, "leiratkozott@example.hu", "")
+        .await
+        .unwrap();
+    assert_eq!(newsletter::count_active(&state.db).await.unwrap(), 0);
+
+    // Only the owner, clicking the link in their own inbox, comes back.
+    let letters = confirmation_letters(&pool, "leiratkozott@example.hu").await;
+    let token = token_in(&letters[0].1);
+    newsletter::confirm(&state.db, &token)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(newsletter::count_active(&state.db).await.unwrap(), 1);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn repeated_signups_queue_one_letter_a_day_and_keep_the_link(pool: sqlx::PgPool) {
+    let state = common::state(pool.clone());
+    for _ in 0..5 {
+        email::newsletter_signup(&state, "sokszor@example.hu", "")
+            .await
+            .unwrap();
+    }
+    let letters = confirmation_letters(&pool, "sokszor@example.hu").await;
+    assert_eq!(letters.len(), 1, "one letter per address per day");
+
+    // A later request (the next day's letter) reuses the still-valid link.
+    let first = token_in(&letters[0].1);
+    let again = newsletter::request_confirmation(&state.db, "sokszor@example.hu", "")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(again.token, first);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn an_active_subscriber_gets_no_letter_and_keeps_their_name(pool: sqlx::PgPool) {
+    let state = common::state(pool.clone());
+    newsletter::subscribe(&state.db, "aktiv@example.hu", "Aktív Anna", "office")
+        .await
+        .unwrap();
+    email::newsletter_signup(&state, "aktiv@example.hu", "Valaki Más")
+        .await
+        .unwrap();
+    assert!(
+        confirmation_letters(&pool, "aktiv@example.hu")
+            .await
+            .is_empty()
+    );
+    let list = newsletter::list(&state.db).await.unwrap();
+    assert_eq!(list[0].name, "Aktív Anna");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn an_expired_link_confirms_nothing(pool: sqlx::PgPool) {
+    let state = common::state(pool.clone());
+    let pending = newsletter::request_confirmation(&state.db, "keso@example.hu", "")
+        .await
+        .unwrap()
+        .unwrap();
+    sqlx::query(
+        "UPDATE newsletter_subscriptions
+            SET confirm_requested_at = now() - make_interval(days => $2 + 1) WHERE id = $1",
+    )
+    .bind(pending.id)
+    .bind(newsletter::CONFIRM_TTL_DAYS)
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert!(
+        newsletter::confirm(&state.db, &pending.token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(newsletter::count_active(&state.db).await.unwrap(), 0);
 }

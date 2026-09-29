@@ -54,7 +54,8 @@ export function NewsletterList() {
 
   if (!canSendEmail(user)) return null;
   const items = list.data?.items ?? [];
-  const active = items.filter((s) => !s.unsubscribed_at).length;
+  // Active = confirmed and not opted out; a website signup waits for its link click.
+  const active = items.filter((s) => s.confirmed_at && !s.unsubscribed_at).length;
 
   return (
     <section aria-label={t('newsletterTitle')} className="mt-10">
@@ -111,6 +112,8 @@ export function NewsletterList() {
             </span>
             {s.unsubscribed_at ? (
               <StatusBadge tone="muted">{t('unsubscribedBadge')}</StatusBadge>
+            ) : !s.confirmed_at ? (
+              <StatusBadge tone="steel">{t('pendingBadge')}</StatusBadge>
             ) : (
               <StatusBadge tone="done">{t('subscribedBadge')}</StatusBadge>
             )}

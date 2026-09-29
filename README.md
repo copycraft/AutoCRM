@@ -6,16 +6,33 @@ Project lifecycle system for Autotherm's refrigerated vehicle conversions:
 Lead → Order → Design → Production → MEO documentation → Done
 ```
 
-One Rust binary, one Postgres, one S3-compatible object store. Built for correctness,
-longevity and low operational burden, not scale (60 leads/month, <20 users).
+One Rust binary, one Postgres, one S3-compatible object store, plus an optional Node
+sidecar for NAV invoice reporting. Built for correctness, longevity and low operational
+burden, not scale (60 leads/month, <20 users).
 
 - Architecture decisions and deviations from the original plan: [docs/DECISIONS.md](docs/DECISIONS.md)
 - API reference: [docs/API.md](docs/API.md)
+- Past audits and plans (point-in-time snapshots, not current): [docs/history/](docs/history/README.md)
 
-## Explicitly out of scope
+## Scope
 
-Inventory, invoicing, cost tracking, purchase orders, time tracking, inbox integration,
-customer portal. If it isn't in `backend/migrations/`, it isn't part of the system.
+In scope, and defined in `backend/migrations/`:
+
+- Partners and contacts (customers and suppliers), leads with quotations, orders with line
+  items, build specification, stages, blockers and follow-up tasks
+- Vehicles, intake slip and handover inspections (check-out/check-in damage records)
+- Photos and documents, with write-once intake evidence
+- Email: templates, manual and automatic mail, the correspondence log, a newsletter list
+- Reports, with EUR normalised to HUF at MNB rates
+- **Invoicing**: invoices, stornos and technical annulments reported to NAV Online Számla
+  through [`nav-sidecar`](nav-sidecar/README.md), plus proformas (díjbekérő), which are not
+  reported. Off unless `NAV_SIDECAR_URL` is set.
+
+Out of scope: inventory, cost tracking, purchase orders, time tracking, inbound mail
+(the email screens show what AutoCRM sent, not a mailbox), customer portal.
+
+If it isn't in `backend/migrations/`, it isn't part of the system. Anything that widens the
+scope gets a line here and an entry in `docs/DECISIONS.md` in the same change.
 
 ## Local development (Windows, native Rust)
 
@@ -91,10 +108,14 @@ backend/
     service/      use cases: auth, orders, stages, leads, media, email, automation
     api/          thin Axum handlers
     jobs/         Postgres-backed worker and scheduler
-    integrations/ SMTP mailer, MNB exchange rates
+    integrations/ SMTP mailer, MNB exchange rates, NAV sidecar client
     media/        object storage, upload tickets, image pipeline
-docs/
-docker-compose.yml  dev Postgres, MinIO (object lock enabled), Mailpit
+frontend/         Next.js office client (generated API client from openapi/)
+android/          Kotlin shop-floor client with an offline photo queue (see android/README.md)
+nav-sidecar/      Node service that speaks NAV Online Számla (see nav-sidecar/README.md)
+openapi/          openapi.json, emitted by the backend and checked in CI
+docs/             decisions, API, error codes, migration, audits; docs/history/ holds snapshots
+docker-compose.yml  dev Postgres, MinIO (object lock enabled), Mailpit, nav-sidecar (mock)
 ```
 
 ## Production outline
@@ -105,3 +126,10 @@ docker-compose.yml  dev Postgres, MinIO (object lock enabled), Mailpit
 - Postgres: nightly `pg_dump` + WAL archiving off-site; object storage with versioning and replication
 - Test a restore before go-live, and yearly after
 - Sending domain: SPF, DKIM, DMARC (`p=none` first) before automatic email is switched on
+- Invoicing: run the `nav-sidecar` image next to the API with the NAV technical user's
+  credentials and a `SIDECAR_TOKEN` (`openssl rand -hex 32`), publishing its port on
+  loopback only; set `NAV_SIDECAR_URL`, `NAV_SIDECAR_TOKEN` (the same value) and the
+  `NAV_SUPPLIER_*` fields (`backend/.env.example`). Report to NAV's test environment before
+  switching to production.
+- Newsletter signup from the website: set `NEWSLETTER_API_KEY`, and switch automatic email on
+  first, or the confirmation letters are cancelled and nobody can confirm.

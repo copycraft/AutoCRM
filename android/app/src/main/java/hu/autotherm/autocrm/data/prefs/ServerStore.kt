@@ -55,11 +55,12 @@ class ServerStore(private val context: Context) {
          * Turns what someone types on a phone keyboard into a base URL, or null.
          *
          * Accepts `192.168.50.10:8080`, `http://192.168.50.10:8080/`, `crm.autotherm.hu`.
-         * A bare host gets `http://` rather than `https://`: the address typed by hand is
-         * almost always a machine on the local network with no certificate, and defaulting
-         * to https there produces a TLS error that reads like the server is down.
-         * Anyone reaching production types the `https://` themselves, and the field's
-         * placeholder shows it.
+         * A bare local address (private IP, `localhost`, a one-word or `.local`-style name)
+         * gets `http://`: that is a machine on the workshop network with no certificate, and
+         * https there fails with a TLS error that reads like the server is down. Any other
+         * bare host gets `https://`, because http to a public name sends the password and a
+         * year-long token in clear before any redirect could help. An explicit scheme is
+         * always kept.
          */
         fun normalize(raw: String): String? {
             val trimmed = raw.trim()
@@ -67,7 +68,8 @@ class ServerStore(private val context: Context) {
             val withScheme = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
                 trimmed
             } else {
-                "http://$trimmed"
+                val host = "http://$trimmed".toHttpUrlOrNull()?.host ?: return null
+                if (isLocalHost(host)) "http://$trimmed" else "https://$trimmed"
             }
             val parsed = withScheme.toHttpUrlOrNull() ?: return null
             if (parsed.host.isBlank()) return null
@@ -92,6 +94,21 @@ class ServerStore(private val context: Context) {
             if (parsed.scheme != "http") return false
             return !isPrivateHost(parsed.host)
         }
+
+        /**
+         * A name that only resolves on the local network: a private address, or a one-word
+         * or local-suffix hostname (`crmserver`, `crm.local`). Decides the default scheme.
+         */
+        private fun isLocalHost(host: String): Boolean {
+            if (isPrivateHost(host)) return true
+            // A public IP literal (v4 or v6): only an explicit http:// opts out of TLS.
+            if (host.contains(':')) return false
+            if (host.split(".").all { it.toIntOrNull() != null }) return false
+            if (!host.contains('.')) return true
+            return LOCAL_SUFFIXES.any { host.endsWith(it) }
+        }
+
+        private val LOCAL_SUFFIXES = listOf(".local", ".lan", ".home.arpa", ".internal")
 
         /** RFC 1918, loopback, link-local, and the emulator's view of its host. */
         private fun isPrivateHost(host: String): Boolean {

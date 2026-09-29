@@ -312,7 +312,9 @@ mod tests {
         // body as "no plate, no VIN" and refuses it (or, with a plate, wipes the rest).
         assert!(body(r#"{"notes":"hátsó ajtó sérült"}"#).fields().is_err());
 
-        let f = body(r#"{"notes":"hátsó ajtó sérült"}"#).merged(&stored()).unwrap();
+        let f = body(r#"{"notes":"hátsó ajtó sérült"}"#)
+            .merged(&stored())
+            .unwrap();
         assert_eq!(f.plate.as_deref(), Some("ABC-123"));
         assert_eq!(f.vin.as_deref(), Some("WDB9066331S123456"));
         assert_eq!(f.make.as_deref(), Some("Mercedes"));
@@ -324,12 +326,18 @@ mod tests {
 
     #[test]
     fn vehicle_patch_null_clears_but_never_both_identifiers() {
-        let f = body(r#"{"make":null,"year":null,"partner_id":null}"#).merged(&stored()).unwrap();
+        let f = body(r#"{"make":null,"year":null,"partner_id":null}"#)
+            .merged(&stored())
+            .unwrap();
         assert_eq!(f.make, None);
         assert_eq!(f.year, None);
         assert_eq!(f.partner_id, None);
         assert_eq!(f.plate.as_deref(), Some("ABC-123"));
-        assert!(body(r#"{"plate":null,"vin":null}"#).merged(&stored()).is_err());
+        assert!(
+            body(r#"{"plate":null,"vin":null}"#)
+                .merged(&stored())
+                .is_err()
+        );
     }
 
     #[test]

@@ -84,11 +84,10 @@ pub async fn find_by_client_key(
     db: &sqlx::PgPool,
     client_key: &str,
 ) -> sqlx::Result<Option<Inspection>> {
-    let id: Option<i64> =
-        sqlx::query_scalar("SELECT id FROM inspections WHERE client_key = $1")
-            .bind(client_key)
-            .fetch_optional(db)
-            .await?;
+    let id: Option<i64> = sqlx::query_scalar("SELECT id FROM inspections WHERE client_key = $1")
+        .bind(client_key)
+        .fetch_optional(db)
+        .await?;
     match id {
         Some(id) => find(db, id).await,
         None => Ok(None),
@@ -166,10 +165,7 @@ pub async fn list_for_order(
     .await
 }
 
-pub async fn list_for_plate(
-    db: impl PgExecutor<'_>,
-    plate: &str,
-) -> sqlx::Result<Vec<Inspection>> {
+pub async fn list_for_plate(db: impl PgExecutor<'_>, plate: &str) -> sqlx::Result<Vec<Inspection>> {
     sqlx::query_as!(
         Inspection,
         r#"SELECT id, order_id, kind, status, vehicle_plate, vehicle_vin, inspector_name,
@@ -201,6 +197,8 @@ pub async fn latest_signed_checkout(
     .await
 }
 
+// One parameter per editable column (each COALESCEd); bundling would only rename them.
+#[allow(clippy::too_many_arguments)]
 pub async fn patch_draft(
     db: impl PgExecutor<'_>,
     id: i64,
@@ -264,9 +262,12 @@ pub async fn sign(
 
 /// Drafts can be discarded; signed rows live forever (annotations go to notes).
 pub async fn remove_draft(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<bool> {
-    let r = sqlx::query!("DELETE FROM inspections WHERE id = $1 AND status = 'draft'", id)
-        .execute(db)
-        .await?;
+    let r = sqlx::query!(
+        "DELETE FROM inspections WHERE id = $1 AND status = 'draft'",
+        id
+    )
+    .execute(db)
+    .await?;
     Ok(r.rows_affected() > 0)
 }
 
@@ -286,6 +287,8 @@ pub struct InspectionPhoto {
     pub created_at: DateTime<Utc>,
 }
 
+// One parameter per inserted column; bundling would only rename them.
+#[allow(clippy::too_many_arguments)]
 pub async fn attach_photo(
     db: impl PgExecutor<'_>,
     inspection_id: i64,

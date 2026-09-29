@@ -25,6 +25,22 @@ class ServerStoreTest {
     }
 
     @Test
+    fun `a bare local name gets http too`() {
+        assertEquals("http://crmserver:8080", norm("crmserver:8080"))
+        assertEquals("http://localhost:8080", norm("localhost:8080"))
+        assertEquals("http://crm.local:8080", norm("crm.local:8080"))
+        assertEquals("http://nas.home.arpa", norm("nas.home.arpa"))
+    }
+
+    @Test
+    fun `a bare public host gets https, so the password never crosses the internet in clear`() {
+        assertEquals("https://crm.autotherm.hu", norm("crm.autotherm.hu"))
+        assertEquals("https://crm.autotherm.hu:8443", norm("crm.autotherm.hu:8443"))
+        assertEquals("https://93.184.216.34:8080", norm("93.184.216.34:8080"))
+        assertFalse(ServerStore.isUnencryptedAndRemote(norm("crm.autotherm.hu")!!))
+    }
+
+    @Test
     fun `an explicit scheme is kept`() {
         assertEquals("https://crm.autotherm.hu", norm("https://crm.autotherm.hu"))
         assertEquals("http://192.168.1.10:8080", norm("http://192.168.1.10:8080"))

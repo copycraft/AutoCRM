@@ -176,7 +176,7 @@ fun ServerSetupScreen(
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            "http:// nélkül is jó. Éles szerverhez írd ki: https://…",
+            "Séma nélkül: helyi címhez http://, minden máshoz https:// kerül.",
             style = MaterialTheme.typography.labelMedium,
             color = Steel500,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),

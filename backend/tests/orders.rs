@@ -653,18 +653,38 @@ async fn the_supplier_filter_keeps_customers_visible(pool: PgPool) {
     .await
     .unwrap();
 
-    let customers = partners::search(&pool, None, None, None, Some("customer"), false, "name", 50, 0)
-        .await
-        .unwrap();
+    let customers = partners::search(
+        &pool,
+        None,
+        None,
+        None,
+        Some("customer"),
+        false,
+        "name",
+        50,
+        0,
+    )
+    .await
+    .unwrap();
     assert!(customers.iter().any(|p| p.id == unclassified));
     assert!(
         !customers.iter().any(|p| p.id == supplier.id),
         "a supplier is not a customer"
     );
 
-    let suppliers = partners::search(&pool, None, None, None, Some("supplier"), false, "name", 50, 0)
-        .await
-        .unwrap();
+    let suppliers = partners::search(
+        &pool,
+        None,
+        None,
+        None,
+        Some("supplier"),
+        false,
+        "name",
+        50,
+        0,
+    )
+    .await
+    .unwrap();
     assert_eq!(suppliers.len(), 1);
     assert_eq!(suppliers[0].id, supplier.id);
 }
@@ -789,7 +809,10 @@ async fn intake_extras_round_trip_and_valuables_stay_paired(pool: PgPool) {
         .bind(order.id)
         .execute(&pool)
         .await;
-    assert!(bad_fuel.is_err(), "fuel_level is limited to the gauge marks");
+    assert!(
+        bad_fuel.is_err(),
+        "fuel_level is limited to the gauge marks"
+    );
 
     // A description with nobody having ticked the box: the pairing is the database's,
     // not just the handler's, so a future code path cannot write a dangling list.

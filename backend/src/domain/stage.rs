@@ -347,7 +347,13 @@ mod tests {
         // MEO photo requirement that a straight forward move would enforce.
         let s = order_stages();
         assert!(matches!(
-            check_transition(&s, "cancelled", "completed", Some("ügyfél mégis kéri"), &no_images()),
+            check_transition(
+                &s,
+                "cancelled",
+                "completed",
+                Some("ügyfél mégis kéri"),
+                &no_images()
+            ),
             Err(TransitionError::GateNotMet { .. })
         ));
         assert_eq!(

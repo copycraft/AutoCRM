@@ -1,19 +1,21 @@
 //! Newsletter: the subscription list, the website signup, and the BCC blast.
 //!
 //! Authenticated routes (the settings list, the blast itself) need `SendEmail`: a
-//! newsletter goes to hundreds of strangers, so it is office work. The two public routes
+//! newsletter goes to hundreds of strangers, so it is office work. The public routes
 //! are the website signup — behind `X-Newsletter-Key`, off entirely without
-//! `NEWSLETTER_API_KEY` — and unsubscribing, which must work from a bare link.
+//! `NEWSLETTER_API_KEY`, and double opt-in — plus confirming and unsubscribing, which
+//! must work from a bare link.
 
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
+use sha2::{Digest, Sha256};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::Items;
+use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use crate::AppState;
 use crate::domain::email::normalize_address;
 use crate::domain::role::Capability;
@@ -27,6 +29,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(remove_subscription))
         .routes(routes!(send))
         .routes(routes!(subscribe, unsubscribe))
+        .routes(routes!(confirm))
 }
 
 /// Everyone on the list, unsubscribed included: the office sees who opted out, because a
@@ -123,16 +126,26 @@ async fn send(
 ) -> AppResult<(StatusCode, Json<NewsletterSent>)> {
     me.require(Capability::SendEmail)?;
     let (email_id, recipients) = email::send_newsletter(&state, &me, &body).await?;
-    Ok((StatusCode::ACCEPTED, Json(NewsletterSent { email_id, recipients })))
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(NewsletterSent {
+            email_id,
+            recipients,
+        }),
+    ))
 }
 
-/// Website signup: `POST` with the address and `X-Newsletter-Key`. Resubscribing clears
-/// an earlier unsubscribe — coming back is saying yes again.
+/// Website signup: `POST` with the address and `X-Newsletter-Key`.
+///
+/// Double opt-in: this records a pending signup and mails a confirmation link; the address
+/// joins the list only when its owner clicks it. The answer is the same 202 whatever the
+/// address's history (new, pending, active, opted out), so the endpoint says nothing
+/// about who is on the list.
 #[utoipa::path(
     post, path = "/newsletter/subscribe", tag = "newsletter",
     request_body = SubscriptionBody,
     responses(
-        (status = 201, body = Subscription),
+        (status = 202, description = "Accepted; a confirmation link is mailed unless the address is already subscribed"),
         (status = 403, description = "Missing or wrong key, or signup is off"),
     )
 )]
@@ -140,12 +153,39 @@ async fn subscribe(
     State(state): State<AppState>,
     headers: HeaderMap,
     ApiJson(body): ApiJson<SubscriptionBody>,
-) -> AppResult<(StatusCode, Json<Subscription>)> {
+) -> AppResult<StatusCode> {
     check_website_key(&state, &headers)?;
     normalize_address(&body.email)
         .ok_or_else(|| AppError::validation("email address is invalid"))?;
-    let sub = newsletter::subscribe(&state.db, &body.email, &body.name, "website").await?;
-    Ok((StatusCode::CREATED, Json(sub)))
+    email::newsletter_signup(&state, &body.email, &body.name).await?;
+    Ok(StatusCode::ACCEPTED)
+}
+
+#[derive(Debug, serde::Deserialize, IntoParams)]
+pub struct ConfirmQuery {
+    /// The token from the confirmation letter.
+    pub token: String,
+}
+
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct Confirmed {
+    /// False for an unknown, already used or expired link.
+    pub confirmed: bool,
+}
+
+/// The confirmation click. Public: the reader arrives from the letter, not logged in.
+#[utoipa::path(
+    get, path = "/newsletter/confirm", tag = "newsletter",
+    params(ConfirmQuery),
+    responses((status = 200, body = Confirmed))
+)]
+async fn confirm(
+    State(state): State<AppState>,
+    ApiQuery(q): ApiQuery<ConfirmQuery>,
+) -> AppResult<Json<Confirmed>> {
+    let token = q.token.trim();
+    let confirmed = !token.is_empty() && newsletter::confirm(&state.db, token).await?.is_some();
+    Ok(Json(Confirmed { confirmed }))
 }
 
 #[derive(Debug, serde::Deserialize, IntoParams)]
@@ -156,10 +196,12 @@ pub struct UnsubscribeQuery {
     pub email: Option<String>,
 }
 
-/// Unsubscribe from a link or a typed address. Always answers 200 with whether anything
-/// changed: a link clicked twice is not an error, and guessing addresses learns nothing.
+/// Unsubscribe from a link or a typed address. Always answers 200.
 #[derive(Debug, serde::Serialize, ToSchema)]
 pub struct Unsubscribed {
+    /// For a token link: whether this click changed anything (a link clicked twice is
+    /// not an error). For a typed address: always true — "if it was on the list, it is
+    /// off now" — so typing addresses cannot reveal who is subscribed.
     pub unsubscribed: bool,
 }
 
@@ -176,23 +218,25 @@ async fn unsubscribe(
         let changed = newsletter::unsubscribe_by_token(&state.db, token.trim())
             .await?
             .is_some();
-        return Ok(Json(Unsubscribed { unsubscribed: changed }));
+        return Ok(Json(Unsubscribed {
+            unsubscribed: changed,
+        }));
     }
     if let Some(email) = q.email.filter(|e| !e.trim().is_empty()) {
-        let Some(normalized) = normalize_address(&email) else {
-            return Ok(Json(Unsubscribed { unsubscribed: false }));
-        };
-        let changed = sqlx::query_scalar!(
-            "UPDATE newsletter_subscriptions SET unsubscribed_at = now()
-             WHERE lower(email) = $1 AND unsubscribed_at IS NULL RETURNING id",
-            normalized
-        )
-        .fetch_optional(&state.db)
-        .await
-        .map(|r: Option<i64>| r.is_some())?;
-        return Ok(Json(Unsubscribed { unsubscribed: changed }));
+        if let Some(normalized) = normalize_address(&email) {
+            sqlx::query!(
+                "UPDATE newsletter_subscriptions SET unsubscribed_at = now()
+                 WHERE lower(email) = $1 AND unsubscribed_at IS NULL",
+                normalized
+            )
+            .execute(&state.db)
+            .await?;
+        }
+        return Ok(Json(Unsubscribed { unsubscribed: true }));
     }
-    Ok(Json(Unsubscribed { unsubscribed: false }))
+    Ok(Json(Unsubscribed {
+        unsubscribed: false,
+    }))
 }
 
 fn check_website_key(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
@@ -204,7 +248,9 @@ fn check_website_key(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
         .get("x-newsletter-key")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if given != expected {
+    // Compare digests, not the strings: equal-length hashes compared whole leak nothing
+    // about how much of the key a guess got right.
+    if Sha256::digest(given.as_bytes()) != Sha256::digest(expected.as_bytes()) {
         return Err(AppError::Forbidden);
     }
     Ok(())
@@ -222,7 +268,9 @@ mod tests {
             name: "".into(),
             source: "website".into(),
             subscribed_at: Utc.with_ymd_and_hms(2026, 1, 1, 9, 0, 0).unwrap(),
-            unsubscribed_at: unsubscribed.then(|| Utc.with_ymd_and_hms(2026, 2, 1, 9, 0, 0).unwrap()),
+            confirmed_at: Some(Utc.with_ymd_and_hms(2026, 1, 1, 9, 5, 0).unwrap()),
+            unsubscribed_at: unsubscribed
+                .then(|| Utc.with_ymd_and_hms(2026, 2, 1, 9, 0, 0).unwrap()),
         }
     }
 

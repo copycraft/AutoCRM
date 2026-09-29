@@ -426,11 +426,7 @@ pub async fn mark_annulled(
     .await
 }
 
-pub async fn set_document(
-    conn: &mut PgConnection,
-    id: i64,
-    document_id: i64,
-) -> sqlx::Result<()> {
+pub async fn set_document(conn: &mut PgConnection, id: i64, document_id: i64) -> sqlx::Result<()> {
     sqlx::query!(
         "UPDATE invoices SET document_id = $2 WHERE id = $1",
         id,

@@ -13,25 +13,29 @@ vi.mock('@/lib/api/client', () => import('./client-mock'));
 
 afterEach(() => resetOverrides());
 
+const CONFIRMED = '2026-09-01T10:00:00Z';
+
 function subscriptions() {
   return {
     items: [
-      { id: 1, email: 'a@example.hu', name: 'A', unsubscribed_at: null },
-      { id: 2, email: 'b@example.hu', name: 'B', unsubscribed_at: null },
-      { id: 3, email: 'c@example.hu', name: 'C', unsubscribed_at: null },
-      { id: 4, email: 'd@example.hu', name: 'D', unsubscribed_at: '2026-09-20T10:00:00Z' },
+      { id: 1, email: 'a@example.hu', name: 'A', confirmed_at: CONFIRMED, unsubscribed_at: null },
+      { id: 2, email: 'b@example.hu', name: 'B', confirmed_at: CONFIRMED, unsubscribed_at: null },
+      { id: 3, email: 'c@example.hu', name: 'C', confirmed_at: CONFIRMED, unsubscribed_at: null },
+      { id: 4, email: 'd@example.hu', name: 'D', confirmed_at: CONFIRMED, unsubscribed_at: '2026-09-20T10:00:00Z' },
+      // A website signup that never clicked its confirmation link: not in the audience.
+      { id: 5, email: 'e@example.hu', name: 'E', confirmed_at: null, unsubscribed_at: null },
     ],
   };
 }
 
 describe('newsletter audience', () => {
-  it('excludes unsubscribed and suppressed addresses from the pre-send count', async () => {
+  it('excludes unconfirmed, unsubscribed and suppressed addresses from the pre-send count', async () => {
     overrides.set('/newsletter/subscriptions', subscriptions);
     overrides.set('/email-suppressions', () => ({
       items: [{ email: 'B@EXAMPLE.HU', reason: null, created_at: '2026-09-20T10:00:00Z' }],
     }));
     renderPage(<ComposeForm defaultAudience="newsletter" onSent={() => {}} />);
-    // a and c only: d opted out, b is suppressed (matched case-insensitively).
+    // a and c only: d opted out, e never confirmed, b is suppressed (case-insensitively).
     await screen.findByText('2 feliratkozó kapja meg BCC-ben.');
   });
 

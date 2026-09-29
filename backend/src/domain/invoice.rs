@@ -59,9 +59,7 @@ impl InvoiceStatus {
 /// How the customer pays. Cash or bank transfer, nothing else: an invoice is reported
 /// with one of these, so anything else is refused at issue time rather than rejected
 /// by NAV after drawing a number (Q-INV-14).
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum PaymentMethod {
     Transfer,
@@ -195,7 +193,11 @@ pub fn split_address_line(line: &str) -> Option<(String, String, String)> {
     }
 
     let (start, end, category) = best?;
-    let street_name = line[..start].trim().trim_end_matches(',').trim().to_string();
+    let street_name = line[..start]
+        .trim()
+        .trim_end_matches(',')
+        .trim()
+        .to_string();
     let number = line[end..]
         .trim()
         .trim_start_matches(',')
@@ -307,8 +309,8 @@ mod tests {
         assert_eq!(vat.minor(), 27_000);
 
         // 2.5 × 4000.00 = 10000.00 net, 2700.00 VAT
-        let (net, vat) = line_amounts(Money::new(400_000, Currency::HUF), dec("2.5"), dec("0.27"))
-            .unwrap();
+        let (net, vat) =
+            line_amounts(Money::new(400_000, Currency::HUF), dec("2.5"), dec("0.27")).unwrap();
         assert_eq!(net.minor(), 1_000_000);
         assert_eq!(vat.minor(), 270_000);
 
@@ -349,7 +351,10 @@ mod tests {
     fn payment_methods_parse_leniently_and_render_canonically() {
         assert_eq!(PaymentMethod::parse("CASH"), Ok(PaymentMethod::Cash));
         assert_eq!(PaymentMethod::parse(" cash "), Ok(PaymentMethod::Cash));
-        assert_eq!(PaymentMethod::parse("transfer"), Ok(PaymentMethod::Transfer));
+        assert_eq!(
+            PaymentMethod::parse("transfer"),
+            Ok(PaymentMethod::Transfer)
+        );
         assert_eq!(PaymentMethod::Cash.as_str(), "CASH");
         assert_eq!(PaymentMethod::Cash.hu_label(), "Készpénz");
         assert_eq!(PaymentMethod::Transfer.hu_label(), "Átutalás");

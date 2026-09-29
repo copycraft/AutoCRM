@@ -139,9 +139,15 @@ pub struct SupplierConfig {
 /// Absent `NAV_SIDECAR_URL` the whole feature is off: the endpoints answer with a rule
 /// error naming the variable. That is deliberate — a CRM with no invoicing configured is a
 /// supported state, and it is how every existing deployment and test keeps working.
-#[derive(Debug, Clone)]
+///
+/// Holds the sidecar token, so no Debug (see the module note).
+#[derive(Clone)]
 pub struct NavConfig {
     pub sidecar_url: String,
+    /// Sent as `Authorization: Bearer …` on every call. The sidecar holds the NAV
+    /// technical user's credentials; without this, anything that can reach its port could
+    /// file or annul invoices under the company's tax number.
+    pub sidecar_token: String,
     /// Per HTTP attempt. Comfortably above the sidecar's own NAV polling, which is what
     /// makes an invoice submission one call rather than a state machine on this side.
     pub timeout: std::time::Duration,
@@ -233,20 +239,27 @@ fn read_nav(r: &mut Reader) -> Option<NavConfig> {
         .trim_end_matches('/')
         .to_string();
     if !sidecar_url.starts_with("http://") && !sidecar_url.starts_with("https://") {
-        r.errors
-            .push(format!("NAV_SIDECAR_URL must be an http(s) URL, got '{sidecar_url}'"));
+        r.errors.push(format!(
+            "NAV_SIDECAR_URL must be an http(s) URL, got '{sidecar_url}'"
+        ));
     }
     let default_vat_rate: rust_decimal::Decimal = r.parsed(
         "NAV_DEFAULT_VAT_RATE",
         rust_decimal::Decimal::new(27, 2), // 0.27
     );
     if default_vat_rate.is_sign_negative() || default_vat_rate > rust_decimal::Decimal::ONE {
+        r.errors
+            .push("NAV_DEFAULT_VAT_RATE is a fraction between 0 and 1: use 0.27 for 27%".into());
+    }
+    let sidecar_token = r.required("NAV_SIDECAR_TOKEN");
+    if !sidecar_token.is_empty() && sidecar_token.len() < 32 {
         r.errors.push(
-            "NAV_DEFAULT_VAT_RATE is a fraction between 0 and 1: use 0.27 for 27%".into(),
+            "NAV_SIDECAR_TOKEN must be at least 32 characters (the sidecar's SIDECAR_TOKEN)".into(),
         );
     }
     Some(NavConfig {
         sidecar_url,
+        sidecar_token,
         timeout: std::time::Duration::from_secs(r.parsed("NAV_SIDECAR_TIMEOUT_SECONDS", 90u64)),
         supplier: SupplierConfig {
             name: r.required("NAV_SUPPLIER_NAME"),

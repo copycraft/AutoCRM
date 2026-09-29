@@ -39,11 +39,7 @@ pub struct LeadHit {
     pub stage_label: String,
 }
 
-pub async fn orders(
-    db: impl PgExecutor<'_>,
-    q: &str,
-    limit: i64,
-) -> sqlx::Result<Vec<OrderHit>> {
+pub async fn orders(db: impl PgExecutor<'_>, q: &str, limit: i64) -> sqlx::Result<Vec<OrderHit>> {
     let pattern = crate::repo::like_pattern(q);
     let plate = normalize_plate(q);
     let plate = (!plate.is_empty()).then_some(format!("%{plate}%"));
@@ -104,11 +100,7 @@ pub async fn partners(
     .await
 }
 
-pub async fn leads(
-    db: impl PgExecutor<'_>,
-    q: &str,
-    limit: i64,
-) -> sqlx::Result<Vec<LeadHit>> {
+pub async fn leads(db: impl PgExecutor<'_>, q: &str, limit: i64) -> sqlx::Result<Vec<LeadHit>> {
     let pattern = crate::repo::like_pattern(q);
     let phone = crate::repo::phone_pattern(q);
     sqlx::query_as!(

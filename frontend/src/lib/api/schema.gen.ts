@@ -1226,8 +1226,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Website signup: `POST` with the address and `X-Newsletter-Key`. Resubscribing clears
-         *     an earlier unsubscribe — coming back is saying yes again.
+         * Website signup: `POST` with the address and `X-Newsletter-Key`.
+         * @description Double opt-in: this records a pending signup and mails a confirmation link; the address
+         *     joins the list only when its owner clicks it. The answer is the same 202 whatever the
+         *     address's history (new, pending, active, opted out), so the endpoint says nothing
+         *     about who is on the list.
          */
         post: operations["newsletter_subscribe"];
         delete?: never;
@@ -1244,6 +1247,23 @@ export interface paths {
             cookie?: never;
         };
         get: operations["newsletter_unsubscribe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The confirmation click. Public: the reader arrives from the letter, not logged in. */
+        get: operations["newsletter_confirm"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2152,6 +2172,10 @@ export interface components {
              *     Sent as inline parts under `cid:doc-ID`, never as download links.
              */
             embed_document_ids?: number[];
+        };
+        Confirmed: {
+            /** @description False for an unknown, already used or expired link. */
+            confirmed: boolean;
         };
         Contact: {
             /** Format: int64 */
@@ -3415,6 +3439,11 @@ export interface components {
                 source: string;
                 /** Format: date-time */
                 subscribed_at: string;
+                /**
+                 * Format: date-time
+                 * @description Null while a website signup waits for its confirmation click.
+                 */
+                confirmed_at?: string | null;
                 /** Format: date-time */
                 unsubscribed_at?: string | null;
             }[];
@@ -4522,6 +4551,11 @@ export interface components {
             source: string;
             /** Format: date-time */
             subscribed_at: string;
+            /**
+             * Format: date-time
+             * @description Null while a website signup waits for its confirmation click.
+             */
+            confirmed_at?: string | null;
             /** Format: date-time */
             unsubscribed_at?: string | null;
         };
@@ -4612,11 +4646,13 @@ export interface components {
             /** @description False when an image gate between current and target is unmet. */
             gates_met: boolean;
         };
-        /**
-         * @description Unsubscribe from a link or a typed address. Always answers 200 with whether anything
-         *     changed: a link clicked twice is not an error, and guessing addresses learns nothing.
-         */
+        /** @description Unsubscribe from a link or a typed address. Always answers 200. */
         Unsubscribed: {
+            /**
+             * @description For a token link: whether this click changed anything (a link clicked twice is
+             *     not an error). For a typed address: always true — "if it was on the list, it is
+             *     off now" — so typing addresses cannot reveal who is subscribed.
+             */
             unsubscribed: boolean;
         };
         UpdateUser: {
@@ -8739,13 +8775,12 @@ export interface operations {
             };
         };
         responses: {
-            201: {
+            /** @description Accepted; a confirmation link is mailed unless the address is already subscribed */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["Subscription"];
-                };
+                content?: never;
             };
             /** @description Missing or wrong key, or signup is off */
             403: {
@@ -8796,6 +8831,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Unsubscribed"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The token from the confirmation letter. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Confirmed"];
                 };
             };
             /** @description Client error; see `error.code` */

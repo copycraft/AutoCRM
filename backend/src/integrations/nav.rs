@@ -268,9 +268,17 @@ impl NavError {
     pub fn is_retryable(&self) -> bool {
         match self {
             NavError::Unreachable(_) => true,
-            // The sidecar's own 504: NAV took the batch but the verdict never settled.
-            // Asking again reads the same transaction rather than filing a second one.
-            NavError::Refused(fault) => fault.kind == "nav_unreachable",
+            // The sidecar's own 504: NAV may have taken the batch, but the verdict never
+            // settled. The sidecar keeps nothing, so asking again files the report again:
+            // a retry must expect INVOICE_NUMBER_ALREADY_EXISTS and read back what NAV
+            // holds before believing it (INV-L8), which the submit job does.
+            //
+            // `unauthorized` is the sidecar refusing us (a token mismatch): nothing
+            // reached NAV, and it is a deployment fault to fix, not a verdict on the
+            // document — retried, so a misconfiguration never rejects an invoice.
+            NavError::Refused(fault) => {
+                fault.kind == "nav_unreachable" || fault.kind == "unauthorized"
+            }
             NavError::Contract(_) => false,
         }
     }
@@ -329,7 +337,13 @@ pub struct NavSidecar {
 
 impl NavSidecar {
     pub fn new(cfg: &NavConfig) -> anyhow::Result<Self> {
+        let mut auth =
+            reqwest::header::HeaderValue::from_str(&format!("Bearer {}", cfg.sidecar_token))?;
+        auth.set_sensitive(true);
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::AUTHORIZATION, auth);
         let http = reqwest::Client::builder()
+            .default_headers(headers)
             .timeout(cfg.timeout)
             .user_agent("autocrm/0.1 (nav invoicing)")
             .build()?;
@@ -416,9 +430,7 @@ impl NavSidecar {
         path: &str,
         body: &B,
     ) -> NavResult<T> {
-        let response = self
-            .send(reqwest::Method::POST, path, Some(body))
-            .await?;
+        let response = self.send(reqwest::Method::POST, path, Some(body)).await?;
         Self::json(response).await
     }
 
@@ -499,7 +511,10 @@ mod tests {
                          "message":"Invoice number already exists"}]}}"#;
         let envelope: FaultEnvelope = serde_json::from_str(body).unwrap();
         let error = NavError::Refused(Box::new(envelope.error));
-        assert_eq!(error.nav_error_code(), Some("INVOICE_NUMBER_ALREADY_EXISTS"));
+        assert_eq!(
+            error.nav_error_code(),
+            Some("INVOICE_NUMBER_ALREADY_EXISTS")
+        );
         assert!(!error.is_retryable());
         assert_eq!(error.messages().len(), 1);
     }
@@ -572,7 +587,10 @@ mod tests {
         assert_eq!(json["issueDate"], "2026-09-21");
         assert_eq!(json["lines"][0]["vatPercentage"], "0.27");
         assert_eq!(json["supplier"]["taxNumber"], "12345678");
-        assert!(json.get("deliveryDate").is_none(), "absent fields are omitted");
+        assert!(
+            json.get("deliveryDate").is_none(),
+            "absent fields are omitted"
+        );
         assert!(json["supplier"].get("bankAccount").is_none());
     }
 }

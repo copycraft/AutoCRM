@@ -41,6 +41,11 @@ pub const VARIABLES: &[(&str, &str)] = &[
         "Hány napja járt le az akadály határideje",
     ),
     ("user.name", "Küldő munkatárs neve"),
+    // Resolved by the website signup, the only letter that carries it.
+    (
+        "newsletter.confirm_url",
+        "Hírlevél-feliratkozás megerősítő linkje",
+    ),
 ];
 
 pub fn is_known_variable(path: &str) -> bool {
@@ -136,6 +141,33 @@ pub fn render(src: &str, values: &TemplateValues) -> Rendered {
     Rendered { output, unresolved }
 }
 
+/// `render` for a body that is parsed as Markdown next: every value is escaped first, so
+/// it lands as the literal text it is. Without this a partner named `<a href=…>` or
+/// `[Fizessen itt](https://…)` would put a live link into a customer's letter — the
+/// author is staff, but values come from records anyone in the office (or the MiniCRM
+/// import) typed. The plain-text part keeps using [`render`]: it shows values as-is.
+pub fn render_markdown(src: &str, values: &TemplateValues) -> Rendered {
+    let escaped: TemplateValues = values
+        .iter()
+        .map(|(name, value)| (*name, markdown_escape(value)))
+        .collect();
+    render(src, &escaped)
+}
+
+/// Backslash-escapes every ASCII punctuation character. CommonMark allows exactly that
+/// escape for all of them, so the result renders as the original text: no emphasis, no
+/// links, and `<`/`&` come out as `&lt;`/`&amp;` rather than as tags or entities.
+pub fn markdown_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 8);
+    for c in value.chars() {
+        if c.is_ascii_punctuation() {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
 /// Subjects are single-line: any line breaks (from template or values) become spaces.
 pub fn single_line(s: &str) -> String {
     s.split(['\r', '\n'])
@@ -184,9 +216,10 @@ pub fn email_html_hero(hero: &str, text: &str) -> String {
 }
 
 /// The body written in Markdown, rendered to HTML and wrapped in the same layout.
-/// Substitution happens before parsing: `{{variables}}` render first, then Markdown.
-/// Authors are staff, so inline HTML passes through (pulldown-cmark keeps it); the inbox
-/// renders stored HTML sandboxed, and mail clients strip what they do not like.
+/// Substitution happens before parsing: `{{variables}}` render first (escaped, through
+/// [`render_markdown`]), then Markdown. The author's own inline HTML passes through
+/// (pulldown-cmark keeps it) because authors are staff; the inbox renders stored HTML
+/// sandboxed, and mail clients strip what they do not like.
 pub fn markdown_to_html(md: &str) -> String {
     layout(None, &markdown_fragment(md))
 }
@@ -244,12 +277,18 @@ pub fn resolve_embed_refs(
     embeds: &[(i64, String)],
 ) -> Result<(String, String), Vec<i64>> {
     use std::collections::{BTreeMap, BTreeSet};
-    let by_id: BTreeMap<i64, &str> = embeds.iter().map(|(id, name)| (*id, name.as_str())).collect();
+    let by_id: BTreeMap<i64, &str> = embeds
+        .iter()
+        .map(|(id, name)| (*id, name.as_str()))
+        .collect();
 
     let mut referenced = BTreeSet::new();
     let mut rest = body_html;
     while let Some(start) = rest.find("doc:") {
-        let digits: String = rest[start + 4..].chars().take_while(|c| c.is_ascii_digit()).collect();
+        let digits: String = rest[start + 4..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
         if let Ok(id) = digits.parse::<i64>() {
             referenced.insert(id);
         }
@@ -423,6 +462,34 @@ mod tests {
         // inbox renders stored HTML sandboxed. Scripts never execute there.
         let html = markdown_to_html("szép <b>kiemelés</b> vége");
         assert!(html.contains("szép <b>kiemelés</b> vége"), "{html}");
+    }
+
+    #[test]
+    fn markdown_values_are_text_not_markup() {
+        // The author's own markup still works around the value; the value itself — a
+        // partner name typed by someone else — cannot become a tag, a link or emphasis.
+        let mut values = TemplateValues::new();
+        values.insert(
+            "partner.name",
+            "<a href=\"https://evil.example\">Fizessen</a> [itt](https://evil.example) *Kft* & Tsa"
+                .into(),
+        );
+        let md = render_markdown("**Kedves** {{partner.name}}!", &values);
+        assert!(md.unresolved.is_empty());
+        let html = markdown_to_html(&md.output);
+        assert!(html.contains("<strong>Kedves</strong>"), "{html}");
+        assert!(!html.contains("<a "), "{html}");
+        assert!(!html.contains("<em>"), "{html}");
+        assert!(
+            html.contains("&lt;a href=\"https://evil.example\"&gt;Fizessen&lt;/a&gt; [itt](https://evil.example) *Kft* &amp; Tsa!"),
+            "{html}"
+        );
+        // The plain-text rendering is untouched.
+        assert!(
+            render("{{partner.name}}", &values)
+                .output
+                .starts_with("<a href")
+        );
     }
 
     #[test]

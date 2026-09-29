@@ -170,6 +170,20 @@ describe('nav-sidecar against the mock NAV service', () => {
     assert.equal(body.totals.net, '-110000.00');
   });
 
+  it('reads a storno back under its own number, with the reversed totals', async () => {
+    // What the backend compares against when a retried storno meets a duplicate number.
+    const { status, body } = await call('GET', '/invoices/SIDECAR-TEST-001-S');
+    assert.equal(status, 200, JSON.stringify(body));
+    assert.equal(body.invoiceNumber, 'SIDECAR-TEST-001-S');
+    assert.deepEqual(body.totals, {
+      currency: 'HUF',
+      net: '-110000.00',
+      vat: '-29700.00',
+      gross: '-139700.00',
+    });
+  });
+
+
   it('refuses a storno whose supplied original is a different invoice', async () => {
     const { status, body } = await call('POST', '/invoices/SIDECAR-TEST-001/storno', {
       stornoInvoiceNumber: 'SIDECAR-TEST-001-S2',

@@ -53,12 +53,16 @@ services:
       MOCK_MODE: "true"
       PORT: "8080"
       NAV_ENVIRONMENT: test
+      # Every route but /health needs "Authorization: Bearer <this>". Dev value only;
+      # the backend sends it as NAV_SIDECAR_TOKEN (backend/.env.example).
+      SIDECAR_TOKEN: dev-sidecar-token-not-for-production-0000
       # Unset MOCK_MODE and set these to report to the real test system:
       # NAV_LOGIN, NAV_PASSWORD, NAV_SIGN_KEY, NAV_EXCHANGE_KEY, NAV_TAX_NUMBER,
       # NAV_SOFTWARE_ID, NAV_SOFTWARE_NAME, NAV_SOFTWARE_DEV_CONTACT.
     ports:
-      # 8081 on the host: the backend already takes 8080.
-      - "8081:8080"
+      # 8081 on the host (the backend takes 8080), loopback only: nothing on the
+      # network should reach a service that acts under the company's NAV credentials.
+      - "127.0.0.1:8081:8080"
     healthcheck:
       test:
         - CMD

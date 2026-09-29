@@ -19,7 +19,7 @@ with `"client": "mobile"` returns a `token`; send `Authorization: Bearer <token>
 | 404 | `not_found` |
 | 409 | `duplicate`, `immutable`, `already_converted`, `already_resolved`, `not_retryable`, … |
 | 422 | `stage_gate`, `note_required`, `invalid_transition`, `use_conversion`, `lead_converted`, `currency_locked`, `password_change_required`, `upload_missing`, `upload_mismatch`, `invalid_ticket`, `last_admin`, `invalid_reference`, `constraint_violation` |
-| 429 | `too_many_requests` (account temporarily locked) |
+| 429 | `too_many_requests` (account temporarily locked; only answered to the right password — a wrong one gets `401` like an unknown address) |
 
 **Lists** return `{"items": [...]}` and accept `limit` (1–200, default 50) and `offset`.
 
@@ -144,7 +144,8 @@ Thumbnails and display copies are generated in the background; until then `thumb
 | POST | `/newsletter/subscriptions` | `{email, name?}` hand-add (office) |
 | DELETE | `/newsletter/subscriptions/{id}` | remove (office) |
 | POST | `/newsletter/send` | `{subject, body, body_markdown?, hero?, attachment_document_ids?, embed_document_ids?}` → one row, everyone in BCC; `{{variables}}` refused (a blast has no recipient to resolve against). `![alt](doc:ID)` embeds the document as an inline `cid:` image; `hero` adds the red band |
-| POST | `/newsletter/subscribe` | website signup: `{email, name?}` + `X-Newsletter-Key`; resubscribing clears an earlier unsubscribe |
+| POST | `/newsletter/subscribe` | website signup: `{email, name?}` + `X-Newsletter-Key`; always `202`. Double opt-in: mails a confirmation link unless already subscribed; an earlier unsubscribe stands until the link is clicked |
+| GET | `/newsletter/confirm` | `?token=` from the confirmation letter; `{confirmed}`. Links expire after 7 days |
 | GET | `/newsletter/unsubscribe` | `?token=` one-click or `?email=`; always 200, never reveals membership |
 
 Statuses: `queued → sending → sent`, or `failed`, `cancelled`, `needs_review` (delivery

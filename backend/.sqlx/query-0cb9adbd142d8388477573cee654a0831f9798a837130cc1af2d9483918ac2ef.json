@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO newsletter_subscriptions\n                  (email, name, source, confirm_token, confirm_requested_at)\n           VALUES ($1, $2, 'website', encode(gen_random_bytes(24), 'hex'), now())\n           ON CONFLICT (email) DO UPDATE SET\n               name = CASE WHEN newsletter_subscriptions.confirmed_at IS NOT NULL\n                                AND newsletter_subscriptions.unsubscribed_at IS NULL\n                           THEN newsletter_subscriptions.name ELSE excluded.name END,\n               confirm_token = CASE\n                   WHEN newsletter_subscriptions.confirmed_at IS NOT NULL\n                        AND newsletter_subscriptions.unsubscribed_at IS NULL THEN NULL\n                   WHEN newsletter_subscriptions.confirm_token IS NOT NULL\n                        AND newsletter_subscriptions.confirm_requested_at\n                            > now() - make_interval(days => $3)\n                        THEN newsletter_subscriptions.confirm_token\n                   ELSE excluded.confirm_token END,\n               confirm_requested_at = CASE\n                   WHEN newsletter_subscriptions.confirmed_at IS NOT NULL\n                        AND newsletter_subscriptions.unsubscribed_at IS NULL THEN NULL\n                   ELSE now() END\n           RETURNING id, email, confirm_token",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "confirm_token",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "0cb9adbd142d8388477573cee654a0831f9798a837130cc1af2d9483918ac2ef"
+}

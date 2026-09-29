@@ -164,10 +164,18 @@ pub async fn login(db: &PgPool, req: LoginRequest) -> AppResult<LoginOutcome> {
         verify_password_async(req.password, dummy_hash().to_string()).await?;
         return Err(AppError::Unauthenticated);
     };
-    if creds.locked_until.is_some_and(|until| until > Utc::now()) {
-        return Err(AppError::TooManyRequests);
-    }
+    // Verify before looking at the lock, and answer a locked account with a wrong password
+    // exactly like an unknown address: same Argon2 time, same 401. Otherwise locking an
+    // address (ten bad guesses) and seeing 429 would tell a stranger it has an account.
+    // Only the right password on a locked account learns about the lock, and it is refused.
     let valid = verify_password_async(req.password, creds.password_hash).await?;
+    if creds.locked_until.is_some_and(|until| until > Utc::now()) {
+        return Err(if valid && creds.is_active {
+            AppError::TooManyRequests
+        } else {
+            AppError::Unauthenticated
+        });
+    }
     if !valid {
         users::record_failed_login(db, creds.id).await?;
         return Err(AppError::Unauthenticated);

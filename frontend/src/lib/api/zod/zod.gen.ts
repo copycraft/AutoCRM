@@ -151,6 +151,10 @@ export const zComposeRequest = z.object({
     embed_document_ids: z.array(z.number().int()).optional()
 });
 
+export const zConfirmed = z.object({
+    confirmed: z.boolean()
+});
+
 export const zContact = z.object({
     id: z.number().int(),
     partner_id: z.number().int(),
@@ -1021,6 +1025,7 @@ export const zItemsSubscription = z.object({
         name: z.string(),
         source: z.string(),
         subscribed_at: z.string().datetime(),
+        confirmed_at: z.string().datetime().nullish(),
         unsubscribed_at: z.string().datetime().nullish()
     }))
 });
@@ -2063,6 +2068,7 @@ export const zSubscription = z.object({
     name: z.string(),
     source: z.string(),
     subscribed_at: z.string().datetime(),
+    confirmed_at: z.string().datetime().nullish(),
     unsubscribed_at: z.string().datetime().nullish()
 });
 
@@ -2156,8 +2162,7 @@ export const zTransitionOption = z.object({
 });
 
 /**
- * Unsubscribe from a link or a typed address. Always answers 200 with whether anything
- * changed: a link clicked twice is not an error, and guessing addresses learns nothing.
+ * Unsubscribe from a link or a typed address. Always answers 200.
  */
 export const zUnsubscribed = z.object({
     unsubscribed: z.boolean()
@@ -3010,14 +3015,18 @@ export const zNewsletterSendResponse = zNewsletterSent;
 
 export const zNewsletterSubscribeBody = zSubscriptionBody;
 
-export const zNewsletterSubscribeResponse = zSubscription;
-
 export const zNewsletterUnsubscribePath = z.object({
     token: z.string().nullable(),
     email: z.string().nullable()
 });
 
 export const zNewsletterUnsubscribeResponse = zUnsubscribed;
+
+export const zNewsletterConfirmPath = z.object({
+    token: z.string()
+});
+
+export const zNewsletterConfirmResponse = zConfirmed;
 
 export const zEmailListQuery = z.object({
     order_id: z.number().int().optional(),

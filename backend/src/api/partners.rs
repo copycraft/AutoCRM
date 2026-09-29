@@ -19,7 +19,9 @@ use crate::repo::contacts::{Contact, ContactInput};
 use crate::repo::leads::LeadSummary;
 use crate::repo::orders::{OrderFilter, OrderSummary};
 use crate::repo::partners::{Partner, PartnerInput};
-use crate::repo::{audit, contacts, leads, like_pattern, orders, parse_sort, partners, phone_pattern};
+use crate::repo::{
+    audit, contacts, leads, like_pattern, orders, parse_sort, partners, phone_pattern,
+};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()

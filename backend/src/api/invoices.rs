@@ -12,8 +12,8 @@ use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-use super::extract::{ApiJson, ApiPath, Auth};
 use super::Items;
+use super::extract::{ApiJson, ApiPath, Auth};
 use crate::AppState;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};

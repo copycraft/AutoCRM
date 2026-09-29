@@ -114,7 +114,16 @@ async fn checkout_checkin_roundtrip_with_verdicts(pool: sqlx::PgPool) {
     // Locked: drafts can neither change nor be discarded.
     assert!(
         inspections::patch_draft(
-            &pool, checkout.id, None, None, None, None, None, None, None, None
+            &pool,
+            checkout.id,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None
         )
         .await
         .unwrap()
@@ -187,7 +196,13 @@ async fn checkout_checkin_roundtrip_with_verdicts(pool: sqlx::PgPool) {
     inspections::add_note(&pool, checkin.id, "Ügyfél vitatja a horpadást.", me.user_id)
         .await
         .unwrap();
-    assert_eq!(inspections::notes_for(&pool, checkin.id).await.unwrap().len(), 1);
+    assert_eq!(
+        inspections::notes_for(&pool, checkin.id)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]

@@ -61,7 +61,8 @@ fn transition_options(
             let gates_met =
                 check_transition(definitions, current_key, &d.key, Some("note"), image_counts)
                     .is_ok()
-                    && (entity != StageEntity::Order || !intake_gate_blocks(current_key, d, mileage_in));
+                    && (entity != StageEntity::Order
+                        || !intake_gate_blocks(current_key, d, mileage_in));
             TransitionOption {
                 stage_key: d.key.clone(),
                 label_hu: d.label_hu.clone(),
@@ -80,11 +81,7 @@ fn transition_options(
 /// definition (migration 0002). Shared by the move itself and `/transitions`, so the UI
 /// never offers what the move refuses (Q-ORD-3) and cancellation never needs a slip
 /// (Q-ORD-4).
-fn intake_gate_blocks(
-    current_key: &str,
-    to: &StageDefinition,
-    mileage_in: Option<i32>,
-) -> bool {
+fn intake_gate_blocks(current_key: &str, to: &StageDefinition, mileage_in: Option<i32>) -> bool {
     current_key == keys::ORDER_INTAKE
         && to.key != keys::ORDER_INTAKE
         && !to.is_exit
@@ -299,13 +296,15 @@ mod tests {
     }
 
     #[test]
-    fn forward_needs_no_note_backward_does() {        let defs = lead_pipeline();
+    fn forward_needs_no_note_backward_does() {
+        let defs = lead_pipeline();
         let from_new = transition_options(StageEntity::Lead, &defs, "new", &HashMap::new(), None);
         assert!(
             from_new.iter().all(|o| !o.requires_note),
             "every move out of the first stage is forward"
         );
-        let from_quoted = transition_options(StageEntity::Lead, &defs, "quoted", &HashMap::new(), None);
+        let from_quoted =
+            transition_options(StageEntity::Lead, &defs, "quoted", &HashMap::new(), None);
         let back = from_quoted
             .iter()
             .find(|o| o.stage_key == "contacted")
@@ -349,7 +348,10 @@ mod tests {
         ];
         let without_slip =
             transition_options(StageEntity::Order, &defs, "intake", &HashMap::new(), None);
-        let design = without_slip.iter().find(|o| o.stage_key == "design").unwrap();
+        let design = without_slip
+            .iter()
+            .find(|o| o.stage_key == "design")
+            .unwrap();
         let cancelled = without_slip
             .iter()
             .find(|o| o.stage_key == "cancelled")
@@ -357,8 +359,13 @@ mod tests {
         assert!(!design.gates_met);
         assert!(cancelled.gates_met);
 
-        let with_slip =
-            transition_options(StageEntity::Order, &defs, "intake", &HashMap::new(), Some(1));
+        let with_slip = transition_options(
+            StageEntity::Order,
+            &defs,
+            "intake",
+            &HashMap::new(),
+            Some(1),
+        );
         let design = with_slip.iter().find(|o| o.stage_key == "design").unwrap();
         assert!(design.gates_met);
     }

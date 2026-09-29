@@ -320,9 +320,7 @@ pub fn fields_from_body(
         related_order_id: b.related_order_id,
         relation: optional(b.relation),
         mileage_in: match b.mileage_in {
-            Some(m) if m < 0 => {
-                return Err(AppError::validation("mileage_in cannot be negative"))
-            }
+            Some(m) if m < 0 => return Err(AppError::validation("mileage_in cannot be negative")),
             m => m,
         },
         intake_condition: optional(b.intake_condition),
@@ -623,7 +621,7 @@ async fn update(
         relation: patch_text(&current.relation, p.relation),
         mileage_in: match p.mileage_in {
             Some(Some(m)) if m < 0 => {
-                return Err(AppError::validation("mileage_in cannot be negative"))
+                return Err(AppError::validation("mileage_in cannot be negative"));
             }
             Some(v) => v,
             None => current.mileage_in,

@@ -51,11 +51,7 @@ struct TaskBody {
     assigned_to: Option<i64>,
 }
 
-async fn check_target(
-    db: &sqlx::PgPool,
-    entity_type: &str,
-    entity_id: i64,
-) -> AppResult<()> {
+async fn check_target(db: &sqlx::PgPool, entity_type: &str, entity_id: i64) -> AppResult<()> {
     let exists = match entity_type {
         "order" => orders::find(db, entity_id).await?.is_some(),
         "lead" => leads::find(db, entity_id).await?.is_some(),
@@ -63,7 +59,7 @@ async fn check_target(
         other => {
             return Err(AppError::validation(format!(
                 "entity_type must be order, lead or partner, not '{other}'"
-            )))
+            )));
         }
     };
     if !exists {
@@ -122,9 +118,7 @@ async fn for_entity(
             "entity must be order, lead or partner",
         ));
     }
-    Ok(Items::new(
-        tasks::for_entity(&state.db, &entity, id).await?,
-    ))
+    Ok(Items::new(tasks::for_entity(&state.db, &entity, id).await?))
 }
 
 #[derive(Deserialize, ToSchema)]

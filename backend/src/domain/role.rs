@@ -47,8 +47,7 @@ impl Role {
         use Capability::*;
         use Role::*;
         match capability {
-            ManageUsers | ManageSettings | ManageConfiguration | OperateSystem
-            | AnnulInvoices => {
+            ManageUsers | ManageSettings | ManageConfiguration | OperateSystem | AnnulInvoices => {
                 matches!(self, Admin)
             }
             EditPartners | EditLeads | EditOrders | DeleteMedia | ViewOriginalImages

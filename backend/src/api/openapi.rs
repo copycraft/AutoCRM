@@ -1,10 +1,10 @@
 //! The OpenAPI document: the API contract the web and mobile clients are generated from.
 //! Written to `openapi/openapi.json` by `autocrm openapi`; a test fails if that file is stale.
 
-use utoipa::openapi::path::Operation;
-use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
 use utoipa::openapi::extensions::ExtensionsBuilder;
+use utoipa::openapi::path::Operation;
 use utoipa::openapi::schema::{ObjectBuilder, Schema, Type};
+use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
 use utoipa::openapi::{ContentBuilder, Ref, RefOr, ResponseBuilder};
 use utoipa::{Modify, OpenApi};
 use utoipa_axum::router::OpenApiRouter;

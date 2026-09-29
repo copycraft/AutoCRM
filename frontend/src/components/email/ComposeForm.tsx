@@ -159,7 +159,11 @@ export function ComposeForm({
       (suppressions.data?.items ?? []).map((s) => s.email.trim().toLowerCase()),
     );
     return (subscribers.data?.items ?? []).filter(
-      (s) => !s.unsubscribed_at && !suppressed.has(s.email.trim().toLowerCase()),
+      // Same rule as the server: confirmed, not opted out, not suppressed.
+      (s) =>
+        !!s.confirmed_at &&
+        !s.unsubscribed_at &&
+        !suppressed.has(s.email.trim().toLowerCase()),
     ).length;
   }, [subscribers.data, suppressions.data]);
 

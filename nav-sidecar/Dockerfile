@@ -16,6 +16,9 @@ RUN npm run build
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
+# Inside the container, listen on its own interfaces so the published port reaches it.
+# Outside Docker the default is 127.0.0.1. Either way, SIDECAR_TOKEN guards every route.
+ENV HOST=0.0.0.0
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules

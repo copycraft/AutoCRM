@@ -61,11 +61,8 @@ async fn an_invoice_is_reported_to_nav_and_sent_to_the_customer(pool: PgPool) {
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
 
@@ -75,7 +72,11 @@ async fn an_invoice_is_reported_to_nav_and_sent_to_the_customer(pool: PgPool) {
         .unwrap();
     assert_eq!(queued.status, InvoiceStatus::Submitting);
     assert_eq!(queued.kind, InvoiceKind::Invoice);
-    assert!(queued.number.starts_with("AT"), "number was {}", queued.number);
+    assert!(
+        queued.number.starts_with("AT"),
+        "number was {}",
+        queued.number
+    );
     assert_eq!(queued.net_amount, 100_000_000);
     assert_eq!(queued.vat_amount, 27_000_000);
     assert_eq!(queued.gross_amount, 127_000_000);
@@ -175,11 +176,8 @@ async fn a_storno_reverses_the_invoice_and_tells_the_customer(pool: PgPool) {
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
 
@@ -211,7 +209,10 @@ async fn a_storno_reverses_the_invoice_and_tells_the_customer(pool: PgPool) {
     assert_eq!(storno.kind, InvoiceKind::Storno);
     assert_eq!(storno.original_invoice_id, Some(invoice.id));
     assert_eq!(storno.gross_amount, -invoice.gross_amount);
-    assert_ne!(storno.number, invoice.number, "a storno is its own document");
+    assert_ne!(
+        storno.number, invoice.number,
+        "a storno is its own document"
+    );
 
     invoicing::submit_invoice(
         &state,
@@ -253,11 +254,8 @@ async fn an_annulment_is_recorded_and_the_customer_is_notified(pool: PgPool) {
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let admin = common::user(&pool, Role::Admin).await;
     let order = common::invoiceable_order(&pool, &admin, "HUF", items()).await;
 
@@ -290,6 +288,7 @@ async fn an_annulment_is_recorded_and_the_customer_is_notified(pool: PgPool) {
             reason: request.reason.clone(),
             send_email: true,
         },
+        false,
     )
     .await
     .unwrap();
@@ -314,11 +313,8 @@ async fn an_annulment_needs_a_code_nav_knows(pool: PgPool) {
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let admin = common::user(&pool, Role::Admin).await;
     let order = common::invoiceable_order(&pool, &admin, "HUF", items()).await;
     let invoice = invoicing::create_invoice(&state, &admin, order.id, &IssueRequest::default())
@@ -344,11 +340,8 @@ async fn a_proforma_is_rendered_and_never_reported(pool: PgPool) {
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     if !common::storage_available(&state).await {
         return;
     }
@@ -387,7 +380,10 @@ async fn a_proforma_is_rendered_and_never_reported(pool: PgPool) {
 
     // And nothing about it is an invoice: no row, no status, no transaction.
     assert!(
-        invoices::list_for_order(&pool, order.id).await.unwrap().is_empty(),
+        invoices::list_for_order(&pool, order.id)
+            .await
+            .unwrap()
+            .is_empty(),
         "a proforma is not an invoice and must not create one"
     );
 
@@ -396,7 +392,10 @@ async fn a_proforma_is_rendered_and_never_reported(pool: PgPool) {
         .iter()
         .find(|e| e.template_key.as_deref() == Some("proforma_created"))
         .expect("the proforma is sent to the customer");
-    let full = emails::find(&pool, proforma_letter.id).await.unwrap().unwrap();
+    let full = emails::find(&pool, proforma_letter.id)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(
         full.body_text.contains("nem adóügyi bizonylat"),
         "the letter must say a díjbekérő is not a tax document"
@@ -410,11 +409,8 @@ async fn the_invoice_pdf_is_fetched_from_nav_and_filed_with_the_order(pool: PgPo
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     if !common::storage_available(&state).await {
         return;
     }
@@ -443,7 +439,11 @@ async fn the_invoice_pdf_is_fetched_from_nav_and_filed_with_the_order(pool: PgPo
     assert!(document.byte_size > 1000);
 
     // It really is the PDF the sidecar rendered.
-    let bytes = state.storage.get_bytes(&document.storage_key).await.unwrap();
+    let bytes = state
+        .storage
+        .get_bytes(&document.storage_key)
+        .await
+        .unwrap();
     assert_eq!(&bytes[..5], b"%PDF-");
 
     let letters = emails_for(&pool, order.id).await;
@@ -462,11 +462,8 @@ async fn one_live_invoice_per_order(pool: PgPool) {
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
 
@@ -502,11 +499,8 @@ async fn an_order_with_no_lines_has_nothing_to_invoice(pool: PgPool) {
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", vec![]).await;
 
@@ -521,11 +515,8 @@ async fn a_partner_without_an_invoiceable_address_is_refused_by_name(pool: PgPoo
     let Some(sidecar) = common::start_sidecar() else {
         return;
     };
-    let state = common::state_with_nav(
-        pool.clone(),
-        &sidecar.url,
-        common::MOCK_SUPPLIER_TAX_NUMBER,
-    );
+    let state =
+        common::state_with_nav(pool.clone(), &sidecar.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let user = common::user(&pool, Role::Office).await;
     // `common::order` builds a partner with no address at all.
     let order = common::order(&pool, &user, "HUF", items()).await;
@@ -646,7 +637,15 @@ impl StubSidecar {
                         }
                     }
                     let request_body = String::from_utf8_lossy(&body_bytes[..read]).into_owned();
-                    let (status, body) = if method == "POST" && path == "/invoices" {
+                    let is_storno = method == "POST" && path.ends_with("/storno");
+                    let (status, body) = if method == "POST" && path.ends_with("/annul") {
+                        // NAV refusing a second filing of the same annulment.
+                        (
+                            "422 Unprocessable Entity",
+                            r#"{"error":{"kind":"nav_error","message":"NAV rejected the request: ANNULMENT_IN_PROGRESS","navErrorCode":"ANNULMENT_IN_PROGRESS"}}"#
+                                .to_string(),
+                        )
+                    } else if (method == "POST" && path == "/invoices") || is_storno {
                         recorded.lock().unwrap().push(request_body);
                         (
                             "422 Unprocessable Entity",
@@ -671,7 +670,8 @@ impl StubSidecar {
                     } else {
                         (
                             "404 Not Found",
-                            r#"{"error":{"kind":"not_found","message":"unknown stub path"}}"#.to_string(),
+                            r#"{"error":{"kind":"not_found","message":"unknown stub path"}}"#
+                                .to_string(),
                         )
                     };
                     let response = format!(
@@ -719,10 +719,9 @@ async fn a_retry_answered_duplicate_number_adopts_our_stored_report(pool: PgPool
     let state = common::state_with_nav(pool.clone(), &stub.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
-    let queued =
-        invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
-            .await
-            .unwrap();
+    let queued = invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+        .await
+        .unwrap();
     // NAV holds exactly what we sent: the timed-out first attempt stored it.
     stub.serve(
         &queued.number,
@@ -746,7 +745,8 @@ async fn a_retry_answered_duplicate_number_adopts_our_stored_report(pool: PgPool
 
     let adopted = invoices::find(&pool, queued.id).await.unwrap().unwrap();
     assert_eq!(
-        adopted.status, InvoiceStatus::Issued,
+        adopted.status,
+        InvoiceStatus::Issued,
         "our stored report must be adopted, not rejected; message was {:?}",
         adopted.nav_message
     );
@@ -771,10 +771,9 @@ async fn a_retry_is_rejected_when_nav_holds_a_different_document(pool: PgPool) {
     let state = common::state_with_nav(pool.clone(), &stub.url, common::MOCK_SUPPLIER_TAX_NUMBER);
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
-    let queued =
-        invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
-            .await
-            .unwrap();
+    let queued = invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+        .await
+        .unwrap();
     // Same number, someone else's totals: adopting it would bless a foreign document.
     stub.serve(
         &queued.number,
@@ -809,6 +808,120 @@ async fn a_retry_is_rejected_when_nav_holds_a_different_document(pool: PgPool) {
     );
 }
 
+/// An issued invoice without a live sidecar: create it, then mark it reported by hand.
+async fn issued_invoice(
+    pool: &PgPool,
+    state: &autocrm::AppState,
+) -> autocrm::repo::invoices::Invoice {
+    let user = common::user(pool, Role::Office).await;
+    let order = common::invoiceable_order(pool, &user, "HUF", items()).await;
+    let queued = invoicing::create_invoice(state, &user, order.id, &IssueRequest::default())
+        .await
+        .unwrap();
+    sqlx::query("UPDATE invoices SET status = 'issued', issued_at = now() WHERE id = $1")
+        .bind(queued.id)
+        .execute(pool)
+        .await
+        .unwrap();
+    invoices::find(pool, queued.id).await.unwrap().unwrap()
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_retried_storno_answered_duplicate_number_is_adopted(pool: PgPool) {
+    let stub = StubSidecar::start().await;
+    let state = common::state_with_nav(pool.clone(), &stub.url, common::MOCK_SUPPLIER_TAX_NUMBER);
+    let user = common::user(&pool, Role::Office).await;
+    let original = issued_invoice(&pool, &state).await;
+    let storno = invoicing::create_storno(
+        &state,
+        &user,
+        original.id,
+        &StornoRequest {
+            issue_date: None,
+            send_email: false,
+        },
+    )
+    .await
+    .unwrap();
+    // The timed-out first attempt stored the reversal: NAV holds it, negative totals.
+    stub.serve(
+        &storno.number,
+        &storno.issue_date.to_string(),
+        &storno.currency,
+        storno.net_amount,
+        storno.vat_amount,
+        storno.gross_amount,
+    );
+
+    invoicing::submit_invoice(
+        &state,
+        &SubmitPayload {
+            invoice_id: storno.id,
+            send_email: false,
+            payment_method: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let adopted = invoices::find(&pool, storno.id).await.unwrap().unwrap();
+    assert_eq!(
+        adopted.status,
+        InvoiceStatus::Issued,
+        "NAV holds our storno: adopt it, do not reject it; message was {:?}",
+        adopted.nav_message
+    );
+    let original = invoices::find(&pool, original.id).await.unwrap().unwrap();
+    assert_eq!(
+        original.status,
+        InvoiceStatus::Stornoed,
+        "the original must read as reversed, as it is at NAV, or it could be stornoed twice"
+    );
+    let again = invoicing::create_storno(
+        &state,
+        &user,
+        original.id,
+        &StornoRequest {
+            issue_date: None,
+            send_email: false,
+        },
+    )
+    .await;
+    assert!(
+        again.is_err(),
+        "a second storno of a reversed invoice must be refused"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_refused_annulment_retry_says_the_first_may_have_landed(pool: PgPool) {
+    let stub = StubSidecar::start().await;
+    let state = common::state_with_nav(pool.clone(), &stub.url, common::MOCK_SUPPLIER_TAX_NUMBER);
+    let invoice = issued_invoice(&pool, &state).await;
+    let payload = invoicing::AnnulPayload {
+        invoice_id: invoice.id,
+        code: "ERRATIC_DATA".into(),
+        reason: "Hibás vevőadat".into(),
+        send_email: false,
+    };
+
+    // First attempt: a refusal is just a refusal.
+    invoicing::annul_job(&state, &payload, false).await.unwrap();
+    let first = invoices::find(&pool, invoice.id).await.unwrap().unwrap();
+    assert_eq!(first.status, InvoiceStatus::Issued);
+    assert!(!first.nav_message.unwrap_or_default().contains("portal"));
+
+    // A retry after a timeout: the refusal may be NAV seeing our first filing.
+    invoicing::annul_job(&state, &payload, true).await.unwrap();
+    let retried = invoices::find(&pool, invoice.id).await.unwrap().unwrap();
+    assert_eq!(retried.status, InvoiceStatus::Issued);
+    let message = retried.nav_message.unwrap_or_default();
+    assert!(
+        message.contains("may already have been filed") && message.contains("Online Számla"),
+        "was: {message}"
+    );
+}
+
 // ── INV-L10: an unbuildable submit reaches a terminal state ──────────────────
 // No sidecar is needed: breaking the partner's address fails the request before any
 // HTTP happens, which is exactly the stuck case (the sidecar never sees it).
@@ -820,10 +933,9 @@ async fn an_unbuildable_submit_is_rejected_when_the_queue_gives_up(pool: PgPool)
     let state = common::state_with_nav(pool.clone(), "http://127.0.0.1:9/", "12345678");
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
-    let queued =
-        invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
-            .await
-            .unwrap();
+    let queued = invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+        .await
+        .unwrap();
     // The partner is edited while the invoice is in flight: the address the report
     // needs is gone.
     sqlx::query("UPDATE partners SET postal_code = NULL, city = NULL, address_line = NULL")
@@ -889,10 +1001,9 @@ async fn refetching_a_pdf_needs_an_issued_invoice_missing_its_file(pool: PgPool)
     let state = common::state_with_nav(pool.clone(), "http://127.0.0.1:9/", "12345678");
     let user = common::user(&pool, Role::Office).await;
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
-    let queued =
-        invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
-            .await
-            .unwrap();
+    let queued = invoicing::create_invoice(&state, &user, order.id, &IssueRequest::default())
+        .await
+        .unwrap();
 
     // Still being reported: there is no report to render yet.
     match invoicing::refetch_pdf(&state, queued.id).await.unwrap_err() {
@@ -936,7 +1047,9 @@ async fn refetching_a_pdf_needs_an_issued_invoice_missing_its_file(pool: PgPool)
 
     // Unknown invoice.
     assert!(matches!(
-        invoicing::refetch_pdf(&state, 999_999_999).await.unwrap_err(),
+        invoicing::refetch_pdf(&state, 999_999_999)
+            .await
+            .unwrap_err(),
         AppError::NotFound(_)
     ));
 }
@@ -958,10 +1071,9 @@ async fn cash_and_transfer_invoices_share_one_series_with_a_stored_method(pool: 
     let order = common::invoiceable_order(&pool, &user, "HUF", items()).await;
 
     // Absent means a bank transfer.
-    let transfer =
-        invoicing::create_invoice(&state, &user, order.id, &issue_with_method(None))
-            .await
-            .unwrap();
+    let transfer = invoicing::create_invoice(&state, &user, order.id, &issue_with_method(None))
+        .await
+        .unwrap();
     assert_eq!(transfer.payment_method, "TRANSFER");
 
     // Cash is stored as chosen — and on the same consecutive series.
@@ -983,9 +1095,10 @@ async fn cash_and_transfer_invoices_share_one_series_with_a_stored_method(pool: 
         .fetch_one(&pool)
         .await
         .unwrap();
-    let error = invoicing::create_invoice(&state, &user, order.id, &issue_with_method(Some("CHEQUE")))
-        .await
-        .unwrap_err();
+    let error =
+        invoicing::create_invoice(&state, &user, order.id, &issue_with_method(Some("CHEQUE")))
+            .await
+            .unwrap_err();
     assert!(
         matches!(&error, AppError::Validation(m) if m.contains("payment method must be TRANSFER or CASH")),
         "got {error:?}",

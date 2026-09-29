@@ -403,7 +403,9 @@ async fn a_dead_lettered_send_job_makes_the_email_failed_and_retryable(pool: PgP
     .await
     .unwrap();
     assert!(attention.iter().any(|m| m.id == queued));
-    autocrm::service::email::retry(&state, queued).await.unwrap();
+    autocrm::service::email::retry(&state, queued)
+        .await
+        .unwrap();
     assert_eq!(
         emails::find(&pool, queued).await.unwrap().unwrap().status,
         EmailStatus::Queued

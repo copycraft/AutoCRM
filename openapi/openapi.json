@@ -5246,7 +5246,8 @@
         "tags": [
           "newsletter"
         ],
-        "summary": "Website signup: `POST` with the address and `X-Newsletter-Key`. Resubscribing clears\nan earlier unsubscribe — coming back is saying yes again.",
+        "summary": "Website signup: `POST` with the address and `X-Newsletter-Key`.",
+        "description": "Double opt-in: this records a pending signup and mails a confirmation link; the address\njoins the list only when its owner clicks it. The answer is the same 202 whatever the\naddress's history (new, pending, active, opted out), so the endpoint says nothing\nabout who is on the list.",
         "operationId": "newsletter_subscribe",
         "requestBody": {
           "content": {
@@ -5259,15 +5260,8 @@
           "required": true
         },
         "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Subscription"
-                }
-              }
-            }
+          "202": {
+            "description": "Accepted; a confirmation link is mailed unless the address is already subscribed"
           },
           "403": {
             "description": "Missing or wrong key, or signup is off"
@@ -5333,6 +5327,58 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Unsubscribed"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/confirm": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "The confirmation click. Public: the reader arrives from the letter, not logged in.",
+        "operationId": "newsletter_confirm",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "The token from the confirmation letter.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Confirmed"
                 }
               }
             }
@@ -8692,6 +8738,18 @@
               "format": "int64"
             },
             "description": "Documents shown inline: write `![alt](doc:ID)` in Markdown and pick the file here.\nSent as inline parts under `cid:doc-ID`, never as download links."
+          }
+        }
+      },
+      "Confirmed": {
+        "type": "object",
+        "required": [
+          "confirmed"
+        ],
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "description": "False for an unknown, already used or expired link."
           }
         }
       },
@@ -13255,6 +13313,14 @@
                   "type": "string",
                   "format": "date-time"
                 },
+                "confirmed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time",
+                  "description": "Null while a website signup waits for its confirmation click."
+                },
                 "unsubscribed_at": {
                   "type": [
                     "string",
@@ -16977,6 +17043,14 @@
             "type": "string",
             "format": "date-time"
           },
+          "confirmed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Null while a website signup waits for its confirmation click."
+          },
           "unsubscribed_at": {
             "type": [
               "string",
@@ -17255,13 +17329,14 @@
       },
       "Unsubscribed": {
         "type": "object",
-        "description": "Unsubscribe from a link or a typed address. Always answers 200 with whether anything\nchanged: a link clicked twice is not an error, and guessing addresses learns nothing.",
+        "description": "Unsubscribe from a link or a typed address. Always answers 200.",
         "required": [
           "unsubscribed"
         ],
         "properties": {
           "unsubscribed": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "For a token link: whether this click changed anything (a link clicked twice is\nnot an error). For a typed address: always true — \"if it was on the list, it is\noff now\" — so typing addresses cannot reveal who is subscribed."
           }
         }
       },

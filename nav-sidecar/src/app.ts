@@ -1,6 +1,7 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import express from 'express';
-import type { Express, Request, Response } from 'express';
-import { errorHandler, notFound } from './errors.js';
+import type { Express, NextFunction, Request, Response } from 'express';
+import { errorHandler, notFound, unauthorized } from './errors.js';
 import type { NavContext } from './nav.js';
 import { invoiceRoutes } from './routes/invoices.js';
 import { proformaRoutes } from './routes/proformas.js';
@@ -42,6 +43,19 @@ export function createApp(context: NavContext): Express {
     });
   });
 
+  // Everything past this point acts under the company's NAV credentials.
+  const token = context.config.callerToken;
+  if (token !== undefined) {
+    const expected = digest(token);
+    app.use((request: Request, _response: Response, next: NextFunction) => {
+      const header = request.get('authorization') ?? '';
+      const given = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
+      // Equal-length digests, compared in constant time.
+      if (!timingSafeEqual(digest(given), expected)) throw unauthorized();
+      next();
+    });
+  }
+
   app.use('/invoices', invoiceRoutes(context));
   app.use('/proformas', proformaRoutes(context.config).router);
 
@@ -52,4 +66,8 @@ export function createApp(context: NavContext): Express {
   app.use(errorHandler);
 
   return app;
+}
+
+function digest(value: string): Buffer {
+  return createHash('sha256').update(value).digest();
 }

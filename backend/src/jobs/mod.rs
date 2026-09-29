@@ -16,8 +16,8 @@ use crate::AppState;
 use crate::integrations::email::Mailer;
 use crate::repo::jobs::{self, Job};
 use crate::service::automation;
-use crate::service::invoicing;
 use crate::service::email::{self, Delivery};
+use crate::service::invoicing;
 
 pub mod kinds {
     pub const SEND_EMAIL: &str = "send_email";
@@ -36,7 +36,12 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5);
 const SCHEDULER_INTERVAL: Duration = Duration::from_secs(60);
 /// Must stay below repo::jobs::LEASE, or a slow job could be claimed twice.
 const JOB_TIMEOUT: Duration = Duration::from_secs(600);
-const BATCH: i64 = 5;
+/// One job per claim. Claimed jobs share one lease and run one after another, so with a
+/// batch of N the last job's lease has already run for up to (N-1) × JOB_TIMEOUT when it
+/// starts: past LEASE from the third job on, when another worker (a second instance, or
+/// the old process during a deploy) may claim it again. The queue is small enough that
+/// claiming singly costs nothing; the loop claims again straight away while work remains.
+const BATCH: i64 = 1;
 
 enum Outcome {
     Done,
@@ -108,7 +113,8 @@ async fn run_one(state: &AppState, mailer: &Mailer, job: Job) {
                 // send any more (MAIL-L4).
                 if job.kind == kinds::SEND_EMAIL {
                     if let Ok(p) = payload::<EmailPayload>(&job) {
-                        if let Err(e) = email::job_dead_lettered(state, p.email_id, &message).await {
+                        if let Err(e) = email::job_dead_lettered(state, p.email_id, &message).await
+                        {
                             tracing::error!(error = %e, email_id = p.email_id, "could not mark the email of a dead send job");
                         }
                     }
@@ -190,7 +196,7 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
         }
         kinds::NAV_ANNUL_INVOICE => {
             let p: invoicing::AnnulPayload = payload(job)?;
-            invoicing::annul_job(state, &p).await?;
+            invoicing::annul_job(state, &p, job.attempts > 1).await?;
             Ok(Outcome::Done)
         }
         kinds::FETCH_FX_RATES => {
@@ -262,4 +268,20 @@ async fn once(state: &AppState, key: &str, kind: &str, payload: Value) -> anyhow
         jobs::enqueue(&state.db, kind, payload, None, Some(key)).await?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_claimed_job_starts_and_finishes_inside_its_lease() {
+        // Claimed jobs share one lease and run in sequence, so the last one can run until
+        // BATCH × JOB_TIMEOUT after the claim. Past LEASE, another worker may claim it too.
+        let worst_case = JOB_TIMEOUT.as_secs() * BATCH as u64;
+        assert!(
+            worst_case < jobs::LEASE.num_seconds() as u64,
+            "BATCH × JOB_TIMEOUT ({worst_case}s) must stay below the lease"
+        );
+    }
 }

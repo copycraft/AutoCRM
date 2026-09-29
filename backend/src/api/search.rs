@@ -13,7 +13,7 @@ use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-use super::extract::{Auth, ApiQuery};
+use super::extract::{ApiQuery, Auth};
 use crate::AppState;
 use crate::error::AppResult;
 use crate::repo::search::{self, LeadHit, OrderHit, PartnerHit};

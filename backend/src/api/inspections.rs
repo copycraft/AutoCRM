@@ -25,8 +25,8 @@ use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::Items;
+use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use crate::AppState;
 use crate::domain::media::ImageCategory;
 use crate::domain::role::Capability;
@@ -73,10 +73,7 @@ fn in_list(value: &str, allowed: &[&str], field: &str) -> AppResult<()> {
     }
 }
 
-async fn draft_or_locked(
-    db: &sqlx::PgPool,
-    id: i64,
-) -> AppResult<Inspection> {
+async fn draft_or_locked(db: &sqlx::PgPool, id: i64) -> AppResult<Inspection> {
     let inspection = inspections::find(db, id)
         .await?
         .ok_or(AppError::NotFound("inspection"))?;
@@ -111,14 +108,18 @@ async fn list(
         orders::find(&state.db, order_id)
             .await?
             .ok_or(AppError::NotFound("order"))?;
-        return Ok(Items::new(inspections::list_for_order(&state.db, order_id).await?));
+        return Ok(Items::new(
+            inspections::list_for_order(&state.db, order_id).await?,
+        ));
     }
     if let Some(plate) = q.plate {
         let plate = plate.trim();
         if plate.is_empty() {
             return Err(AppError::validation("plate is required"));
         }
-        return Ok(Items::new(inspections::list_for_plate(&state.db, plate).await?));
+        return Ok(Items::new(
+            inspections::list_for_plate(&state.db, plate).await?,
+        ));
     }
     Err(AppError::validation("order_id or plate is required"))
 }
@@ -228,27 +229,32 @@ async fn create(
         None
     };
     let new = inspections::NewInspection {
-            order_id: b.order_id,
-            kind: std::mem::take(&mut b.kind),
-            vehicle_plate: b
-                .vehicle_plate
-                .filter(|p| !p.trim().is_empty())
-                .or(order.vehicle_plate)
-                .ok_or_else(|| AppError::validation("vehicle_plate is required"))?,
-            vehicle_vin: b.vehicle_vin.filter(|v| !v.trim().is_empty()).or(order.vehicle_vin),
-            inspector_name,
-            driver_name: super::optional(b.driver_name),
-            location: super::optional(b.location),
-            odometer: b.odometer,
-            fuel_level: super::optional(b.fuel_level),
-            battery_pct: b.battery_pct,
-            warning_lights: super::optional(b.warning_lights),
-            checkout_id,
-            created_by: me.user_id,
-        };
+        order_id: b.order_id,
+        kind: std::mem::take(&mut b.kind),
+        vehicle_plate: b
+            .vehicle_plate
+            .filter(|p| !p.trim().is_empty())
+            .or(order.vehicle_plate)
+            .ok_or_else(|| AppError::validation("vehicle_plate is required"))?,
+        vehicle_vin: b
+            .vehicle_vin
+            .filter(|v| !v.trim().is_empty())
+            .or(order.vehicle_vin),
+        inspector_name,
+        driver_name: super::optional(b.driver_name),
+        location: super::optional(b.location),
+        odometer: b.odometer,
+        fuel_level: super::optional(b.fuel_level),
+        battery_pct: b.battery_pct,
+        warning_lights: super::optional(b.warning_lights),
+        checkout_id,
+        created_by: me.user_id,
+    };
     let created = match &key {
         Some(key) => inspections::create_with_client_key(&state.db, &new, key).await,
-        None => inspections::create(&state.db, &new).await.map(|i| (i, true)),
+        None => inspections::create(&state.db, &new)
+            .await
+            .map(|i| (i, true)),
     };
     let (inspection, is_new) = created.map_err(|e| {
         // The one-draft-checkout-per-order unique index surfaces as a DB error;
@@ -409,7 +415,10 @@ async fn patch(
     inspections::patch_draft(
         &state.db,
         id,
-        b.inspector_name.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+        b.inspector_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
         match &b.driver_name {
             None => current.driver_name.as_deref(),
             Some(v) => v.as_deref().map(str::trim).filter(|s| !s.is_empty()),
@@ -506,7 +515,9 @@ async fn attach_photo(
     if let Some(damage_id) = b.damage_id {
         let damages = inspections::damages_for(&state.db, id).await?;
         if !damages.iter().any(|d| d.id == damage_id) {
-            return Err(AppError::validation("damage does not belong to this inspection"));
+            return Err(AppError::validation(
+                "damage does not belong to this inspection",
+            ));
         }
     }
     let photo = inspections::attach_photo(
@@ -523,7 +534,10 @@ async fn attach_photo(
     .await
     .map_err(|e| {
         if e.to_string().contains("inspection_photos_image_id_key") {
-            AppError::rule("already_attached", "image is already attached to an inspection")
+            AppError::rule(
+                "already_attached",
+                "image is already attached to an inspection",
+            )
         } else {
             AppError::Database(e)
         }
@@ -684,10 +698,14 @@ async fn sign(
             ));
         }
     }
-    inspections::sign(&state.db, id, super::optional(b.customer_comment).as_deref())
-        .await?
-        .map(Json)
-        .ok_or(AppError::NotFound("inspection"))
+    inspections::sign(
+        &state.db,
+        id,
+        super::optional(b.customer_comment).as_deref(),
+    )
+    .await?
+    .map(Json)
+    .ok_or(AppError::NotFound("inspection"))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -762,9 +780,10 @@ async fn comparison(
     let checkout_detail = detail_for(&state, &checkout).await?;
     let mut suggestions = Vec::with_capacity(checkin_detail.damages.len());
     for damage in &checkin_detail.damages {
-        let matched = checkout_detail.damages.iter().find(|d| {
-            d.zone_key == damage.zone_key && d.damage_type == damage.damage_type
-        });
+        let matched = checkout_detail
+            .damages
+            .iter()
+            .find(|d| d.zone_key == damage.zone_key && d.damage_type == damage.damage_type);
         suggestions.push(Suggestion {
             checkin_damage_id: damage.id,
             checkout_damage_id: matched.map(|d| d.id),
@@ -922,7 +941,6 @@ async fn replace_templates(
     Ok(Items::new(out))
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -973,11 +991,17 @@ mod tests {
         assert!(replay_matches(&existing, 7, "checkout").is_ok());
         assert!(matches!(
             replay_matches(&existing, 8, "checkout"),
-            Err(AppError::Conflict { code: "duplicate", .. })
+            Err(AppError::Conflict {
+                code: "duplicate",
+                ..
+            })
         ));
         assert!(matches!(
             replay_matches(&existing, 7, "checkin"),
-            Err(AppError::Conflict { code: "duplicate", .. })
+            Err(AppError::Conflict {
+                code: "duplicate",
+                ..
+            })
         ));
     }
 }
