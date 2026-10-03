@@ -1,6 +1,7 @@
 //! SQL, one module per aggregate. Functions take `impl PgExecutor` so they work on the
 //! pool or inside a transaction (`&mut *tx`). All queries are compile-time checked.
 
+pub mod absences;
 pub mod audit;
 pub mod blockers;
 pub mod config;
@@ -15,6 +16,7 @@ pub mod invoices;
 pub mod jobs;
 pub mod leads;
 pub mod newsletter;
+pub mod notifications;
 pub mod order_items;
 pub mod order_notes;
 pub mod order_specs;

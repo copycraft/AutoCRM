@@ -147,3 +147,17 @@ only), which lists every registered user with role, active and HR-access control
 is enforced by the API (`Capability::AccessHr`, every `/api/hr/*` route), not just hidden in
 the menu. Photos are stored in the object store under `hr/employees/`. Migration `0034_hr.sql`
 adds `users.hr_access` and the `employees` table.
+
+## Leave and notifications
+
+**Leave (HR module, `/hr` -> Szabadság; phone: HR -> Távollétek).** HR records leave, sick days,
+unpaid and other absence for employees. The team calendar shows the month; each employee has an
+annual allowance (default 20 days, editable on the employee) and a balance. Weekends and
+Hungarian public holidays do not use leave; the yearly government bridge-day swaps are not in
+any formula, so HR adjusts those by hand. An employee cannot have overlapping absences.
+
+**Notifications.** A new website lead notifies every admin and office user: a bell entry with an
+unread count in the web menu (refreshed every 30 s), and a system notification on the phone.
+The phone **polls about every 15 minutes** (Android's minimum for background work), so a lead
+can take up to 15 minutes to reach it; instant push would need Firebase Cloud Messaging and a
+Firebase project. The feed (`GET /api/notifications`) is per user, kept 60 days.

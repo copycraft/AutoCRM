@@ -17,14 +17,17 @@ import {
   LogOut,
   Snowflake,
   Users,
+  Bell,
   SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/format';
 import { useAuth, canAdmin, canAccessHr } from '@/lib/auth/context';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
+import { useNotifications } from '@/components/notifications/useUnread';
 
 const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: boolean; hr?: boolean }[] = [
   { href: '', icon: LayoutDashboard, key: 'dashboard' },
+  { href: '/notifications', icon: Bell, key: 'notifications' },
   { href: '/partners/business', icon: Building2, key: 'business' },
   { href: '/leads', icon: Target, key: 'leads' },
   { href: '/orders', icon: Package, key: 'orders' },
@@ -41,9 +44,11 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
   const t = useTranslations('navigation');
   const tq = useTranslations('qol');
   const tc = useTranslations('common');
+  const tn = useTranslations('notifications');
   const pathname = usePathname();
   const locale = useLocale();
   const { user, logout } = useAuth();
+  const unread = useNotifications().data?.unread ?? 0;
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-steel-200 bg-surface">
@@ -76,6 +81,14 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
               {t(item.key)}
+              {item.key === 'notifications' && unread > 0 && (
+                <span
+                  className="ml-auto rounded-full bg-signal px-2 py-0.5 text-metadata font-semibold text-surface"
+                  aria-label={`${unread} ${tn('unread')}`}
+                >
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
             </Link>
           );
         })}

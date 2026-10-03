@@ -938,6 +938,8 @@ data class Employee(
     @SerialName("personal_phone") val personalPhone: String? = null,
     /** A signed link that expires in about an hour; never stored. */
     @SerialName("photo_url") val photoUrl: String? = null,
+    /** Paid annual leave per calendar year. */
+    @SerialName("annual_leave_days") val annualLeaveDays: Int = 20,
     @SerialName("archived_at") val archivedAt: String? = null,
 )
 
@@ -951,3 +953,41 @@ data class StaffUser(
     @SerialName("is_active") val isActive: Boolean,
     @SerialName("hr_access") val hrAccess: Boolean = false,
 )
+
+/** One period of leave or absence, with working days already counted by the server. */
+@Serializable
+data class Absence(
+    @SerialName("id") val id: Long,
+    @SerialName("employee_id") val employeeId: Long,
+    @SerialName("employee_name") val employeeName: String,
+    /** `annual` | `sick` | `unpaid` | `other`. */
+    @SerialName("kind") val kind: String,
+    @SerialName("start_date") val startDate: String,
+    @SerialName("end_date") val endDate: String,
+    @SerialName("working_days") val workingDays: Int,
+    @SerialName("note") val note: String? = null,
+)
+
+// ── Notifications ───────────────────────────────────────────────────────────────────
+
+@Serializable
+data class NotificationItem(
+    @SerialName("id") val id: Long,
+    @SerialName("kind") val kind: String,
+    @SerialName("title") val title: String,
+    @SerialName("body") val body: String? = null,
+    /** An app path such as `/leads/42`; see `routeForLink`. */
+    @SerialName("link") val link: String? = null,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("read_at") val readAt: String? = null,
+)
+
+@Serializable
+data class NotificationFeed(
+    /** Newest first. */
+    @SerialName("items") val items: List<NotificationItem>,
+    @SerialName("unread") val unread: Long,
+)
+
+@Serializable
+data class MarkReadBody(@SerialName("ids") val ids: List<Long>)

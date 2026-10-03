@@ -37,13 +37,11 @@ private fun describeApi(e: ApiException): String = when (e) {
     is ApiException.Server -> "Szerverhiba (${e.status}): ${e.detail ?: "nincs részlet"}"
 }
 
+
 /**
  * The backend error-code catalog (`backend/src/error.rs::ERROR_CODES`, published in
  * `openapi.json` as `ErrorCode` with `x-error-catalog`), Hungarian text only.
  * `ErrorCatalogTest` fails when a code is missing here or its text drifts.
- *
- * This map is the cold-start fallback: fresh server texts (`ServerErrorTexts`,
- * from `GET /config/lookups`) win whenever they have arrived.
  */
 internal val ERROR_TEXT: Map<String, String> = mapOf(
     "unauthenticated" to "Nincs bejelentkezve. Jelentkezzen be újra.",
@@ -52,6 +50,7 @@ internal val ERROR_TEXT: Map<String, String> = mapOf(
     "validation" to "Érvényesítési hiba. Ellenőrizze a megadott adatokat.",
     "too_many_requests" to "Túl sok próbálkozás. Próbálja újra később.",
     "duplicate" to "Ilyen adat már létezik.",
+    "overlap" to "A munkatársnak ebben az időszakban már van rögzített távolléte.",
     "invalid_reference" to "Érvénytelen hivatkozás, vagy a hivatkozott adat még használatban van.",
     "constraint_violation" to "Az adat sérti az adatbázis szabályait.",
     "immutable" to "Ez bizonyítási célból védett adat, nem módosítható és nem törölhető.",

@@ -14,9 +14,11 @@ pub mod hr;
 pub mod inspections;
 pub mod invoices;
 pub mod leads;
+pub mod leave;
 pub mod media;
 pub mod mobile;
 pub mod newsletter;
+pub mod notifications;
 pub mod openapi;
 pub mod orders;
 pub mod partners;
@@ -61,8 +63,10 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(media::routes())
         .merge(mobile::routes())
         .merge(newsletter::routes())
+        .merge(notifications::routes())
         .merge(email::routes())
         .merge(hr::routes())
+        .merge(leave::routes())
         .merge(reports::routes())
         .merge(search::routes())
         .merge(tasks::routes())

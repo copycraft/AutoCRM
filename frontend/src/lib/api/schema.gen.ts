@@ -1313,6 +1313,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["notifications_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notifications_mark_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notifications_mark_all_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/emails": {
         parameters: {
             query?: never;
@@ -1553,6 +1601,72 @@ export interface paths {
         put: operations["hr_set_photo"];
         post?: never;
         delete: operations["hr_remove_photo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/absences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Absences touching a date range: the team calendar. */
+        get: operations["hr_list_absences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/employees/{id}/absences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["hr_create_absence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/absences/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["hr_delete_absence"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/leave-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every current employee's leave balance for a year. */
+        get: operations["hr_leave_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2090,6 +2204,37 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Absence: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            employee_id: number;
+            employee_name: string;
+            kind: components["schemas"]["LeaveKind"];
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            /**
+             * Format: int32
+             * @description Working days in the period: weekends and public holidays do not count.
+             */
+            working_days: number;
+            note?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AbsenceBody: {
+            kind: components["schemas"]["LeaveKind"];
+            /** Format: date */
+            start_date: string;
+            /**
+             * Format: date
+             * @description Last day away. Same as `start_date` for a single day.
+             */
+            end_date: string;
+            note?: string | null;
+        };
         AddItem: {
             description: string;
             /** @description Decimal string, e.g. `"2.5"`. */
@@ -2764,6 +2909,11 @@ export interface components {
             personal_phone?: string | null;
             /** @description A short-lived link to the profile picture (about an hour); None without one. */
             photo_url?: string | null;
+            /**
+             * Format: int32
+             * @description Paid annual leave per calendar year.
+             */
+            annual_leave_days: number;
             /** Format: date-time */
             archived_at?: string | null;
             /** Format: date-time */
@@ -2777,6 +2927,11 @@ export interface components {
             email?: string | null;
             company_phone?: string | null;
             personal_phone?: string | null;
+            /**
+             * Format: int32
+             * @description Days of paid annual leave per year (0 to 366). Defaults to 20 on create.
+             */
+            annual_leave_days?: number | null;
         };
         /** @description The body of every non-2xx response. */
         ErrorBody: {
@@ -2786,7 +2941,7 @@ export interface components {
          * @description Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.
          * @enum {string}
          */
-        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "nav_rejected" | "nav_unreachable" | "not_issued" | "pdf_unavailable";
+        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "nav_rejected" | "nav_unreachable" | "not_issued" | "pdf_unavailable";
         ErrorDetail: {
             /** @description Stable machine-readable code, e.g. `validation`, `stage_gate`, `currency_locked`. */
             code: string;
@@ -3155,6 +3310,29 @@ export interface components {
             line_total_minor: number;
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_Absence: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                employee_id: number;
+                employee_name: string;
+                kind: components["schemas"]["LeaveKind"];
+                /** Format: date */
+                start_date: string;
+                /** Format: date */
+                end_date: string;
+                /**
+                 * Format: int32
+                 * @description Working days in the period: weekends and public holidays do not count.
+                 */
+                working_days: number;
+                note?: string | null;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_AuditEntry: {
             items: {
                 /** Format: int64 */
@@ -3421,6 +3599,11 @@ export interface components {
                 personal_phone?: string | null;
                 /** @description A short-lived link to the profile picture (about an hour); None without one. */
                 photo_url?: string | null;
+                /**
+                 * Format: int32
+                 * @description Paid annual leave per calendar year.
+                 */
+                annual_leave_days: number;
                 /** Format: date-time */
                 archived_at?: string | null;
                 /** Format: date-time */
@@ -3614,6 +3797,37 @@ export interface components {
                 order_number?: string | null;
                 /** Format: date-time */
                 created_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_LeaveBalance: {
+            items: {
+                /** Format: int64 */
+                employee_id: number;
+                full_name: string;
+                /** Format: int32 */
+                year: number;
+                /**
+                 * Format: int32
+                 * @description Paid annual leave for the year.
+                 */
+                allowance_days: number;
+                /**
+                 * Format: int32
+                 * @description Working days of annual leave taken (or booked) in the year.
+                 */
+                used_annual: number;
+                /**
+                 * Format: int32
+                 * @description `allowance_days - used_annual`; negative when more is booked than the allowance.
+                 */
+                remaining: number;
+                /** Format: int32 */
+                sick_days: number;
+                /** Format: int32 */
+                unpaid_days: number;
+                /** Format: int32 */
+                other_days: number;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -4108,6 +4322,36 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        LeaveBalance: {
+            /** Format: int64 */
+            employee_id: number;
+            full_name: string;
+            /** Format: int32 */
+            year: number;
+            /**
+             * Format: int32
+             * @description Paid annual leave for the year.
+             */
+            allowance_days: number;
+            /**
+             * Format: int32
+             * @description Working days of annual leave taken (or booked) in the year.
+             */
+            used_annual: number;
+            /**
+             * Format: int32
+             * @description `allowance_days - used_annual`; negative when more is booked than the allowance.
+             */
+            remaining: number;
+            /** Format: int32 */
+            sick_days: number;
+            /** Format: int32 */
+            unpaid_days: number;
+            /** Format: int32 */
+            other_days: number;
+        };
+        /** @enum {string} */
+        LeaveKind: "annual" | "sick" | "unpaid" | "other";
         LoginBody: {
             email: string;
             password: string;
@@ -4150,6 +4394,9 @@ export interface components {
             image_categories: components["schemas"]["ImageCategoryEntry"][];
             email_themes: components["schemas"]["EmailThemeEntry"][];
             error_texts: components["schemas"]["ErrorTextEntry"][];
+        };
+        MarkRead: {
+            ids: number[];
         };
         MeResponse: {
             user: components["schemas"]["SessionUser"];
@@ -4198,6 +4445,29 @@ export interface components {
         };
         NoteBody: {
             body: string;
+        };
+        Notification: {
+            /** Format: int64 */
+            id: number;
+            /** @description What happened, e.g. `lead`. */
+            kind: string;
+            title: string;
+            body?: string | null;
+            /** @description App path to open, e.g. `/leads/42`. */
+            link?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at?: string | null;
+        };
+        NotificationList: {
+            /** @description Newest first. */
+            items: components["schemas"]["Notification"][];
+            /**
+             * Format: int64
+             * @description Unread notifications in total, not just in this page.
+             */
+            unread: number;
         };
         Order: {
             /** Format: int64 */
@@ -9532,6 +9802,127 @@ export interface operations {
             };
         };
     };
+    notifications_list: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Only notifications with a higher id: what a client that remembers the last one it saw
+                 *     asks for.
+                 */
+                after_id?: number;
+                unread_only?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationList"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    notifications_mark_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkRead"];
+            };
+        };
+        responses: {
+            /** @description Marked read (ids that are not yours are ignored) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    notifications_mark_all_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Everything marked read */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     email_list: {
         parameters: {
             query?: {
@@ -10357,6 +10748,177 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_list_absences: {
+        parameters: {
+            query: {
+                /** @description First day of the range (inclusive). */
+                from: string;
+                /** @description Last day of the range (inclusive). At most a year after `from`. */
+                to: string;
+                employee_id?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Absence"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_create_absence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AbsenceBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Absence"];
+                };
+            };
+            /** @description The employee already has leave in that period (code `overlap`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_delete_absence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_leave_summary: {
+        parameters: {
+            query?: {
+                /** @description Calendar year; the current one by default. */
+                year?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_LeaveBalance"];
                 };
             };
             /** @description Client error; see `error.code` */

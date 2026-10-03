@@ -21,6 +21,12 @@ export type ChangePasswordBody = Schemas['ChangePasswordBody'];
 export type User = Schemas['User'];
 export type Employee = Schemas['Employee'];
 export type EmployeeBody = Schemas['EmployeeBody'];
+export type Absence = Schemas['Absence'];
+export type AbsenceBody = Schemas['AbsenceBody'];
+export type LeaveKind = Schemas['LeaveKind'];
+export type LeaveBalance = Schemas['LeaveBalance'];
+export type Notification = Schemas['Notification'];
+export type NotificationList = Schemas['NotificationList'];
 
 export type Partner = Schemas['Partner'];
 export type PartnerDetail = Schemas['PartnerDetail'];

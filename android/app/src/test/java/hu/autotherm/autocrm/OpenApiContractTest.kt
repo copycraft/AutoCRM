@@ -110,6 +110,9 @@ class OpenApiContractTest {
         assertHasFields("SessionUser", "id", "email", "display_name", "role", "must_change_password", "hr_access")
         assertHasFields("Employee", "id", "full_name", "email", "company_phone", "personal_phone", "photo_url", "archived_at")
         assertHasFields("User", "id", "email", "display_name", "role", "is_active", "hr_access")
+        assertHasFields("Absence", "id", "employee_id", "employee_name", "kind", "start_date", "end_date", "working_days", "note")
+        assertHasFields("Notification", "id", "kind", "title", "body", "link", "created_at", "read_at")
+        assertHasFields("NotificationList", "items", "unread")
     }
 
     @Test

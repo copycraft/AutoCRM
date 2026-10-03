@@ -285,6 +285,9 @@ async fn website(
     if let Err(e) = service::email::website_lead_alert(&state, &lead).await {
         tracing::error!(lead_id = lead.id, error = %e, "could not queue the website lead alert");
     }
+    if let Err(e) = service::notifications::lead_arrived(&state.db, &lead).await {
+        tracing::error!(lead_id = lead.id, error = %e, "could not raise the website lead notification");
+    }
     Ok(StatusCode::ACCEPTED)
 }
 

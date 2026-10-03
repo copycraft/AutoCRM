@@ -54,6 +54,8 @@ pub struct Employee {
     pub personal_phone: Option<String>,
     /// A short-lived link to the profile picture (about an hour); None without one.
     pub photo_url: Option<String>,
+    /// Paid annual leave per calendar year.
+    pub annual_leave_days: i32,
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -77,6 +79,7 @@ async fn present(state: &AppState, row: EmployeeRow) -> Employee {
         company_phone: row.company_phone,
         personal_phone: row.personal_phone,
         photo_url,
+        annual_leave_days: row.annual_leave_days,
         archived_at: row.archived_at,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -123,6 +126,8 @@ struct EmployeeBody {
     company_phone: Option<Option<String>>,
     #[serde(default, deserialize_with = "patch_field")]
     personal_phone: Option<Option<String>>,
+    /// Days of paid annual leave per year (0 to 366). Defaults to 20 on create.
+    annual_leave_days: Option<i32>,
 }
 
 fn too_long(field: &str, value: &Option<String>, max: usize) -> AppResult<()> {
@@ -164,11 +169,21 @@ fn merge(current: Option<&EmployeeRow>, b: EmployeeBody) -> AppResult<EmployeeIn
     );
     too_long("company_phone", &company_phone, MAX_PHONE)?;
     too_long("personal_phone", &personal_phone, MAX_PHONE)?;
+    let annual_leave_days = b
+        .annual_leave_days
+        .or_else(|| current.map(|e| e.annual_leave_days))
+        .unwrap_or(20);
+    if !(0..=366).contains(&annual_leave_days) {
+        return Err(AppError::validation(
+            "annual_leave_days must be between 0 and 366",
+        ));
+    }
     Ok(EmployeeInput {
         full_name,
         email,
         company_phone,
         personal_phone,
+        annual_leave_days,
     })
 }
 
@@ -425,6 +440,7 @@ mod tests {
             email: None,
             company_phone: None,
             personal_phone: None,
+            annual_leave_days: None,
         }
     }
 
@@ -455,6 +471,7 @@ mod tests {
             company_phone: Some("+36 30 111 2222".into()),
             personal_phone: Some("+36 20 333 4444".into()),
             photo_key: None,
+            annual_leave_days: 25,
             archived_at: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
@@ -466,6 +483,11 @@ mod tests {
         assert_eq!(merged.email.as_deref(), Some("peter@example.hu"));
         assert_eq!(merged.company_phone.as_deref(), Some("+36 30 111 2222"));
         assert_eq!(merged.personal_phone, None);
+        // Absent keeps the allowance; an out-of-range one is refused.
+        assert_eq!(merged.annual_leave_days, 25);
+        let mut b = body(None);
+        b.annual_leave_days = Some(400);
+        assert!(merge(Some(&current), b).is_err());
     }
 
     #[test]

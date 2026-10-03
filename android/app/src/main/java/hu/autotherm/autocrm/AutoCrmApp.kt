@@ -7,6 +7,8 @@ import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.db.AutoCrmDatabase
 import hu.autotherm.autocrm.data.inspection.InspectionSyncWorker
+import hu.autotherm.autocrm.data.notifications.NotificationCursor
+import hu.autotherm.autocrm.data.notifications.NotificationPollWorker
 import hu.autotherm.autocrm.data.prefs.CapturePrefs
 import hu.autotherm.autocrm.data.prefs.LookupsCache
 import hu.autotherm.autocrm.data.prefs.ServerStore
@@ -32,6 +34,7 @@ class AutoCrmApp : Application(), Configuration.Provider {
     val themePrefs: ThemePrefs by lazy { ThemePrefs(this) }
     val zoneListCache: ZoneListCache by lazy { ZoneListCache(this) }
     val lookupsCache: LookupsCache by lazy { LookupsCache(this) }
+    val notificationCursor: NotificationCursor by lazy { NotificationCursor(this) }
     val api: AutoCrmApi by lazy { AutoCrmApi(serverStore, sessionStore) }
     val uploadQueue: UploadQueue by lazy { UploadQueue(this, database.pendingUploads()) }
 
@@ -62,5 +65,8 @@ class AutoCrmApp : Application(), Configuration.Provider {
         UploadWorker.enqueue(this)
         // Same for handover-inspection drafts: anything walked offline syncs now.
         InspectionSyncWorker.enqueue(this)
+        // New website leads reach the phone as system notifications (polled, about every 15
+        // minutes). The worker does nothing while nobody is signed in.
+        NotificationPollWorker.schedule(this)
     }
 }

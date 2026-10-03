@@ -5551,6 +5551,151 @@
         }
       }
     },
+    "/notifications": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "operationId": "notifications_list",
+        "parameters": [
+          {
+            "name": "after_id",
+            "in": "query",
+            "description": "Only notifications with a higher id: what a client that remembers the last one it saw\nasks for.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "unread_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationList"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/read": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "operationId": "notifications_mark_read",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkRead"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Marked read (ids that are not yours are ignored)"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/read-all": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "operationId": "notifications_mark_all_read",
+        "responses": {
+          "204": {
+            "description": "Everything marked read"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/emails": {
       "get": {
         "tags": [
@@ -6625,6 +6770,239 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/absences": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "Absences touching a date range: the team calendar.",
+        "operationId": "hr_list_absences",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "First day of the range (inclusive).",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Last day of the range (inclusive). At most a year after `from`.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "employee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Absence"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/absences": {
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_create_absence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsenceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Absence"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The employee already has leave in that period (code `overlap`)"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/absences/{id}": {
+      "delete": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_delete_absence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/leave-summary": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "Every current employee's leave balance for a year.",
+        "operationId": "hr_leave_summary",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "description": "Calendar year; the current one by default.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_LeaveBalance"
                 }
               }
             }
@@ -8722,6 +9100,86 @@
   },
   "components": {
     "schemas": {
+      "Absence": {
+        "type": "object",
+        "required": [
+          "id",
+          "employee_id",
+          "employee_name",
+          "kind",
+          "start_date",
+          "end_date",
+          "working_days",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "employee_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "employee_name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LeaveKind"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "working_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Working days in the period: weekends and public holidays do not count."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AbsenceBody": {
+        "type": "object",
+        "required": [
+          "kind",
+          "start_date",
+          "end_date"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/LeaveKind"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Last day away. Same as `start_date` for a single day."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AddItem": {
         "type": "object",
         "required": [
@@ -10894,6 +11352,7 @@
         "required": [
           "id",
           "full_name",
+          "annual_leave_days",
           "created_at",
           "updated_at"
         ],
@@ -10930,6 +11389,11 @@
               "null"
             ],
             "description": "A short-lived link to the profile picture (about an hour); None without one."
+          },
+          "annual_leave_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Paid annual leave per calendar year."
           },
           "archived_at": {
             "type": [
@@ -10975,6 +11439,14 @@
               "string",
               "null"
             ]
+          },
+          "annual_leave_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Days of paid annual leave per year (0 to 366). Defaults to 20 on create."
           }
         }
       },
@@ -11000,6 +11472,7 @@
           "validation",
           "too_many_requests",
           "duplicate",
+          "overlap",
           "invalid_reference",
           "constraint_violation",
           "immutable",
@@ -11082,6 +11555,13 @@
             "code": "duplicate",
             "en": "A record with these values already exists.",
             "hu": "Ilyen adat már létezik.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "overlap",
+            "en": "The employee already has leave in that period.",
+            "hu": "A munkatársnak ebben az időszakban már van rögzített távolléte.",
             "retryable": false,
             "status": 409
           },
@@ -12440,6 +12920,70 @@
           }
         ]
       },
+      "Items_Absence": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "employee_id",
+                "employee_name",
+                "kind",
+                "start_date",
+                "end_date",
+                "working_days",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "employee_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "employee_name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "$ref": "#/components/schemas/LeaveKind"
+                },
+                "start_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "end_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "working_days": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Working days in the period: weekends and public holidays do not count."
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_AuditEntry": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -13313,6 +13857,7 @@
               "required": [
                 "id",
                 "full_name",
+                "annual_leave_days",
                 "created_at",
                 "updated_at"
               ],
@@ -13349,6 +13894,11 @@
                     "null"
                   ],
                   "description": "A short-lived link to the profile picture (about an hour); None without one."
+                },
+                "annual_leave_days": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Paid annual leave per calendar year."
                 },
                 "archived_at": {
                   "type": [
@@ -14008,6 +14558,72 @@
                 "created_at": {
                   "type": "string",
                   "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_LeaveBalance": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "employee_id",
+                "full_name",
+                "year",
+                "allowance_days",
+                "used_annual",
+                "remaining",
+                "sick_days",
+                "unpaid_days",
+                "other_days"
+              ],
+              "properties": {
+                "employee_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "full_name": {
+                  "type": "string"
+                },
+                "year": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "allowance_days": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Paid annual leave for the year."
+                },
+                "used_annual": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Working days of annual leave taken (or booked) in the year."
+                },
+                "remaining": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "`allowance_days - used_annual`; negative when more is booked than the allowance."
+                },
+                "sick_days": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "unpaid_days": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "other_days": {
+                  "type": "integer",
+                  "format": "int32"
                 }
               }
             }
@@ -15673,6 +16289,69 @@
           }
         }
       },
+      "LeaveBalance": {
+        "type": "object",
+        "required": [
+          "employee_id",
+          "full_name",
+          "year",
+          "allowance_days",
+          "used_annual",
+          "remaining",
+          "sick_days",
+          "unpaid_days",
+          "other_days"
+        ],
+        "properties": {
+          "employee_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "allowance_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Paid annual leave for the year."
+          },
+          "used_annual": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Working days of annual leave taken (or booked) in the year."
+          },
+          "remaining": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`allowance_days - used_annual`; negative when more is booked than the allowance."
+          },
+          "sick_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unpaid_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "other_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "LeaveKind": {
+        "type": "string",
+        "enum": [
+          "annual",
+          "sick",
+          "unpaid",
+          "other"
+        ]
+      },
       "LoginBody": {
         "type": "object",
         "required": [
@@ -15853,6 +16532,21 @@
           }
         }
       },
+      "MarkRead": {
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
       "MeResponse": {
         "type": "object",
         "required": [
@@ -15967,6 +16661,73 @@
         "properties": {
           "body": {
             "type": "string"
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "What happened, e.g. `lead`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "App path to open, e.g. `/leads/42`."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "read_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "NotificationList": {
+        "type": "object",
+        "required": [
+          "items",
+          "unread"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            },
+            "description": "Newest first."
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unread notifications in total, not just in this page."
           }
         }
       },

@@ -233,6 +233,40 @@ class AutoCrmApi(
             Employee.serializer(),
         )
 
+    // ── HR leave ────────────────────────────────────────────────────────────────────
+
+    suspend fun absences(from: String, to: String): List<Absence> {
+        val u = url("/hr/absences").addQueryParameter("from", from).addQueryParameter("to", to)
+        return send(Request.Builder().url(u.build()).get(), Items.serializer(Absence.serializer())).items
+    }
+
+    suspend fun createAbsence(employeeId: Long, body: kotlinx.serialization.json.JsonObject): Absence =
+        send(
+            Request.Builder().url(url("/hr/employees/$employeeId/absences").build())
+                .post(body.toString().toRequestBody(jsonMedia)),
+            Absence.serializer(),
+        )
+
+    suspend fun deleteAbsence(id: Long) =
+        sendNoContent(Request.Builder().url(url("/hr/absences/$id").build()).delete())
+
+    // ── Notifications (the signed-in user's own feed) ───────────────────────────────
+
+    suspend fun notifications(afterId: Long? = null, unreadOnly: Boolean = false, limit: Int = 50): NotificationFeed {
+        val u = url("/notifications").addQueryParameter("limit", limit.toString())
+        if (afterId != null) u.addQueryParameter("after_id", afterId.toString())
+        if (unreadOnly) u.addQueryParameter("unread_only", "true")
+        return send(Request.Builder().url(u.build()).get(), NotificationFeed.serializer())
+    }
+
+    suspend fun markNotificationsRead(ids: List<Long>) =
+        sendNoContent(
+            Request.Builder().url(url("/notifications/read").build()).post(body(MarkReadBody(ids))),
+        )
+
+    suspend fun markAllNotificationsRead() =
+        sendNoContent(Request.Builder().url(url("/notifications/read-all").build()).post(EMPTY))
+
     // ── Users (admin) ───────────────────────────────────────────────────────────────
 
     suspend fun users(): List<StaffUser> =

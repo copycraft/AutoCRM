@@ -6,6 +6,7 @@ pub mod email;
 pub mod invoicing;
 pub mod leads;
 pub mod media;
+pub mod notifications;
 pub mod orders;
 pub mod stages;
 

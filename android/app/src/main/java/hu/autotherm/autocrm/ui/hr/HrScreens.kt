@@ -152,6 +152,7 @@ class HrListViewModel(private val api: AutoCrmApi) : ViewModel() {
 fun HrListScreen(
     viewModel: HrListViewModel,
     onMenu: () -> Unit,
+    onLeave: () -> Unit,
     onNew: () -> Unit,
     onEdit: (Long) -> Unit,
 ) {
@@ -166,6 +167,7 @@ fun HrListScreen(
                 onMenu = onMenu,
                 refreshing = state.refreshing,
                 onRefresh = viewModel::load,
+                actions = { TextButton(onClick = onLeave) { Text("Távollétek") } },
             )
         },
         floatingActionButton = {

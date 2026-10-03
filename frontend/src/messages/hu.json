@@ -94,7 +94,8 @@
     "audit": "Napló",
     "images": "Képek",
     "documents": "Dokumentumok",
-    "hr": "HR"
+    "hr": "HR",
+    "notifications": "Értesítések"
   },
   "auth": {
     "loginTitle": "Bejelentkezés az AutoCRM-be",
@@ -712,6 +713,7 @@
     "forbidden": "Nincs jogosultsága ehhez a művelethez.",
     "notFound": "A kért adat nem található.",
     "duplicate": "Ilyen adat már létezik.",
+    "overlap": "A munkatársnak ebben az időszakban már van rögzített távolléte.",
     "immutable": "Ez a kép bizonyítási célból védett, ezért nem törölhető.",
     "alreadyResolved": "Ez az akadály már meg van oldva.",
     "notRetryable": "Ez a művelet nem próbálható újra.",
@@ -1086,6 +1088,53 @@
     "emptyHint": "Az „Új munkatárs” gombbal vehető fel az első.",
     "noMatch": "Nincs a keresésnek megfelelő munkatárs.",
     "saved": "Mentve.",
-    "nameRequired": "A név kötelező."
+    "nameRequired": "A név kötelező.",
+    "tabPeople": "Munkatársak",
+    "tabLeave": "Szabadság",
+    "annualLeaveDays": "Éves szabadság (nap)",
+    "annualLeaveHint": "Évente járó fizetett szabadság. Az alap 20 nap, életkor és gyerekek után több."
+  },
+  "leave": {
+    "title": "Távollétek",
+    "calendar": "Csapatnaptár",
+    "newAbsence": "Új távollét",
+    "employee": "Munkatárs",
+    "kind": "Típus",
+    "from": "Kezdete",
+    "to": "Utolsó nap",
+    "note": "Megjegyzés",
+    "days": "Munkanap",
+    "none": "Ebben a hónapban nincs rögzített távollét.",
+    "noEmployees": "Előbb vegyen fel munkatársat.",
+    "balances": "Szabadságegyenleg",
+    "allowance": "Keret",
+    "used": "Kivett",
+    "remaining": "Maradt",
+    "sick": "Betegszabadság",
+    "unpaid": "Fizetés nélküli",
+    "other": "Egyéb",
+    "prevMonth": "Előző hónap",
+    "nextMonth": "Következő hónap",
+    "today": "Ma",
+    "delete": "Távollét törlése",
+    "deleteConfirmTitle": "Törli a távollétet?",
+    "deleteConfirmBody": "A munkatárs szabadságkerete újra számolódik.",
+    "saved": "A távollét rögzítve.",
+    "deleted": "A távollét törölve.",
+    "holidayHint": "A hétvégék és a munkaszüneti napok nem számítanak bele. Az áthelyezett munkanapokat (áthidaló napok) kézzel kell kezelni.",
+    "kinds": {
+      "annual": "Szabadság",
+      "sick": "Betegszabadság",
+      "unpaid": "Fizetés nélküli szabadság",
+      "other": "Egyéb távollét"
+    }
+  },
+  "notifications": {
+    "title": "Értesítések",
+    "subtitle": "Új érdeklődések és egyéb események.",
+    "empty": "Nincs értesítés.",
+    "markAllRead": "Mind olvasott",
+    "unread": "olvasatlan",
+    "bell": "Értesítések"
   }
 }

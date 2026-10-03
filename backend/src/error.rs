@@ -127,6 +127,13 @@ pub const ERROR_CODES: &[ErrorCode] = &[
         "A record with these values already exists.",
     ),
     code(
+        "overlap",
+        409,
+        false,
+        "A munkatársnak ebben az időszakban már van rögzített távolléte.",
+        "The employee already has leave in that period.",
+    ),
+    code(
         "invalid_reference",
         422,
         false,

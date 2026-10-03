@@ -12,6 +12,7 @@ pub struct EmployeeRow {
     pub company_phone: Option<String>,
     pub personal_phone: Option<String>,
     pub photo_key: Option<String>,
+    pub annual_leave_days: i32,
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -23,10 +24,11 @@ pub struct EmployeeInput {
     pub email: Option<String>,
     pub company_phone: Option<String>,
     pub personal_phone: Option<String>,
+    pub annual_leave_days: i32,
 }
 
 const COLUMNS: &str = "id, full_name, email, company_phone, personal_phone, photo_key,
-                       archived_at, created_at, updated_at";
+                       annual_leave_days, archived_at, created_at, updated_at";
 
 pub async fn list(
     db: impl PgExecutor<'_>,
@@ -59,13 +61,14 @@ pub async fn insert(
     created_by: i64,
 ) -> sqlx::Result<EmployeeRow> {
     sqlx::query_as(&format!(
-        "INSERT INTO employees (full_name, email, company_phone, personal_phone, created_by)
-         VALUES ($1, $2, $3, $4, $5) RETURNING {COLUMNS}"
+        "INSERT INTO employees (full_name, email, company_phone, personal_phone, annual_leave_days, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING {COLUMNS}"
     ))
     .bind(&e.full_name)
     .bind(&e.email)
     .bind(&e.company_phone)
     .bind(&e.personal_phone)
+    .bind(e.annual_leave_days)
     .bind(created_by)
     .fetch_one(db)
     .await
@@ -77,7 +80,8 @@ pub async fn update(
     e: &EmployeeInput,
 ) -> sqlx::Result<Option<EmployeeRow>> {
     sqlx::query_as(&format!(
-        "UPDATE employees SET full_name = $2, email = $3, company_phone = $4, personal_phone = $5
+        "UPDATE employees SET full_name = $2, email = $3, company_phone = $4, personal_phone = $5,
+                              annual_leave_days = $6
          WHERE id = $1 RETURNING {COLUMNS}"
     ))
     .bind(id)
@@ -85,6 +89,7 @@ pub async fn update(
     .bind(&e.email)
     .bind(&e.company_phone)
     .bind(&e.personal_phone)
+    .bind(e.annual_leave_days)
     .fetch_optional(db)
     .await
 }

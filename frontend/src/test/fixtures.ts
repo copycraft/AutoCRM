@@ -2,6 +2,9 @@
 // backend schema change breaks `tsc` here rather than leaving a test that renders
 // a shape the API never returns.
 import type {
+  Absence,
+  LeaveBalance,
+  NotificationList,
   Employee,
   AuditEntry,
   BilledInvoice,
@@ -742,6 +745,7 @@ export const employee: Employee = {
   company_phone: '+36 30 111 2222',
   personal_phone: '+36 20 333 4444',
   photo_url: null,
+  annual_leave_days: 20,
   archived_at: null,
   created_at: NOW,
   updated_at: NOW,
@@ -753,4 +757,57 @@ export const officeUser: User = {
   email: 'anna@autotherm.hu',
   display_name: 'Nagy Anna',
   role: 'office',
+};
+
+// Leave is shown for the current month, so the fixture follows the calendar.
+const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+const isoDay = (d: number) =>
+  `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+export const absence: Absence = {
+  id: 31,
+  employee_id: 7,
+  employee_name: 'Kiss Péter',
+  kind: 'annual',
+  start_date: isoDay(2),
+  end_date: isoDay(4),
+  working_days: 3,
+  note: 'Nyaralás',
+  created_at: NOW,
+};
+
+export const leaveBalance: LeaveBalance = {
+  employee_id: 7,
+  full_name: 'Kiss Péter',
+  year: monthStart.getFullYear(),
+  allowance_days: 20,
+  used_annual: 23,
+  remaining: -3,
+  sick_days: 2,
+  unpaid_days: 0,
+  other_days: 0,
+};
+
+export const notificationList: NotificationList = {
+  items: [
+    {
+      id: 12,
+      kind: 'lead',
+      title: 'Új érdeklődés a weboldalról',
+      body: 'Kiss Péter: Hűtős átalakítást kérek',
+      link: '/leads/5',
+      created_at: NOW,
+      read_at: null,
+    },
+    {
+      id: 11,
+      kind: 'lead',
+      title: 'Régi érdeklődés',
+      body: null,
+      link: null,
+      created_at: NOW,
+      read_at: NOW,
+    },
+  ],
+  unread: 1,
 };

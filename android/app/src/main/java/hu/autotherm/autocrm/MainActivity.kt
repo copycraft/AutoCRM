@@ -1,6 +1,23 @@
 package hu.autotherm.autocrm
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.ui.platform.LocalContext
+import hu.autotherm.autocrm.data.notifications.NotificationPollWorker
+import hu.autotherm.autocrm.ui.hr.LeaveScreen
+import hu.autotherm.autocrm.ui.hr.LeaveViewModel
+import hu.autotherm.autocrm.ui.notifications.NotificationsScreen
+import hu.autotherm.autocrm.ui.notifications.NotificationsViewModel
+import kotlinx.coroutines.delay
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,6 +42,7 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -123,9 +141,19 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    /** Set by a tapped system notification; the scaffold navigates to it once and clears it. */
+    private var pendingRoute by mutableStateOf<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingRoute = intent.getStringExtra(NotificationPollWorker.EXTRA_ROUTE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        pendingRoute = intent?.getStringExtra(NotificationPollWorker.EXTRA_ROUTE)
         val app = application as AutoCrmApp
         setContent {
             val themeMode by app.themePrefs.mode.collectAsState(initial = ThemePrefs.MODE_SYSTEM)
@@ -167,7 +195,12 @@ class MainActivity : ComponentActivity() {
                         onSignedOut = { /* session cleared; the flow falls back to login */ },
                     )
 
-                    else -> AppScaffold(app, account!!)
+                    else -> AppScaffold(
+                        app,
+                        account!!,
+                        pendingRoute = pendingRoute,
+                        onRouteHandled = { pendingRoute = null },
+                    )
                 }
             }
         }
@@ -193,6 +226,8 @@ private sealed class Destination(val route: String, val label: String, val icon:
     data object Hr : Destination("hr", "HR", Icons.Filled.Badge)
     /** Every account and its rights: admins only. */
     data object Users : Destination("users", "Felhasználók", Icons.Filled.ManageAccounts)
+    /** What happened that needs attention: new website leads. */
+    data object Notifications : Destination("notifications", "Értesítések", Icons.Filled.Notifications)
     data object Queue : Destination("queue", "Sor", Icons.Filled.CloudUpload)
     data object Settings : Destination("settings", "Beállítások", Icons.Filled.Settings)
 }
@@ -205,6 +240,7 @@ private val DESTINATIONS = listOf(
     Destination.Emails,
     Destination.Tasks,
     Destination.Reports,
+    Destination.Notifications,
     Destination.Hr,
     Destination.Users,
     Destination.Queue,
@@ -221,6 +257,7 @@ private fun parentOf(route: String?): Destination = when {
     route.startsWith("email") -> Destination.Emails
     route.startsWith("task") -> Destination.Tasks
     route.startsWith("report") -> Destination.Reports
+    route.startsWith("notifications") -> Destination.Notifications
     route.startsWith("hr") -> Destination.Hr
     route.startsWith("users") -> Destination.Users
     route.startsWith("queue") -> Destination.Queue
@@ -230,8 +267,44 @@ private fun parentOf(route: String?): Destination = when {
 }
 
 @Composable
-private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
+private fun AppScaffold(
+    app: AutoCrmApp,
+    account: SessionStore.Account,
+    pendingRoute: String?,
+    onRouteHandled: () -> Unit,
+) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    var unreadNotifications by rememberSaveable { mutableStateOf(0L) }
+    // Android 13+ asks before an app may show notifications. Asked once the user is in; a
+    // refusal is fine, the same items are in the Értesítések list.
+    val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            askPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    // The unread count on the drawer item, refreshed while the app is on screen.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                runCatching { app.api.notifications(unreadOnly = true, limit = 1) }
+                    .onSuccess { unreadNotifications = it.unread }
+                delay(60_000)
+            }
+        }
+    }
+    // A tapped system notification opens what it is about.
+    LaunchedEffect(pendingRoute) {
+        val route = pendingRoute ?: return@LaunchedEffect
+        if (route == Destination.Notifications.route) navController.navigateToTop(route)
+        else runCatching { navController.navigate(route) }
+        onRouteHandled()
+    }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val outstanding by app.uploadQueue.outstanding.collectAsState(initial = 0)
@@ -288,6 +361,9 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
                         badge = {
                             if (dest is Destination.Queue && (outstanding > 0 || blocked > 0)) {
                                 Text("${outstanding + blocked}")
+                            }
+                            if (dest is Destination.Notifications && unreadNotifications > 0) {
+                                Text("$unreadNotifications")
                             }
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
@@ -585,10 +661,24 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
             }
             // The server refuses these to everyone else; the guard also covers a route that
             // is open while a grant is taken away (the account refresh below follows).
+            composable(Destination.Notifications.route) {
+                NotificationsScreen(
+                    viewModel = viewModel { NotificationsViewModel(app.api) },
+                    onMenu = openDrawer,
+                    onRoute = { route -> navController.navigate(route) },
+                )
+            }
+            composable("hr/leave") {
+                if (account.hrAccess) LeaveScreen(
+                    viewModel = viewModel { LeaveViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable(Destination.Hr.route) {
                 if (account.hrAccess) HrListScreen(
                     viewModel = viewModel { HrListViewModel(app.api) },
                     onMenu = openDrawer,
+                    onLeave = { navController.navigate("hr/leave") },
                     onNew = { navController.navigate("hr/new") },
                     onEdit = { id -> navController.navigate("hr/$id/edit") },
                 )

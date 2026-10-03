@@ -367,4 +367,21 @@ export const hrApi = {
     request(`/hr/employees/${id}/photo`, s.zHrSetPhotoResponse, { method: 'PUT', rawBody: file }),
   removePhoto: (id: number): Promise<S['Employee']> =>
     request(`/hr/employees/${id}/photo`, s.zHrRemovePhotoResponse, { method: 'DELETE' }),
+  absences: (search: { from: string; to: string; employee_id?: number }): Promise<S['Items_Absence']> =>
+    request('/hr/absences', s.zHrListAbsencesResponse, { search }),
+  createAbsence: (employeeId: number, body: S['AbsenceBody']): Promise<S['Absence']> =>
+    request(`/hr/employees/${employeeId}/absences`, s.zHrCreateAbsenceResponse, { method: 'POST', body }),
+  deleteAbsence: (id: number): Promise<void> =>
+    requestNoContent(`/hr/absences/${id}`, { method: 'DELETE' }),
+  leaveSummary: (year: number): Promise<S['Items_LeaveBalance']> =>
+    request('/hr/leave-summary', s.zHrLeaveSummaryResponse, { search: { year } }),
+};
+
+// ── Notifications (the signed-in user's own) ──
+export const notificationsApi = {
+  list: (search: { unread_only?: boolean; after_id?: number; limit?: number } = {}): Promise<S['NotificationList']> =>
+    request('/notifications', s.zNotificationsListResponse, { search }),
+  markRead: (ids: number[]): Promise<void> =>
+    requestNoContent('/notifications/read', { method: 'POST', body: { ids } }),
+  markAllRead: (): Promise<void> => requestNoContent('/notifications/read-all', { method: 'POST' }),
 };

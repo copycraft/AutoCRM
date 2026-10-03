@@ -428,6 +428,7 @@ export const zEmployee = z.object({
     company_phone: z.string().nullish(),
     personal_phone: z.string().nullish(),
     photo_url: z.string().nullish(),
+    annual_leave_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
     archived_at: z.string().datetime().nullish(),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime()
@@ -440,7 +441,8 @@ export const zEmployeeBody = z.object({
     full_name: z.string().nullish(),
     email: z.string().nullish(),
     company_phone: z.string().nullish(),
-    personal_phone: z.string().nullish()
+    personal_phone: z.string().nullish(),
+    annual_leave_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish()
 });
 
 /**
@@ -453,6 +455,7 @@ export const zErrorCode = z.enum([
     'validation',
     'too_many_requests',
     'duplicate',
+    'overlap',
     'invalid_reference',
     'constraint_violation',
     'immutable',
@@ -978,6 +981,7 @@ export const zItemsEmployee = z.object({
         company_phone: z.string().nullish(),
         personal_phone: z.string().nullish(),
         photo_url: z.string().nullish(),
+        annual_leave_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
         archived_at: z.string().datetime().nullish(),
         created_at: z.string().datetime(),
         updated_at: z.string().datetime()
@@ -1079,6 +1083,23 @@ export const zItemsLeadSummary = z.object({
         order_id: z.number().int().nullish(),
         order_number: z.string().nullish(),
         created_at: z.string().datetime()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsLeaveBalance = z.object({
+    items: z.array(z.object({
+        employee_id: z.number().int(),
+        full_name: z.string(),
+        year: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        allowance_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        used_annual: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        remaining: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        sick_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        unpaid_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        other_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' })
     }))
 });
 
@@ -1401,6 +1422,61 @@ export const zLeadSummary = z.object({
     created_at: z.string().datetime()
 });
 
+export const zLeaveBalance = z.object({
+    employee_id: z.number().int(),
+    full_name: z.string(),
+    year: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    allowance_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    used_annual: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    remaining: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    sick_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    unpaid_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    other_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' })
+});
+
+export const zLeaveKind = z.enum([
+    'annual',
+    'sick',
+    'unpaid',
+    'other'
+]);
+
+export const zAbsence = z.object({
+    id: z.number().int(),
+    employee_id: z.number().int(),
+    employee_name: z.string(),
+    kind: zLeaveKind,
+    start_date: z.string().date(),
+    end_date: z.string().date(),
+    working_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    note: z.string().nullish(),
+    created_at: z.string().datetime()
+});
+
+export const zAbsenceBody = z.object({
+    kind: zLeaveKind,
+    start_date: z.string().date(),
+    end_date: z.string().date(),
+    note: z.string().nullish()
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsAbsence = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        employee_id: z.number().int(),
+        employee_name: z.string(),
+        kind: zLeaveKind,
+        start_date: z.string().date(),
+        end_date: z.string().date(),
+        working_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        note: z.string().nullish(),
+        created_at: z.string().datetime()
+    }))
+});
+
 /**
  * One selectable value with its Hungarian label.
  */
@@ -1429,6 +1505,10 @@ export const zLookups = z.object({
     image_categories: z.array(zImageCategoryEntry),
     email_themes: z.array(zEmailThemeEntry),
     error_texts: z.array(zErrorTextEntry)
+});
+
+export const zMarkRead = z.object({
+    ids: z.array(z.number().int())
 });
 
 /**
@@ -1547,6 +1627,21 @@ export const zNewsletterSent = z.object({
 
 export const zNoteBody = z.object({
     body: z.string()
+});
+
+export const zNotification = z.object({
+    id: z.number().int(),
+    kind: z.string(),
+    title: z.string(),
+    body: z.string().nullish(),
+    link: z.string().nullish(),
+    created_at: z.string().datetime(),
+    read_at: z.string().datetime().nullish()
+});
+
+export const zNotificationList = z.object({
+    items: z.array(zNotification),
+    unread: z.number().int()
 });
 
 export const zOrder = z.object({
@@ -3291,6 +3386,26 @@ export const zNewsletterConfirmPath = z.object({
 
 export const zNewsletterConfirmResponse = zConfirmed;
 
+export const zNotificationsListQuery = z.object({
+    after_id: z.number().int().optional(),
+    unread_only: z.boolean().optional(),
+    limit: z.number().int().optional()
+});
+
+export const zNotificationsListResponse = zNotificationList;
+
+export const zNotificationsMarkReadBody = zMarkRead;
+
+/**
+ * Marked read (ids that are not yours are ignored)
+ */
+export const zNotificationsMarkReadResponse = z.void();
+
+/**
+ * Everything marked read
+ */
+export const zNotificationsMarkAllReadResponse = z.void();
+
 export const zEmailListQuery = z.object({
     order_id: z.number().int().optional(),
     lead_id: z.number().int().optional(),
@@ -3424,6 +3539,37 @@ export const zHrSetPhotoPath = z.object({
 });
 
 export const zHrSetPhotoResponse = zEmployee;
+
+export const zHrListAbsencesQuery = z.object({
+    from: z.string().date(),
+    to: z.string().date(),
+    employee_id: z.number().int().optional()
+});
+
+export const zHrListAbsencesResponse = zItemsAbsence;
+
+export const zHrCreateAbsenceBody = zAbsenceBody;
+
+export const zHrCreateAbsencePath = z.object({
+    id: z.number().int()
+});
+
+export const zHrCreateAbsenceResponse = zAbsence;
+
+export const zHrDeleteAbsencePath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * Removed
+ */
+export const zHrDeleteAbsenceResponse = z.void();
+
+export const zHrLeaveSummaryQuery = z.object({
+    year: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).optional()
+});
+
+export const zHrLeaveSummaryResponse = zItemsLeaveBalance;
 
 export const zReportsVolumeQuery = z.object({
     from: z.string().date().optional(),

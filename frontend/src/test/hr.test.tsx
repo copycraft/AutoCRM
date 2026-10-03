@@ -7,6 +7,8 @@ import { overrides, resetOverrides, resetWrites, writes } from './client-mock';
 import { EmployeeDirectory } from '@/components/hr/EmployeeDirectory';
 import { UsersAdmin } from '@/components/admin/UsersAdmin';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { LeaveSection } from '@/components/hr/LeaveSection';
+import { NotificationList } from '@/components/notifications/NotificationList';
 
 vi.mock('@/lib/api/client', () => import('./client-mock'));
 vi.mock('next/navigation', () => ({
@@ -111,5 +113,59 @@ describe('Users page', () => {
     renderPage(<UsersAdmin />);
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByText('Nagy Anna')).not.toBeInTheDocument();
+  });
+});
+
+describe('Leave', () => {
+  it('shows the month calendar, the month absences and the balances', async () => {
+    renderPage(<LeaveSection />);
+    expect(await screen.findByRole('table', { name: 'Csapatnaptár' })).toBeInTheDocument();
+    // The absence is listed with its kind, dates, working days and note.
+    expect(await screen.findByText('Nyaralás')).toBeInTheDocument();
+    expect(screen.getByText('3 munkanap')).toBeInTheDocument();
+    // The balance: over the allowance reads as a negative number.
+    expect(screen.getByText('-3')).toBeInTheDocument();
+    expect(screen.getByText('Szabadságegyenleg', { exact: false })).toBeInTheDocument();
+  });
+
+  it('books an absence with the dates and kind chosen', async () => {
+    renderPage(<LeaveSection />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Új távollét' }));
+    fireEvent.change(await screen.findByLabelText('Típus'), { target: { value: 'sick' } });
+    fireEvent.change(screen.getByLabelText('Kezdete'), { target: { value: '2026-06-08' } });
+    fireEvent.change(screen.getByLabelText('Utolsó nap'), { target: { value: '2026-06-10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Mentés' }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      path: '/hr/employees/7/absences',
+      method: 'POST',
+      body: { kind: 'sick', start_date: '2026-06-08', end_date: '2026-06-10', note: null },
+    });
+  });
+
+  it('removes an absence after confirmation', async () => {
+    renderPage(<LeaveSection />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Távollét törlése: Kiss Péter' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Megerősítés' }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({ path: '/hr/absences/31', method: 'DELETE' });
+  });
+});
+
+describe('Notifications', () => {
+  it('shows an unread badge in the menu', async () => {
+    renderPage(<Sidebar />);
+    expect(await screen.findByLabelText('1 olvasatlan')).toBeInTheDocument();
+  });
+
+  it('lists them, marks one read when opened, and can mark all read', async () => {
+    renderPage(<NotificationList />);
+    expect(await screen.findByText('Új érdeklődés a weboldalról')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Új érdeklődés a weboldalról'));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({ path: '/notifications/read', method: 'POST', body: { ids: [12] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Mind olvasott' }));
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1]).toMatchObject({ path: '/notifications/read-all', method: 'POST' });
   });
 });

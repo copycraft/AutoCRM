@@ -64,7 +64,7 @@ export function EmployeeDirectory() {
   return <Directory />;
 }
 
-function Directory() {
+export function Directory() {
   const t = useTranslations('hr');
   const tc = useTranslations('common');
   const [q, setQ] = useState('');
@@ -177,6 +177,7 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
   const [email, setEmail] = useState(employee?.email ?? '');
   const [companyPhone, setCompanyPhone] = useState(employee?.company_phone ?? '');
   const [personalPhone, setPersonalPhone] = useState(employee?.personal_phone ?? '');
+  const [leaveDays, setLeaveDays] = useState(String(employee?.annual_leave_days ?? 20));
   const [photo, setPhoto] = useState<File | null>(null);
   const [removePhoto, setRemovePhoto] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -203,6 +204,7 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
         email: email.trim() || null,
         company_phone: companyPhone.trim() || null,
         personal_phone: personalPhone.trim() || null,
+        annual_leave_days: Number.parseInt(leaveDays, 10),
       };
       const saved = employee ? await hrApi.update(employee.id, body) : await hrApi.create(body);
       if (photo) await hrApi.setPhoto(saved.id, photo);
@@ -236,7 +238,8 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
   };
 
   const busy = save.isPending || toggleArchive.isPending;
-  const canSave = fullName.trim() !== '' && !busy;
+  const leaveOk = /^\d{1,3}$/.test(leaveDays) && Number.parseInt(leaveDays, 10) <= 366;
+  const canSave = fullName.trim() !== '' && leaveOk && !busy;
 
   return (
     <>
@@ -333,6 +336,20 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
                       onChange={(e) => setPersonalPhone(e.target.value)}
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="label" htmlFor="hr-leave">
+                    {t('annualLeaveDays')}
+                  </label>
+                  <input
+                    id="hr-leave"
+                    inputMode="numeric"
+                    className="input w-32"
+                    value={leaveDays}
+                    onChange={(e) => setLeaveDays(e.target.value)}
+                    aria-invalid={!leaveOk}
+                  />
+                  <p className="mt-1 text-metadata text-steel-500">{t('annualLeaveHint')}</p>
                 </div>
                 <div>
                   <label className="label" htmlFor="hr-email">

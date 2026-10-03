@@ -40,6 +40,7 @@ Status mapping on Android: 400/409/422 → `ApiException.Rule` (rendered from th
 | `validation` | 400 | no | Érvényesítési hiba. Ellenőrizze a megadott adatokat. |
 | `too_many_requests` | 429 | yes | Túl sok próbálkozás. Próbálja újra később. |
 | `duplicate` | 409 | no | Ilyen adat már létezik. |
+| `overlap` | 409 | no | A munkatársnak ebben az időszakban már van rögzített távolléte. |
 | `invalid_reference` | 422 | no | Érvénytelen hivatkozás, vagy a hivatkozott adat még használatban van. |
 | `constraint_violation` | 422 | no | Az adat sérti az adatbázis szabályait. |
 | `immutable` | 409 | no | Ez bizonyítási célból védett adat, nem módosítható és nem törölhető. |
