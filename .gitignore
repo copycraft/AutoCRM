@@ -31,3 +31,4 @@ Thumbs.db
 
 # Output of build.sh
 /build/
+/backend/local-test-accounts.txt

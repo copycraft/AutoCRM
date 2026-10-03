@@ -140,7 +140,7 @@ Built $(date -u +%Y-%m-%dT%H:%M:%SZ) from commit $(git -C "$ROOT" rev-parse --sh
 |---|---|---|
 | \`backend/\` | The API: \`autocrm\`$EXE (+ \`autocrm-migrate\`$EXE, \`.env.example\`, \`migrations/\`) | Copy \`.env.example\` to \`.env\` and fill it in. \`./autocrm migrate\`, \`./autocrm create-admin\`, then \`./autocrm serve\` |
 | \`backend/linux-x86_64/\` | Linux server binary (only with \`LINUX_BINARY=1\`) | Same commands |
-| \`frontend/\` | Web app, Next.js standalone server | \`PORT=3000 HOSTNAME=127.0.0.1 node server.js\` (Node 20+). \`/api\` is proxied to \`$API_URL\` (fixed at build time) |
+| \`frontend/\` | Web app, Next.js standalone server | \`PORT=3000 HOSTNAME=:: node server.js\` (Node 20+; \`::\` listens on IPv4 and IPv6, binding to 127.0.0.1 only breaks the app's internal localhost proxy). \`/api\` is proxied to \`$API_URL\` (fixed at build time) |
 | \`nav-sidecar/\` | NAV Online Számla sidecar | \`node dist/index.js\`, or build the Docker image from its \`Dockerfile\`. Needs \`SIDECAR_TOKEN\` and the NAV technical user (see its README) |
 | \`android/autocrm.apk\` | Signed release APK, prefilled server \`$PUBLIC_URL\` | Install on the phones; the server can be changed on first run |
 | \`openapi/openapi.json\` | The API contract | |
