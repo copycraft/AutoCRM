@@ -48,7 +48,9 @@ pub mod triggers {
 
 /// NAV's annulment codes. A technical annulment says the *report* was wrong, which is a
 /// different claim from "the invoice was wrong" — that is a storno.
-const ANNULMENT_CODES: [&str; 4] = [
+///
+/// `pub(crate)`: the lookups endpoint publishes these to the clients.
+pub(crate) const ANNULMENT_CODES: [&str; 4] = [
     "ERRATIC_DATA",
     "ERRATIC_INVOICE_NUMBER",
     "ERRATIC_INVOICE_ISSUE_DATE",

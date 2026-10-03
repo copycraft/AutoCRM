@@ -11,30 +11,58 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { DateDisplay } from '@/components/ui/DateDisplay';
-import { ordersApi } from '@/lib/api/endpoints';
+import { configApi, ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { daysSince } from '@/lib/utils/format';
-
-const WORK_STAGES = ['design', 'production', 'meo'];
 
 export function PickupBoard() {
   const t = useTranslations('board');
   const locale = useLocale();
 
-  const ready = useQuery({
-    queryKey: qk.orders({ stage: 'completed', board: true }),
-    // Server-side sort: the 30 most recently *completed* cars, not the 30 most
-    // recently created completed orders (ORD-L5). The client re-sort below is
-    // only a tiebreak for rows the server already ordered.
-    queryFn: () => ordersApi.list({ stage: 'completed', limit: 30, sort: '-stage_entered_at' }),
+  // The board's two halves are derived from the server's stage definitions, not
+  // from a local stage list: a workshop stage the office adds appears here
+  // without a web deploy. Ready = active terminal stages that are not the exit
+  // (collected cars, not cancelled ones); working = every other active stage
+  // past the entry one (new arrivals are not "in work" yet).
+  const definitions = useQuery({
+    queryKey: qk.stages('order'),
+    queryFn: () => configApi.stages('order'),
     refetchInterval: 30_000,
     staleTime: 15_000,
   });
+  const orderStages = (definitions.data?.items ?? []).filter((s) => s.is_active);
+  const entryPosition = Math.min(
+    ...orderStages.filter((s) => !s.is_terminal).map((s) => s.position),
+  );
+  const readyStages = orderStages.filter((s) => s.is_terminal && !s.is_exit).map((s) => s.key);
+  const workStages = orderStages
+    .filter((s) => !s.is_terminal && !s.is_exit && s.position > entryPosition)
+    .sort((a, b) => a.position - b.position)
+    .map((s) => s.key);
+  const stagesReady = definitions.isSuccess;
+
+  const readyQueries = useQueries({
+    queries: (stagesReady ? readyStages : []).map((stage) => ({
+      queryKey: qk.orders({ stage, board: true }),
+      queryFn: () => ordersApi.list({ stage, limit: 30, sort: '-stage_entered_at' }),
+      refetchInterval: 30_000,
+      staleTime: 15_000,
+    })),
+  });
+  const ready = {
+    isPending: !stagesReady || readyQueries.some((q) => q.isPending),
+    isError: definitions.isError || readyQueries.some((q) => q.isError),
+    error: definitions.error ?? readyQueries.find((q) => q.isError)?.error ?? null,
+    refetch: () => {
+      void definitions.refetch();
+      void Promise.all(readyQueries.map((q) => q.refetch()));
+    },
+  };
   // One query per workshop stage, filtered on the server. Fetching the first page of
   // *all* open orders and filtering here dropped older in-work cars as soon as newer
   // intake orders filled that page.
   const workingQueries = useQueries({
-    queries: WORK_STAGES.map((stage) => ({
+    queries: (stagesReady ? workStages : []).map((stage) => ({
       queryKey: qk.orders({ stage, board: true }),
       queryFn: () => ordersApi.list({ stage, limit: 200 }),
       refetchInterval: 30_000,
@@ -50,9 +78,13 @@ export function PickupBoard() {
 
   // Progressive: each half paints when its own query lands instead of holding
   // the whole wall display behind the slower of the two.
-  const readyCars = [...(ready.data?.items ?? [])].sort((a, b) =>
-    a.stage_entered_at > b.stage_entered_at ? -1 : 1,
-  );
+  // Server-side sort: the 30 most recently *completed* cars per stage, not the
+  // 30 most recently created completed orders (ORD-L5). The client re-sort
+  // below is only a tiebreak for rows the server already ordered.
+  const readyCars = readyQueries
+    .flatMap((q) => q.data?.items ?? [])
+    .sort((a, b) => (a.stage_entered_at > b.stage_entered_at ? -1 : 1))
+    .slice(0, 30);
   const inWork = workingQueries.flatMap((q) => q.data?.items ?? []);
 
   // The route (app/[locale]/board/page.tsx) supplies the one AppShell.

@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import hu.autotherm.autocrm.data.api.Lookups
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -84,26 +85,28 @@ class CapturePrefs(private val context: Context) {
          *  picker: inspection shots only come from the inspection camera loop. */
         const val CATEGORY_INSPECTION = "inspection"
 
-        /** Order matches `image_category` in 0002_partners_leads.sql. */
-        val ALL = listOf(CATEGORY_INTAKE, CATEGORY_PRODUCTION, CATEGORY_COMPLETION, CATEGORY_MARKETING)
+        /**
+         * Category labels come from the server's lookups (`GET /config/lookups`);
+         * an unknown key reads as itself. The `CATEGORY_*` keys above are the
+         * wire values and stay.
+         */
+        fun label(category: String, lookups: Lookups?): String =
+            lookups?.imageCategories?.firstOrNull { it.key == category }?.labelHu
+                ?.takeIf { it.isNotBlank() } ?: category
 
         /**
-         * The only categories a user may pick when attaching photos by hand: production.
-         * Intake and handover shots are evidence with their own flows (bevétel, átadás-átvétel)
-         * and must never come from the gallery or an ad-hoc camera tap — per the client.
+         * The categories a user may pick when attaching photos by hand. Intake
+         * and handover shots are evidence with their own flows (bevétel,
+         * átadás-átvétel) and must never come from the gallery or an ad-hoc
+         * camera tap — per the client.
          */
-        val ATTACHABLE = listOf(CATEGORY_PRODUCTION)
-
-        fun label(category: String): String = when (category) {
-            CATEGORY_INTAKE -> "Bevétel"
-            CATEGORY_PRODUCTION -> "Gyártás"
-            CATEGORY_COMPLETION -> "Átadás/MEO"
-            CATEGORY_MARKETING -> "Referencia"
-            CATEGORY_INSPECTION -> "Átvétel"
-            else -> category
-        }
+        fun attachable(lookups: Lookups?): List<String> =
+            lookups?.imageCategories?.filter { it.attachable }?.map { it.key }
+                ?.takeIf { it.isNotEmpty() } ?: listOf(CATEGORY_PRODUCTION)
 
         /** Irreversible once uploaded: the database trigger refuses delete and re-filing. */
-        fun isImmutable(category: String): Boolean = category == CATEGORY_INTAKE
+        fun isImmutable(category: String, lookups: Lookups?): Boolean =
+            lookups?.imageCategories?.firstOrNull { it.key == category }?.immutable
+                ?: (category == CATEGORY_INTAKE)
     }
 }

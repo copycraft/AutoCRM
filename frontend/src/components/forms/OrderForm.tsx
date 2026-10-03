@@ -13,6 +13,7 @@ import { PartnerPicker, type PartnerOption } from './PartnerPicker';
 import { AssigneeField } from './AssigneeField';
 import { DateQuickPicks } from './DateQuickPicks';
 import { lastAssignee, lastUsed } from '@/hooks/useLastUsed';
+import { useLookups } from '@/hooks/useLookups';
 import { useDirtyGuard } from '@/hooks/useDirtyGuard';
 import { useFormDraft } from '@/hooks/useFormDraft';
 import { BuildSpecSection, type SpecForm } from './BuildSpecSection';
@@ -139,7 +140,9 @@ const schema = z.object({
   partner: z.custom<PartnerOption | null>(() => true),
   contact_id: z.string(),
   project_type_id: z.string(),
-  currency: z.enum(['HUF', 'EUR']),
+  // The server owns the currency list (`GET /config/lookups`) and validates;
+  // the form only requires something chosen.
+  currency: z.string().min(1),
   valuation_date: z.string(),
   vehicle_make: z.string().trim().optional(),
   vehicle_model: z.string().trim().optional(),
@@ -241,7 +244,7 @@ export function orderCreateBody(
     partner_id: v.partner?.id,
     contact_id: v.contact_id ? Number(v.contact_id) : undefined,
     project_type_id: v.project_type_id ? Number(v.project_type_id) : undefined,
-    currency: v.currency,
+    currency: v.currency as OrderBody['currency'],
     valuation_date: date(v.valuation_date),
     vehicle_make: clean(v.vehicle_make),
     vehicle_model: clean(v.vehicle_model),
@@ -271,7 +274,9 @@ export function orderPatchBody(
 ): PatchOrder {
   const body: PatchOrder = {};
   if (v.title.trim() !== original.title) body.title = v.title.trim();
-  if (!currencyLocked && v.currency !== original.currency) body.currency = v.currency;
+  if (!currencyLocked && v.currency !== original.currency) {
+    body.currency = v.currency as OrderBody['currency'];
+  }
   const newPartner = v.partner?.id ?? null;
   const partnerChanged = newPartner !== original.partner_id;
   if (partnerChanged && newPartner !== null) body.partner_id = newPartner;
@@ -323,6 +328,8 @@ export function OrderForm({
   const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
   const [partnerError, setPartnerError] = useState(false);
+  const { data: lookups } = useLookups();
+  const currencies = lookups?.currencies ?? [];
 
   const emptyOrder: OrderFormValues = {
     title: '',
@@ -478,8 +485,11 @@ export function OrderForm({
         <div>
           <label className="label" htmlFor="of-currency">{t('currencyLabel')} *</label>
           <select id="of-currency" className="input" {...register('currency')} disabled={currencyLocked}>
-            <option value="HUF">HUF</option>
-            <option value="EUR">EUR</option>
+            {currencies.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.key}
+              </option>
+            ))}
           </select>
           {currencyLocked && <p className="mt-1 text-metadata text-steel-500">{t('currencyLocked')}</p>}
         </div>

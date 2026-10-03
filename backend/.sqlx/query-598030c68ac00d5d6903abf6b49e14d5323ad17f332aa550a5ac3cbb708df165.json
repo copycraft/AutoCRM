@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.order_id, o.number AS order_number, pt.name AS partner_name,\n                  p.number, p.currency, p.issue_date, p.payment_date, p.net_amount,\n                  p.vat_amount, p.gross_amount, p.document_id, p.created_by, p.created_at\n             FROM proformas p\n             JOIN orders o ON o.id = p.order_id\n             JOIN partners pt ON pt.id = o.partner_id\n            ORDER BY p.id DESC LIMIT $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "order_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "partner_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "issue_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "payment_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "net_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "vat_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "document_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "598030c68ac00d5d6903abf6b49e14d5323ad17f332aa550a5ac3cbb708df165"
+}

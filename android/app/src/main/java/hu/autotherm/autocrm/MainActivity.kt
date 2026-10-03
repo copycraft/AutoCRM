@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
@@ -62,6 +64,12 @@ import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.prefs.ThemePrefs
 import hu.autotherm.autocrm.ui.capture.CaptureScreen
 import hu.autotherm.autocrm.ui.capture.CaptureViewModel
+import hu.autotherm.autocrm.ui.admin.UsersScreen
+import hu.autotherm.autocrm.ui.admin.UsersViewModel
+import hu.autotherm.autocrm.ui.hr.HrEditScreen
+import hu.autotherm.autocrm.ui.hr.HrEditViewModel
+import hu.autotherm.autocrm.ui.hr.HrListScreen
+import hu.autotherm.autocrm.ui.hr.HrListViewModel
 import hu.autotherm.autocrm.ui.directory.DirectoryScreen
 import hu.autotherm.autocrm.ui.directory.DirectoryViewModel
 import hu.autotherm.autocrm.ui.emails.EmailComposeScreen
@@ -181,6 +189,10 @@ private sealed class Destination(val route: String, val label: String, val icon:
     data object Emails : Destination("emails", "E-mailek", Icons.Filled.Email)
     data object Tasks : Destination("tasks", "Feladatok", Icons.Filled.Checklist)
     data object Reports : Destination("reports", "Jelentések", Icons.Filled.BarChart)
+    /** Staff directory: only for admins and users an admin granted HR access. */
+    data object Hr : Destination("hr", "HR", Icons.Filled.Badge)
+    /** Every account and its rights: admins only. */
+    data object Users : Destination("users", "Felhasználók", Icons.Filled.ManageAccounts)
     data object Queue : Destination("queue", "Sor", Icons.Filled.CloudUpload)
     data object Settings : Destination("settings", "Beállítások", Icons.Filled.Settings)
 }
@@ -193,6 +205,8 @@ private val DESTINATIONS = listOf(
     Destination.Emails,
     Destination.Tasks,
     Destination.Reports,
+    Destination.Hr,
+    Destination.Users,
     Destination.Queue,
     Destination.Settings,
 )
@@ -207,6 +221,8 @@ private fun parentOf(route: String?): Destination = when {
     route.startsWith("email") -> Destination.Emails
     route.startsWith("task") -> Destination.Tasks
     route.startsWith("report") -> Destination.Reports
+    route.startsWith("hr") -> Destination.Hr
+    route.startsWith("users") -> Destination.Users
     route.startsWith("queue") -> Destination.Queue
     // Inspection walkaround/history always opens from an order.
     route.startsWith("inspection") -> Destination.Orders
@@ -222,6 +238,12 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
     val blocked by app.uploadQueue.blocked.collectAsState(initial = 0)
     val canEdit = account.canEdit
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
+    // Who the server says this is can change under a running session (an admin grants or
+    // takes away HR access, or re-roles an account). Refresh it on open so the drawer
+    // follows without a sign-in; offline, the stored account stands.
+    LaunchedEffect(Unit) {
+        runCatching { app.api.me() }.onSuccess { app.sessionStore.refreshUser(it.user) }
+    }
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
     // A cancelled logout must not stay armed: reopening the drawer starts over.
     LaunchedEffect(drawerState.isClosed) {
@@ -245,7 +267,14 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
                 val current = parentOf(entry?.destination?.route)
                 // Hidden like every other capability gate: the server refuses
                 // uploads from roles without media rights anyway.
-                DESTINATIONS.filter { it != Destination.Capture || account.canUploadMedia }.forEach { dest ->
+                DESTINATIONS.filter { dest ->
+                    when (dest) {
+                        Destination.Capture -> account.canUploadMedia
+                        Destination.Hr -> account.hrAccess
+                        Destination.Users -> account.isAdmin
+                        else -> true
+                    }
+                }.forEach { dest ->
                     NavigationDrawerItem(
                         label = { Text(dest.label) },
                         selected = current == dest,
@@ -338,8 +367,8 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
                     val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                     OrderDetailScreen(
                         orderId = id,
-                        viewModel = viewModel { OrderDetailViewModel(app.api, app.sessionStore) },
-                        photoViewModel = viewModel { OrderPhotoViewModel(app.uploadQueue, app.capturePrefs) },
+                        viewModel = viewModel { OrderDetailViewModel(app.api, app.sessionStore, app.lookupsCache) },
+                        photoViewModel = viewModel { OrderPhotoViewModel(app.uploadQueue, app.capturePrefs, app.api, app.lookupsCache) },
                         onOpenOrder = { other -> navController.navigate("order/$other") },
                         onBack = { navController.popBackStack() },
                         onEditOrder = { navController.navigate("order/$id/edit") },
@@ -359,7 +388,7 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
                 CaptureScreen(
                     orderId = id,
                     viewModel = viewModel { CaptureViewModel(app.api) },
-                    photoViewModel = viewModel { OrderPhotoViewModel(app.uploadQueue, app.capturePrefs) },
+                    photoViewModel = viewModel { OrderPhotoViewModel(app.uploadQueue, app.capturePrefs, app.api, app.lookupsCache) },
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -407,7 +436,7 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                 LeadDetailScreen(
                     leadId = id,
-                    viewModel = viewModel { LeadDetailViewModel(app.api) },
+                    viewModel = viewModel { LeadDetailViewModel(app.api, app.lookupsCache) },
                     onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
                     onBack = { navController.popBackStack() },
                     canEdit = canEdit,
@@ -550,7 +579,44 @@ private fun AppScaffold(app: AutoCrmApp, account: SessionStore.Account) {
             }
             composable(Destination.Queue.route) {
                 QueueScreen(
-                    viewModel = viewModel { QueueViewModel(app.uploadQueue, app.api, app.sessionStore) },
+                    viewModel = viewModel { QueueViewModel(app.uploadQueue, app.api, app.sessionStore, app.lookupsCache) },
+                    onMenu = openDrawer,
+                )
+            }
+            // The server refuses these to everyone else; the guard also covers a route that
+            // is open while a grant is taken away (the account refresh below follows).
+            composable(Destination.Hr.route) {
+                if (account.hrAccess) HrListScreen(
+                    viewModel = viewModel { HrListViewModel(app.api) },
+                    onMenu = openDrawer,
+                    onNew = { navController.navigate("hr/new") },
+                    onEdit = { id -> navController.navigate("hr/$id/edit") },
+                )
+            }
+            composable("hr/new") {
+                if (account.hrAccess) HrEditScreen(
+                    employeeId = null,
+                    viewModel = viewModel { HrEditViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(
+                "hr/{id}/edit",
+                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+            ) { entry ->
+                val id = entry.arguments?.getLong("id") ?: return@composable
+                if (account.hrAccess) HrEditScreen(
+                    employeeId = id,
+                    viewModel = viewModel { HrEditViewModel(app.api) },
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable(Destination.Users.route) {
+                if (account.isAdmin) UsersScreen(
+                    viewModel = viewModel { UsersViewModel(app.api) },
+                    myUserId = account.userId,
                     onMenu = openDrawer,
                 )
             }

@@ -107,3 +107,9 @@ export function canSendEmail(user: SessionUser | null): boolean {
 export function canAdmin(user: SessionUser | null): boolean {
   return !!user && user.role === 'admin';
 }
+
+/// The HR module: admins, and users an admin granted it (the backend computes it into
+/// `hr_access`, which is already true for admins).
+export function canAccessHr(user: SessionUser | null): boolean {
+  return !!user && user.hr_access;
+}

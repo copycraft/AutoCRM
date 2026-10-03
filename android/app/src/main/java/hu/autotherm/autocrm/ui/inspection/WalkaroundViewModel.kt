@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import hu.autotherm.autocrm.AutoCrmApp
 import hu.autotherm.autocrm.data.api.Comparison
+import hu.autotherm.autocrm.data.api.Lookups
 import hu.autotherm.autocrm.data.api.ZoneTemplate
 import hu.autotherm.autocrm.data.db.InspectionDraft
 import hu.autotherm.autocrm.data.db.PendingUpload
@@ -17,8 +18,14 @@ import hu.autotherm.autocrm.data.inspection.DraftPayload
 import hu.autotherm.autocrm.data.inspection.DraftPhoto
 import hu.autotherm.autocrm.data.inspection.DraftSignature
 import hu.autotherm.autocrm.data.inspection.DraftVerdict
+import hu.autotherm.autocrm.data.inspection.ZONE_LIST_UNAVAILABLE
+import hu.autotherm.autocrm.data.inspection.cachedLookups
+import hu.autotherm.autocrm.data.inspection.displayTitle
+import hu.autotherm.autocrm.data.inspection.downloadLookups
+import hu.autotherm.autocrm.data.inspection.downloadZoneList
 import hu.autotherm.autocrm.data.inspection.inspectionDir
-import hu.autotherm.autocrm.data.inspection.zoneTitle
+import hu.autotherm.autocrm.data.inspection.resolveZones
+import hu.autotherm.autocrm.data.inspection.zoneListNotice
 import hu.autotherm.autocrm.data.upload.sha256Hex
 import hu.autotherm.autocrm.data.inspection.InspectionSyncWorker
 import java.io.File
@@ -33,25 +40,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 private val json = Json { ignoreUnknownKeys = true }
-
-/** Fallback zone walk when the templates endpoint is unreachable (offline start). */
-private val FALLBACK_ZONES = listOf(
-    "front" to "Elölről – az egész autó a képben",
-    "front_left" to "Bal első sarok",
-    "left_side" to "Bal oldal – az egész autó a képben",
-    "rear_left" to "Bal hátsó sarok",
-    "rear" to "Hátulról – az egész autó a képben",
-    "rear_right" to "Jobb hátsó sarok",
-    "right_side" to "Jobb oldal – az egész autó a képben",
-    "front_right" to "Jobb első sarok",
-    "roof" to "Tető (ha elérhető)",
-    "wheels" to "Kerekek, gumik (mind a négy)",
-    "glass" to "Szélvédő és üvegek",
-    "interior_front" to "Belső: első ülések",
-    "interior_rear" to "Belső: hátsó ülések",
-    "interior_dashboard" to "Belső: műszerfal és óraállás",
-    "interior_boot" to "Belső: csomagtartó / raktér",
-)
 
 /** Where the walkaround is: the camera loop is driven by this, not by navigation. */
 sealed class Phase {
@@ -91,6 +79,10 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
         val comparisonLoading: Boolean = false,
         val busy: Boolean = false,
         val error: String? = null,
+        /** Not an error: where the zone list came from when it is not the server's own (offline start). */
+        val notice: String? = null,
+        /** The server's enumerations (damage types, fuel marks, ...); cached for offline starts. */
+        val lookups: Lookups? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -129,6 +121,10 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
     fun open(uuid: String?, orderId: Long, kind: String) {
         openArgs = Triple(uuid, orderId, kind)
         viewModelScope.launch {
+            // The enumerations the form renders (damage types, fuel marks, ...):
+            // fresh when online, last downloaded when not.
+            val lookups = downloadLookups(app.api, app.lookupsCache)
+                ?: cachedLookups(app.lookupsCache)
             if (uuid != null) {
                 val row = withContext(Dispatchers.IO) {
                     app.database.inspectionDrafts().byUuid(uuid)
@@ -141,6 +137,7 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
                     kind = row.kind,
                     payload = payload,
                     phase = if (payload.signed) Phase.Done(null) else Phase.Zone,
+                    lookups = lookups,
                 )
                 return@launch
             }
@@ -155,24 +152,19 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
             } catch (e: Exception) {
                 ""
             }
-            // Fresh draft: templates from the server when reachable, built-in walk otherwise.
-            val templates = try {
-                app.api.zoneTemplates(order.projectTypeId).map {
-                    ZoneTemplate(
-                        id = it.id,
-                        setKey = it.setKey,
-                        zoneKey = it.zoneKey,
-                        position = it.position,
-                        instruction = it.instruction,
-                        optional = it.optional,
-                        required = it.required,
-                    )
-                }.takeIf { it.isNotEmpty() }
-            } catch (e: Exception) {
-                null
-            } ?: FALLBACK_ZONES.mapIndexed { i, (key, instruction) ->
-                ZoneTemplate(0, "default", key, (i + 1).toLong(), instruction, key == "roof", true)
+            // Fresh draft: the list for this vehicle kind and walkaround comes from the server;
+            // if it cannot be reached, the last one downloaded for the same. There is no list
+            // built into the app: with neither, the walkaround does not start.
+            val fetched = downloadZoneList(app.api, app.zoneListCache, order.projectTypeId, kind)
+            val cached = if (fetched == null) {
+                runCatching { app.zoneListCache.get(order.projectTypeId, kind) }.getOrNull()
+            } else null
+            val resolved = resolveZones(fetched, cached)
+            if (resolved == null) {
+                _state.value = State(error = ZONE_LIST_UNAVAILABLE)
+                return@launch
             }
+            val templates = resolved.zones
             // Check-in links the latest signed check-out when online; otherwise the
             // sync resolves it (and fails visibly if none exists by then).
             val checkoutId = if (kind == "checkin") {
@@ -198,6 +190,8 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
                     templates = templates,
                 ),
                 phase = Phase.Readings,
+                notice = zoneListNotice(resolved.source),
+                lookups = lookups,
             )
             persist()
         }
@@ -450,7 +444,7 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
                     update {
                         it.copy(
                             comparisonLoading = false,
-                            error = "nincs lezárt átadás ehhez az összehasonlításhoz",
+                            error = "nincs lezárt átvétel ehhez az összehasonlításhoz",
                         )
                     }
                     return@launch
@@ -531,7 +525,7 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
             update {
                 it.copy(
                     error = "hiányzó zónafotó: " +
-                        missingOverview.joinToString { zoneTitle(it.zoneKey) },
+                        missingOverview.joinToString { it.displayTitle() },
                     phase = Phase.Zone,
                     payload = payload.copy(zoneIndex = payload.templates.indexOf(missingOverview.first())),
                 )

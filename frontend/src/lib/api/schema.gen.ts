@@ -260,6 +260,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/config/lookups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every client-facing enumeration in one document: damage types, severities,
+         *     verdicts, fuel levels, task entity types, currencies, invoice payment
+         *     methods, annulment codes, image categories and email composer starters.
+         * @description Any signed-in user may read it (like the zone lists): the phone fetches it
+         *     on the Átvétel-átadás screen and caches it for the yard, the web keeps it
+         *     in react-query. Values and labels come from `domain::lookups`, next to the
+         *     validation that accepts them — changing one is a server deploy, never an
+         *     app update.
+         */
+        get: operations["configuration_lookups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/partners": {
         parameters: {
             query?: never;
@@ -430,6 +456,27 @@ export interface paths {
         get: operations["leads_search"];
         put?: never;
         post: operations["leads_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leads/website": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Website enquiry: `POST` the form with `X-Leads-Key`. No staff login; the key keeps
+         *     strangers out, and with `LEADS_API_KEY` unset the endpoint is off. The lead lands in
+         *     the first stage, unassigned, with source `website`.
+         */
+        post: operations["leads_website"];
         delete?: never;
         options?: never;
         head?: never;
@@ -936,26 +983,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * The zone list the phone walks: the project type's own list for this walkaround, else
+         *     the general one. Items carry `project_type_id`, so a client can tell an own list (set)
+         *     from the general list it was served instead (null).
+         */
         get: operations["inspections_templates"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/inspections/templates/{set}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
+        /** Replaces one whole list, in order. Admin only. */
         put: operations["inspections_replace_templates"];
         post?: never;
-        delete?: never;
+        /**
+         * Removes a project type's own list, so it is served the general one again. The general
+         *     list cannot be removed: every walkaround needs a list to fall back to. Admin only.
+         */
+        delete: operations["inspections_delete_templates"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1432,6 +1473,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/hr/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["hr_list"];
+        put?: never;
+        post: operations["hr_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/employees/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["hr_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["hr_update"];
+        trace?: never;
+    };
+    "/hr/employees/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["hr_archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/employees/{id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["hr_unarchive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/employees/{id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * The profile picture: the raw image bytes (JPEG, PNG or WebP, up to 8 MB) as the body.
+         *     It is cropped to a centred square, scaled to 512 px and re-encoded as JPEG, which also
+         *     strips EXIF. Replaces any previous picture.
+         */
+        put: operations["hr_set_photo"];
+        post?: never;
+        delete: operations["hr_remove_photo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/volume": {
         parameters: {
             query?: never;
@@ -1800,6 +1926,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["invoices_list_all"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/proformas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["invoices_list_all_proformas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders/{id}/invoices": {
         parameters: {
             query?: never;
@@ -2020,6 +2178,82 @@ export interface components {
             entity_id: number;
             action: string;
             changes: Record<string, unknown>;
+        };
+        /** @description An invoice with the order and partner it belongs to, for lists that span orders. */
+        BilledInvoice: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            order_id: number;
+            order_number: string;
+            partner_name: string;
+            number: string;
+            kind: components["schemas"]["InvoiceKind"];
+            status: components["schemas"]["InvoiceStatus"];
+            /** Format: int64 */
+            original_invoice_id?: number | null;
+            currency: string;
+            /** Format: date */
+            issue_date: string;
+            /** Format: date */
+            delivery_date: string;
+            /** Format: date */
+            payment_date?: string | null;
+            payment_method: string;
+            /** Format: int64 */
+            net_amount: number;
+            /** Format: int64 */
+            vat_amount: number;
+            /** Format: int64 */
+            gross_amount: number;
+            nav_transaction_id?: string | null;
+            nav_status?: string | null;
+            nav_error_code?: string | null;
+            nav_message?: string | null;
+            annulment_transaction_id?: string | null;
+            annulment_code?: string | null;
+            annulment_reason?: string | null;
+            /** Format: date-time */
+            annulled_at?: string | null;
+            /** Format: int64 */
+            document_id?: number | null;
+            /** Format: date-time */
+            submitted_at?: string | null;
+            /** Format: date-time */
+            issued_at?: string | null;
+            /** Format: int64 */
+            created_by?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description A proforma with the order and partner it belongs to. */
+        BilledProforma: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            order_id: number;
+            order_number: string;
+            partner_name: string;
+            number: string;
+            currency: string;
+            /** Format: date */
+            issue_date: string;
+            /** Format: date */
+            payment_date?: string | null;
+            /** Format: int64 */
+            net_amount: number;
+            /** Format: int64 */
+            vat_amount: number;
+            /** Format: int64 */
+            gross_amount: number;
+            /** Format: int64 */
+            document_id: number;
+            /** Format: int64 */
+            created_by?: number | null;
+            /** Format: date-time */
+            created_at: string;
         };
         Blocker: {
             /** Format: int64 */
@@ -2490,6 +2724,18 @@ export interface components {
             detail: string;
         };
         /**
+         * @description A starter for the manual composer: picking one fills subject/hero/body, all
+         *     still editable before sending. Content lives here so a new starter or a
+         *     reworded one is a server deploy, not a web deploy.
+         */
+        EmailThemeEntry: {
+            key: string;
+            label_hu: string;
+            subject: string;
+            hero: string;
+            body: string;
+        };
+        /**
          * @description Email transport overrides. Every field is optional: absent keeps the stored
          *     value, explicit null returns it to "inherit from the environment".
          *     `mode: null` clears the whole transport back to environment behaviour.
@@ -2508,6 +2754,30 @@ export interface components {
             smtp_force_ipv4?: boolean | null;
             redirect_to?: string | null;
         };
+        Employee: {
+            /** Format: int64 */
+            id: number;
+            full_name: string;
+            email?: string | null;
+            /** @description The number the company pays for. */
+            company_phone?: string | null;
+            personal_phone?: string | null;
+            /** @description A short-lived link to the profile picture (about an hour); None without one. */
+            photo_url?: string | null;
+            /** Format: date-time */
+            archived_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description Create requires `full_name`. On PATCH every field is optional; `null` clears. */
+        EmployeeBody: {
+            full_name?: string | null;
+            email?: string | null;
+            company_phone?: string | null;
+            personal_phone?: string | null;
+        };
         /** @description The body of every non-2xx response. */
         ErrorBody: {
             error: components["schemas"]["ErrorDetail"];
@@ -2522,6 +2792,18 @@ export interface components {
             code: string;
             /** @description Human-readable detail. For `validation` it names the field and the reason. */
             message: string;
+        };
+        /**
+         * @description The user-facing Hungarian text per error code, from the shared catalog in
+         *     `crate::error` (the same table published in OpenAPI as `x-error-catalog`).
+         *     Clients layer this over their built-in map: the built-in map must stay for
+         *     cold start (a login failure happens before the first fetch), but every
+         *     reworded message and every new code reaches the clients with the next
+         *     lookups fetch — no app update.
+         */
+        ErrorTextEntry: {
+            code: string;
+            text_hu: string;
         };
         FxFetch: {
             /** Format: date */
@@ -2575,6 +2857,18 @@ export interface components {
         };
         /** @enum {string} */
         ImageCategory: "intake" | "production" | "completion" | "marketing" | "inspection";
+        /**
+         * @description An image category with the two rules clients used to hard-code: whether the
+         *     bytes are evidence (`immutable`, the database refuses delete and re-filing)
+         *     and whether a person may file a photo by hand (`attachable`, production
+         *     only — intake and handover shots come from their own flows).
+         */
+        ImageCategoryEntry: {
+            key: string;
+            label_hu: string;
+            immutable: boolean;
+            attachable: boolean;
+        };
         ImageView: components["schemas"]["Image"] & {
             /** @description Presigned, expires after one hour; null until the thumbnail is generated. */
             thumb_url?: string | null;
@@ -2635,6 +2929,14 @@ export interface components {
             verdicts: components["schemas"]["InspectionVerdict"][];
             signatures: components["schemas"]["InspectionSignature"][];
             notes: components["schemas"]["InspectionNote"][];
+            /**
+             * @description The heading of every zone in the list this inspection is walked with, by zone key,
+             *     so a client can name a zone without keeping its own table. A zone the office has
+             *     since removed from the list has no entry: show its key.
+             */
+            zone_titles: {
+                [key: string]: string;
+            };
         };
         InspectionNote: {
             /** Format: int64 */
@@ -2870,6 +3172,86 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_BilledInvoice: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                order_id: number;
+                order_number: string;
+                partner_name: string;
+                number: string;
+                kind: components["schemas"]["InvoiceKind"];
+                status: components["schemas"]["InvoiceStatus"];
+                /** Format: int64 */
+                original_invoice_id?: number | null;
+                currency: string;
+                /** Format: date */
+                issue_date: string;
+                /** Format: date */
+                delivery_date: string;
+                /** Format: date */
+                payment_date?: string | null;
+                payment_method: string;
+                /** Format: int64 */
+                net_amount: number;
+                /** Format: int64 */
+                vat_amount: number;
+                /** Format: int64 */
+                gross_amount: number;
+                nav_transaction_id?: string | null;
+                nav_status?: string | null;
+                nav_error_code?: string | null;
+                nav_message?: string | null;
+                annulment_transaction_id?: string | null;
+                annulment_code?: string | null;
+                annulment_reason?: string | null;
+                /** Format: date-time */
+                annulled_at?: string | null;
+                /** Format: int64 */
+                document_id?: number | null;
+                /** Format: date-time */
+                submitted_at?: string | null;
+                /** Format: date-time */
+                issued_at?: string | null;
+                /** Format: int64 */
+                created_by?: number | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_BilledProforma: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                order_id: number;
+                order_number: string;
+                partner_name: string;
+                number: string;
+                currency: string;
+                /** Format: date */
+                issue_date: string;
+                /** Format: date */
+                payment_date?: string | null;
+                /** Format: int64 */
+                net_amount: number;
+                /** Format: int64 */
+                vat_amount: number;
+                /** Format: int64 */
+                gross_amount: number;
+                /** Format: int64 */
+                document_id: number;
+                /** Format: int64 */
+                created_by?: number | null;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_Blocker: {
             items: {
                 /** Format: int64 */
@@ -3025,6 +3407,26 @@ export interface components {
                 updated_at: string;
                 /** Format: int64 */
                 updated_by?: number | null;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_Employee: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                full_name: string;
+                email?: string | null;
+                /** @description The number the company pays for. */
+                company_phone?: string | null;
+                personal_phone?: string | null;
+                /** @description A short-lived link to the profile picture (about an hour); None without one. */
+                photo_url?: string | null;
+                /** Format: date-time */
+                archived_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -3511,6 +3913,8 @@ export interface components {
                 role: components["schemas"]["Role"];
                 is_active: boolean;
                 must_change_password: boolean;
+                /** @description Unlocks the HR module on top of the role. Admins have it regardless. */
+                hr_access: boolean;
                 /** Format: date-time */
                 created_at: string;
                 /** Format: date-time */
@@ -3544,10 +3948,27 @@ export interface components {
             items: {
                 /** Format: int64 */
                 id: number;
+                /**
+                 * @description Names the list this zone belongs to, e.g. `refrigerated_body:checkin`, or
+                 *     `default:checkin` for the general list. Derived from the two fields below.
+                 */
                 set_key: string;
+                /**
+                 * Format: int64
+                 * @description The project type that owns this list; null for the general list. When a project
+                 *     type has no list of its own this is null on what it is served.
+                 */
+                project_type_id?: number | null;
+                /**
+                 * @description `checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the
+                 *     second, the vehicle leaving (kiadás).
+                 */
+                kind: string;
                 zone_key: string;
                 /** Format: int32 */
                 position: number;
+                /** @description The short heading the phone shows; `instruction` is the sentence under it. */
+                title: string;
                 instruction: string;
                 optional: boolean;
                 required: boolean;
@@ -3703,6 +4124,32 @@ export interface components {
              * @description Mobile clients only.
              */
             expires_at?: string | null;
+        };
+        /** @description One selectable value with its Hungarian label. */
+        LookupItem: {
+            key: string;
+            label_hu: string;
+        };
+        /**
+         * @description Every client-facing enumeration in one document. Clients fetch it once,
+         *     cache it, and render selects, chips and labels from it.
+         */
+        Lookups: {
+            damage_types: components["schemas"]["LookupItem"][];
+            severities: components["schemas"]["LookupItem"][];
+            verdicts: components["schemas"]["LookupItem"][];
+            walkaround_kinds: components["schemas"]["LookupItem"][];
+            fuel_levels: components["schemas"]["LookupItem"][];
+            heating_fuels: components["schemas"]["LookupItem"][];
+            defrost_modes: components["schemas"]["LookupItem"][];
+            order_relations: components["schemas"]["LookupItem"][];
+            task_entity_types: components["schemas"]["LookupItem"][];
+            currencies: components["schemas"]["LookupItem"][];
+            invoice_payment_methods: components["schemas"]["LookupItem"][];
+            annulment_codes: components["schemas"]["LookupItem"][];
+            image_categories: components["schemas"]["ImageCategoryEntry"][];
+            email_themes: components["schemas"]["EmailThemeEntry"][];
+            error_texts: components["schemas"]["ErrorTextEntry"][];
         };
         MeResponse: {
             user: components["schemas"]["SessionUser"];
@@ -4313,6 +4760,13 @@ export interface components {
             relation: string;
         };
         ReplaceTemplatesBody: {
+            /**
+             * Format: int64
+             * @description The project type the list is for; null replaces the general list.
+             */
+            project_type_id?: number | null;
+            /** @description `checkout` or `checkin`. */
+            kind: string;
             zones: components["schemas"]["ZoneBody"][];
         };
         ResetPassword: {
@@ -4356,6 +4810,8 @@ export interface components {
              */
             must_change_password: boolean;
             session_kind: components["schemas"]["SessionKind"];
+            /** @description Whether the HR module is open to this user: admins, and users an admin granted it. */
+            hr_access: boolean;
         };
         SessionView: components["schemas"]["SessionInfo"] & {
             current: boolean;
@@ -4659,6 +5115,8 @@ export interface components {
             display_name?: string | null;
             role?: null | components["schemas"]["Role"];
             is_active?: boolean | null;
+            /** @description Unlocks the HR module for a non-admin. Admins have it regardless. */
+            hr_access?: boolean | null;
         };
         UploadRequest: {
             target: components["schemas"]["UploadTarget"];
@@ -4701,6 +5159,8 @@ export interface components {
             role: components["schemas"]["Role"];
             is_active: boolean;
             must_change_password: boolean;
+            /** @description Unlocks the HR module on top of the role. Admins have it regardless. */
+            hr_access: boolean;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -4791,6 +5251,27 @@ export interface components {
              */
             missing_fx: number;
         };
+        /** @description An enquiry from the autotherm.hu contact form. */
+        WebsiteLead: {
+            /** @description Who is asking. */
+            name: string;
+            /** @description At least one of `email` and `phone` is required, so the office can answer. */
+            email?: string | null;
+            phone?: string | null;
+            /** @description The visitor's message. */
+            message?: string | null;
+            /** @description What they ask about, e.g. the service. Becomes the lead title. */
+            subject?: string | null;
+            /** @description The vehicle, if the form asks for it. */
+            vehicle?: string | null;
+            /** @description The page the form was sent from. */
+            page?: string | null;
+            /**
+             * @description Honeypot: the form renders this hidden. A bot fills it, a person never does; such
+             *     a submission is acknowledged and dropped.
+             */
+            company?: string | null;
+        };
         WorkloadDay: {
             /** Format: date */
             date: string;
@@ -4821,6 +5302,8 @@ export interface components {
             zone_key: string;
             /** Format: int32 */
             position: number;
+            /** @description The short heading the phone shows for the zone. */
+            title: string;
             instruction: string;
             optional: boolean;
             required: boolean;
@@ -4828,10 +5311,27 @@ export interface components {
         ZoneTemplate: {
             /** Format: int64 */
             id: number;
+            /**
+             * @description Names the list this zone belongs to, e.g. `refrigerated_body:checkin`, or
+             *     `default:checkin` for the general list. Derived from the two fields below.
+             */
             set_key: string;
+            /**
+             * Format: int64
+             * @description The project type that owns this list; null for the general list. When a project
+             *     type has no list of its own this is null on what it is served.
+             */
+            project_type_id?: number | null;
+            /**
+             * @description `checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the
+             *     second, the vehicle leaving (kiadás).
+             */
+            kind: string;
             zone_key: string;
             /** Format: int32 */
             position: number;
+            /** @description The short heading the phone shows; `instruction` is the sentence under it. */
+            title: string;
             instruction: string;
             optional: boolean;
             required: boolean;
@@ -5678,6 +6178,43 @@ export interface operations {
             };
         };
     };
+    configuration_lookups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lookups"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     partners_search: {
         parameters: {
             query?: {
@@ -6281,6 +6818,60 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Lead"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leads_website: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebsiteLead"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid form */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or wrong key, or the endpoint is off */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -7984,7 +8575,13 @@ export interface operations {
     inspections_templates: {
         parameters: {
             query?: {
+                /** @description The order's project type (the kind of vehicle). Omitted: the general list. */
                 project_type_id?: number;
+                /**
+                 * @description `checkout` (the first walkaround, the vehicle arriving) or `checkin` (the second,
+                 *     leaving). Omitted: `checkout`.
+                 */
+                kind?: string;
             };
             header?: never;
             path?: never;
@@ -8024,9 +8621,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                set: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
@@ -8042,6 +8637,50 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Items_ZoneTemplate"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inspections_delete_templates: {
+        parameters: {
+            query?: {
+                /** @description The order's project type (the kind of vehicle). Omitted: the general list. */
+                project_type_id?: number;
+                /**
+                 * @description `checkout` (the first walkaround, the vehicle arriving) or `checkin` (the second,
+                 *     leaving). Omitted: `checkout`.
+                 */
+                kind?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -9414,6 +10053,332 @@ export interface operations {
             };
         };
     };
+    hr_list: {
+        parameters: {
+            query?: {
+                /** @description Matches name, email and both phone numbers. */
+                q?: string;
+                /** @description Include employees who have left. */
+                include_archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The employee has left; hidden from the default list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_unarchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_set_photo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_remove_photo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     reports_volume: {
         parameters: {
             query?: {
@@ -10446,6 +11411,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_list_all: {
+        parameters: {
+            query?: {
+                /** @description `submitting` | `issued` | `rejected` | `stornoed` | `annulled`. Omitted: all. */
+                status?: string;
+                /** @description `invoice` | `storno`. Omitted: both. */
+                kind?: string;
+                /** @description Newest N rows. Defaults to 100, at most 500. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_BilledInvoice"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_list_all_proformas: {
+        parameters: {
+            query?: {
+                /** @description Newest N rows. Defaults to 100, at most 500. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_BilledProforma"];
+                };
             };
             /** @description Client error; see `error.code` */
             "4XX": {

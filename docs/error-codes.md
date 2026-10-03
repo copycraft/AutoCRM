@@ -61,8 +61,8 @@ Status mapping on Android: 400/409/422 → `ApiException.Rule` (rendered from th
 | `upload_mismatch` | 422 | no | A feltöltött fájl nem egyezik a bejelentettel. |
 | `invalid_ticket` | 422 | no | Érvénytelen vagy lejárt feltöltési jegy. |
 | `already_attached` | 422 | no | Ez a fotó már csatolva van. |
-| `checkout_open` | 422 | no | Már van nyitott kiadási jegyzőkönyv. Előbb írassa alá vagy dobja el. |
-| `checkout_required` | 422 | no | A visszavételhez előbb aláírt kiadási jegyzőkönyv kell. |
+| `checkout_open` | 422 | no | Már van nyitott átvételi jegyzőkönyv. Előbb írassa alá vagy dobja el. |
+| `checkout_required` | 422 | no | A kiadáshoz előbb aláírt átvételi jegyzőkönyv kell. |
 | `locked` | 422 | no | Az aláírt jegyzőkönyv már nem módosítható; utólagos megjegyzést lehet hozzáfűzni. |
 | `signatures_required` | 422 | no | A lezáráshoz mindkét aláírás szükséges. |
 | `verdicts_pending` | 422 | no | Előbb minden új sérülésnél dönteni kell. |

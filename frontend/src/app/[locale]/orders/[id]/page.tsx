@@ -29,6 +29,7 @@ import type { SpecForm } from '@/components/forms/BuildSpecSection';
 import { ItemsSection } from '@/components/forms/ItemsSection';
 import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
 import { configApi, ordersApi, usersApi } from '@/lib/api/endpoints';
+import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
 import { canAdmin, canChangeStage, canEditOrders, canSendEmail, useAuth } from '@/lib/auth/context';
@@ -44,49 +45,7 @@ import { RawImportPanel } from '@/components/migration/RawImportPanel';
 
 type Tab = 'data' | 'items' | 'invoices' | 'stages' | 'blockers' | 'audit';
 
-/** Enum value → message key. Unknown values fall back to the raw value's own key, which
- *  next-intl renders visibly rather than silently blank. */
-function defrostKey(defrost: string): string {
-  switch (defrost) {
-    case 'automatic':
-      return 'defrostAutomatic';
-    case 'manual':
-      return 'defrostManual';
-    case 'hot_gas':
-      return 'defrostHotGas';
-    default:
-      return 'defrost';
-  }
-}
-
-function fuelKey(fuel: string): string {
-  switch (fuel) {
-    case 'diesel':
-      return 'fuelDiesel';
-    case 'electric':
-      return 'fuelElectric';
-    case 'lpg':
-      return 'fuelLpg';
-    case 'engine_coolant':
-      return 'fuelEngineCoolant';
-    default:
-      return 'fuel';
-  }
-}
-
-/** 'warranty' | 'rework' | 'repeat' — anything else is shown as itself. */
-function relationLabel(relation: string, t: (k: string) => string): string {
-  switch (relation) {
-    case 'warranty':
-      return t('relationWarranty');
-    case 'rework':
-      return t('relationRework');
-    case 'repeat':
-      return t('relationRepeat');
-    default:
-      return relation;
-  }
-}
+/** Enum values render from the server's lookups; unknown ones read as themselves. */
 
 function Info({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
@@ -156,6 +115,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     queryKey: qk.projectTypes,
     queryFn: () => configApi.projectTypes(),
   });
+  const { data: lookups } = useLookups();
   // GET /users is admin-only; non-admins see the raw id (backend gap).
   const usersQuery = useQuery({
     queryKey: qk.users,
@@ -431,7 +391,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                           />
                           <Info
                             label={ts('defrost')}
-                            value={spec.defrost ? ts(defrostKey(spec.defrost)) : '—'}
+                            value={spec.defrost ? lookupLabel(lookups?.defrost_modes, spec.defrost) : '—'}
                           />
                           <Info
                             label={ts('electricStandby')}
@@ -447,7 +407,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                             value={spec.heat_output_kw != null ? `${spec.heat_output_kw} kW` : '—'}
                             mono
                           />
-                          <Info label={ts('fuel')} value={spec.fuel ? ts(fuelKey(spec.fuel)) : '—'} />
+                          <Info label={ts('fuel')} value={spec.fuel ? lookupLabel(lookups?.heating_fuels, spec.fuel) : '—'} />
                           <Info
                             label={ts('thermostat')}
                             value={spec.thermostat ? tc('yes') : tc('no')}
@@ -465,7 +425,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                   <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
                     <h2 className="text-section font-semibold">{t('relatedSection')}</h2>
                     <p className="mt-3 text-body">
-                      <StatusBadge tone="steel">{relationLabel(related.relation, t)}</StatusBadge>{' '}
+                      <StatusBadge tone="steel">{lookupLabel(lookups?.order_relations, related.relation)}</StatusBadge>{' '}
                       <Link
                         href={`/${locale}/orders/${related.id}`}
                         className="text-steel-900 underline"

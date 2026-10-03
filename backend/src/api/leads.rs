@@ -1,6 +1,6 @@
 use axum::Json;
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -28,6 +28,7 @@ use crate::service::stages::{StageChange, TransitionOption};
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(search, create))
+        .routes(routes!(website))
         .routes(routes!(detail, update))
         .routes(routes!(change_stage))
         .routes(routes!(transitions))
@@ -171,6 +172,116 @@ async fn create(
     let input = merge(None, b)?;
     let lead = service::leads::create(&state.db, &me, input).await?;
     Ok((StatusCode::CREATED, Json(lead)))
+}
+
+/// An enquiry from the autotherm.hu contact form.
+#[derive(Deserialize, ToSchema)]
+pub struct WebsiteLead {
+    /// Who is asking.
+    name: String,
+    /// At least one of `email` and `phone` is required, so the office can answer.
+    email: Option<String>,
+    phone: Option<String>,
+    /// The visitor's message.
+    message: Option<String>,
+    /// What they ask about, e.g. the service. Becomes the lead title.
+    subject: Option<String>,
+    /// The vehicle, if the form asks for it.
+    vehicle: Option<String>,
+    /// The page the form was sent from.
+    page: Option<String>,
+    /// Honeypot: the form renders this hidden. A bot fills it, a person never does; such
+    /// a submission is acknowledged and dropped.
+    company: Option<String>,
+}
+
+const MAX_NAME: usize = 200;
+const MAX_FIELD: usize = 300;
+const MAX_MESSAGE: usize = 5000;
+
+fn capped(field: &str, value: Option<String>, max: usize) -> AppResult<Option<String>> {
+    let value = optional(value);
+    match &value {
+        Some(v) if v.chars().count() > max => Err(AppError::validation(format!(
+            "{field} is too long (at most {max} characters)"
+        ))),
+        _ => Ok(value),
+    }
+}
+
+fn lead_from_website(b: WebsiteLead) -> AppResult<LeadInput> {
+    let name = capped("name", Some(b.name), MAX_NAME)?
+        .ok_or_else(|| AppError::validation("name is required"))?;
+    let email = match capped("email", b.email, MAX_FIELD)? {
+        Some(e) => Some(
+            normalize_address(&e)
+                .ok_or_else(|| AppError::validation("email is not a valid address"))?,
+        ),
+        None => None,
+    };
+    let phone = capped("phone", b.phone, 50)?;
+    if email.is_none() && phone.is_none() {
+        return Err(AppError::validation("email or phone is required"));
+    }
+    let subject = capped("subject", b.subject, MAX_FIELD)?;
+    let message = capped("message", b.message, MAX_MESSAGE)?;
+    let vehicle = capped("vehicle", b.vehicle, MAX_FIELD)?;
+    let page = capped("page", b.page, MAX_FIELD)?;
+
+    let mut parts = Vec::new();
+    if let Some(m) = message {
+        parts.push(m);
+    }
+    if let Some(v) = vehicle {
+        parts.push(format!("Jármű: {v}"));
+    }
+    if let Some(p) = page {
+        parts.push(format!("Oldal: {p}"));
+    }
+    Ok(LeadInput {
+        title: format!("Weboldal: {}", subject.unwrap_or_else(|| name.clone())),
+        partner_id: None,
+        contact_id: None,
+        contact_name: Some(name),
+        contact_email: email,
+        contact_phone: phone,
+        source: Some("website".into()),
+        description: (!parts.is_empty()).then(|| parts.join("\n\n")),
+        assigned_to: None,
+        quoted_value_minor: None,
+        currency: None,
+        quote_valid_until: None,
+    })
+}
+
+/// Website enquiry: `POST` the form with `X-Leads-Key`. No staff login; the key keeps
+/// strangers out, and with `LEADS_API_KEY` unset the endpoint is off. The lead lands in
+/// the first stage, unassigned, with source `website`.
+#[utoipa::path(
+    post, path = "/leads/website", tag = "leads",
+    request_body = WebsiteLead,
+    responses(
+        (status = 202, description = "Accepted"),
+        (status = 403, description = "Missing or wrong key, or the endpoint is off"),
+        (status = 400, description = "Invalid form"),
+    )
+)]
+async fn website(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    ApiJson(b): ApiJson<WebsiteLead>,
+) -> AppResult<StatusCode> {
+    super::check_api_key(
+        state.config.leads_api_key.as_deref(),
+        &headers,
+        "x-leads-key",
+    )?;
+    if optional(b.company.clone()).is_some() {
+        return Ok(StatusCode::ACCEPTED);
+    }
+    let input = lead_from_website(b)?;
+    service::leads::create_from_website(&state.db, input).await?;
+    Ok(StatusCode::ACCEPTED)
 }
 
 #[derive(Serialize, ToSchema)]

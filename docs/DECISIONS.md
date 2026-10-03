@@ -181,6 +181,68 @@ The full rule set, with sources, is `INV-*` in
   portal", not as a plain refusal.
 - **Proformas (díjbekérő) are not invoices.** They have their own number series and lock,
   are reported nowhere, and never consume an invoice number.
+- **Számlázó is the billing desk.** A sidebar page with every invoice and storno plus
+  every díjbekérő across orders (`GET /invoices`, `GET /proformas`, newest first, with
+  order number and partner on each row), and a create panel on the side: pick an order
+  and the per-order invoice/proforma sections open there. There is no "invoice from a
+  proforma" operation: the invoice is built from the order's line items, the same items
+  the proforma rendered, so invoicing from a proforma is picking its order.
+
+## Client enumerations
+
+- **The server owns every list the clients render.** `GET /config/lookups` publishes
+  damage types, severities, verdicts, walkaround headings, fuel marks, heating fuels,
+  defrost modes, order relations, task entity types, currencies, payment methods,
+  annulment codes, image categories (with the immutable/attachable rules), email
+  composer starters and the error-text catalog in one document (`backend/src/domain/
+  lookups.rs`). Validation accepts exactly the published keys, so the two cannot drift.
+  Changing, renaming or adding a value is a server deploy, never an app update. The
+  phone caches the document for offline starts; unknown keys read as themselves,
+  spaced out, never blank.
+- **Cold start keeps static fallbacks on purpose.** A login failure happens before the
+  first fetch, so the built-in error-text map (phone) and catalogue (web) stay; fresh
+  server texts layer over them once a fetch has happened. Device preferences (theme),
+  the humanized-key fallback itself and tone mappings stay local: they are presentation,
+  not data.
+
+## Handover inspections
+
+The phone-only átvétel / kiadás walkarounds (`backend/migrations/0026`). Rules with sources:
+`INSP-*` in [logic-audit/01-behavior-spec.md](logic-audit/01-behavior-spec.md).
+
+- **The photo list depends on the vehicle kind and on the walkaround.** A bare chassis cab
+  arriving for a box needs different photos from the finished vehicle leaving, and a
+  chassis with a box different ones from a converted van. A list is addressed by (project
+  type, walkaround kind); a project type without its own list is served the general one.
+  The project type is the vehicle kind: it is already on every order and the office can
+  rename and add to it without a deploy.
+- **Lists are whole, never merged.** The old `default` + `cooling` lookup hid what a
+  vehicle actually walked behind a union of two tables. What the office sees in settings
+  is exactly what the phone walks. Migration `0032` turned the old behaviour into explicit
+  lists, so nothing changed for the project types that already had the extras.
+- **`checkout` is the first walkaround (átvétel, intake) and `checkin` the second (kiadás,
+  outgo).** The names came from a rental-car model. They are API values stored on every
+  inspection, so only the labels changed.
+- **Every intake zone key exists at outgo.** A damage is compared between the walkarounds by
+  zone key; an intake zone with no outgo twin would never be checked for new damage. A test
+  holds this for the alváz-with-box lists.
+- **Alváz with a box ("Hűtőfelépítmény") is seeded from the office's own example**: 38 photos
+  of a finished vehicle. Outgo asks for all of them, in the order they were taken, plus an
+  optional odometer shot. Intake asks for the ones that exist on the bare cab. Names and
+  left/right were read off the photos and are editable in settings. A converted van has no
+  list of its own yet: it keeps the general zones plus the cargo extras.
+- **Zones have a short title**, sent with every inspection (`zone_titles`), so neither client
+  keeps a table of zone names, and a list the office builds needs no app update.
+- **The phone has no photo list of its own.** Which photos are needed, in which order, under
+  which name, and whether each may be skipped is decided on the server and changed in
+  settings (or by asking for it), with no app update. The phone downloads the lists when the
+  Átvétel-átadás screen opens and keeps the last one per vehicle kind and walkaround, for
+  walkarounds started in a yard with no signal. With nothing downloaded it refuses to start
+  and says so, rather than guess from a list built into the app. A draft freezes its list at
+  the start, so editing a list never changes a walkaround in progress. What still needs an
+  app update is new behaviour: a new kind of photo step, say, not a new photo in a list.
+- **A zone is required or optional, never both.** The two columns held one fact and could
+  disagree (the roof was both); the phone reads one. They are now forced to be opposites.
 
 ## Auth
 

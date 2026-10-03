@@ -185,6 +185,18 @@ impl Storage {
         Ok(bytes.into_bytes().to_vec())
     }
 
+    /// Removes an object. Missing keys are not an error (S3 answers 204 either way).
+    pub async fn delete(&self, key: &str) -> anyhow::Result<()> {
+        self.client
+            .delete_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| anyhow!("DELETE {key}: {}", DisplayErrorContext(e)))?;
+        Ok(())
+    }
+
     pub async fn put_bytes(
         &self,
         key: &str,

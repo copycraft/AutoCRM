@@ -13,11 +13,9 @@ import { useTranslations } from 'next-intl';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
+import { useLookups } from '@/hooks/useLookups';
 import { errorMessage } from '@/lib/api/errors';
 import type { Order } from '@/lib/api/types';
-
-/** The marks on a fuel gauge, in gauge order. Matches the CHECK in 0019_intake_extras. */
-const FUEL_LEVELS = ['E', '1/4', '1/2', '3/4', 'F'] as const;
 
 export function IntakeSlipSection({
   order,
@@ -30,6 +28,10 @@ export function IntakeSlipSection({
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
   const qc = useQueryClient();
+  // The marks on a fuel gauge, in gauge order, from the server (matches the
+  // CHECK in 0019_intake_extras).
+  const { data: lookups } = useLookups();
+  const fuelLevels = lookups?.fuel_levels ?? [];
   const [editing, setEditing] = useState(false);
   const [mileage, setMileage] = useState(
     order.mileage_in != null ? String(order.mileage_in) : '',
@@ -130,19 +132,19 @@ export function IntakeSlipSection({
             {/* A gauge, not a text field: five marks is the whole vocabulary, and typing
                 it invites "1/2 tank" and "fél" in the same column. */}
             <div className="mt-1 flex gap-1" role="group" aria-label={t('intakeFuel')}>
-              {FUEL_LEVELS.map((level) => (
+              {fuelLevels.map((level) => (
                 <button
-                  key={level}
+                  key={level.key}
                   type="button"
-                  aria-pressed={fuel === level}
+                  aria-pressed={fuel === level.key}
                   className={
-                    fuel === level
+                    fuel === level.key
                       ? 'btn-primary btn-sm flex-1 font-mono'
                       : 'btn-secondary btn-sm flex-1 font-mono'
                   }
-                  onClick={() => setFuel(fuel === level ? null : level)}
+                  onClick={() => setFuel(fuel === level.key ? null : level.key)}
                 >
-                  {level}
+                  {level.label_hu}
                 </button>
               ))}
             </div>

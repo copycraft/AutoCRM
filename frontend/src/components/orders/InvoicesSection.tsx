@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { invoicesApi, mediaApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
+import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { errorMessage } from '@/lib/api/errors';
 import { canAdmin, canEditOrders, useAuth } from '@/lib/auth/context';
 import { Money } from '@/components/ui/Money';
@@ -49,13 +50,6 @@ export function invoicePollInterval(items: Invoice[], now: number = Date.now()):
   );
   return pending ? POLL_MS : false;
 }
-
-const ANNULMENT_CODES = [
-  'ERRATIC_DATA',
-  'ERRATIC_INVOICE_NUMBER',
-  'ERRATIC_INVOICE_ISSUE_DATE',
-  'ERRATIC_ELECTRONIC_HASH_VALUE',
-] as const;
 
 function statusTone(status: InvoiceStatus): StatusTone {
   switch (status) {
@@ -276,6 +270,7 @@ function InvoiceRow({
   const t = useTranslations('invoices');
   const [chainOpen, setChainOpen] = useState(false);
   const messages = navMessages(invoice);
+  const { data: lookups } = useLookups();
 
   return (
     <li className="py-3">
@@ -288,7 +283,7 @@ function InvoiceRow({
           <StatusBadge tone="steel">{t('kindStorno')}</StatusBadge>
         )}
         <DateDisplay value={invoice.issue_date} className="text-metadata text-steel-500" />
-        <span className="text-metadata text-steel-500">{t(`paymentMethods.${invoice.payment_method}`)}</span>
+        <span className="text-metadata text-steel-500">{lookupLabel(lookups?.invoice_payment_methods, invoice.payment_method)}</span>
         <Money minor={invoice.gross_amount} currency={currency} className="ml-auto" />
       </div>
 
@@ -422,10 +417,8 @@ export function DocumentLink({ documentId, label }: { documentId: number; label:
  * the customer and the currency. The fields ever worth overriding are here: the VAT rate
  * and the due date (both pre-filled by the server when left alone), and how the customer
  * pays — cash and transfer invoices share one series, but each document records its own
- * method.
+ * method. The methods come from the server's lookups, not from a local list.
  */
-const PAYMENT_METHODS = ['TRANSFER', 'CASH'] as const;
-
 function IssueDialog({
   busy,
   onClose,
@@ -439,7 +432,12 @@ function IssueDialog({
   const tc = useTranslations('common');
   const [vatRate, setVatRate] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<string>('TRANSFER');
+  const { data: lookups } = useLookups();
+  const methods = lookups?.invoice_payment_methods ?? [];
+  // Nothing sent means the server default. Derived, not defaulted by effect, so
+  // the select shows the first method on the same render the list arrives.
+  const [methodOverride, setMethodOverride] = useState<string | null>(null);
+  const paymentMethod = methodOverride ?? methods[0]?.key ?? '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4">
@@ -483,11 +481,11 @@ function IssueDialog({
               id="invoice-payment-method"
               className="input"
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
+              onChange={(e) => setMethodOverride(e.target.value)}
             >
-              {PAYMENT_METHODS.map((value) => (
-                <option key={value} value={value}>
-                  {t(`paymentMethods.${value}`)}
+              {methods.map((method) => (
+                <option key={method.key} value={method.key}>
+                  {method.label_hu}
                 </option>
               ))}
             </select>
@@ -500,13 +498,15 @@ function IssueDialog({
           <button
             className="btn-primary"
             disabled={busy}
-            onClick={() =>
-              onSubmit({
-                ...(vatRate.trim() ? { vat_rate: vatRate.trim() } : {}),
-                ...(paymentDate ? { payment_date: paymentDate } : {}),
-                ...(paymentMethod !== 'TRANSFER' ? { payment_method: paymentMethod } : {}),
-              })
-            }
+              onClick={() =>
+                onSubmit({
+                  ...(vatRate.trim() ? { vat_rate: vatRate.trim() } : {}),
+                  ...(paymentDate ? { payment_date: paymentDate } : {}),
+                  // The server defaults to transfer when absent; sending the
+                  // chosen method explicitly is the same either way.
+                  ...(paymentMethod ? { payment_method: paymentMethod } : {}),
+                })
+              }
           >
             {busy ? tc('processing') : t('issue')}
           </button>
@@ -535,7 +535,10 @@ function AnnulDialog({
 }) {
   const t = useTranslations('invoices');
   const tc = useTranslations('common');
-  const [code, setCode] = useState<string>(ANNULMENT_CODES[0]);
+  const { data: lookups } = useLookups();
+  const codes = lookups?.annulment_codes ?? [];
+  const [codeOverride, setCodeOverride] = useState<string | null>(null);
+  const code = codeOverride ?? codes[0]?.key ?? '';
   const [reason, setReason] = useState('');
 
   return (
@@ -554,11 +557,11 @@ function AnnulDialog({
               id="annul-code"
               className="input"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => setCodeOverride(e.target.value)}
             >
-              {ANNULMENT_CODES.map((value) => (
-                <option key={value} value={value}>
-                  {t(`annulCodes.${value}`)}
+              {codes.map((entry) => (
+                <option key={entry.key} value={entry.key}>
+                  {entry.label_hu}
                 </option>
               ))}
             </select>

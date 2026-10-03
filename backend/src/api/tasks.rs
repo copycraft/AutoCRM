@@ -17,6 +17,7 @@ use utoipa_axum::routes;
 use super::extract::{ApiJson, ApiPath, Auth};
 use super::{Items, required};
 use crate::AppState;
+use crate::domain::lookups::TASK_ENTITY_KEYS;
 use crate::error::{AppError, AppResult};
 use crate::repo::tasks::Task;
 use crate::repo::{leads, orders, partners, tasks, users};
@@ -52,15 +53,19 @@ struct TaskBody {
 }
 
 async fn check_target(db: &sqlx::PgPool, entity_type: &str, entity_id: i64) -> AppResult<()> {
+    // The accepted types live in `domain::lookups`, next to the labels
+    // `GET /config/lookups` publishes: one definition, no drift.
+    if !TASK_ENTITY_KEYS.contains(&entity_type) {
+        return Err(AppError::validation(format!(
+            "entity_type must be one of {}, not '{entity_type}'",
+            TASK_ENTITY_KEYS.join(", ")
+        )));
+    }
     let exists = match entity_type {
         "order" => orders::find(db, entity_id).await?.is_some(),
         "lead" => leads::find(db, entity_id).await?.is_some(),
         "partner" => partners::find(db, entity_id).await?.is_some(),
-        other => {
-            return Err(AppError::validation(format!(
-                "entity_type must be order, lead or partner, not '{other}'"
-            )));
-        }
+        _ => unreachable!("entity_type is in TASK_ENTITY_KEYS"),
     };
     if !exists {
         return Err(AppError::validation("the pinned record does not exist"));
@@ -113,10 +118,11 @@ async fn for_entity(
     Auth(_): Auth,
     ApiPath((entity, id)): ApiPath<(String, i64)>,
 ) -> AppResult<Json<Items<Task>>> {
-    if !matches!(entity.as_str(), "order" | "lead" | "partner") {
-        return Err(AppError::validation(
-            "entity must be order, lead or partner",
-        ));
+    if !TASK_ENTITY_KEYS.contains(&entity.as_str()) {
+        return Err(AppError::validation(format!(
+            "entity must be one of {}",
+            TASK_ENTITY_KEYS.join(", ")
+        )));
     }
     Ok(Items::new(tasks::for_entity(&state.db, &entity, id).await?))
 }

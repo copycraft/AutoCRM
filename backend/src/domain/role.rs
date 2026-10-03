@@ -40,6 +40,10 @@ pub enum Capability {
     /// Technically annul a data report. Admin only: it says the report should never have
     /// existed, and a person then has to approve it in NAV's own portal.
     AnnulInvoices,
+    /// The HR module: the staff directory with personal phone numbers. Admins always have
+    /// it; anyone else needs the per-user `hr_access` flag an admin sets, which is checked
+    /// in `AuthUser`, because a role alone cannot say it.
+    AccessHr,
 }
 
 impl Role {
@@ -47,7 +51,8 @@ impl Role {
         use Capability::*;
         use Role::*;
         match capability {
-            ManageUsers | ManageSettings | ManageConfiguration | OperateSystem | AnnulInvoices => {
+            ManageUsers | ManageSettings | ManageConfiguration | OperateSystem | AnnulInvoices
+            | AccessHr => {
                 matches!(self, Admin)
             }
             EditPartners | EditLeads | EditOrders | DeleteMedia | ViewOriginalImages
@@ -84,6 +89,7 @@ mod tests {
             SendEmail,
             IssueInvoices,
             AnnulInvoices,
+            AccessHr,
         ] {
             assert!(!Role::Viewer.can(cap), "viewer should not have {cap:?}");
             assert!(Role::Admin.can(cap), "admin should have {cap:?}");

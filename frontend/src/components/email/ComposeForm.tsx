@@ -13,36 +13,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { emailApi, leadsApi, mediaApi, newsletterApi } from '@/lib/api/endpoints';
+import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { errorMessage } from '@/lib/api/errors';
 import type { components } from '@/lib/api/schema.gen';
 
 type ComposeRequest = components['schemas']['ComposeRequest'];
 type Audience = 'direct' | 'newsletter';
-type Theme = '' | 'quotation' | 'promo';
 
 const PREVIEW_DEBOUNCE_MS = 600;
-
-const THEMES: Record<Exclude<Theme, ''>, { subject: string; hero: string; body: string }> = {
-  quotation: {
-    subject: 'Árajánlatunk',
-    hero: 'Megjött az Autotherm árajánlatod!',
-    body: [
-      'Tisztelt Címzett!',
-      '',
-      'Köszönjük érdeklődését. Árajánlatunkat mellékelten küldjük.',
-      '',
-      '**Ajánlott ár:** …',
-      '',
-      'Kérdés esetén állunk rendelkezésére.',
-    ].join('\n'),
-  },
-  promo: {
-    subject: 'Autotherm akció',
-    hero: '',
-    body: ['# Újdonság', '', 'Rövid bevezető ide.', '', '- pont 1', '- pont 2'].join('\n'),
-  },
-};
 
 export function ComposeForm({
   about,
@@ -61,7 +40,7 @@ export function ComposeForm({
   const [to, setTo] = useState(defaultTo ?? '');
   const [cc, setCc] = useState('');
   const [templateKey, setTemplateKey] = useState('');
-  const [theme, setTheme] = useState<Theme>('');
+  const [theme, setTheme] = useState('');
   const [subject, setSubject] = useState('');
   const [hero, setHero] = useState('');
   const [body, setBody] = useState('');
@@ -137,6 +116,7 @@ export function ComposeForm({
     queryKey: ['email-templates'],
     queryFn: () => emailApi.templates(),
   });
+  const { data: lookups } = useLookups();
   const variables = useQuery({
     queryKey: ['email-variables'],
     queryFn: () => emailApi.variables(),
@@ -179,11 +159,14 @@ export function ComposeForm({
     }
   };
 
-  const applyTheme = (key: Theme) => {
+  const applyTheme = (key: string) => {
     setTheme(key);
     setTemplateKey('');
     if (key === '') return;
-    const th = THEMES[key];
+    // Starter content lives on the server (`GET /config/lookups`): a new
+    // starter or a reworded one is a server deploy, not a web deploy.
+    const th = (lookups?.email_themes ?? []).find((x) => x.key === key);
+    if (!th) return;
     setSubject(th.subject);
     setHero(th.hero);
     setBody(th.body);
@@ -311,11 +294,14 @@ export function ComposeForm({
               className="input"
               value={theme}
               disabled={templateKey !== ''}
-              onChange={(e) => applyTheme(e.target.value as Theme)}
+              onChange={(e) => applyTheme(e.target.value)}
             >
               <option value="">{t('noTheme')}</option>
-              <option value="quotation">{t('theme_quotation')}</option>
-              <option value="promo">{t('theme_promo')}</option>
+              {(lookups?.email_themes ?? []).map((th) => (
+                <option key={th.key} value={th.key}>
+                  {th.label_hu}
+                </option>
+              ))}
             </select>
           </div>
         </div>

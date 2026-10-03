@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import hu.autotherm.autocrm.data.api.LookupItem
 import hu.autotherm.autocrm.data.api.Order
 import hu.autotherm.autocrm.ui.common.AutoCrmTextField
 import hu.autotherm.autocrm.ui.common.DialogShell
@@ -25,9 +26,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-
-/** The five marks on a fuel gauge, matching the backend CHECK. A gauge, not a text field. */
-internal val FUEL_LEVELS = listOf("E", "1/4", "1/2", "3/4", "F")
 
 /**
  * The PATCH body for the intake slip. Mileage is always present (it is the gate);
@@ -57,6 +55,8 @@ internal fun intakeSlipJson(
 @Composable
 internal fun IntakeSlipDialog(
     order: Order,
+    /** The fuel gauge marks from the server's lookups, in gauge order. */
+    fuelLevels: List<LookupItem>,
     busy: Boolean,
     error: String?,
     onDismiss: () -> Unit,
@@ -108,11 +108,11 @@ internal fun IntakeSlipDialog(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FUEL_LEVELS.forEach { level ->
+            fuelLevels.forEach { entry ->
                 FilterChip(
-                    selected = fuel == level,
-                    onClick = { fuel = if (fuel == level) null else level },
-                    label = { Text(level) },
+                    selected = fuel == entry.key,
+                    onClick = { fuel = if (fuel == entry.key) null else entry.key },
+                    label = { Text(entry.labelHu.ifBlank { entry.key }) },
                 )
             }
         }

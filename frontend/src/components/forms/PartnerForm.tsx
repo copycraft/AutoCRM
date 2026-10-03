@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { errorMessage } from '@/lib/api/errors';
+import { useLookups } from '@/hooks/useLookups';
 import { useDirtyGuard } from '@/hooks/useDirtyGuard';
 import { useFormDraft } from '@/hooks/useFormDraft';
 import type { CreatePartner, Partner, PartnerKind, PatchPartner } from '@/lib/api/types';
@@ -16,7 +17,9 @@ const schema = z.object({
   tax_number: z.string().trim().optional(),
   eu_tax_number: z.string().trim().optional(),
   country: z.string().trim().min(2).max(2),
-  default_currency: z.enum(['HUF', 'EUR']),
+  // The server owns the currency list (`GET /config/lookups`) and validates;
+  // the form only requires something chosen.
+  default_currency: z.string().min(1),
   email: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   website: z.string().trim().optional(),
@@ -63,7 +66,9 @@ export function partnerPatchBody(original: Partner, v: PartnerFormValues): Patch
   if (v.country.trim().toUpperCase() !== original.country) {
     body.country = v.country.trim().toUpperCase();
   }
-  if (v.default_currency !== original.default_currency) body.default_currency = v.default_currency;
+  if (v.default_currency !== original.default_currency) {
+    body.default_currency = v.default_currency as Partner['default_currency'];
+  }
   for (const f of ['email', 'phone', 'website', 'postal_code', 'city', 'address_line', 'notes'] as const) {
     const nv = v[f]?.trim() ?? '';
     if (nv !== (original[f] ?? '')) body[f] = nv ? nv : null;
@@ -79,7 +84,7 @@ export function partnerCreateBody(v: PartnerFormValues): CreatePartner {
     tax_number: clean(v.tax_number),
     eu_tax_number: clean(v.eu_tax_number),
     country: v.country.trim().toUpperCase() || 'HU',
-    default_currency: v.default_currency,
+    default_currency: v.default_currency as CreatePartner['default_currency'],
     email: clean(v.email),
     phone: clean(v.phone),
     website: clean(v.website),
@@ -111,6 +116,8 @@ export function PartnerForm({
   const tv = useTranslations('validation');
   const ter = useTranslations('errors');
   const [serverError, setServerError] = useState<string | null>(null);
+  const { data: lookups } = useLookups();
+  const currencies = lookups?.currencies ?? [];
   const emptyPartner = toForm(undefined, initialKind);
   const {
     register,
@@ -187,8 +194,11 @@ export function PartnerForm({
         <div>
           <label className="label" htmlFor="default_currency">{t('defaultCurrency')}</label>
           <select id="default_currency" className="input" {...register('default_currency')}>
-            <option value="HUF">HUF</option>
-            <option value="EUR">EUR</option>
+            {currencies.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.key}
+              </option>
+            ))}
           </select>
         </div>
         <div>

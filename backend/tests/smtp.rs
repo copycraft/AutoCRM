@@ -263,6 +263,7 @@ async fn staff_send_as_themselves_through_the_queue(pool: PgPool) {
         display_name: user.display_name.clone(),
         role: Role::Office,
         must_change_password: false,
+        hr_access: false,
     };
 
     let id = send_manual(

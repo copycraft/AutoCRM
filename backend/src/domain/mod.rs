@@ -7,6 +7,7 @@
 pub mod blocker;
 pub mod email;
 pub mod invoice;
+pub mod lookups;
 pub mod media;
 pub mod money;
 pub mod order;

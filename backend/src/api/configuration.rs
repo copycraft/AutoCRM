@@ -16,6 +16,7 @@ use super::{Items, optional, patch as patch_field, required};
 use crate::AppState;
 use crate::config::{AppEnv, check_smtp_target};
 use crate::domain::email::normalize_address;
+use crate::domain::lookups::Lookups;
 use crate::domain::media::ImageCategory;
 use crate::domain::role::Capability;
 use crate::domain::stage::{StageDefinition, StageEntity, initial_stage, keys};
@@ -32,6 +33,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(list_project_types, create_project_type))
         .routes(routes!(update_project_type))
         .routes(routes!(get_settings, put_settings))
+        .routes(routes!(lookups))
 }
 
 fn valid_key(key: &str) -> bool {
@@ -401,6 +403,23 @@ async fn update_project_type(
 )]
 async fn get_settings(State(state): State<AppState>, Auth(_): Auth) -> AppResult<Json<Settings>> {
     Ok(Json(config::settings(&state.db).await?))
+}
+
+/// Every client-facing enumeration in one document: damage types, severities,
+/// verdicts, fuel levels, task entity types, currencies, invoice payment
+/// methods, annulment codes, image categories and email composer starters.
+///
+/// Any signed-in user may read it (like the zone lists): the phone fetches it
+/// on the Átvétel-átadás screen and caches it for the yard, the web keeps it
+/// in react-query. Values and labels come from `domain::lookups`, next to the
+/// validation that accepts them — changing one is a server deploy, never an
+/// app update.
+#[utoipa::path(
+    get, path = "/config/lookups", tag = "configuration",
+    responses((status = 200, body = Lookups))
+)]
+async fn lookups(Auth(_): Auth) -> AppResult<Json<Lookups>> {
+    Ok(Json(Lookups::current()))
 }
 
 /// Email transport overrides. Every field is optional: absent keeps the stored

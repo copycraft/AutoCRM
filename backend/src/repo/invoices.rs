@@ -489,3 +489,112 @@ pub async fn find_proforma(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Opt
     .fetch_optional(db)
     .await
 }
+
+// ── Global billing lists (the Számlázó page) ────────────────────────────────
+
+/// An invoice with the order and partner it belongs to, for lists that span orders.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct BilledInvoice {
+    pub id: i64,
+    pub order_id: i64,
+    pub order_number: String,
+    pub partner_name: String,
+    pub number: String,
+    pub kind: InvoiceKind,
+    pub status: InvoiceStatus,
+    pub original_invoice_id: Option<i64>,
+    pub currency: String,
+    pub issue_date: NaiveDate,
+    pub delivery_date: NaiveDate,
+    pub payment_date: Option<NaiveDate>,
+    pub payment_method: String,
+    pub net_amount: i64,
+    pub vat_amount: i64,
+    pub gross_amount: i64,
+    pub nav_transaction_id: Option<String>,
+    pub nav_status: Option<String>,
+    pub nav_error_code: Option<String>,
+    pub nav_message: Option<String>,
+    pub annulment_transaction_id: Option<String>,
+    pub annulment_code: Option<String>,
+    pub annulment_reason: Option<String>,
+    pub annulled_at: Option<DateTime<Utc>>,
+    pub document_id: Option<i64>,
+    pub submitted_at: Option<DateTime<Utc>>,
+    pub issued_at: Option<DateTime<Utc>>,
+    pub created_by: Option<i64>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Every invoice and storno, newest first. Stornos are rows like any other
+/// (`kind = 'storno'`, negative amounts, `original_invoice_id` set), so the
+/// page shows them without a second query.
+pub async fn list_invoices(
+    db: impl PgExecutor<'_>,
+    status: Option<&str>,
+    kind: Option<&str>,
+    limit: i64,
+) -> sqlx::Result<Vec<BilledInvoice>> {
+    sqlx::query_as!(
+        BilledInvoice,
+        r#"SELECT i.id, i.order_id, o.number AS order_number, p.name AS partner_name,
+                  i.number, i.kind AS "kind: InvoiceKind", i.status AS "status: InvoiceStatus",
+                  i.original_invoice_id, i.currency, i.issue_date, i.delivery_date, i.payment_date,
+                  i.payment_method, i.net_amount, i.vat_amount, i.gross_amount,
+                  i.nav_transaction_id, i.nav_status, i.nav_error_code, i.nav_message,
+                  i.annulment_transaction_id, i.annulment_code, i.annulment_reason,
+                  i.annulled_at, i.document_id, i.submitted_at, i.issued_at,
+                  i.created_by, i.created_at, i.updated_at
+             FROM invoices i
+             JOIN orders o ON o.id = i.order_id
+             JOIN partners p ON p.id = o.partner_id
+            WHERE ($1::text IS NULL OR i.status::text = $1)
+              AND ($2::text IS NULL OR i.kind::text = $2)
+            ORDER BY i.id DESC LIMIT $3"#,
+        status,
+        kind,
+        limit
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// A proforma with the order and partner it belongs to.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct BilledProforma {
+    pub id: i64,
+    pub order_id: i64,
+    pub order_number: String,
+    pub partner_name: String,
+    pub number: String,
+    pub currency: String,
+    pub issue_date: NaiveDate,
+    pub payment_date: Option<NaiveDate>,
+    pub net_amount: i64,
+    pub vat_amount: i64,
+    pub gross_amount: i64,
+    pub document_id: i64,
+    pub created_by: Option<i64>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Every díjbekérő, newest first.
+pub async fn list_proformas(
+    db: impl PgExecutor<'_>,
+    limit: i64,
+) -> sqlx::Result<Vec<BilledProforma>> {
+    sqlx::query_as!(
+        BilledProforma,
+        r#"SELECT p.id, p.order_id, o.number AS order_number, pt.name AS partner_name,
+                  p.number, p.currency, p.issue_date, p.payment_date, p.net_amount,
+                  p.vat_amount, p.gross_amount, p.document_id, p.created_by, p.created_at
+             FROM proformas p
+             JOIN orders o ON o.id = p.order_id
+             JOIN partners pt ON pt.id = o.partner_id
+            ORDER BY p.id DESC LIMIT $1"#,
+        limit
+    )
+    .fetch_all(db)
+    .await
+}

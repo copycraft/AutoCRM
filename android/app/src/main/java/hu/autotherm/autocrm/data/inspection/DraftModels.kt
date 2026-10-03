@@ -85,46 +85,32 @@ data class DraftPayload(
     @SerialName("signed") val signed: Boolean = false,
 )
 
-val DAMAGE_TYPES = listOf(
-    "scratch" to "Karcolás",
-    "dent" to "Horpadás",
-    "crack" to "Repedés",
-    "chip" to "Lepattanás",
-    "broken" to "Törött alkatrész",
-    "missing" to "Hiányzó alkatrész",
-    "stain" to "Folt",
-    "tear" to "Szakadás",
-    "other" to "Egyéb",
-)
+/**
+ * Damage-type, severity and verdict labels come from the server's lookups
+ * (`GET /config/lookups`); see `damageTypeLabel`, `severityLabel` and
+ * `verdictLabel` in Lookups.kt. Nothing about which values exist is kept here.
+ */
 
-val SEVERITIES = listOf(
-    "minor" to "Enyhe",
-    "moderate" to "Közepes",
-    "severe" to "Súlyos",
-)
+/**
+ * What the two walkarounds are called: `checkout` is the first (átvétel, the vehicle
+ * arriving), `checkin` the second (kiadás, leaving). The keys are API values and stay.
+ */
+fun inspectionKindLabel(kind: String): String = if (kind == "checkin") "Kiadás" else "Átvétel"
 
-fun damageTypeLabel(type: String): String = DAMAGE_TYPES.firstOrNull { it.first == type }?.second ?: type
-fun severityLabel(severity: String): String = SEVERITIES.firstOrNull { it.first == severity }?.second ?: severity
+/**
+ * A zone's heading comes from the server: the list's own `title`. A key with no title (a draft
+ * saved by an older build, or a zone removed from the list since) reads as the key itself,
+ * spaced out: nothing about which zones exist is kept in the app.
+ */
+fun humanizeZoneKey(key: String): String =
+    key.replace('_', ' ').trim().replaceFirstChar { it.uppercase() }
 
-/** Hungarian zone titles for keys the server does not label (instructions carry the detail). */
-fun zoneTitle(key: String): String = when (key) {
-    "front" -> "Elöl"
-    "front_left" -> "Bal első sarok"
-    "left_side" -> "Bal oldal"
-    "rear_left" -> "Bal hátsó sarok"
-    "rear" -> "Hátul"
-    "rear_right" -> "Jobb hátsó sarok"
-    "right_side" -> "Jobb oldal"
-    "front_right" -> "Jobb első sarok"
-    "roof" -> "Tető"
-    "wheels" -> "Kerekek, gumik"
-    "glass" -> "Szélvédő, üvegek"
-    "interior_front" -> "Belső: első ülések"
-    "interior_rear" -> "Belső: hátsó ülések"
-    "interior_dashboard" -> "Belső: műszerfal"
-    "interior_boot" -> "Belső: csomagtartó"
-    "cargo_box" -> "Rakodótér"
-    "cargo_doors" -> "Rakodótér ajtók"
-    "refrigeration_unit" -> "Hűtőaggregát"
-    else -> key
-}
+fun ZoneTemplate.displayTitle(): String = title.ifBlank { humanizeZoneKey(zoneKey) }
+
+/** Headings of the zones of a draft's frozen list. */
+fun zoneTitle(key: String, templates: List<ZoneTemplate>): String =
+    templates.firstOrNull { it.zoneKey == key }?.displayTitle() ?: humanizeZoneKey(key)
+
+/** Headings the server sent with an inspection (`zone_titles`). */
+fun zoneTitle(key: String, titles: Map<String, String>): String =
+    titles[key]?.takeIf { it.isNotBlank() } ?: humanizeZoneKey(key)

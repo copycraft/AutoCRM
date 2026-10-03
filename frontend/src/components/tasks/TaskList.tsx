@@ -15,7 +15,10 @@ import { DateDisplay } from '@/components/ui/DateDisplay';
 import { DateQuickPicks } from '@/components/forms/DateQuickPicks';
 import { useToast } from '@/components/ui/Toasts';
 
-export type TaskEntity = 'order' | 'lead' | 'partner';
+/** A record a task may be pinned to. A plain string: the accepted values live on
+ *  the server (`GET /config/lookups` → task_entity_types, validated by POST
+ *  /tasks), so pinning to a new entity type is a server change, not a web one. */
+export type TaskEntity = string;
 
 interface TaskRow {
   id: number;

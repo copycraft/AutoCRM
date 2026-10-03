@@ -40,11 +40,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import hu.autotherm.autocrm.data.inspection.DAMAGE_TYPES
 import hu.autotherm.autocrm.data.inspection.DraftDamage
-import hu.autotherm.autocrm.data.inspection.SEVERITIES
 import hu.autotherm.autocrm.data.inspection.damageTypeLabel
 import hu.autotherm.autocrm.data.inspection.severityLabel
+import hu.autotherm.autocrm.data.inspection.displayTitle
+import hu.autotherm.autocrm.data.inspection.walkaroundKindLabel
 import hu.autotherm.autocrm.data.inspection.zoneTitle
 import hu.autotherm.autocrm.ui.common.AutoCrmTextField
 import hu.autotherm.autocrm.ui.common.Card
@@ -99,7 +99,7 @@ fun WalkaroundScreen(
     Scaffold(
         topBar = {
             ScreenTopBar(
-                title = if (kind == "checkin" || state.kind == "checkin") "Visszavétel" else "Kiadás",
+                title = walkaroundKindLabel(if (kind == "checkin" || state.kind == "checkin") "checkin" else "checkout", state.lookups),
                 subtitle = if (state.orderNumber.isNotBlank()) {
                     "${state.orderNumber} · ${state.payload?.vehiclePlate.orEmpty()}"
                 } else null,
@@ -164,9 +164,16 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
     val state by viewModel.state.collectAsState()
     val payload = state.payload ?: return
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        state.notice?.let { notice ->
+            item {
+                Card {
+                    Text(notice, style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        }
         item {
             Card {
-                Text("Átvétel adatai", style = MaterialTheme.typography.titleLarge)
+                Text("${walkaroundKindLabel(state.kind, state.lookups)} adatai", style = MaterialTheme.typography.titleLarge)
                 AutoCrmTextField(
                     value = payload.inspectorName,
                     onValueChange = { v -> viewModel.setReadings { it.copy(inspectorName = v) } },
@@ -190,42 +197,13 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
         item {
             Card {
                 Text("Óraállás, üzemanyag, figyelmeztetések", style = MaterialTheme.typography.titleLarge)
+                // Which photos are taken is the zone list's business, not this screen's: a
+                // dashboard shot is a zone like any other, asked for (or not) by the server.
                 Text(
-                    "Fotózd le a műszerfalat, aztán írd be az értékeket.",
+                    "Olvasd le és írd be az értékeket.",
                     style = MaterialTheme.typography.labelMedium,
                     color = Steel500,
                 )
-                val dashPhotos = payload.photos.filter {
-                    it.purpose == "dashboard" && it.zoneKey == "interior_dashboard"
-                }
-                if (dashPhotos.isEmpty()) {
-                    PrimaryButton(
-                        text = "Műszerfal fotózása",
-                        onClick = {
-                            viewModel.requestCapture(
-                                "dashboard",
-                                "interior_dashboard",
-                                "Műszerfal: óraállás és figyelmeztető lámpák",
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else {
-                    Text(
-                        "${dashPhotos.size} műszerfal-fotó kész.",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Steel500,
-                    )
-                    TextButton(
-                        onClick = {
-                            viewModel.requestCapture(
-                                "dashboard",
-                                "interior_dashboard",
-                                "Műszerfal: óraállás és figyelmeztető lámpák",
-                            )
-                        },
-                    ) { Text("Újabb műszerfal-fotó") }
-                }
                 AutoCrmTextField(
                     value = payload.odometer,
                     onValueChange = { v ->
@@ -236,20 +214,20 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
                 )
                 Text("Üzemanyagszint", style = MaterialTheme.typography.labelMedium)
                 // FlowRow, not LazyRow: lazy rows measure infinite inside lazy items
-                // and crash on the device.
+                // and crash on the device. The marks come from the server's lookups.
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    listOf("E", "1/4", "1/2", "3/4", "F").forEach { level ->
+                    (state.lookups?.fuelLevels.orEmpty()).forEach { entry ->
                         FilterChip(
-                            selected = payload.fuelLevel == level,
+                            selected = payload.fuelLevel == entry.key,
                             onClick = {
                                 viewModel.setReadings {
-                                    it.copy(fuelLevel = if (it.fuelLevel == level) null else level)
+                                    it.copy(fuelLevel = if (it.fuelLevel == entry.key) null else entry.key)
                                 }
                             },
-                            label = { Text(level) },
+                            label = { Text(entry.labelHu.ifBlank { entry.key }) },
                         )
                     }
                 }
@@ -321,7 +299,7 @@ private fun ZoneStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifi
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                "${payload.zoneIndex + 1} / ${templates.size} · ${zoneTitle(zone.zoneKey)}",
+                "${payload.zoneIndex + 1} / ${templates.size} · ${zone.displayTitle()}",
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(zone.instruction, style = MaterialTheme.typography.bodyLarge, color = Steel500)
@@ -368,7 +346,7 @@ private fun ZoneStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifi
                     Text("Rögzített sérülések", style = MaterialTheme.typography.titleMedium)
                 }
                 items(damages, key = { it.localId }) { damage ->
-                    DamageCard(damage = damage)
+                    DamageCard(damage = damage, lookups = state.lookups)
                 }
             }
         } else {
@@ -419,7 +397,7 @@ private fun DamageStep(
         item {
             Text("Sérülés dokumentálása", style = MaterialTheme.typography.titleLarge)
             Text(
-                "${zoneTitle(damage.zoneKey)} · ${closeups.size} közeli fotó",
+                "${zoneTitle(damage.zoneKey, payload.templates)} · ${closeups.size} közeli fotó",
                 style = MaterialTheme.typography.labelMedium,
                 color = Steel500,
             )
@@ -491,13 +469,15 @@ private fun DamageStep(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            DAMAGE_TYPES.forEach { (key, label) ->
+                            // The server's damage types; an empty cached document
+                            // means no chips until the list downloads.
+                            (state.lookups?.damageTypes.orEmpty()).forEach { entry ->
                                 FilterChip(
-                                    selected = damage.damageType == key,
+                                    selected = damage.damageType == entry.key,
                                     onClick = {
-                                        viewModel.updateDamage(damageLocalId) { it.copy(damageType = key) }
+                                        viewModel.updateDamage(damageLocalId) { it.copy(damageType = entry.key) }
                                     },
-                                    label = { Text(label) },
+                                    label = { Text(entry.labelHu.ifBlank { entry.key }) },
                                 )
                             }
                         }
@@ -507,13 +487,13 @@ private fun DamageStep(
                     Card {
                         Text("Súlyosság", style = MaterialTheme.typography.titleMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SEVERITIES.forEach { (key, label) ->
+                            (state.lookups?.severities.orEmpty()).forEach { entry ->
                                 FilterChip(
-                                    selected = damage.severity == key,
+                                    selected = damage.severity == entry.key,
                                     onClick = {
-                                        viewModel.updateDamage(damageLocalId) { it.copy(severity = key) }
+                                        viewModel.updateDamage(damageLocalId) { it.copy(severity = entry.key) }
                                     },
-                                    label = { Text(label) },
+                                    label = { Text(entry.labelHu.ifBlank { entry.key }) },
                                 )
                             }
                         }
@@ -580,10 +560,10 @@ private fun DamageStep(
 }
 
 @Composable
-private fun DamageCard(damage: DraftDamage) {
+private fun DamageCard(damage: DraftDamage, lookups: hu.autotherm.autocrm.data.api.Lookups?) {
     Card {
         Text(
-            "${damageTypeLabel(damage.damageType)} · ${severityLabel(damage.severity)}",
+            "${damageTypeLabel(damage.damageType, lookups)} · ${severityLabel(damage.severity, lookups)}",
             style = MaterialTheme.typography.titleMedium,
         )
         damage.note?.takeIf { it.isNotBlank() }?.let {

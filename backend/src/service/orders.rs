@@ -5,6 +5,7 @@ use rust_decimal::Decimal;
 use serde_json::json;
 use sqlx::PgConnection;
 
+use crate::domain::lookups::ORDER_RELATION_KEYS;
 use crate::domain::money::{Currency, Money};
 use crate::domain::order::validate_line_item;
 use crate::domain::stage::{StageEntity, initial_stage};
@@ -78,12 +79,15 @@ pub async fn validate_references(conn: &mut PgConnection, f: &OrderFields) -> Ap
             "related_order_id and relation are set together or not at all",
         ));
     }
+    // The accepted relations live in `domain::lookups`, next to the labels
+    // `GET /config/lookups` publishes: one definition, no drift.
     if let Some(relation) = &f.relation
-        && !matches!(relation.as_str(), "warranty" | "rework" | "repeat")
+        && !ORDER_RELATION_KEYS.contains(&relation.as_str())
     {
-        return Err(AppError::validation(
-            "relation must be warranty, rework or repeat",
-        ));
+        return Err(AppError::validation(format!(
+            "relation must be one of {}",
+            ORDER_RELATION_KEYS.join(", ")
+        )));
     }
     Ok(())
 }

@@ -25,9 +25,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import hu.autotherm.autocrm.data.api.AutoCrmApi
+import hu.autotherm.autocrm.data.api.Lookups
 import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.db.PendingUpload
+import hu.autotherm.autocrm.data.inspection.cachedLookups
+import hu.autotherm.autocrm.data.inspection.downloadLookups
 import hu.autotherm.autocrm.data.prefs.CapturePrefs
+import hu.autotherm.autocrm.data.prefs.LookupsCache
 import hu.autotherm.autocrm.data.upload.UploadQueue
 import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.EmptyState
@@ -47,10 +51,20 @@ class QueueViewModel(
     private val queue: UploadQueue,
     private val api: AutoCrmApi,
     private val sessionStore: SessionStore,
+    private val lookupsCache: LookupsCache,
 ) : ViewModel() {
 
     val items: StateFlow<List<PendingUpload>> =
         queue.queue.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _lookups = kotlinx.coroutines.flow.MutableStateFlow<Lookups?>(null)
+    val lookups: StateFlow<Lookups?> = _lookups
+
+    init {
+        viewModelScope.launch {
+            _lookups.value = downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
+        }
+    }
 
     fun retryAll() = viewModelScope.launch { queue.retryAll() }
     fun retry(id: Long) = viewModelScope.launch { queue.retry(id) }
@@ -80,6 +94,7 @@ class QueueViewModel(
 @Composable
 fun QueueScreen(viewModel: QueueViewModel, onMenu: () -> Unit) {
     val items by viewModel.items.collectAsState()
+    val lookups by viewModel.lookups.collectAsState()
     val blocked = items.count { it.state == PendingUpload.STATE_BLOCKED }
     val waiting = items.size - blocked
 
@@ -126,7 +141,7 @@ fun QueueScreen(viewModel: QueueViewModel, onMenu: () -> Unit) {
                         Card(Modifier.animateItem()) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(
-                                    "${row.orderNumber} · ${CapturePrefs.label(row.category)}",
+                                    "${row.orderNumber} · ${CapturePrefs.label(row.category, lookups)}",
                                     style = MaterialTheme.typography.titleMedium,
                                     modifier = Modifier.weight(1f, fill = false),
                                 )

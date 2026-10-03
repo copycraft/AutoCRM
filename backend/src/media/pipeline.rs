@@ -110,6 +110,27 @@ fn encode_jpeg(img: &DynamicImage) -> Result<Vec<u8>, PipelineError> {
     Ok(out)
 }
 
+pub const AVATAR_EDGE: u32 = 512;
+
+/// A profile picture: orientation applied, cropped to the centre square, scaled to
+/// `AVATAR_EDGE`, re-encoded as JPEG (which drops all EXIF, GPS included).
+pub fn process_avatar(bytes: &[u8]) -> Result<Vec<u8>, PipelineError> {
+    let exif = read_exif(bytes);
+    let mut limits = Limits::default();
+    limits.max_image_width = Some(20_000);
+    limits.max_image_height = Some(20_000);
+    limits.max_alloc = Some(1024 * 1024 * 1024);
+    let mut reader = ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| PipelineError::Decode(e.to_string()))?;
+    reader.limits(limits);
+    let decoded = reader
+        .decode()
+        .map_err(|e| PipelineError::Decode(e.to_string()))?;
+    let img = apply_orientation(decoded, exif.orientation);
+    encode_jpeg(&img.resize_to_fill(AVATAR_EDGE, AVATAR_EDGE, FilterType::Lanczos3))
+}
+
 pub fn process(bytes: &[u8], tz: Tz) -> Result<Processed, PipelineError> {
     let exif = read_exif(bytes);
 
@@ -188,6 +209,17 @@ mod tests {
                 .width(),
             800
         );
+    }
+
+    #[test]
+    fn avatars_are_square_and_bounded() {
+        for (w, h) in [(3000, 2000), (200, 900), (64, 64)] {
+            let out = process_avatar(&sample_jpeg(w, h)).unwrap();
+            let img = image::load_from_memory(&out).unwrap();
+            assert_eq!((img.width(), img.height()), (AVATAR_EDGE, AVATAR_EDGE));
+            assert_eq!(read_exif(&out), ExifInfo::default());
+        }
+        assert!(process_avatar(b"not an image").is_err());
     }
 
     #[test]

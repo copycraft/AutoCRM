@@ -9,6 +9,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import messages from '@/messages/hu.json';
+import { lookups } from './fixtures';
 
 const api = vi.hoisted(() => ({
   list: vi.fn(),
@@ -17,8 +18,9 @@ const api = vi.hoisted(() => ({
   verdict: vi.fn(),
   note: vi.fn(),
 }));
+const configApi = vi.hoisted(() => ({ lookups: vi.fn() }));
 
-vi.mock('@/lib/api/endpoints', () => ({ inspectionsApi: api }));
+vi.mock('@/lib/api/endpoints', () => ({ inspectionsApi: api, configApi }));
 vi.mock('@/lib/auth/context', async (orig) => ({
   ...(await orig<typeof import('@/lib/auth/context')>()),
   useAuth: () => ({
@@ -74,13 +76,30 @@ function damage(id: number, inspectionId: number) {
   };
 }
 
+// The server names each zone from the list the inspection was walked with. The two
+// walkarounds of one order use different lists, so the titles differ between them.
+const ZONE_TITLES = {
+  checkout: { front: 'Elöl (átvétel)' },
+  checkin: { front: 'Elöl (kiadás)' },
+};
+
 function detail(insp: ReturnType<typeof inspection>, damages: ReturnType<typeof damage>[]) {
-  return { inspection: insp, photos: [], damages, verdicts: [], signatures: [], notes: [] };
+  return {
+    inspection: insp,
+    photos: [],
+    damages,
+    verdicts: [],
+    signatures: [],
+    notes: [],
+    zone_titles: insp.kind === 'checkin' ? ZONE_TITLES.checkin : ZONE_TITLES.checkout,
+  };
 }
 
 function setup(checkinStatus: string) {
   const checkin = inspection(2, 'checkin', checkinStatus);
   const checkout = inspection(1, 'checkout', 'signed');
+  // The verdict buttons and damage labels render from the server's lookups.
+  configApi.lookups.mockResolvedValue(lookups);
   api.list.mockResolvedValue({ items: [checkin] });
   api.get.mockResolvedValue(detail(checkin, [damage(20, 2)]));
   api.comparison.mockResolvedValue({
@@ -108,6 +127,17 @@ async function openCard() {
 
 describe('check-in verdicts on the web', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('names the zone of each damage from the titles the server sent, not by its key', async () => {
+    setup('draft');
+    await openCard();
+    // The check-in damage is titled from the check-in list, the matched check-out damage
+    // from the check-out list; the raw key is not shown.
+    // The damage is listed once under the check-in and once in the comparison.
+    expect((await screen.findAllByText('Elöl (kiadás)')).length).toBe(2);
+    expect(screen.getByText((text) => text.includes('Elöl (átvétel)'))).toBeTruthy();
+    expect(screen.queryByText('front')).toBeNull();
+  });
 
   it('a signed check-in offers no verdict buttons', async () => {
     setup('signed');

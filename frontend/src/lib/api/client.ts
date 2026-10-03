@@ -16,6 +16,8 @@ type Search = Record<string, string | number | boolean | undefined | null>;
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
+  /** A file sent as-is (the HR photo), instead of JSON. */
+  rawBody?: Blob;
   search?: Search;
   signal?: AbortSignal;
 }
@@ -32,13 +34,17 @@ function buildUrl(path: string, search?: Search): string {
 }
 
 async function send(path: string, opts: RequestOptions): Promise<Response> {
-  const { method = 'GET', body, search, signal } = opts;
+  const { method = 'GET', body, rawBody, search, signal } = opts;
   const res = await fetch(buildUrl(path, search), {
     method,
     credentials: 'include',
     signal,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: rawBody
+      ? { 'Content-Type': rawBody.type || 'application/octet-stream' }
+      : body !== undefined
+        ? { 'Content-Type': 'application/json' }
+        : undefined,
+    body: rawBody ?? (body !== undefined ? JSON.stringify(body) : undefined),
   });
   if (!res.ok) throw await parseApiError(res);
   return res;

@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT t.id, coalesce(pt.key, 'default') || ':' || t.kind AS \"set_key!\",\n                  t.project_type_id, t.kind, t.zone_key, t.position, t.title,\n                  t.instruction, t.optional, t.required\n             FROM inspection_zone_templates t\n             LEFT JOIN project_types pt ON pt.id = t.project_type_id\n            WHERE t.kind = $1 AND t.project_type_id IS NOT DISTINCT FROM $2::bigint\n            ORDER BY t.position, t.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "set_key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "project_type_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "zone_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "instruction",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "optional",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "required",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "28c2cac8d773d8436608e6ef651adcffcc12f9b77df1233c1cef6b05d97d1781"
+}

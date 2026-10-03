@@ -7,6 +7,7 @@ pub mod config;
 pub mod contacts;
 pub mod documents;
 pub mod emails;
+pub mod employees;
 pub mod fx;
 pub mod images;
 pub mod inspections;

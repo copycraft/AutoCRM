@@ -23,7 +23,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import hu.autotherm.autocrm.data.api.AutoCrmApi
+import hu.autotherm.autocrm.data.api.Lookups
+import hu.autotherm.autocrm.data.inspection.cachedLookups
+import hu.autotherm.autocrm.data.inspection.downloadLookups
 import hu.autotherm.autocrm.data.prefs.CapturePrefs
+import hu.autotherm.autocrm.data.prefs.LookupsCache
 import hu.autotherm.autocrm.data.upload.UploadQueue
 import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.SectionTitle
@@ -62,12 +67,15 @@ import java.io.File
 class OrderPhotoViewModel(
     private val queue: UploadQueue,
     private val prefs: CapturePrefs,
+    private val api: AutoCrmApi,
+    private val lookupsCache: LookupsCache,
 ) : ViewModel() {
 
     data class State(
         val category: String = CapturePrefs.CATEGORY_PRODUCTION,
         val pending: Int = 0,
         val message: String? = null,
+        val lookups: Lookups? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -84,14 +92,16 @@ class OrderPhotoViewModel(
 
     fun loadStickyCategory() {
         viewModelScope.launch {
+            val lookups = downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
             // Manual attaching is production-only (client rule): intake and handover
             // shots come from their own flows. Coerce any older sticky value back
             // to production so a stale "intake" can never file here by accident.
             val stored = prefs.category.first()
-            val category = if (stored in CapturePrefs.ATTACHABLE) stored
-            else CapturePrefs.CATEGORY_PRODUCTION
+            val allowed = CapturePrefs.attachable(lookups)
+            val category = if (stored in allowed) stored
+            else allowed.firstOrNull() ?: CapturePrefs.CATEGORY_PRODUCTION
             if (category != stored) prefs.setCategory(category)
-            _state.value = _state.value.copy(category = category)
+            _state.value = _state.value.copy(category = category, lookups = lookups)
         }
     }
 
@@ -199,7 +209,7 @@ fun OrderPhotoSection(
                 Text("Még nincs feltöltött fotó.", style = MaterialTheme.typography.bodyLarge, color = Steel500)
             } else {
                 imageCounts.forEach { (category, count) ->
-                    StatusBadge("${CapturePrefs.label(category)}: $count", Tone.Steel)
+                    StatusBadge("${CapturePrefs.label(category, state.lookups)}: $count", Tone.Steel)
                 }
             }
         }

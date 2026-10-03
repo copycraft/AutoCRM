@@ -14,6 +14,7 @@ import { PartnerPicker, type PartnerOption } from './PartnerPicker';
 import { AssigneeField } from './AssigneeField';
 import { DateQuickPicks } from './DateQuickPicks';
 import { lastAssignee } from '@/hooks/useLastUsed';
+import { useLookups } from '@/hooks/useLookups';
 import { useDirtyGuard } from '@/hooks/useDirtyGuard';
 import { useFormDraft } from '@/hooks/useFormDraft';
 import type { Lead, LeadBody } from '@/lib/api/types';
@@ -162,6 +163,8 @@ export function LeadForm({
 
   const partner = watch('partner');
   const partnerId = partner?.id;
+  const { data: lookups } = useLookups();
+  const currencies = lookups?.currencies ?? [];
   useDirtyGuard(formState.isDirty && !formState.isSubmitSuccessful, tq('unsavedChanges'));
   const contactsQuery = useQuery({
     queryKey: qk.partner(partnerId ?? 0),
@@ -287,8 +290,11 @@ export function LeadForm({
           <label className="label" htmlFor="lf-currency">{t('quoteCurrency')}</label>
           <select id="lf-currency" className="input" {...register('currency')}>
             <option value="">—</option>
-            <option value="HUF">HUF</option>
-            <option value="EUR">EUR</option>
+            {currencies.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.key}
+              </option>
+            ))}
           </select>
         </div>
         <div>

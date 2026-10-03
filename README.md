@@ -133,3 +133,17 @@ docker-compose.yml  dev Postgres, MinIO (object lock enabled), Mailpit, nav-side
   switching to production.
 - Newsletter signup from the website: set `NEWSLETTER_API_KEY`, and switch automatic email on
   first, or the confirmation letters are cancelled and nobody can confirm.
+- Website enquiries: set `LEADS_API_KEY` (`openssl rand -hex 32`). The autotherm.hu form's
+  server (not the browser, or the key leaks) POSTs JSON to `/api/leads/website` with the
+  header `X-Leads-Key`: `name` plus `email` and/or `phone` are required; `message`,
+  `subject`, `vehicle`, `page` are optional; `company` is a hidden honeypot field. Answer is
+  202; the lead appears unassigned in the first stage with source `website`.
+
+## HR module and user access
+
+`/hr` (web) is the staff directory: name, photo, company and personal phone, email. It is open
+to admins and to any user an admin has given **HR access** on the Users page (`/admin`, admins
+only), which lists every registered user with role, active and HR-access controls. The check
+is enforced by the API (`Capability::AccessHr`, every `/api/hr/*` route), not just hidden in
+the menu. Photos are stored in the object store under `hr/employees/`. Migration `0034_hr.sql`
+adds `users.hr_access` and the `employees` table.

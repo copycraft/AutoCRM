@@ -70,11 +70,13 @@ pub struct AuthUser {
     pub display_name: String,
     pub role: Role,
     pub must_change_password: bool,
+    /// Granted by an admin; unlocks the HR module on top of the role.
+    pub hr_access: bool,
 }
 
 impl AuthUser {
     pub fn require(&self, capability: Capability) -> AppResult<()> {
-        if self.role.can(capability) {
+        if self.can(capability) {
             Ok(())
         } else {
             Err(AppError::Forbidden)
@@ -82,7 +84,7 @@ impl AuthUser {
     }
 
     pub fn can(&self, capability: Capability) -> bool {
-        self.role.can(capability)
+        self.role.can(capability) || (capability == Capability::AccessHr && self.hr_access)
     }
 }
 
@@ -240,6 +242,7 @@ pub async fn authenticate(db: &PgPool, token: &str) -> AppResult<AuthUser> {
         display_name: session.display_name,
         role: session.role,
         must_change_password: session.must_change_password,
+        hr_access: session.hr_access,
     })
 }
 

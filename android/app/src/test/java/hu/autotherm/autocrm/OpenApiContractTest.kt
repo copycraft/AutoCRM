@@ -107,7 +107,9 @@ class OpenApiContractTest {
     @Test
     fun `the mobile login still returns a bearer token`() {
         assertHasFields("LoginResponse", "user", "token", "expires_at")
-        assertHasFields("SessionUser", "id", "email", "display_name", "role", "must_change_password")
+        assertHasFields("SessionUser", "id", "email", "display_name", "role", "must_change_password", "hr_access")
+        assertHasFields("Employee", "id", "full_name", "email", "company_phone", "personal_phone", "photo_url", "archived_at")
+        assertHasFields("User", "id", "email", "display_name", "role", "is_active", "hr_access")
     }
 
     @Test
@@ -234,7 +236,7 @@ class OpenApiContractTest {
         )
         assertHasFields(
             "InspectionDetail", "inspection", "photos", "damages", "verdicts",
-            "signatures", "notes",
+            "signatures", "notes", "zone_titles",
         )
         assertHasFields(
             "InspectionPhoto", "image_id", "zone_key", "purpose", "taken_at",
@@ -243,8 +245,21 @@ class OpenApiContractTest {
         assertHasFields(
             "InspectionDamage", "zone_key", "damage_type", "severity", "note", "x", "y",
         )
-        assertHasFields("ZoneTemplate", "set_key", "zone_key", "position", "instruction")
+        assertHasFields(
+            "ZoneTemplate", "set_key", "project_type_id", "kind", "zone_key", "position",
+            "title", "instruction", "optional", "required",
+        )
         assertHasFields("Comparison", "checkin", "checkout", "suggestions")
+        assertHasFields(
+            "Lookups", "damage_types", "severities", "verdicts", "walkaround_kinds",
+            "fuel_levels", "heating_fuels", "defrost_modes", "order_relations",
+            "task_entity_types", "currencies", "invoice_payment_methods", "annulment_codes",
+            "image_categories", "email_themes", "error_texts",
+        )
+        assertHasFields("LookupItem", "key", "label_hu")
+        assertHasFields("ImageCategoryEntry", "key", "label_hu", "immutable", "attachable")
+        assertHasFields("EmailThemeEntry", "key", "label_hu", "subject", "hero", "body")
+        assertHasFields("ErrorTextEntry", "code", "text_hu")
     }
 
     @Test
@@ -262,7 +277,7 @@ class OpenApiContractTest {
             "/inspections/{id}/damages", "/inspections/{id}/signatures",
             "/inspections/{id}/sign", "/inspections/{id}/notes",
             "/inspections/{id}/comparison", "/inspections/{id}/verdicts",
-            "/inspections/templates",
+            "/inspections/templates", "/config/lookups",
         )
         for (path in required) {
             assertTrue("the API no longer serves $path", paths.containsKey(path))

@@ -5,13 +5,14 @@
 // validation are replaced. Paths are matched exactly as endpoints.ts builds them.
 import * as f from './fixtures';
 
-type Handler = () => unknown;
+type Handler = (search?: Record<string, unknown>) => unknown;
 
 const EXACT: Record<string, Handler> = {
   '/auth/me': () => ({ user: f.sessionUser }),
   '/auth/preferences': () => f.userSettings,
   '/auth/sessions': () => ({ items: [] }),
-  '/users': () => ({ items: [f.user] }),
+  '/users': () => ({ items: [f.user, f.officeUser] }),
+  '/hr/employees': () => ({ items: [f.employee] }),
   '/partners': () => ({ items: [f.partner] }),
   '/leads': () => ({ items: [f.leadSummary] }),
   '/orders': () => ({ items: [f.orderSummary] }),
@@ -24,6 +25,15 @@ const EXACT: Record<string, Handler> = {
     items: [f.coolingProjectType, f.heatingProjectType, f.plainProjectType],
   }),
   '/settings': () => f.settings,
+  '/config/lookups': () => f.lookups,
+  '/invoices': (search) => {
+    // The Számlázó filters run on the server; mirror them here.
+    let items = [f.billedStorno, f.billedInvoice];
+    if (search?.status) items = items.filter((i) => i.status === search.status);
+    if (search?.kind) items = items.filter((i) => i.kind === search.kind);
+    return { items };
+  },
+  '/proformas': () => ({ items: [f.billedProforma] }),
 };
 
 const PATTERNS: [RegExp, Handler][] = [
@@ -73,10 +83,10 @@ export function resetUnhandled(): void {
 
 function resolve(path: string, search?: Record<string, unknown>): unknown {
   const override = overrides.get(path);
-  if (override) return override();
+  if (override) return override(search);
   if (path === '/stage-definitions') return stageDefinitions(search);
   const exact = EXACT[path];
-  if (exact) return exact();
+  if (exact) return exact(search);
   for (const [re, handler] of PATTERNS) {
     if (re.test(path)) return handler();
   }
@@ -84,14 +94,37 @@ function resolve(path: string, search?: Record<string, unknown>): unknown {
   return { items: [] };
 }
 
-export function request<T>(
-  path: string,
-  _schema: unknown,
-  opts: { search?: Record<string, unknown> } = {},
-): Promise<T> {
+/** Every write (anything but a GET) the page made, in order, for tests that assert what was sent. */
+export const writes: { path: string; method: string; body?: unknown; search?: Record<string, unknown> }[] = [];
+
+export function resetWrites(): void {
+  writes.length = 0;
+}
+
+interface Opts {
+  method?: string;
+  body?: unknown;
+  search?: Record<string, unknown>;
+}
+
+function record(path: string, opts: Opts): void {
+  const method = opts.method ?? 'GET';
+  if (method !== 'GET') {
+    writes.push({
+      path,
+      method,
+      ...(opts.body === undefined ? {} : { body: opts.body }),
+      ...(opts.search === undefined ? {} : { search: opts.search }),
+    });
+  }
+}
+
+export function request<T>(path: string, _schema: unknown, opts: Opts = {}): Promise<T> {
+  record(path, opts);
   return Promise.resolve(resolve(path, opts.search) as T);
 }
 
-export function requestNoContent(_path: string, _opts?: unknown): Promise<void> {
+export function requestNoContent(path: string, opts: Opts = {}): Promise<void> {
+  record(path, opts);
   return Promise.resolve();
 }

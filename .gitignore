@@ -23,3 +23,11 @@ Thumbs.db
 /android/app/build/
 /android/local.properties
 /android/.kotlin/
+
+# Release signing: never commit the keystore or its passwords
+/android/keystore.properties
+/android/*.keystore
+/android/*.jks
+
+# Output of build.sh
+/build/

@@ -15,6 +15,7 @@ use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::leads::StageBody;
 use super::{Items, optional, page_limit, page_offset, patch as patch_field, patch_text, required};
 use crate::AppState;
+use crate::domain::lookups::{DEFROST_KEYS, HEATING_FUEL_KEYS};
 use crate::domain::media::ImageCategory;
 use crate::domain::money::{Currency, Money};
 use crate::domain::order::{normalize_plate, validate_line_item};
@@ -212,19 +213,23 @@ fn decimal_field(name: &str, value: Option<String>) -> AppResult<Option<Decimal>
 }
 
 fn spec_fields(form: &str, b: SpecBody) -> AppResult<SpecFields> {
+    // Accepted values live in `domain::lookups`, next to the labels
+    // `GET /config/lookups` publishes: one definition, no drift.
     if let Some(d) = optional(b.defrost.clone())
-        && !matches!(d.as_str(), "automatic" | "manual" | "hot_gas")
+        && !DEFROST_KEYS.contains(&d.as_str())
     {
-        return Err(AppError::validation(
-            "defrost must be automatic, manual or hot_gas",
-        ));
+        return Err(AppError::validation(format!(
+            "defrost must be one of {}",
+            DEFROST_KEYS.join(", ")
+        )));
     }
     if let Some(f) = optional(b.fuel.clone())
-        && !matches!(f.as_str(), "diesel" | "electric" | "lpg" | "engine_coolant")
+        && !HEATING_FUEL_KEYS.contains(&f.as_str())
     {
-        return Err(AppError::validation(
-            "fuel must be diesel, electric, lpg or engine_coolant",
-        ));
+        return Err(AppError::validation(format!(
+            "fuel must be one of {}",
+            HEATING_FUEL_KEYS.join(", ")
+        )));
     }
     Ok(SpecFields {
         form: form.to_string(),

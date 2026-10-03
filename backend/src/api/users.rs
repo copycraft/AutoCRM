@@ -82,6 +82,8 @@ struct UpdateUser {
     display_name: Option<String>,
     role: Option<Role>,
     is_active: Option<bool>,
+    /// Unlocks the HR module for a non-admin. Admins have it regardless.
+    hr_access: Option<bool>,
 }
 
 #[utoipa::path(
@@ -125,6 +127,7 @@ async fn update(
         display_name.as_deref(),
         body.role,
         body.is_active,
+        body.hr_access,
     )
     .await?
     .ok_or(AppError::NotFound("user"))?;
@@ -147,6 +150,7 @@ async fn update(
             ),
             ("role", json!(before.role), json!(after.role)),
             ("is_active", json!(before.is_active), json!(after.is_active)),
+            ("hr_access", json!(before.hr_access), json!(after.hr_access)),
         ]),
     )
     .await?;

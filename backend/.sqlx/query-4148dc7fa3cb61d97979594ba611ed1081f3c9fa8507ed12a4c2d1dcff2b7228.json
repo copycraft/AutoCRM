@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO inspection_zone_templates\n                    (project_type_id, kind, zone_key, position, title, instruction, optional, required)\n             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4148dc7fa3cb61d97979594ba611ed1081f3c9fa8507ed12a4c2d1dcff2b7228"
+}

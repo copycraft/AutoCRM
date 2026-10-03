@@ -123,7 +123,8 @@ describe('InvoicesSection', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Számla kiállítása' }));
       const dialog = await screen.findByRole('dialog');
       const method = within(dialog).getByLabelText('Fizetési mód');
-      expect((method as HTMLSelectElement).value).toBe('TRANSFER');
+      // The methods arrive with the server's lookups, a beat after the dialog.
+      await waitFor(() => expect((method as HTMLSelectElement).value).toBe('TRANSFER'));
       fireEvent.change(method, { target: { value: 'CASH' } });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Számla kiállítása' }));
       await waitFor(() =>

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, email, display_name, role AS \"role: Role\", is_active, must_change_password, created_at, updated_at\n           FROM users ORDER BY is_active DESC, display_name",
+  "query": "SELECT id, email, display_name, role AS \"role: Role\", is_active, must_change_password, hr_access, created_at, updated_at\n           FROM users WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -47,19 +47,27 @@
       },
       {
         "ordinal": 6,
+        "name": "hr_access",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -70,5 +78,5 @@
       false
     ]
   },
-  "hash": "493c30924699db89c256d14299f843a9d95b27292e4e9cc7d5db8e81349d71b0"
+  "hash": "c820eea7fbbd9bb2018734aff05b3196a58778932e915fba9f98876c3caeaa66"
 }

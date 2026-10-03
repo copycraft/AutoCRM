@@ -8,6 +8,7 @@ import {
   Building2,
   Target,
   Package,
+  Receipt,
   Mail,
   BarChart3,
   MonitorPlay,
@@ -15,20 +16,23 @@ import {
   ShieldCheck,
   LogOut,
   Snowflake,
+  Users,
   SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/format';
-import { useAuth, canAdmin } from '@/lib/auth/context';
+import { useAuth, canAdmin, canAccessHr } from '@/lib/auth/context';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 
-const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: boolean }[] = [
+const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: boolean; hr?: boolean }[] = [
   { href: '', icon: LayoutDashboard, key: 'dashboard' },
   { href: '/partners/business', icon: Building2, key: 'business' },
   { href: '/leads', icon: Target, key: 'leads' },
   { href: '/orders', icon: Package, key: 'orders' },
+  { href: '/invoices', icon: Receipt, key: 'invoices' },
   { href: '/emails', icon: Mail, key: 'emails' },
   { href: '/board', icon: MonitorPlay, key: 'board' },
   { href: '/reports', icon: BarChart3, key: 'reports' },
+  { href: '/hr', icon: Users, key: 'hr', hr: true },
   { href: '/admin', icon: ShieldCheck, key: 'admin', admin: true },
   { href: '/settings', icon: Settings, key: 'settings', admin: true },
 ] as const;
@@ -56,7 +60,7 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
       <GlobalSearch />
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5" aria-label={t('main')}>
-        {NAV.filter((i) => !i.admin || canAdmin(user)).map((item) => {
+        {NAV.filter((i) => (!i.admin || canAdmin(user)) && (!i.hr || canAccessHr(user))).map((item) => {
           const href = `/${locale}${item.href}`;
           const active = pathname === href || (item.href !== '' && pathname.startsWith(href + '/'));
           const Icon = item.icon;

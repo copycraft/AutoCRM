@@ -29,6 +29,8 @@ const imagePatterns = process.env.AUTOCRM_S3_URL
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // A self-contained server (`node server.js`) for deployment; see build.sh.
+  output: 'standalone',
   experimental: {
     // Barrel files: import only the icons/helpers actually used, not the whole index.
     optimizePackageImports: [

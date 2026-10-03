@@ -9,7 +9,6 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
-use sha2::{Digest, Sha256};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -240,20 +239,11 @@ async fn unsubscribe(
 }
 
 fn check_website_key(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
-    let expected = state.config.newsletter_api_key.as_deref().unwrap_or("");
-    if expected.is_empty() {
-        return Err(AppError::Forbidden);
-    }
-    let given = headers
-        .get("x-newsletter-key")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    // Compare digests, not the strings: equal-length hashes compared whole leak nothing
-    // about how much of the key a guess got right.
-    if Sha256::digest(given.as_bytes()) != Sha256::digest(expected.as_bytes()) {
-        return Err(AppError::Forbidden);
-    }
-    Ok(())
+    super::check_api_key(
+        state.config.newsletter_api_key.as_deref(),
+        headers,
+        "x-newsletter-key",
+    )
 }
 
 #[cfg(test)]

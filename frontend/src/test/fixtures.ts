@@ -2,7 +2,10 @@
 // backend schema change breaks `tsc` here rather than leaving a test that renders
 // a shape the API never returns.
 import type {
+  Employee,
   AuditEntry,
+  BilledInvoice,
+  BilledProforma,
   Blocker,
   Contact,
   EmailMessage,
@@ -12,6 +15,7 @@ import type {
   Lead,
   LeadDetail,
   LeadSummary,
+  Lookups,
   Order,
   OrderDetail,
   OrderNote,
@@ -41,6 +45,7 @@ export const sessionUser: SessionUser = {
   role: 'admin',
   must_change_password: false,
   session_kind: 'web',
+  hr_access: true,
 };
 
 export const user: User = {
@@ -50,6 +55,7 @@ export const user: User = {
   role: 'admin',
   is_active: true,
   must_change_password: false,
+  hr_access: false,
   created_at: NOW,
   updated_at: NOW,
 };
@@ -463,6 +469,7 @@ export const settings: Settings = {
 };
 
 export const emailSummary: EmailSummary = {
+
   id: 61,
   order_id: 3,
   lead_id: null,
@@ -593,4 +600,157 @@ export const proforma: Proforma = {
   document_id: 901,
   created_by: 1,
   created_at: NOW,
+};
+
+export const lookups: Lookups = {
+  damage_types: [
+    { key: 'scratch', label_hu: 'Karcolás' },
+    { key: 'dent', label_hu: 'Horpadás' },
+    { key: 'crack', label_hu: 'Repedés' },
+    { key: 'chip', label_hu: 'Lepattanás' },
+    { key: 'broken', label_hu: 'Törött alkatrész' },
+    { key: 'missing', label_hu: 'Hiányzó alkatrész' },
+    { key: 'stain', label_hu: 'Folt' },
+    { key: 'tear', label_hu: 'Szakadás' },
+    { key: 'other', label_hu: 'Egyéb' },
+  ],
+  severities: [
+    { key: 'minor', label_hu: 'Enyhe' },
+    { key: 'moderate', label_hu: 'Közepes' },
+    { key: 'severe', label_hu: 'Súlyos' },
+  ],
+  verdicts: [
+    { key: 'preexisting', label_hu: 'Már megvolt' },
+    { key: 'new', label_hu: 'Új sérülés' },
+    { key: 'dismissed', label_hu: 'Nem sérülés' },
+  ],
+  walkaround_kinds: [
+    { key: 'checkout', label_hu: 'Átvétel' },
+    { key: 'checkin', label_hu: 'Kiadás' },
+  ],
+  fuel_levels: [
+    { key: 'E', label_hu: 'E' },
+    { key: '1/4', label_hu: '1/4' },
+    { key: '1/2', label_hu: '1/2' },
+    { key: '3/4', label_hu: '3/4' },
+    { key: 'F', label_hu: 'F' },
+  ],
+  heating_fuels: [
+    { key: 'diesel', label_hu: 'Dízel' },
+    { key: 'electric', label_hu: 'Elektromos' },
+    { key: 'lpg', label_hu: 'LPG' },
+    { key: 'engine_coolant', label_hu: 'Motorhűtőfolyadék' },
+  ],
+  defrost_modes: [
+    { key: 'automatic', label_hu: 'Automatikus' },
+    { key: 'manual', label_hu: 'Kézi' },
+    { key: 'hot_gas', label_hu: 'Forrógázas' },
+  ],
+  order_relations: [
+    { key: 'warranty', label_hu: 'Garanciális' },
+    { key: 'rework', label_hu: 'Újramunkálás' },
+    { key: 'repeat', label_hu: 'Ismételt' },
+  ],
+  task_entity_types: [
+    { key: 'order', label_hu: 'Megrendelés' },
+    { key: 'lead', label_hu: 'Érdeklődő' },
+    { key: 'partner', label_hu: 'Partner' },
+  ],
+  currencies: [
+    { key: 'HUF', label_hu: 'Forint' },
+    { key: 'EUR', label_hu: 'Euró' },
+  ],
+  invoice_payment_methods: [
+    { key: 'TRANSFER', label_hu: 'Átutalás' },
+    { key: 'CASH', label_hu: 'Készpénz' },
+  ],
+  annulment_codes: [
+    { key: 'ERRATIC_DATA', label_hu: 'ERRATIC_DATA' },
+    { key: 'ERRATIC_INVOICE_NUMBER', label_hu: 'ERRATIC_INVOICE_NUMBER' },
+    { key: 'ERRATIC_INVOICE_ISSUE_DATE', label_hu: 'ERRATIC_INVOICE_ISSUE_DATE' },
+    { key: 'ERRATIC_ELECTRONIC_HASH_VALUE', label_hu: 'ERRATIC_ELECTRONIC_HASH_VALUE' },
+  ],
+  image_categories: [
+    { key: 'intake', label_hu: 'Bevétel', immutable: true, attachable: false },
+    { key: 'production', label_hu: 'Gyártás', immutable: false, attachable: true },
+    { key: 'completion', label_hu: 'Átadás/MEO', immutable: false, attachable: false },
+    { key: 'marketing', label_hu: 'Marketing', immutable: false, attachable: false },
+    { key: 'inspection', label_hu: 'Átvétel', immutable: false, attachable: false },
+  ],
+  email_themes: [
+    {
+      key: 'quotation',
+      label_hu: 'Árajánlat',
+      subject: 'Árajánlatunk',
+      hero: 'Megjött az Autotherm árajánlatod!',
+      body: 'Tisztelt Címzett!',
+    },
+    {
+      key: 'promo',
+      label_hu: 'Akció',
+      subject: 'Autotherm akció',
+      hero: '',
+      body: '# Újdonság',
+    },
+  ],
+  error_texts: [
+    { code: 'checkout_open', text_hu: 'Már van nyitott átvételi jegyzőkönyv. Előbb írassa alá vagy dobja el.' },
+    { code: 'locked', text_hu: 'Az aláírt jegyzőkönyv már nem módosítható; utólagos megjegyzést lehet hozzáfűzni.' },
+  ],
+};
+
+export const billedInvoice: BilledInvoice = {
+  ...issuedInvoice,
+  order_number: 'MC-1001',
+  partner_name: 'Müller Kühltransporte GmbH',
+};
+
+export const billedStorno: BilledInvoice = {
+  ...issuedInvoice,
+  id: 504,
+  number: 'AT2026-0004',
+  kind: 'storno',
+  original_invoice_id: 501,
+  net_amount: -100_000_000,
+  vat_amount: -27_000_000,
+  gross_amount: -127_000_000,
+  order_number: 'MC-1001',
+  partner_name: 'Müller Kühltransporte GmbH',
+};
+
+export const billedProforma: BilledProforma = {
+  id: 701,
+  order_id: 3,
+  order_number: 'MC-1001',
+  partner_name: 'Müller Kühltransporte GmbH',
+  number: 'DB2026-0001',
+  currency: 'HUF',
+  issue_date: '2026-09-21',
+  payment_date: '2026-09-29',
+  net_amount: 100_000_000,
+  vat_amount: 27_000_000,
+  gross_amount: 127_000_000,
+  document_id: 901,
+  created_by: 1,
+  created_at: NOW,
+};
+
+export const employee: Employee = {
+  id: 7,
+  full_name: 'Kiss Péter',
+  email: 'peter@autotherm.hu',
+  company_phone: '+36 30 111 2222',
+  personal_phone: '+36 20 333 4444',
+  photo_url: null,
+  archived_at: null,
+  created_at: NOW,
+  updated_at: NOW,
+};
+
+export const officeUser: User = {
+  ...user,
+  id: 2,
+  email: 'anna@autotherm.hu',
+  display_name: 'Nagy Anna',
+  role: 'office',
 };

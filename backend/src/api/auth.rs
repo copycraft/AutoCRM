@@ -11,7 +11,7 @@ use utoipa_axum::routes;
 use super::extract::{ApiJson, ApiPath, Auth, SESSION_COOKIE, check_origin, client_ip, user_agent};
 use super::{Items, optional};
 use crate::AppState;
-use crate::domain::role::Role;
+use crate::domain::role::{Capability, Role};
 use crate::error::{AppError, AppResult};
 use crate::repo::config::{self, UserSettings};
 use crate::repo::sessions::{self, SessionInfo, SessionKind};
@@ -55,6 +55,8 @@ pub struct SessionUser {
     /// answers `422 password_change_required`.
     pub must_change_password: bool,
     pub session_kind: SessionKind,
+    /// Whether the HR module is open to this user: admins, and users an admin granted it.
+    pub hr_access: bool,
 }
 
 impl SessionUser {
@@ -66,12 +68,14 @@ impl SessionUser {
             role: user.role,
             must_change_password: user.must_change_password,
             session_kind,
+            hr_access: user.role == Role::Admin || user.hr_access,
         }
     }
 }
 
 impl From<AuthUser> for SessionUser {
     fn from(user: AuthUser) -> Self {
+        let hr_access = user.can(Capability::AccessHr);
         SessionUser {
             id: user.user_id,
             email: user.email,
@@ -79,6 +83,7 @@ impl From<AuthUser> for SessionUser {
             role: user.role,
             must_change_password: user.must_change_password,
             session_kind: user.session_kind,
+            hr_access,
         }
     }
 }

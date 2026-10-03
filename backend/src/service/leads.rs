@@ -63,6 +63,29 @@ pub async fn create(db: &PgPool, user: &AuthUser, input: LeadInput) -> AppResult
     Ok(lead)
 }
 
+/// A website enquiry becomes a lead in the first stage, with no staff user behind it.
+/// Unassigned: the office picks it up from the list.
+pub async fn create_from_website(db: &PgPool, input: LeadInput) -> AppResult<Lead> {
+    let mut tx = db.begin().await?;
+    let lead = leads::insert_by(&mut *tx, &input, None).await?;
+    let definitions = config::stage_definitions(&mut *tx, StageEntity::Lead).await?;
+    let initial = initial_stage(&definitions)
+        .ok_or_else(|| AppError::internal("no active initial lead stage is configured"))?;
+    stages::insert_lead_stage(&mut *tx, lead.id, &initial.key, None, None).await?;
+    audit::record(
+        &mut *tx,
+        None,
+        "lead",
+        lead.id,
+        "create",
+        json!({ "title": lead.title, "source": "website" }),
+    )
+    .await?;
+    tx.commit().await?;
+    tracing::info!(lead_id = lead.id, "website lead filed");
+    Ok(lead)
+}
+
 /// What the office fills in when a lead becomes an order. Partner may be omitted if the
 /// lead already has one.
 pub struct Conversion {

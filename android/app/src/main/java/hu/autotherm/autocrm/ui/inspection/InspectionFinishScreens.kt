@@ -29,6 +29,8 @@ import coil.compose.AsyncImage
 import hu.autotherm.autocrm.data.api.InspectionDetail
 import hu.autotherm.autocrm.data.inspection.damageTypeLabel
 import hu.autotherm.autocrm.data.inspection.severityLabel
+import hu.autotherm.autocrm.data.inspection.displayTitle
+import hu.autotherm.autocrm.data.inspection.walkaroundKindLabel
 import hu.autotherm.autocrm.data.inspection.zoneTitle
 import hu.autotherm.autocrm.ui.common.AutoCrmTextField
 import hu.autotherm.autocrm.ui.common.Card
@@ -62,7 +64,7 @@ fun ComparisonStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier
                 Card {
                     Text("Összehasonlítás", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Az átadás adataihoz jel kell.",
+                        "Az átvétel adataihoz jel kell.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = Steel500,
                     )
@@ -88,9 +90,9 @@ fun ComparisonStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card {
-                Text("Összehasonlítás az átadással", style = MaterialTheme.typography.titleLarge)
+                Text("Összehasonlítás az átvétellel", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "Elöl a visszavétel fotója, mellette az átadásé ugyanabból a zónából.",
+                    "Elöl a kiadáskor készült fotó, mellette az átvételkor készült ugyanabból a zónából.",
                     style = MaterialTheme.typography.labelMedium,
                     color = Steel500,
                 )
@@ -100,7 +102,7 @@ fun ComparisonStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier
         if (damages.isEmpty()) {
             item {
                 Card {
-                    Text("Nincs rögzített sérülés a visszavételen.")
+                    Text("Nincs rögzített sérülés a kiadáskor.")
                 }
             }
         }
@@ -118,8 +120,8 @@ fun ComparisonStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier
             }
             Card {
                 Text(
-                    "${zoneTitle(damage.zoneKey)} · ${damageTypeLabel(damage.damageType)} · " +
-                        severityLabel(damage.severity),
+                    "${zoneTitle(damage.zoneKey, payload.templates)} · ${damageTypeLabel(damage.damageType, state.lookups)} · " +
+                        severityLabel(damage.severity, state.lookups),
                     style = MaterialTheme.typography.titleMedium,
                 )
                 if (match != null) {
@@ -158,15 +160,20 @@ fun ComparisonStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier
                     }
                 }
                 val current = verdict?.verdict
+                // The server's verdict list; the keys are wire values, the labels render.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    VerdictChip("Megvolt", current == "preexisting") {
-                        viewModel.setVerdict(damage.localId, match?.id, "preexisting", null)
-                    }
-                    VerdictChip("Új", current == "new") {
-                        viewModel.setVerdict(damage.localId, null, "new", null)
-                    }
-                    VerdictChip("Nem sérülés", current == "dismissed") {
-                        viewModel.setVerdict(damage.localId, null, "dismissed", null)
+                    (state.lookups?.verdicts.orEmpty()).forEach { entry ->
+                        VerdictChip(
+                            entry.labelHu.ifBlank { entry.key },
+                            current == entry.key,
+                        ) {
+                            viewModel.setVerdict(
+                                damage.localId,
+                                if (entry.key == "preexisting") match?.id else null,
+                                entry.key,
+                                null,
+                            )
+                        }
                     }
                 }
                 if (match != null && current == null) {
@@ -237,7 +244,7 @@ fun SummaryStep(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(zoneTitle(zone.zoneKey), style = MaterialTheme.typography.titleMedium)
+                    Text(zone.displayTitle(), style = MaterialTheme.typography.titleMedium)
                     if (damages.isNotEmpty()) StatusBadge("${damages.size} sérülés", Tone.Signal)
                 }
                 if (photos.isNotEmpty()) {
@@ -247,7 +254,7 @@ fun SummaryStep(
                 }
                 damages.forEach { damage ->
                     Text(
-                        "${damageTypeLabel(damage.damageType)} · ${severityLabel(damage.severity)}" +
+                        "${damageTypeLabel(damage.damageType, state.lookups)} · ${severityLabel(damage.severity, state.lookups)}" +
                             (damage.note?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
                         style = MaterialTheme.typography.bodyLarge,
                     )
@@ -398,13 +405,17 @@ fun DoneStep(onExit: () -> Unit, modifier: Modifier = Modifier) {
 
 /** Server-side read-only detail (history): photos, damages, signatures, notes. */
 @Composable
-fun ServerInspectionDetail(detail: InspectionDetail, modifier: Modifier = Modifier) {
+fun ServerInspectionDetail(
+    detail: InspectionDetail,
+    lookups: hu.autotherm.autocrm.data.api.Lookups?,
+    modifier: Modifier = Modifier,
+) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card {
                 Text(
                     "${detail.inspection.vehiclePlate} · " +
-                        if (detail.inspection.kind == "checkin") "Visszavétel" else "Kiadás",
+                        walkaroundKindLabel(detail.inspection.kind, lookups),
                     style = MaterialTheme.typography.titleLarge,
                 )
                 Text(
@@ -423,7 +434,7 @@ fun ServerInspectionDetail(detail: InspectionDetail, modifier: Modifier = Modifi
         val byZone = detail.photos.filter { it.purpose == "overview" }.groupBy { it.zoneKey }
         items(byZone.entries.toList(), key = { it.key }) { (zone, photos) ->
             Card {
-                Text(zoneTitle(zone), style = MaterialTheme.typography.titleMedium)
+                Text(zoneTitle(zone, detail.zoneTitles), style = MaterialTheme.typography.titleMedium)
                 photos.forEach { photo ->
                     photo.displayUrl?.let { url ->
                         AsyncImage(
@@ -437,7 +448,7 @@ fun ServerInspectionDetail(detail: InspectionDetail, modifier: Modifier = Modifi
                 }
                 detail.damages.filter { it.zoneKey == zone }.forEach { damage ->
                     Text(
-                        "${damageTypeLabel(damage.damageType)} · ${severityLabel(damage.severity)}" +
+                        "${damageTypeLabel(damage.damageType, lookups)} · ${severityLabel(damage.severity, lookups)}" +
                             (damage.note?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
                         style = MaterialTheme.typography.bodyLarge,
                     )

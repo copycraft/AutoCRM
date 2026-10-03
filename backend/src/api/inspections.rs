@@ -14,6 +14,7 @@
 //! `ManageConfiguration`. A signed inspection is locked — later remarks go to
 //! notes, which is also how the phone syncs post-sign annotations.
 
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use axum::Json;
@@ -28,6 +29,10 @@ use utoipa_axum::routes;
 use super::Items;
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use crate::AppState;
+use crate::domain::lookups::{
+    DAMAGE_TYPE_KEYS as DAMAGE_TYPES, SEVERITY_KEYS as SEVERITIES, VERDICT_KEYS as VERDICTS,
+    WALKAROUND_KEYS as KINDS,
+};
 use crate::domain::media::ImageCategory;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
@@ -42,12 +47,9 @@ use crate::repo::{config, orders};
 const URL_TTL: Duration = Duration::from_secs(3600);
 
 const PURPOSES: &[&str] = &["overview", "closeup", "dashboard", "signature"];
-const DAMAGE_TYPES: &[&str] = &[
-    "scratch", "dent", "crack", "chip", "broken", "missing", "stain", "tear", "other",
-];
-const SEVERITIES: &[&str] = &["minor", "moderate", "severe"];
-const VERDICTS: &[&str] = &["preexisting", "new", "dismissed"];
-const TEMPLATE_SETS: &[&str] = &["default", "cooling"];
+// DAMAGE_TYPES / SEVERITIES / VERDICTS / KINDS come from `domain::lookups` (imported
+// above), next to the labels `GET /config/lookups` publishes: one definition, no drift.
+const MAX_ZONES: usize = 80;
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
@@ -59,7 +61,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(sign))
         .routes(routes!(add_note))
         .routes(routes!(comparison, set_verdict))
-        .routes(routes!(templates, replace_templates))
+        .routes(routes!(templates, replace_templates, delete_templates))
 }
 
 fn in_list(value: &str, allowed: &[&str], field: &str) -> AppResult<()> {
@@ -185,7 +187,7 @@ async fn create(
     ApiJson(mut b): ApiJson<CreateBody>,
 ) -> AppResult<(StatusCode, Json<Inspection>)> {
     me.require(Capability::ChangeStages)?;
-    if b.kind != "checkout" && b.kind != "checkin" {
+    if !KINDS.contains(&b.kind.as_str()) {
         return Err(AppError::validation("kind must be checkout or checkin"));
     }
     let order = orders::find(&state.db, b.order_id)
@@ -303,6 +305,10 @@ struct InspectionDetail {
     verdicts: Vec<InspectionVerdict>,
     signatures: Vec<InspectionSignature>,
     notes: Vec<InspectionNote>,
+    /// The heading of every zone in the list this inspection is walked with, by zone key,
+    /// so a client can name a zone without keeping its own table. A zone the office has
+    /// since removed from the list has no entry: show its key.
+    zone_titles: BTreeMap<String, String>,
 }
 
 async fn photo_views(
@@ -346,7 +352,18 @@ async fn photo_views(
 
 async fn detail_for(state: &AppState, inspection: &Inspection) -> AppResult<InspectionDetail> {
     let photos = inspections::photos_for(&state.db, inspection.id).await?;
+    let project_type_id = orders::find(&state.db, inspection.order_id)
+        .await?
+        .and_then(|o| o.project_type_id);
+    let zone_titles = {
+        let mut conn = state.db.acquire().await?;
+        inspections::templates_for(&mut conn, project_type_id, &inspection.kind).await?
+    }
+    .into_iter()
+    .map(|z| (z.zone_key, z.title))
+    .collect();
     Ok(InspectionDetail {
+        zone_titles,
         inspection: inspection.clone(),
         photos: photo_views(state, photos).await?,
         damages: inspections::damages_for(&state.db, inspection.id).await?,
@@ -862,9 +879,22 @@ async fn set_verdict(
 #[derive(Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 struct TemplatesQuery {
+    /// The order's project type (the kind of vehicle). Omitted: the general list.
     project_type_id: Option<i64>,
+    /// `checkout` (the first walkaround, the vehicle arriving) or `checkin` (the second,
+    /// leaving). Omitted: `checkout`.
+    kind: Option<String>,
 }
 
+fn template_kind(kind: Option<String>) -> AppResult<String> {
+    let kind = kind.unwrap_or_else(|| "checkout".to_string());
+    in_list(&kind, KINDS, "kind")?;
+    Ok(kind)
+}
+
+/// The zone list the phone walks: the project type's own list for this walkaround, else
+/// the general one. Items carry `project_type_id`, so a client can tell an own list (set)
+/// from the general list it was served instead (null).
 #[utoipa::path(
     get, path = "/inspections/templates", tag = "inspections",
     params(TemplatesQuery),
@@ -875,20 +905,10 @@ async fn templates(
     Auth(_): Auth,
     ApiQuery(q): ApiQuery<TemplatesQuery>,
 ) -> AppResult<Json<Items<ZoneTemplate>>> {
-    // Refrigerated bodies walk extra zones (cargo box, doors, reefer unit): the
-    // project type's spec form decides, like the order form itself.
-    let mut sets = vec!["default".to_string()];
-    if let Some(pt_id) = q.project_type_id {
-        let cooling = config::project_types(&state.db)
-            .await?
-            .iter()
-            .any(|t| t.id == pt_id && t.spec_form.as_deref() == Some("cooling"));
-        if cooling {
-            sets.push("cooling".to_string());
-        }
-    }
+    let kind = template_kind(q.kind)?;
+    let mut conn = state.db.acquire().await?;
     Ok(Items::new(
-        inspections::templates_for_sets(&state.db, &sets).await?,
+        inspections::templates_for(&mut conn, q.project_type_id, &kind).await?,
     ))
 }
 
@@ -896,6 +916,8 @@ async fn templates(
 struct ZoneBody {
     zone_key: String,
     position: i32,
+    /// The short heading the phone shows for the zone.
+    title: String,
     instruction: String,
     optional: bool,
     required: bool,
@@ -903,42 +925,90 @@ struct ZoneBody {
 
 #[derive(Deserialize, ToSchema)]
 struct ReplaceTemplatesBody {
+    /// The project type the list is for; null replaces the general list.
+    project_type_id: Option<i64>,
+    /// `checkout` or `checkin`.
+    kind: String,
     zones: Vec<ZoneBody>,
 }
 
+/// Replaces one whole list, in order. Admin only.
 #[utoipa::path(
-    put, path = "/inspections/templates/{set}", tag = "inspections",
-    params(("set" = String, Path)),
+    put, path = "/inspections/templates", tag = "inspections",
     request_body(content = ReplaceTemplatesBody),
     responses((status = 200, body = Items<ZoneTemplate>))
 )]
 async fn replace_templates(
     State(state): State<AppState>,
     Auth(me): Auth,
-    ApiPath(set): ApiPath<String>,
     ApiJson(b): ApiJson<ReplaceTemplatesBody>,
 ) -> AppResult<Json<Items<ZoneTemplate>>> {
     me.require(Capability::ManageConfiguration)?;
-    if !TEMPLATE_SETS.contains(&set.as_str()) {
-        return Err(AppError::validation("set must be default or cooling"));
-    }
-    if b.zones.is_empty() || b.zones.len() > 60 {
-        return Err(AppError::validation("zones must hold 1..60 entries"));
+    in_list(&b.kind, KINDS, "kind")?;
+    if b.zones.is_empty() || b.zones.len() > MAX_ZONES {
+        return Err(AppError::validation(format!(
+            "zones must hold 1..{MAX_ZONES} entries"
+        )));
     }
     let mut zones = Vec::with_capacity(b.zones.len());
     for z in b.zones {
+        // One fact, two fields: the phone skips an `optional` zone and insists on the rest.
+        if z.required == z.optional {
+            return Err(AppError::validation(format!(
+                "zone {}: required and optional must disagree: a zone is one or the other",
+                z.zone_key.trim()
+            )));
+        }
         zones.push(inspections::NewZone {
             zone_key: super::required("zone_key", &z.zone_key)?,
             position: z.position,
+            title: super::required("title", &z.title)?,
             instruction: super::required("instruction", &z.instruction)?,
             optional: z.optional,
             required: z.required,
         });
     }
     let mut tx = state.db.begin().await?;
-    let out = inspections::replace_template_set(&mut tx, &set, &zones).await?;
+    if let Some(id) = b.project_type_id {
+        if !config::project_types(&mut *tx)
+            .await?
+            .iter()
+            .any(|t| t.id == id)
+        {
+            return Err(AppError::NotFound("project type"));
+        }
+    }
+    let out =
+        inspections::replace_template_list(&mut tx, b.project_type_id, &b.kind, &zones).await?;
     tx.commit().await?;
     Ok(Items::new(out))
+}
+
+/// Removes a project type's own list, so it is served the general one again. The general
+/// list cannot be removed: every walkaround needs a list to fall back to. Admin only.
+#[utoipa::path(
+    delete, path = "/inspections/templates", tag = "inspections",
+    params(TemplatesQuery),
+    responses((status = 204, description = "Removed"))
+)]
+async fn delete_templates(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiQuery(q): ApiQuery<TemplatesQuery>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::ManageConfiguration)?;
+    let kind = template_kind(q.kind)?;
+    if q.project_type_id.is_none() {
+        return Err(AppError::validation(
+            "the general list cannot be removed: replace it instead",
+        ));
+    }
+    let mut tx = state.db.begin().await?;
+    if !inspections::delete_template_list(&mut tx, q.project_type_id, &kind).await? {
+        return Err(AppError::NotFound("zone list"));
+    }
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]

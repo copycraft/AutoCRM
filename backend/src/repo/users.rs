@@ -16,6 +16,8 @@ pub struct User {
     pub role: Role,
     pub is_active: bool,
     pub must_change_password: bool,
+    /// Unlocks the HR module on top of the role. Admins have it regardless.
+    pub hr_access: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -30,7 +32,7 @@ pub struct Credentials {
 pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<User>> {
     sqlx::query_as!(
         User,
-        r#"SELECT id, email, display_name, role AS "role: Role", is_active, must_change_password, created_at, updated_at
+        r#"SELECT id, email, display_name, role AS "role: Role", is_active, must_change_password, hr_access, created_at, updated_at
            FROM users WHERE id = $1"#,
         id
     )
@@ -67,7 +69,7 @@ pub async fn find_credentials(
 pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<User>> {
     sqlx::query_as!(
         User,
-        r#"SELECT id, email, display_name, role AS "role: Role", is_active, must_change_password, created_at, updated_at
+        r#"SELECT id, email, display_name, role AS "role: Role", is_active, must_change_password, hr_access, created_at, updated_at
            FROM users ORDER BY is_active DESC, display_name"#
     )
     .fetch_all(db)
@@ -86,7 +88,7 @@ pub async fn insert(
         User,
         r#"INSERT INTO users (email, display_name, role, password_hash, must_change_password)
            VALUES ($1, $2, $3, $4, $5)
-           RETURNING id, email, display_name, role AS "role: Role", is_active, must_change_password, created_at, updated_at"#,
+           RETURNING id, email, display_name, role AS "role: Role", is_active, must_change_password, hr_access, created_at, updated_at"#,
         email,
         display_name,
         role as Role,
@@ -103,19 +105,22 @@ pub async fn update(
     display_name: Option<&str>,
     role: Option<Role>,
     is_active: Option<bool>,
+    hr_access: Option<bool>,
 ) -> sqlx::Result<Option<User>> {
     sqlx::query_as!(
         User,
         r#"UPDATE users
            SET display_name = coalesce($2, display_name),
                role = coalesce($3, role),
-               is_active = coalesce($4, is_active)
+               is_active = coalesce($4, is_active),
+               hr_access = coalesce($5, hr_access)
            WHERE id = $1
-           RETURNING id, email, display_name, role AS "role: Role", is_active, must_change_password, created_at, updated_at"#,
+           RETURNING id, email, display_name, role AS "role: Role", is_active, must_change_password, hr_access, created_at, updated_at"#,
         id,
         display_name,
         role as Option<Role>,
-        is_active
+        is_active,
+        hr_access
     )
     .fetch_optional(db)
     .await

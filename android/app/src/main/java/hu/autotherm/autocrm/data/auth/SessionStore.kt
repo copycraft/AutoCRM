@@ -37,6 +37,7 @@ class SessionStore(private val context: Context) {
         val EMAIL = stringPreferencesKey("email")
         val ROLE = stringPreferencesKey("role")
         val MUST_CHANGE_PASSWORD = booleanPreferencesKey("must_change_password")
+        val HR_ACCESS = booleanPreferencesKey("hr_access")
     }
 
     data class Account(
@@ -45,6 +46,7 @@ class SessionStore(private val context: Context) {
         val displayName: String,
         val role: String,
         val mustChangePassword: Boolean,
+        val hrAccess: Boolean = false,
     ) {
         /**
          * Mirrors `domain/role.rs`. UI-only: the server is the security boundary, and every
@@ -54,6 +56,7 @@ class SessionStore(private val context: Context) {
         val canEdit: Boolean get() = role == "admin" || role == "office"
         val canChangeStage: Boolean get() = canEdit || role == "designer"
         val canUploadMedia: Boolean get() = canChangeStage
+        val isAdmin: Boolean get() = role == "admin"
     }
 
     val account: Flow<Account?> = context.sessionDataStore.data.map { it.toAccount() }
@@ -67,6 +70,7 @@ class SessionStore(private val context: Context) {
             displayName = this[Keys.DISPLAY_NAME].orEmpty(),
             role = this[Keys.ROLE].orEmpty(),
             mustChangePassword = this[Keys.MUST_CHANGE_PASSWORD] ?: false,
+            hrAccess = this[Keys.HR_ACCESS] ?: false,
         )
     }
 
@@ -83,9 +87,27 @@ class SessionStore(private val context: Context) {
             it[Keys.DISPLAY_NAME] = user.displayName
             it[Keys.ROLE] = user.role
             it[Keys.MUST_CHANGE_PASSWORD] = user.mustChangePassword
+            it[Keys.HR_ACCESS] = user.hrAccess
         }
     }
 
+
+    /**
+     * Refreshes who the server says this is, keeping the token. An admin can grant or take
+     * away HR access (or change a role) at any time; the drawer must follow without a
+     * sign-in. A no-op when nobody is signed in.
+     */
+    suspend fun refreshUser(user: hu.autotherm.autocrm.data.api.SessionUser) {
+        context.sessionDataStore.edit {
+            if (it[Keys.TOKEN].isNullOrBlank()) return@edit
+            it[Keys.USER_ID] = user.id
+            it[Keys.EMAIL] = user.email
+            it[Keys.DISPLAY_NAME] = user.displayName
+            it[Keys.ROLE] = user.role
+            it[Keys.MUST_CHANGE_PASSWORD] = user.mustChangePassword
+            it[Keys.HR_ACCESS] = user.hrAccess
+        }
+    }
     /**
      * Forgets the session. Deliberately does **not** touch the upload queue: photos taken
      * on this phone belong to the job, not to the session, and a fitter whose token expired

@@ -180,6 +180,9 @@ pub struct Config {
     /// API key the main website sends as `X-Newsletter-Key` to subscribe newsletter
     /// readers. None means the public endpoint is off.
     pub newsletter_api_key: Option<String>,
+    /// API key the main website sends as `X-Leads-Key` to file enquiries as leads.
+    /// None means the public endpoint is off.
+    pub leads_api_key: Option<String>,
     pub business_tz: Tz,
     pub worker_enabled: bool,
     pub worker_id: String,
@@ -476,6 +479,7 @@ impl Config {
         let log_format = r.parsed("LOG_FORMAT", LogFormat::Pretty);
         let log_dir = r.optional("LOG_DIR").map(PathBuf::from);
         let newsletter_api_key = r.optional("NEWSLETTER_API_KEY");
+        let leads_api_key = r.optional("LEADS_API_KEY");
 
         if env == AppEnv::Production {
             if !cookie_secure {
@@ -509,6 +513,7 @@ impl Config {
             nav,
             mnb_endpoint,
             newsletter_api_key,
+            leads_api_key,
             business_tz,
             worker_enabled,
             worker_id,

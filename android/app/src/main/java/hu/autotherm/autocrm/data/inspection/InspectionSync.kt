@@ -74,7 +74,7 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
                 val hasCheckout = app.api.inspections(draft.orderId)
                     .any { it.kind == "checkout" && it.status == "signed" }
                 if (!hasCheckout) {
-                    return fail(app, uuid, "nincs lezárt átadás ehhez az összehasonlításhoz")
+                    return fail(app, uuid, "nincs lezárt átvétel ehhez az összehasonlításhoz")
                 }
             }
             val created = app.api.createInspection(

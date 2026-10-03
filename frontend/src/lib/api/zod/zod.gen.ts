@@ -65,6 +65,26 @@ export const zAuditEntry = z.object({
     changes: z.record(z.unknown())
 });
 
+/**
+ * A proforma with the order and partner it belongs to.
+ */
+export const zBilledProforma = z.object({
+    id: z.number().int(),
+    order_id: z.number().int(),
+    order_number: z.string(),
+    partner_name: z.string(),
+    number: z.string(),
+    currency: z.string(),
+    issue_date: z.string().date(),
+    payment_date: z.string().date().nullish(),
+    net_amount: z.number().int(),
+    vat_amount: z.number().int(),
+    gross_amount: z.number().int(),
+    document_id: z.number().int(),
+    created_by: z.number().int().nullish(),
+    created_at: z.string().datetime()
+});
+
 export const zBlocker = z.object({
     id: z.number().int(),
     order_id: z.number().int(),
@@ -370,6 +390,19 @@ export const zEmailTestResult = z.object({
 });
 
 /**
+ * A starter for the manual composer: picking one fills subject/hero/body, all
+ * still editable before sending. Content lives here so a new starter or a
+ * reworded one is a server deploy, not a web deploy.
+ */
+export const zEmailThemeEntry = z.object({
+    key: z.string(),
+    label_hu: z.string(),
+    subject: z.string(),
+    hero: z.string(),
+    body: z.string()
+});
+
+/**
  * Email transport overrides. Every field is optional: absent keeps the stored
  * value, explicit null returns it to "inherit from the environment".
  * `mode: null` clears the whole transport back to environment behaviour.
@@ -386,6 +419,28 @@ export const zEmailTransportBody = z.object({
     smtp_helo_name: z.string().nullish(),
     smtp_force_ipv4: z.boolean().nullish(),
     redirect_to: z.string().nullish()
+});
+
+export const zEmployee = z.object({
+    id: z.number().int(),
+    full_name: z.string(),
+    email: z.string().nullish(),
+    company_phone: z.string().nullish(),
+    personal_phone: z.string().nullish(),
+    photo_url: z.string().nullish(),
+    archived_at: z.string().datetime().nullish(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime()
+});
+
+/**
+ * Create requires `full_name`. On PATCH every field is optional; `null` clears.
+ */
+export const zEmployeeBody = z.object({
+    full_name: z.string().nullish(),
+    email: z.string().nullish(),
+    company_phone: z.string().nullish(),
+    personal_phone: z.string().nullish()
 });
 
 /**
@@ -453,6 +508,19 @@ export const zErrorBody = z.object({
     error: zErrorDetail
 });
 
+/**
+ * The user-facing Hungarian text per error code, from the shared catalog in
+ * `crate::error` (the same table published in OpenAPI as `x-error-catalog`).
+ * Clients layer this over their built-in map: the built-in map must stay for
+ * cold start (a login failure happens before the first fetch), but every
+ * reworded message and every new code reaches the clients with the next
+ * lookups fetch — no app update.
+ */
+export const zErrorTextEntry = z.object({
+    code: z.string(),
+    text_hu: z.string()
+});
+
 export const zFxFetch = z.object({
     from: z.string().date(),
     to: z.string().date()
@@ -506,6 +574,19 @@ export const zCompleted = z.union([
         type: z.enum(['document'])
     })
 ]);
+
+/**
+ * An image category with the two rules clients used to hard-code: whether the
+ * bytes are evidence (`immutable`, the database refuses delete and re-filing)
+ * and whether a person may file a photo by hand (`attachable`, production
+ * only — intake and handover shots come from their own flows).
+ */
+export const zImageCategoryEntry = z.object({
+    key: z.string(),
+    label_hu: z.string(),
+    immutable: z.boolean(),
+    attachable: z.boolean()
+});
 
 export const zImageView = zImage.and(z.object({
     thumb_url: z.string().nullish(),
@@ -598,7 +679,8 @@ export const zInspectionDetail = z.object({
     damages: z.array(zInspectionDamage),
     verdicts: z.array(zInspectionVerdict),
     signatures: z.array(zInspectionSignature),
-    notes: z.array(zInspectionNote)
+    notes: z.array(zInspectionNote),
+    zone_titles: z.record(z.string())
 });
 
 export const zInvoiceKind = z.enum(['invoice', 'storno']);
@@ -630,6 +712,42 @@ export const zInvoiceStatus = z.enum([
     'stornoed',
     'annulled'
 ]);
+
+/**
+ * An invoice with the order and partner it belongs to, for lists that span orders.
+ */
+export const zBilledInvoice = z.object({
+    id: z.number().int(),
+    order_id: z.number().int(),
+    order_number: z.string(),
+    partner_name: z.string(),
+    number: z.string(),
+    kind: zInvoiceKind,
+    status: zInvoiceStatus,
+    original_invoice_id: z.number().int().nullish(),
+    currency: z.string(),
+    issue_date: z.string().date(),
+    delivery_date: z.string().date(),
+    payment_date: z.string().date().nullish(),
+    payment_method: z.string(),
+    net_amount: z.number().int(),
+    vat_amount: z.number().int(),
+    gross_amount: z.number().int(),
+    nav_transaction_id: z.string().nullish(),
+    nav_status: z.string().nullish(),
+    nav_error_code: z.string().nullish(),
+    nav_message: z.string().nullish(),
+    annulment_transaction_id: z.string().nullish(),
+    annulment_code: z.string().nullish(),
+    annulment_reason: z.string().nullish(),
+    annulled_at: z.string().datetime().nullish(),
+    document_id: z.number().int().nullish(),
+    submitted_at: z.string().datetime().nullish(),
+    issued_at: z.string().datetime().nullish(),
+    created_by: z.number().int().nullish(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime()
+});
 
 /**
  * What the caller may decide when issuing an invoice. Everything is optional: with an
@@ -664,6 +782,66 @@ export const zItemsAuditEntry = z.object({
         entity_id: z.number().int(),
         action: z.string(),
         changes: z.record(z.unknown())
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsBilledInvoice = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        order_id: z.number().int(),
+        order_number: z.string(),
+        partner_name: z.string(),
+        number: z.string(),
+        kind: zInvoiceKind,
+        status: zInvoiceStatus,
+        original_invoice_id: z.number().int().nullish(),
+        currency: z.string(),
+        issue_date: z.string().date(),
+        delivery_date: z.string().date(),
+        payment_date: z.string().date().nullish(),
+        payment_method: z.string(),
+        net_amount: z.number().int(),
+        vat_amount: z.number().int(),
+        gross_amount: z.number().int(),
+        nav_transaction_id: z.string().nullish(),
+        nav_status: z.string().nullish(),
+        nav_error_code: z.string().nullish(),
+        nav_message: z.string().nullish(),
+        annulment_transaction_id: z.string().nullish(),
+        annulment_code: z.string().nullish(),
+        annulment_reason: z.string().nullish(),
+        annulled_at: z.string().datetime().nullish(),
+        document_id: z.number().int().nullish(),
+        submitted_at: z.string().datetime().nullish(),
+        issued_at: z.string().datetime().nullish(),
+        created_by: z.number().int().nullish(),
+        created_at: z.string().datetime(),
+        updated_at: z.string().datetime()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsBilledProforma = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        order_id: z.number().int(),
+        order_number: z.string(),
+        partner_name: z.string(),
+        number: z.string(),
+        currency: z.string(),
+        issue_date: z.string().date(),
+        payment_date: z.string().date().nullish(),
+        net_amount: z.number().int(),
+        vat_amount: z.number().int(),
+        gross_amount: z.number().int(),
+        document_id: z.number().int(),
+        created_by: z.number().int().nullish(),
+        created_at: z.string().datetime()
     }))
 });
 
@@ -786,6 +964,23 @@ export const zItemsEmailTemplate = z.object({
         is_automatic: z.boolean(),
         updated_at: z.string().datetime(),
         updated_by: z.number().int().nullish()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsEmployee = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        full_name: z.string(),
+        email: z.string().nullish(),
+        company_phone: z.string().nullish(),
+        personal_phone: z.string().nullish(),
+        photo_url: z.string().nullish(),
+        archived_at: z.string().datetime().nullish(),
+        created_at: z.string().datetime(),
+        updated_at: z.string().datetime()
     }))
 });
 
@@ -1109,8 +1304,11 @@ export const zItemsZoneTemplate = z.object({
     items: z.array(z.object({
         id: z.number().int(),
         set_key: z.string(),
+        project_type_id: z.number().int().nullish(),
+        kind: z.string(),
         zone_key: z.string(),
         position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        title: z.string(),
         instruction: z.string(),
         optional: z.boolean(),
         required: z.boolean()
@@ -1201,6 +1399,36 @@ export const zLeadSummary = z.object({
     order_id: z.number().int().nullish(),
     order_number: z.string().nullish(),
     created_at: z.string().datetime()
+});
+
+/**
+ * One selectable value with its Hungarian label.
+ */
+export const zLookupItem = z.object({
+    key: z.string(),
+    label_hu: z.string()
+});
+
+/**
+ * Every client-facing enumeration in one document. Clients fetch it once,
+ * cache it, and render selects, chips and labels from it.
+ */
+export const zLookups = z.object({
+    damage_types: z.array(zLookupItem),
+    severities: z.array(zLookupItem),
+    verdicts: z.array(zLookupItem),
+    walkaround_kinds: z.array(zLookupItem),
+    fuel_levels: z.array(zLookupItem),
+    heating_fuels: z.array(zLookupItem),
+    defrost_modes: z.array(zLookupItem),
+    order_relations: z.array(zLookupItem),
+    task_entity_types: z.array(zLookupItem),
+    currencies: z.array(zLookupItem),
+    invoice_payment_methods: z.array(zLookupItem),
+    annulment_codes: z.array(zLookupItem),
+    image_categories: z.array(zImageCategoryEntry),
+    email_themes: z.array(zEmailThemeEntry),
+    error_texts: z.array(zErrorTextEntry)
 });
 
 /**
@@ -1795,6 +2023,7 @@ export const zItemsUser = z.object({
         role: zRole,
         is_active: z.boolean(),
         must_change_password: z.boolean(),
+        hr_access: z.boolean(),
         created_at: z.string().datetime(),
         updated_at: z.string().datetime()
     }))
@@ -1838,7 +2067,8 @@ export const zSessionUser = z.object({
     display_name: z.string(),
     role: zRole,
     must_change_password: z.boolean(),
-    session_kind: zSessionKind
+    session_kind: zSessionKind,
+    hr_access: z.boolean()
 });
 
 export const zLoginResponse = z.object({
@@ -2171,7 +2401,8 @@ export const zUnsubscribed = z.object({
 export const zUpdateUser = z.object({
     display_name: z.string().nullish(),
     role: zRole.nullish(),
-    is_active: z.boolean().nullish()
+    is_active: z.boolean().nullish(),
+    hr_access: z.boolean().nullish()
 });
 
 export const zUploadResponse = z.union([
@@ -2214,6 +2445,7 @@ export const zUser = z.object({
     role: zRole,
     is_active: z.boolean(),
     must_change_password: z.boolean(),
+    hr_access: z.boolean(),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime()
 });
@@ -2301,6 +2533,20 @@ export const zVolumeReport = z.object({
     totals: zVolumeRow
 });
 
+/**
+ * An enquiry from the autotherm.hu contact form.
+ */
+export const zWebsiteLead = z.object({
+    name: z.string(),
+    email: z.string().nullish(),
+    phone: z.string().nullish(),
+    message: z.string().nullish(),
+    subject: z.string().nullish(),
+    vehicle: z.string().nullish(),
+    page: z.string().nullish(),
+    company: z.string().nullish()
+});
+
 export const zWorkloadDay = z.object({
     date: z.string().date(),
     placed: z.number().int(),
@@ -2317,20 +2563,26 @@ export const zWorkloadReport = z.object({
 export const zZoneBody = z.object({
     zone_key: z.string(),
     position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    title: z.string(),
     instruction: z.string(),
     optional: z.boolean(),
     required: z.boolean()
 });
 
 export const zReplaceTemplatesBody = z.object({
+    project_type_id: z.number().int().nullish(),
+    kind: z.string(),
     zones: z.array(zZoneBody)
 });
 
 export const zZoneTemplate = z.object({
     id: z.number().int(),
     set_key: z.string(),
+    project_type_id: z.number().int().nullish(),
+    kind: z.string(),
     zone_key: z.string(),
     position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    title: z.string(),
     instruction: z.string(),
     optional: z.boolean(),
     required: z.boolean()
@@ -2445,6 +2697,8 @@ export const zConfigurationGetSettingsResponse = zSettings;
 export const zConfigurationPutSettingsBody = zSettingsBody;
 
 export const zConfigurationPutSettingsResponse = zSettings;
+
+export const zConfigurationLookupsResponse = zLookups;
 
 export const zPartnersSearchQuery = z.object({
     q: z.string().optional(),
@@ -2562,6 +2816,8 @@ export const zLeadsSearchResponse = zItemsLeadSummary;
 export const zLeadsCreateBody = zLeadBody;
 
 export const zLeadsCreateResponse = zLead;
+
+export const zLeadsWebsiteBody = zWebsiteLead;
 
 export const zLeadsDetailPath = z.object({
     id: z.number().int()
@@ -2877,17 +3133,24 @@ export const zInspectionsSetVerdictPath = z.object({
 
 export const zInspectionsSetVerdictResponse = zInspectionVerdict;
 
+export const zInspectionsDeleteTemplatesQuery = z.object({
+    project_type_id: z.number().int().optional(),
+    kind: z.string().optional()
+});
+
+/**
+ * Removed
+ */
+export const zInspectionsDeleteTemplatesResponse = z.void();
+
 export const zInspectionsTemplatesQuery = z.object({
-    project_type_id: z.number().int().optional()
+    project_type_id: z.number().int().optional(),
+    kind: z.string().optional()
 });
 
 export const zInspectionsTemplatesResponse = zItemsZoneTemplate;
 
 export const zInspectionsReplaceTemplatesBody = zReplaceTemplatesBody;
-
-export const zInspectionsReplaceTemplatesPath = z.object({
-    set: z.string()
-});
 
 export const zInspectionsReplaceTemplatesResponse = zItemsZoneTemplate;
 
@@ -3108,6 +3371,60 @@ export const zEmailRemoveSuppressionPath = z.object({
  */
 export const zEmailRemoveSuppressionResponse = z.void();
 
+export const zHrListQuery = z.object({
+    q: z.string().optional(),
+    include_archived: z.boolean().optional()
+});
+
+export const zHrListResponse = zItemsEmployee;
+
+export const zHrCreateBody = zEmployeeBody;
+
+export const zHrCreateResponse = zEmployee;
+
+export const zHrDetailPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrDetailResponse = zEmployee;
+
+export const zHrUpdateBody = zEmployeeBody;
+
+export const zHrUpdatePath = z.object({
+    id: z.number().int()
+});
+
+export const zHrUpdateResponse = zEmployee;
+
+export const zHrArchivePath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * The employee has left; hidden from the default list
+ */
+export const zHrArchiveResponse = zEmployee;
+
+export const zHrUnarchivePath = z.object({
+    id: z.number().int()
+});
+
+export const zHrUnarchiveResponse = zEmployee;
+
+export const zHrRemovePhotoPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrRemovePhotoResponse = zEmployee;
+
+export const zHrSetPhotoBody = z.array(z.number().int().gte(0).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }));
+
+export const zHrSetPhotoPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrSetPhotoResponse = zEmployee;
+
 export const zReportsVolumeQuery = z.object({
     from: z.string().date().optional(),
     to: z.string().date().optional(),
@@ -3268,6 +3585,20 @@ export const zVehiclesDetachPath = z.object({
 });
 
 export const zVehiclesDetachResponse = z.void();
+
+export const zInvoicesListAllQuery = z.object({
+    status: z.string().optional(),
+    kind: z.string().optional(),
+    limit: z.number().int().optional()
+});
+
+export const zInvoicesListAllResponse = zItemsBilledInvoice;
+
+export const zInvoicesListAllProformasQuery = z.object({
+    limit: z.number().int().optional()
+});
+
+export const zInvoicesListAllProformasResponse = zItemsBilledProforma;
 
 export const zInvoicesListForOrderPath = z.object({
     id: z.number().int()

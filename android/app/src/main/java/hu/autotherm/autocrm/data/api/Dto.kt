@@ -58,6 +58,8 @@ data class SessionUser(
      * 422. The login flow routes to the change-password screen until it is false.
      */
     @SerialName("must_change_password") val mustChangePassword: Boolean,
+    /** Whether the HR module is open to this user (admins, or granted by an admin). */
+    @SerialName("hr_access") val hrAccess: Boolean = false,
 )
 
 @Serializable
@@ -732,6 +734,8 @@ data class InspectionDetail(
     @SerialName("verdicts") val verdicts: List<InspectionVerdict> = emptyList(),
     @SerialName("signatures") val signatures: List<InspectionSignature> = emptyList(),
     @SerialName("notes") val notes: List<InspectionNote> = emptyList(),
+    /** Zone heading by zone key, from the list this inspection was walked with. */
+    @SerialName("zone_titles") val zoneTitles: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -810,6 +814,14 @@ data class ZoneTemplate(
     @SerialName("instruction") val instruction: String,
     @SerialName("optional") val optional: Boolean,
     @SerialName("required") val required: Boolean,
+    // Added with lists per vehicle kind. Defaults, because a draft saved on the phone before
+    // them holds zones without these.
+    /** The heading of the zone; `instruction` is the sentence under it. */
+    @SerialName("title") val title: String = "",
+    /** The project type that owns the list; null for the general list. */
+    @SerialName("project_type_id") val projectTypeId: Long? = null,
+    /** `checkout` (the first walkaround, átvétel) or `checkin` (the second, kiadás). */
+    @SerialName("kind") val kind: String = "",
 )
 
 @Serializable
@@ -819,6 +831,58 @@ data class DamageSuggestion(
     @SerialName("suggested") val suggested: String,
 )
 
+// ── Client-facing enumerations ──────────────────────────────────────────────
+// `GET /config/lookups`: every list the phone renders (damage types, fuel
+// marks, currencies, image categories, ...) in one document. Nothing in it is
+// duplicated in the app; unknown keys read as themselves (see lookupLabel).
+
+@Serializable
+data class LookupItem(
+    @SerialName("key") val key: String,
+    @SerialName("label_hu") val labelHu: String = "",
+)
+
+@Serializable
+data class ImageCategoryEntry(
+    @SerialName("key") val key: String,
+    @SerialName("label_hu") val labelHu: String = "",
+    @SerialName("immutable") val immutable: Boolean = false,
+    @SerialName("attachable") val attachable: Boolean = false,
+)
+
+@Serializable
+data class EmailThemeEntry(
+    @SerialName("key") val key: String,
+    @SerialName("label_hu") val labelHu: String = "",
+    @SerialName("subject") val subject: String = "",
+    @SerialName("hero") val hero: String = "",
+    @SerialName("body") val body: String = "",
+)
+
+@Serializable
+data class ErrorTextEntry(
+    @SerialName("code") val code: String,
+    @SerialName("text_hu") val textHu: String = "",
+)
+
+@Serializable
+data class Lookups(
+    @SerialName("damage_types") val damageTypes: List<LookupItem> = emptyList(),
+    @SerialName("severities") val severities: List<LookupItem> = emptyList(),
+    @SerialName("verdicts") val verdicts: List<LookupItem> = emptyList(),
+    @SerialName("walkaround_kinds") val walkaroundKinds: List<LookupItem> = emptyList(),
+    @SerialName("fuel_levels") val fuelLevels: List<LookupItem> = emptyList(),
+    @SerialName("heating_fuels") val heatingFuels: List<LookupItem> = emptyList(),
+    @SerialName("defrost_modes") val defrostModes: List<LookupItem> = emptyList(),
+    @SerialName("order_relations") val orderRelations: List<LookupItem> = emptyList(),
+    @SerialName("task_entity_types") val taskEntityTypes: List<LookupItem> = emptyList(),
+    @SerialName("currencies") val currencies: List<LookupItem> = emptyList(),
+    @SerialName("invoice_payment_methods") val invoicePaymentMethods: List<LookupItem> = emptyList(),
+    @SerialName("annulment_codes") val annulmentCodes: List<LookupItem> = emptyList(),
+    @SerialName("image_categories") val imageCategories: List<ImageCategoryEntry> = emptyList(),
+    @SerialName("email_themes") val emailThemes: List<EmailThemeEntry> = emptyList(),
+    @SerialName("error_texts") val errorTexts: List<ErrorTextEntry> = emptyList(),
+)
 @Serializable
 data class Comparison(
     @SerialName("checkin") val checkin: InspectionDetail,
@@ -861,4 +925,29 @@ data class ApiErrorBody(
 data class ErrorDetail(
     @SerialName("code") val code: String,
     @SerialName("message") val message: String? = null,
+)
+
+// ── HR and users ────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class Employee(
+    @SerialName("id") val id: Long,
+    @SerialName("full_name") val fullName: String,
+    @SerialName("email") val email: String? = null,
+    @SerialName("company_phone") val companyPhone: String? = null,
+    @SerialName("personal_phone") val personalPhone: String? = null,
+    /** A signed link that expires in about an hour; never stored. */
+    @SerialName("photo_url") val photoUrl: String? = null,
+    @SerialName("archived_at") val archivedAt: String? = null,
+)
+
+/** A staff account as the admin users list shows it. */
+@Serializable
+data class StaffUser(
+    @SerialName("id") val id: Long,
+    @SerialName("email") val email: String,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("role") val role: String,
+    @SerialName("is_active") val isActive: Boolean,
+    @SerialName("hr_access") val hrAccess: Boolean = false,
 )

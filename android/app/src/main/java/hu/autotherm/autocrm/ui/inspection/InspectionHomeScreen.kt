@@ -34,9 +34,14 @@ import androidx.lifecycle.viewModelScope
 import hu.autotherm.autocrm.AutoCrmApp
 import hu.autotherm.autocrm.data.api.Inspection
 import hu.autotherm.autocrm.data.api.InspectionDetail
+import hu.autotherm.autocrm.data.api.Lookups
 import hu.autotherm.autocrm.data.db.InspectionDraft
 import hu.autotherm.autocrm.data.inspection.DraftPayload
 import hu.autotherm.autocrm.data.inspection.InspectionSyncWorker
+import hu.autotherm.autocrm.data.inspection.cachedLookups
+import hu.autotherm.autocrm.data.inspection.downloadLookups
+import hu.autotherm.autocrm.data.inspection.walkaroundKindLabel
+import hu.autotherm.autocrm.data.inspection.prefetchZoneLists
 import hu.autotherm.autocrm.ui.common.AutoCrmTextField
 import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.DetailSkeleton
@@ -66,6 +71,7 @@ class InspectionHomeViewModel(private val app: AutoCrmApp) : ViewModel() {
         val orderNumber: String = "",
         val loading: Boolean = true,
         val error: String? = null,
+        val lookups: Lookups? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -81,16 +87,31 @@ class InspectionHomeViewModel(private val app: AutoCrmApp) : ViewModel() {
             try {
                 val order = app.api.order(orderId).order
                 val history = app.api.inspections(orderId)
+                // Same for the enumerations the walkaround renders.
+                val lookups = downloadLookups(app.api, app.lookupsCache)
+                    ?: cachedLookups(app.lookupsCache)
                 _state.value = _state.value.copy(
                     history = history,
                     orderNumber = order.number,
                     loading = false,
+                    lookups = lookups,
                 )
+                // Online now, so keep the current zone lists for this vehicle kind: the
+                // walkaround is often started where there is no signal.
+                prefetchZoneLists(app.api, app.zoneListCache, order.projectTypeId)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     loading = false,
                     error = describeError(e),
                 )
+            }
+        }
+        viewModelScope.launch {
+            // Offline open: the fetch above never ran, but the walkaround kinds
+            // still render from the last downloaded document.
+            val cached = cachedLookups(app.lookupsCache)
+            if (_state.value.lookups == null && cached != null) {
+                _state.value = _state.value.copy(lookups = cached)
             }
         }
     }
@@ -151,11 +172,11 @@ fun InspectionHomeScreen(
                         Button(
                             onClick = { onStart("checkout") },
                             modifier = Modifier.weight(1f),
-                        ) { Text("Kiadás indítása") }
+                        ) { Text("Átvétel indítása") }
                         OutlinedButton(
                             onClick = { onStart("checkin") },
                             modifier = Modifier.weight(1f),
-                        ) { Text("Visszavétel") }
+                        ) { Text("Kiadás indítása") }
                     }
                 }
             }
@@ -170,7 +191,7 @@ fun InspectionHomeScreen(
                         ) {
                             Column(Modifier.weight(1f, fill = false)) {
                                 Text(
-                                    if (draft.kind == "checkin") "Visszavétel" else "Kiadás",
+                                    walkaroundKindLabel(draft.kind, state.lookups),
                                     style = MaterialTheme.typography.titleMedium,
                                 )
                                 Text(
@@ -205,7 +226,7 @@ fun InspectionHomeScreen(
                 else -> items(state.history, key = { it.id }) { inspection ->
                     Card(modifier = Modifier.animateItem(), onClick = { onOpenServer(inspection.id) }) {
                         Text(
-                            "${if (inspection.kind == "checkin") "Visszavétel" else "Kiadás"} · " +
+                            "${walkaroundKindLabel(inspection.kind, state.lookups)} · " +
                                 inspection.vehiclePlate,
                             style = MaterialTheme.typography.titleMedium,
                         )
@@ -235,6 +256,7 @@ class InspectionServerViewModel(private val app: AutoCrmApp) : ViewModel() {
         val error: String? = null,
         val note: String = "",
         val noteBusy: Boolean = false,
+        val lookups: Lookups? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -249,9 +271,12 @@ class InspectionServerViewModel(private val app: AutoCrmApp) : ViewModel() {
                 error = null,
             )
             try {
+                val lookups = downloadLookups(app.api, app.lookupsCache)
+                    ?: cachedLookups(app.lookupsCache)
                 _state.value = State(
                     loading = false,
                     detail = app.api.inspection(id),
+                    lookups = lookups,
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
@@ -299,7 +324,7 @@ fun InspectionServerScreen(
         topBar = {
             ScreenTopBar(
                 title = state.detail?.let {
-                    (if (it.inspection.kind == "checkin") "Visszavétel" else "Kiadás") +
+                    walkaroundKindLabel(it.inspection.kind, state.lookups) +
                         " · ${it.inspection.vehiclePlate}"
                 } ?: "Átvétel",
                 onBack = onBack,
@@ -320,6 +345,7 @@ fun InspectionServerScreen(
                 Column(Modifier.fillMaxSize().padding(padding)) {
                     ServerInspectionDetail(
                         detail = state.detail!!,
+                        lookups = state.lookups,
                         modifier = Modifier.weight(1f, fill = false)
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                     )

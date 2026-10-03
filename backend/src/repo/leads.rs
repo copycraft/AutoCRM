@@ -93,6 +93,15 @@ pub async fn lock(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Lead>
 }
 
 pub async fn insert(db: impl PgExecutor<'_>, l: &LeadInput, created_by: i64) -> sqlx::Result<Lead> {
+    insert_by(db, l, Some(created_by)).await
+}
+
+/// `created_by` is None for website leads: no staff user is behind them.
+pub async fn insert_by(
+    db: impl PgExecutor<'_>,
+    l: &LeadInput,
+    created_by: Option<i64>,
+) -> sqlx::Result<Lead> {
     sqlx::query_as!(
         Lead,
         "INSERT INTO leads (title, partner_id, contact_id, contact_name, contact_email, contact_phone, source,

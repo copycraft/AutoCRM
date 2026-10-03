@@ -8,17 +8,18 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use utoipa::ToSchema;
+use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use super::Items;
-use super::extract::{ApiJson, ApiPath, Auth};
+use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use crate::AppState;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::integrations::nav::ChainElement;
-use crate::repo::invoices::{Invoice, InvoiceLine, Proforma};
+use crate::repo::invoices::{BilledInvoice, BilledProforma, Invoice, InvoiceLine, Proforma};
 use crate::repo::{documents, invoices, orders};
 use crate::service::invoicing::{
     self, AnnulRequest, IssueRequest, ProformaCreated, ProformaRequest, StornoRequest,
@@ -26,6 +27,8 @@ use crate::service::invoicing::{
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
+        .routes(routes!(list_all))
+        .routes(routes!(list_all_proformas))
         .routes(routes!(list_for_order, create))
         .routes(routes!(detail))
         .routes(routes!(storno))
@@ -71,6 +74,88 @@ pub struct InvoiceDetail {
     /// Filename of the stored PDF, when there is one. Download it through
     /// `GET /documents/{id}/download` like any other document.
     pub document_filename: Option<String>,
+}
+
+/// The Számlázó page: every invoice and storno, newest first, across orders.
+///
+/// Stornos are rows like any other (`kind = 'storno'`, negative amounts,
+/// `original_invoice_id` set) — no second query to see them. Reads are open;
+/// issuing stays behind `IssueInvoices` on the per-order path.
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct BillingQuery {
+    /// `submitting` | `issued` | `rejected` | `stornoed` | `annulled`. Omitted: all.
+    status: Option<String>,
+    /// `invoice` | `storno`. Omitted: both.
+    kind: Option<String>,
+    /// Newest N rows. Defaults to 100, at most 500.
+    limit: Option<i64>,
+}
+
+fn billing_limit(limit: Option<i64>) -> i64 {
+    limit.unwrap_or(100).clamp(1, 500)
+}
+
+#[utoipa::path(
+    get, path = "/invoices", tag = "invoices",
+    params(BillingQuery),
+    responses((status = 200, body = Items<BilledInvoice>))
+)]
+async fn list_all(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<BillingQuery>,
+) -> AppResult<Json<Items<BilledInvoice>>> {
+    const STATUSES: &[&str] = &["submitting", "issued", "rejected", "stornoed", "annulled"];
+    const KINDS: &[&str] = &["invoice", "storno"];
+    if let Some(status) = &q.status
+        && !STATUSES.contains(&status.as_str())
+    {
+        return Err(AppError::validation(format!(
+            "status must be one of {}",
+            STATUSES.join(", ")
+        )));
+    }
+    if let Some(kind) = &q.kind
+        && !KINDS.contains(&kind.as_str())
+    {
+        return Err(AppError::validation(format!(
+            "kind must be one of {}",
+            KINDS.join(", ")
+        )));
+    }
+    Ok(Items::new(
+        invoices::list_invoices(
+            &state.db,
+            q.status.as_deref(),
+            q.kind.as_deref(),
+            billing_limit(q.limit),
+        )
+        .await?,
+    ))
+}
+
+/// The Számlázó page: every díjbekérő, newest first, across orders.
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct ProformasQuery {
+    /// Newest N rows. Defaults to 100, at most 500.
+    limit: Option<i64>,
+}
+
+#[utoipa::path(
+    get, path = "/proformas", tag = "invoices",
+    params(ProformasQuery),
+    responses((status = 200, body = Items<BilledProforma>))
+)]
+async fn list_all_proformas(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<ProformasQuery>,
+) -> AppResult<Json<Items<BilledProforma>>> {
+    Ok(Items::new(
+        invoices::list_proformas(&state.db, billing_limit(q.limit)).await?,
+    ))
 }
 
 #[utoipa::path(

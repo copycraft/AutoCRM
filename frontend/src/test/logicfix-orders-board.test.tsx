@@ -13,8 +13,9 @@ import messages from '@/messages/hu.json';
 import { orderSummary } from './fixtures';
 
 const api = vi.hoisted(() => ({ list: vi.fn() }));
+const config = vi.hoisted(() => ({ stages: vi.fn() }));
 
-vi.mock('@/lib/api/endpoints', () => ({ ordersApi: api }));
+vi.mock('@/lib/api/endpoints', () => ({ ordersApi: api, configApi: config }));
 vi.mock('@/components/layout/AppShell', () => ({
   AppShell: ({ children }: { children: ReactNode }) => (
     <div data-testid="app-shell">{children}</div>
@@ -39,6 +40,36 @@ function wrap(ui: ReactNode) {
 
 beforeEach(() => {
   api.list.mockReset();
+  // The board derives its halves from the server's stage definitions: intake is
+  // the entry, design/production/meo are the workshop, completed is ready for
+  // collection, cancelled is the exit.
+  const def = (
+    key: string,
+    position: number,
+    flags: { terminal?: boolean; exit?: boolean } = {},
+  ) => ({
+    id: position,
+    entity: 'order',
+    key,
+    label_hu: key,
+    position,
+    min_images: 0,
+    required_image_category: null,
+    is_terminal: flags.terminal ?? false,
+    is_exit: flags.exit ?? false,
+    stall_after_days: null,
+    is_active: true,
+  });
+  config.stages.mockResolvedValue({
+    items: [
+      def('intake', 10),
+      def('design', 20),
+      def('production', 30),
+      def('meo', 40),
+      def('completed', 50, { terminal: true }),
+      def('cancelled', 60, { terminal: true, exit: true }),
+    ],
+  });
   // The server behaves like the real one: `open` returns at most `limit` rows,
   // newest first — here 100 fresh intake orders fill the whole page — while a
   // stage-filtered query finds the old car in production.

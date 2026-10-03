@@ -568,28 +568,65 @@ pub async fn notes_for(
 }
 
 // ── Zone templates ──
+//
+// A list is addressed by (project type, walkaround kind). `project_type_id = NULL` is the
+// general list. Lookup is the project type's own list, else the general one; lists are
+// never merged, so what the office edits is what the phone walks.
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ZoneTemplate {
     pub id: i64,
+    /// Names the list this zone belongs to, e.g. `refrigerated_body:checkin`, or
+    /// `default:checkin` for the general list. Derived from the two fields below.
     pub set_key: String,
+    /// The project type that owns this list; null for the general list. When a project
+    /// type has no list of its own this is null on what it is served.
+    pub project_type_id: Option<i64>,
+    /// `checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the
+    /// second, the vehicle leaving (kiadás).
+    pub kind: String,
     pub zone_key: String,
     pub position: i32,
+    /// The short heading the phone shows; `instruction` is the sentence under it.
+    pub title: String,
     pub instruction: String,
     pub optional: bool,
     pub required: bool,
 }
 
-pub async fn templates_for_sets(
-    db: impl PgExecutor<'_>,
-    sets: &[String],
+/// The list a vehicle of `project_type_id` is walked with for `kind`: its own when it has
+/// one, the general list otherwise.
+pub async fn templates_for(
+    db: &mut sqlx::PgConnection,
+    project_type_id: Option<i64>,
+    kind: &str,
+) -> sqlx::Result<Vec<ZoneTemplate>> {
+    if project_type_id.is_some() {
+        let own = list_of(&mut *db, project_type_id, kind).await?;
+        if !own.is_empty() {
+            return Ok(own);
+        }
+    }
+    list_of(db, None, kind).await
+}
+
+/// Exactly the list stored under (`project_type_id`, `kind`), no fallback.
+pub async fn list_of(
+    db: &mut sqlx::PgConnection,
+    project_type_id: Option<i64>,
+    kind: &str,
 ) -> sqlx::Result<Vec<ZoneTemplate>> {
     sqlx::query_as!(
         ZoneTemplate,
-        r#"SELECT id, set_key, zone_key, position, instruction, optional, required
-            FROM inspection_zone_templates WHERE set_key = ANY($1)
-            ORDER BY position, id"#,
-        sets
+        r#"SELECT t.id, coalesce(pt.key, 'default') || ':' || t.kind AS "set_key!",
+                  t.project_type_id, t.kind, t.zone_key, t.position, t.title,
+                  t.instruction, t.optional, t.required
+             FROM inspection_zone_templates t
+             LEFT JOIN project_types pt ON pt.id = t.project_type_id
+            WHERE t.kind = $1 AND t.project_type_id IS NOT DISTINCT FROM $2::bigint
+            ORDER BY t.position, t.id"#,
+        kind,
+        project_type_id
     )
     .fetch_all(db)
     .await
@@ -598,40 +635,53 @@ pub async fn templates_for_sets(
 pub struct NewZone {
     pub zone_key: String,
     pub position: i32,
+    pub title: String,
     pub instruction: String,
     pub optional: bool,
     pub required: bool,
 }
 
-/// Admin replace of a whole set: delete + insert inside the caller's transaction.
-pub async fn replace_template_set(
+/// Admin replace of a whole list: delete + insert inside the caller's transaction.
+pub async fn replace_template_list(
     db: &mut sqlx::PgConnection,
-    set_key: &str,
+    project_type_id: Option<i64>,
+    kind: &str,
     zones: &[NewZone],
 ) -> sqlx::Result<Vec<ZoneTemplate>> {
-    sqlx::query!(
-        "DELETE FROM inspection_zone_templates WHERE set_key = $1",
-        set_key
-    )
-    .execute(&mut *db)
-    .await?;
-    let mut out = Vec::with_capacity(zones.len());
+    delete_template_list(&mut *db, project_type_id, kind).await?;
     for z in zones {
-        let row = sqlx::query_as!(
-            ZoneTemplate,
-            r#"INSERT INTO inspection_zone_templates (set_key, zone_key, position, instruction, optional, required)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id, set_key, zone_key, position, instruction, optional, required"#,
-            set_key,
+        sqlx::query!(
+            "INSERT INTO inspection_zone_templates
+                    (project_type_id, kind, zone_key, position, title, instruction, optional, required)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+            project_type_id,
+            kind,
             z.zone_key,
             z.position,
+            z.title,
             z.instruction,
             z.optional,
             z.required
         )
-        .fetch_one(&mut *db)
+        .execute(&mut *db)
         .await?;
-        out.push(row);
     }
-    Ok(out)
+    list_of(db, project_type_id, kind).await
+}
+
+/// Removes a list; a project type then falls back to the general one. True if there was one.
+pub async fn delete_template_list(
+    db: &mut sqlx::PgConnection,
+    project_type_id: Option<i64>,
+    kind: &str,
+) -> sqlx::Result<bool> {
+    let done = sqlx::query!(
+        "DELETE FROM inspection_zone_templates
+          WHERE kind = $1 AND project_type_id IS NOT DISTINCT FROM $2::bigint",
+        kind,
+        project_type_id
+    )
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected() > 0)
 }

@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import type { FieldErrors, UseFormRegister } from 'react-hook-form';
+import { useLookups } from '@/hooks/useLookups';
 import { fieldErrorText, type OrderFormValues } from './OrderForm';
 
 /**
@@ -30,6 +31,11 @@ export function BuildSpecSection({
 }) {
   const t = useTranslations('spec');
   const tv = useTranslations('validation');
+  // Enum-column selects render from the server's lookups: a renamed key or a
+  // new fuel reaches the form without a web deploy.
+  const { data: lookups } = useLookups();
+  const defrostModes = lookups?.defrost_modes ?? [];
+  const heatingFuels = lookups?.heating_fuels ?? [];
 
   if (!form) return null;
 
@@ -135,8 +141,9 @@ export function BuildSpecSection({
             <label className="label" htmlFor="of-defrost">
               {t('defrost')}
             </label>
-            {/* An enum column. These options are right, so only a stale build or a renamed
-                key reaches the CHECK — which is exactly when a named field earns its keep. */}
+            {/* An enum column. The options come from the server, so only a stale
+                build or a renamed key reaches the CHECK — which is exactly when
+                a named field earns its keep. */}
             <select
               id="of-defrost"
               className="input"
@@ -144,9 +151,11 @@ export function BuildSpecSection({
               {...invalid('defrost')}
             >
               <option value="">—</option>
-              <option value="automatic">{t('defrostAutomatic')}</option>
-              <option value="manual">{t('defrostManual')}</option>
-              <option value="hot_gas">{t('defrostHotGas')}</option>
+              {defrostModes.map((mode) => (
+                <option key={mode.key} value={mode.key}>
+                  {mode.label_hu}
+                </option>
+              ))}
             </select>
             <Err name="defrost" />
           </div>
@@ -190,10 +199,11 @@ export function BuildSpecSection({
             </label>
             <select id="of-fuel" className="input" {...register('fuel')} {...invalid('fuel')}>
               <option value="">—</option>
-              <option value="diesel">{t('fuelDiesel')}</option>
-              <option value="electric">{t('fuelElectric')}</option>
-              <option value="lpg">{t('fuelLpg')}</option>
-              <option value="engine_coolant">{t('fuelEngineCoolant')}</option>
+              {heatingFuels.map((fuel) => (
+                <option key={fuel.key} value={fuel.key}>
+                  {fuel.label_hu}
+                </option>
+              ))}
             </select>
             <Err name="fuel" />
           </div>

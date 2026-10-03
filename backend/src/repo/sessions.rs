@@ -50,6 +50,7 @@ pub struct ActiveSession {
     pub display_name: String,
     pub role: Role,
     pub must_change_password: bool,
+    pub hr_access: bool,
 }
 
 pub async fn find_active(
@@ -59,7 +60,7 @@ pub async fn find_active(
     sqlx::query_as!(
         ActiveSession,
         r#"SELECT s.id AS session_id, s.user_id, s.kind AS "kind: SessionKind", s.created_at, s.last_seen_at,
-                  u.email, u.display_name, u.role AS "role: Role", u.must_change_password
+                  u.email, u.display_name, u.role AS "role: Role", u.must_change_password, u.hr_access
            FROM sessions s
            JOIN users u ON u.id = s.user_id
            WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.is_active"#,

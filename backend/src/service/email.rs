@@ -1499,6 +1499,7 @@ mod tests {
             display_name: "Kovács János".into(),
             role: crate::domain::role::Role::Office,
             must_change_password: false,
+            hr_access: false,
         }
     }
 

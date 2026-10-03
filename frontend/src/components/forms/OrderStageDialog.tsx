@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslations } from 'next-intl';
+import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
@@ -32,7 +33,8 @@ export function OrderStageDialog({
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
-  const ti = useTranslations('images');
+  // The gate's image category renders from the server's lookups.
+  const { data: lookups } = useLookups();
   const qc = useQueryClient();
   const [target, setTarget] = useState('');
   const [note, setNote] = useState('');
@@ -159,7 +161,10 @@ export function OrderStageDialog({
                       {t('gateRequires')}:{' '}
                       {t('gateRequirement', {
                         count: selectedDef.min_images,
-                        category: ti(selectedDef.required_image_category),
+                        category: lookupLabel(
+                          lookups?.image_categories,
+                          selectedDef.required_image_category,
+                        ),
                       })}
                     </p>
                   )}

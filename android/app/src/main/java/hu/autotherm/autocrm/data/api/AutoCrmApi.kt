@@ -184,6 +184,67 @@ class AutoCrmApi(
     suspend fun logout() =
         sendNoContent(Request.Builder().url(url("/auth/logout").build()).post(EMPTY))
 
+    // ── HR (admins and users an admin granted HR access) ────────────────────────────
+
+    suspend fun employees(query: String? = null, includeArchived: Boolean = false): List<Employee> {
+        val u = url("/hr/employees")
+        if (!query.isNullOrBlank()) u.addQueryParameter("q", query)
+        if (includeArchived) u.addQueryParameter("include_archived", "true")
+        return send(Request.Builder().url(u.build()).get(), Items.serializer(Employee.serializer())).items
+    }
+
+    suspend fun employee(id: Long): Employee =
+        send(Request.Builder().url(url("/hr/employees/$id").build()).get(), Employee.serializer())
+
+    /** Explicit nulls clear a field, which the shared [json] cannot express (see [patchOrder]). */
+    suspend fun createEmployee(body: kotlinx.serialization.json.JsonObject): Employee =
+        send(
+            Request.Builder().url(url("/hr/employees").build())
+                .post(body.toString().toRequestBody(jsonMedia)),
+            Employee.serializer(),
+        )
+
+    suspend fun patchEmployee(id: Long, body: kotlinx.serialization.json.JsonObject): Employee =
+        send(
+            Request.Builder().url(url("/hr/employees/$id").build())
+                .patch(body.toString().toRequestBody(jsonMedia)),
+            Employee.serializer(),
+        )
+
+    suspend fun setEmployeeArchived(id: Long, archived: Boolean): Employee =
+        send(
+            Request.Builder()
+                .url(url("/hr/employees/$id/" + if (archived) "archive" else "unarchive").build())
+                .post(EMPTY),
+            Employee.serializer(),
+        )
+
+    /** The raw image bytes as the body; the server crops it square and re-encodes it. */
+    suspend fun setEmployeePhoto(id: Long, bytes: ByteArray, mime: String): Employee =
+        send(
+            Request.Builder().url(url("/hr/employees/$id/photo").build())
+                .put(bytes.toRequestBody(mime.toMediaType())),
+            Employee.serializer(),
+        )
+
+    suspend fun removeEmployeePhoto(id: Long): Employee =
+        send(
+            Request.Builder().url(url("/hr/employees/$id/photo").build()).delete(),
+            Employee.serializer(),
+        )
+
+    // ── Users (admin) ───────────────────────────────────────────────────────────────
+
+    suspend fun users(): List<StaffUser> =
+        send(Request.Builder().url(url("/users").build()).get(), Items.serializer(StaffUser.serializer())).items
+
+    suspend fun patchUser(id: Long, body: kotlinx.serialization.json.JsonObject): StaffUser =
+        send(
+            Request.Builder().url(url("/users/$id").build())
+                .patch(body.toString().toRequestBody(jsonMedia)),
+            StaffUser.serializer(),
+        )
+
     // ── Orders ──────────────────────────────────────────────────────────────────────
 
     /**
@@ -542,9 +603,11 @@ class AutoCrmApi(
             InspectionVerdict.serializer(),
         )
 
-    suspend fun zoneTemplates(projectTypeId: Long?): List<ZoneTemplate> {
+    /** The zone list for a vehicle kind and walkaround: its own, else the general one. */
+    suspend fun zoneTemplates(projectTypeId: Long?, kind: String): List<ZoneTemplate> {
         val u = url("/inspections/templates")
         if (projectTypeId != null) u.addQueryParameter("project_type_id", projectTypeId.toString())
+        u.addQueryParameter("kind", kind)
         return send(Request.Builder().url(u.build()).get(), Items.serializer(ZoneTemplate.serializer())).items
     }
 
@@ -583,6 +646,14 @@ class AutoCrmApi(
             Request.Builder().url(url("/project-types").build()).get(),
             Items.serializer(ProjectType.serializer()),
         ).items
+
+    /** Every client-facing enumeration in one document: damage types, fuel marks,
+     *  currencies, image categories, ... Selects, chips and labels render from this. */
+    suspend fun lookups(): Lookups =
+        send(
+            Request.Builder().url(url("/config/lookups").build()).get(),
+            Lookups.serializer(),
+        )
 }
 
 private val EMPTY: RequestBody = ByteArray(0).toRequestBody(null, 0, 0)

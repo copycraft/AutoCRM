@@ -8,8 +8,10 @@ import hu.autotherm.autocrm.data.auth.SessionStore
 import hu.autotherm.autocrm.data.db.AutoCrmDatabase
 import hu.autotherm.autocrm.data.inspection.InspectionSyncWorker
 import hu.autotherm.autocrm.data.prefs.CapturePrefs
+import hu.autotherm.autocrm.data.prefs.LookupsCache
 import hu.autotherm.autocrm.data.prefs.ServerStore
 import hu.autotherm.autocrm.data.prefs.ThemePrefs
+import hu.autotherm.autocrm.data.prefs.ZoneListCache
 import hu.autotherm.autocrm.data.upload.UploadQueue
 import hu.autotherm.autocrm.data.upload.UploadWorker
 
@@ -28,6 +30,8 @@ class AutoCrmApp : Application(), Configuration.Provider {
     val database: AutoCrmDatabase by lazy { AutoCrmDatabase.get(this) }
     val serverStore: ServerStore by lazy { ServerStore(this) }
     val themePrefs: ThemePrefs by lazy { ThemePrefs(this) }
+    val zoneListCache: ZoneListCache by lazy { ZoneListCache(this) }
+    val lookupsCache: LookupsCache by lazy { LookupsCache(this) }
     val api: AutoCrmApi by lazy { AutoCrmApi(serverStore, sessionStore) }
     val uploadQueue: UploadQueue by lazy { UploadQueue(this, database.pendingUploads()) }
 

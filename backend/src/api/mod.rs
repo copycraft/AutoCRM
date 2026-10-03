@@ -10,6 +10,7 @@ pub mod blockers;
 pub mod configuration;
 pub mod email;
 pub mod extract;
+pub mod hr;
 pub mod inspections;
 pub mod invoices;
 pub mod leads;
@@ -61,6 +62,7 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(mobile::routes())
         .merge(newsletter::routes())
         .merge(email::routes())
+        .merge(hr::routes())
         .merge(reports::routes())
         .merge(search::routes())
         .merge(tasks::routes())
@@ -120,6 +122,29 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
             storage: reachable(storage_ok),
         }),
     )
+}
+
+/// Checks a public endpoint's API key header. `expected` unset or empty means the endpoint
+/// is off. Compares digests, not the strings: equal-length hashes compared whole leak
+/// nothing about how much of the key a guess got right.
+pub fn check_api_key(
+    expected: Option<&str>,
+    headers: &axum::http::HeaderMap,
+    header: &str,
+) -> AppResult<()> {
+    use sha2::{Digest, Sha256};
+    let expected = expected.unwrap_or("");
+    if expected.is_empty() {
+        return Err(AppError::Forbidden);
+    }
+    let given = headers
+        .get(header)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if Sha256::digest(given.as_bytes()) != Sha256::digest(expected.as_bytes()) {
+        return Err(AppError::Forbidden);
+    }
+    Ok(())
 }
 
 /// The list envelope: `{"items": [...]}`.

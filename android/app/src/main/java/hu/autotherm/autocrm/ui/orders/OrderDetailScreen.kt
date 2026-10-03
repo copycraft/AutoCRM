@@ -39,6 +39,7 @@ import hu.autotherm.autocrm.data.api.AddItemBody
 import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.api.Blocker
 import hu.autotherm.autocrm.data.api.BlockerBody
+import hu.autotherm.autocrm.data.api.Lookups
 import hu.autotherm.autocrm.data.api.OrderDetail
 import hu.autotherm.autocrm.data.api.OrderNote
 import hu.autotherm.autocrm.data.api.ResolveBody
@@ -63,6 +64,9 @@ import hu.autotherm.autocrm.ui.tasks.TaskDialog
 import hu.autotherm.autocrm.ui.tasks.TaskRow
 import hu.autotherm.autocrm.ui.photos.OrderPhotoSection
 import hu.autotherm.autocrm.ui.photos.OrderPhotoViewModel
+import hu.autotherm.autocrm.data.inspection.cachedLookups
+import hu.autotherm.autocrm.data.inspection.downloadLookups
+import hu.autotherm.autocrm.data.prefs.LookupsCache
 import hu.autotherm.autocrm.ui.common.StatusBadge
 import hu.autotherm.autocrm.ui.common.Tone
 import hu.autotherm.autocrm.ui.theme.MonoSmall
@@ -81,6 +85,7 @@ import kotlinx.serialization.json.JsonObject
 class OrderDetailViewModel(
     private val api: AutoCrmApi,
     private val sessionStore: SessionStore,
+    private val lookupsCache: LookupsCache,
 ) : ViewModel() {
 
     data class State(
@@ -114,6 +119,8 @@ class OrderDetailViewModel(
         val intakeDialog: Boolean = false,
         val intakeBusy: Boolean = false,
         val intakeError: String? = null,
+        /** The server's enumerations (fuel marks, ...); cached for offline opens. */
+        val lookups: Lookups? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -141,6 +148,9 @@ class OrderDetailViewModel(
                     runCatching { api.tasksFor("order", orderId) }.getOrDefault(emptyList())
                 }
                 val accountDeferred = async { sessionStore.currentAccount() }
+                val lookupsDeferred = async {
+                    downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
+                }
                 val detail = detailDeferred.await()
                 val account = accountDeferred.await()
                 _state.value = State(
@@ -151,6 +161,7 @@ class OrderDetailViewModel(
                     tasks = tasksDeferred.await(),
                     canEdit = account?.canEdit == true,
                     canChangeStage = account?.canChangeStage == true,
+                    lookups = lookupsDeferred.await(),
                 )
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(
@@ -582,7 +593,7 @@ fun OrderDetailScreen(
                             Card(onClick = { onInspections(orderId) }) {
                                 SectionTitle("Átvétel-átadás")
                                 Text(
-                                    "Kiadás és visszavétel sérülésvizsgálattal, " +
+                                    "Átvétel és kiadás sérülésvizsgálattal, " +
                                         "aláírással, csak telefonról.",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = Steel500,
@@ -796,6 +807,7 @@ fun OrderDetailScreen(
     if (state.intakeDialog && state.detail != null) {
         IntakeSlipDialog(
             order = state.detail!!.order,
+            fuelLevels = state.lookups?.fuelLevels.orEmpty(),
             busy = state.intakeBusy,
             error = state.intakeError,
             onDismiss = viewModel::closeIntakeDialog,

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE users\n           SET display_name = coalesce($2, display_name),\n               role = coalesce($3, role),\n               is_active = coalesce($4, is_active)\n           WHERE id = $1\n           RETURNING id, email, display_name, role AS \"role: Role\", is_active, must_change_password, created_at, updated_at",
+  "query": "UPDATE users\n           SET display_name = coalesce($2, display_name),\n               role = coalesce($3, role),\n               is_active = coalesce($4, is_active),\n               hr_access = coalesce($5, hr_access)\n           WHERE id = $1\n           RETURNING id, email, display_name, role AS \"role: Role\", is_active, must_change_password, hr_access, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -47,11 +47,16 @@
       },
       {
         "ordinal": 6,
+        "name": "hr_access",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -73,6 +78,7 @@
             }
           }
         },
+        "Bool",
         "Bool"
       ]
     },
@@ -84,8 +90,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "fc54173cf836435aff95ff35abe64e76a6b9b5d77ecde1fa9f06950cb7900e74"
+  "hash": "92d2456e3943580bbd2deff8d77c3f8dabb5e595def103d5f03d4dd78c67d6b9"
 }

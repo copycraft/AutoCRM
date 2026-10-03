@@ -1005,6 +1005,48 @@
         }
       }
     },
+    "/config/lookups": {
+      "get": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "Every client-facing enumeration in one document: damage types, severities,\nverdicts, fuel levels, task entity types, currencies, invoice payment\nmethods, annulment codes, image categories and email composer starters.",
+        "description": "Any signed-in user may read it (like the zone lists): the phone fetches it\non the Átvétel-átadás screen and caches it for the yard, the web keeps it\nin react-query. Values and labels come from `domain::lookups`, next to the\nvalidation that accepts them — changing one is a server deploy, never an\napp update.",
+        "operationId": "configuration_lookups",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lookups"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/partners": {
       "get": {
         "tags": [
@@ -1858,6 +1900,56 @@
                 }
               }
             }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/website": {
+      "post": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Website enquiry: `POST` the form with `X-Leads-Key`. No staff login; the key keeps\nstrangers out, and with `LEADS_API_KEY` unset the endpoint is off. The lead lands in\nthe first stage, unassigned, with source `website`.",
+        "operationId": "leads_website",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebsiteLead"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "400": {
+            "description": "Invalid form"
+          },
+          "403": {
+            "description": "Missing or wrong key, or the endpoint is off"
           },
           "4XX": {
             "description": "Client error; see `error.code`",
@@ -4209,15 +4301,26 @@
         "tags": [
           "inspections"
         ],
+        "summary": "The zone list the phone walks: the project type's own list for this walkaround, else\nthe general one. Items carry `project_type_id`, so a client can tell an own list (set)\nfrom the general list it was served instead (null).",
         "operationId": "inspections_templates",
         "parameters": [
           {
             "name": "project_type_id",
             "in": "query",
+            "description": "The order's project type (the kind of vehicle). Omitted: the general list.",
             "required": false,
             "schema": {
               "type": "integer",
               "format": "int64"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`checkout` (the first walkaround, the vehicle arriving) or `checkin` (the second,\nleaving). Omitted: `checkout`.",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -4253,24 +4356,13 @@
             }
           }
         }
-      }
-    },
-    "/inspections/templates/{set}": {
+      },
       "put": {
         "tags": [
           "inspections"
         ],
+        "summary": "Replaces one whole list, in order. Admin only.",
         "operationId": "inspections_replace_templates",
-        "parameters": [
-          {
-            "name": "set",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4291,6 +4383,59 @@
                 }
               }
             }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "inspections"
+        ],
+        "summary": "Removes a project type's own list, so it is served the general one again. The general\nlist cannot be removed: every walkaround needs a list to fall back to. Admin only.",
+        "operationId": "inspections_delete_templates",
+        "parameters": [
+          {
+            "name": "project_type_id",
+            "in": "query",
+            "description": "The order's project type (the kind of vehicle). Omitted: the general list.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`checkout` (the first walkaround, the vehicle arriving) or `checkin` (the second,\nleaving). Omitted: `checkout`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
           },
           "4XX": {
             "description": "Client error; see `error.code`",
@@ -6071,6 +6216,442 @@
         }
       }
     },
+    "/hr/employees": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_list",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Matches name, email and both phone numbers.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_archived",
+            "in": "query",
+            "description": "Include employees who have left.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmployeeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmployeeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/archive": {
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_archive",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The employee has left; hidden from the default list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/unarchive": {
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_unarchive",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/photo": {
+      "put": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "The profile picture: the raw image bytes (JPEG, PNG or WebP, up to 8 MB) as the body.\nIt is cropped to a centred square, scaled to 512 px and re-encoded as JPEG, which also\nstrips EXIF. Replaces any previous picture.",
+        "operationId": "hr_set_photo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_remove_photo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reports/volume": {
       "get": {
         "tags": [
@@ -7498,6 +8079,128 @@
         }
       }
     },
+    "/invoices": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "operationId": "invoices_list_all",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "`submitting` | `issued` | `rejected` | `stornoed` | `annulled`. Omitted: all.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`invoice` | `storno`. Omitted: both.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Newest N rows. Defaults to 100, at most 500.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_BilledInvoice"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/proformas": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "operationId": "invoices_list_all_proformas",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Newest N rows. Defaults to 100, at most 500.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_BilledProforma"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/orders/{id}/invoices": {
       "get": {
         "tags": [
@@ -8284,6 +8987,256 @@
           },
           "changes": {
             "type": "object"
+          }
+        }
+      },
+      "BilledInvoice": {
+        "type": "object",
+        "description": "An invoice with the order and partner it belongs to, for lists that span orders.",
+        "required": [
+          "id",
+          "order_id",
+          "order_number",
+          "partner_name",
+          "number",
+          "kind",
+          "status",
+          "currency",
+          "issue_date",
+          "delivery_date",
+          "payment_method",
+          "net_amount",
+          "vat_amount",
+          "gross_amount",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "partner_name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InvoiceKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InvoiceStatus"
+          },
+          "original_invoice_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "issue_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "delivery_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "payment_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "payment_method": {
+            "type": "string"
+          },
+          "net_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vat_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nav_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nav_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nav_error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nav_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "annulment_transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "annulment_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "annulment_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "annulled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "document_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "submitted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "issued_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BilledProforma": {
+        "type": "object",
+        "description": "A proforma with the order and partner it belongs to.",
+        "required": [
+          "id",
+          "order_id",
+          "order_number",
+          "partner_name",
+          "number",
+          "currency",
+          "issue_date",
+          "net_amount",
+          "vat_amount",
+          "gross_amount",
+          "document_id",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "partner_name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "issue_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "payment_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "net_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vat_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "document_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -9847,6 +10800,34 @@
           }
         }
       },
+      "EmailThemeEntry": {
+        "type": "object",
+        "description": "A starter for the manual composer: picking one fills subject/hero/body, all\nstill editable before sending. Content lives here so a new starter or a\nreworded one is a server deploy, not a web deploy.",
+        "required": [
+          "key",
+          "label_hu",
+          "subject",
+          "hero",
+          "body"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label_hu": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "hero": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
       "EmailTransportBody": {
         "type": "object",
         "description": "Email transport overrides. Every field is optional: absent keeps the stored\nvalue, explicit null returns it to \"inherit from the environment\".\n`mode: null` clears the whole transport back to environment behaviour.\n`smtp_password`: absent keeps, null clears, a value replaces. Blank\nstrings are treated as absent everywhere (never a destructive surprise).",
@@ -9901,6 +10882,95 @@
             ]
           },
           "redirect_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Employee": {
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "company_phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The number the company pays for."
+          },
+          "personal_phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "photo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A short-lived link to the profile picture (about an hour); None without one."
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EmployeeBody": {
+        "type": "object",
+        "description": "Create requires `full_name`. On PATCH every field is optional; `null` clears.",
+        "properties": {
+          "full_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "company_phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "personal_phone": {
             "type": [
               "string",
               "null"
@@ -10164,15 +11234,15 @@
           },
           {
             "code": "checkout_open",
-            "en": "An open check-out already exists for this order.",
-            "hu": "Már van nyitott kiadási jegyzőkönyv. Előbb írassa alá vagy dobja el.",
+            "en": "An open check-out (intake) already exists for this order.",
+            "hu": "Már van nyitott átvételi jegyzőkönyv. Előbb írassa alá vagy dobja el.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "checkout_required",
-            "en": "Check-in needs a signed check-out first.",
-            "hu": "A visszavételhez előbb aláírt kiadási jegyzőkönyv kell.",
+            "en": "Check-in (outgo) needs a signed check-out (intake) first.",
+            "hu": "A kiadáshoz előbb aláírt átvételi jegyzőkönyv kell.",
             "retryable": false,
             "status": 422
           },
@@ -10318,6 +11388,22 @@
           "message": {
             "type": "string",
             "description": "Human-readable detail. For `validation` it names the field and the reason."
+          }
+        }
+      },
+      "ErrorTextEntry": {
+        "type": "object",
+        "description": "The user-facing Hungarian text per error code, from the shared catalog in\n`crate::error` (the same table published in OpenAPI as `x-error-catalog`).\nClients layer this over their built-in map: the built-in map must stay for\ncold start (a login failure happens before the first fetch), but every\nreworded message and every new code reaches the clients with the next\nlookups fetch — no app update.",
+        "required": [
+          "code",
+          "text_hu"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "text_hu": {
+            "type": "string"
           }
         }
       },
@@ -10506,6 +11592,30 @@
           "marketing",
           "inspection"
         ]
+      },
+      "ImageCategoryEntry": {
+        "type": "object",
+        "description": "An image category with the two rules clients used to hard-code: whether the\nbytes are evidence (`immutable`, the database refuses delete and re-filing)\nand whether a person may file a photo by hand (`attachable`, production\nonly — intake and handover shots come from their own flows).",
+        "required": [
+          "key",
+          "label_hu",
+          "immutable",
+          "attachable"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label_hu": {
+            "type": "string"
+          },
+          "immutable": {
+            "type": "boolean"
+          },
+          "attachable": {
+            "type": "boolean"
+          }
+        }
       },
       "ImageView": {
         "allOf": [
@@ -10711,7 +11821,8 @@
           "damages",
           "verdicts",
           "signatures",
-          "notes"
+          "notes",
+          "zone_titles"
         ],
         "properties": {
           "inspection": {
@@ -10745,6 +11856,16 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/InspectionNote"
+            }
+          },
+          "zone_titles": {
+            "type": "object",
+            "description": "The heading of every zone in the list this inspection is walked with, by zone key,\nso a client can name a zone without keeping its own table. A zone the office has\nsince removed from the list has no entry: show its key.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
             }
           }
         }
@@ -11378,6 +12499,280 @@
           }
         }
       },
+      "Items_BilledInvoice": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "An invoice with the order and partner it belongs to, for lists that span orders.",
+              "required": [
+                "id",
+                "order_id",
+                "order_number",
+                "partner_name",
+                "number",
+                "kind",
+                "status",
+                "currency",
+                "issue_date",
+                "delivery_date",
+                "payment_method",
+                "net_amount",
+                "vat_amount",
+                "gross_amount",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_number": {
+                  "type": "string"
+                },
+                "partner_name": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "kind": {
+                  "$ref": "#/components/schemas/InvoiceKind"
+                },
+                "status": {
+                  "$ref": "#/components/schemas/InvoiceStatus"
+                },
+                "original_invoice_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "issue_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "delivery_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "payment_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "payment_method": {
+                  "type": "string"
+                },
+                "net_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "vat_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "gross_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "nav_transaction_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nav_status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nav_error_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nav_message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "annulment_transaction_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "annulment_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "annulment_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "annulled_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "document_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "submitted_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "issued_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "created_by": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_BilledProforma": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A proforma with the order and partner it belongs to.",
+              "required": [
+                "id",
+                "order_id",
+                "order_number",
+                "partner_name",
+                "number",
+                "currency",
+                "issue_date",
+                "net_amount",
+                "vat_amount",
+                "gross_amount",
+                "document_id",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_number": {
+                  "type": "string"
+                },
+                "partner_name": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "issue_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "payment_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "net_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "vat_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "gross_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "document_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "created_by": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_Blocker": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -11898,6 +13293,77 @@
                     "null"
                   ],
                   "format": "int64"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_Employee": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "full_name",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "full_name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "company_phone": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The number the company pays for."
+                },
+                "personal_phone": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "photo_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A short-lived link to the profile picture (about an hour); None without one."
+                },
+                "archived_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               }
             }
@@ -13536,6 +15002,7 @@
                 "role",
                 "is_active",
                 "must_change_password",
+                "hr_access",
                 "created_at",
                 "updated_at"
               ],
@@ -13558,6 +15025,10 @@
                 },
                 "must_change_password": {
                   "type": "boolean"
+                },
+                "hr_access": {
+                  "type": "boolean",
+                  "description": "Unlocks the HR module on top of the role. Admins have it regardless."
                 },
                 "created_at": {
                   "type": "string",
@@ -13671,8 +15142,10 @@
               "required": [
                 "id",
                 "set_key",
+                "kind",
                 "zone_key",
                 "position",
+                "title",
                 "instruction",
                 "optional",
                 "required"
@@ -13683,7 +15156,20 @@
                   "format": "int64"
                 },
                 "set_key": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Names the list this zone belongs to, e.g. `refrigerated_body:checkin`, or\n`default:checkin` for the general list. Derived from the two fields below."
+                },
+                "project_type_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "The project type that owns this list; null for the general list. When a project\ntype has no list of its own this is null on what it is served."
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "`checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the\nsecond, the vehicle leaving (kiadás)."
                 },
                 "zone_key": {
                   "type": "string"
@@ -13691,6 +15177,10 @@
                 "position": {
                   "type": "integer",
                   "format": "int32"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "The short heading the phone shows; `instruction` is the sentence under it."
                 },
                 "instruction": {
                   "type": "string"
@@ -14231,6 +15721,135 @@
             ],
             "format": "date-time",
             "description": "Mobile clients only."
+          }
+        }
+      },
+      "LookupItem": {
+        "type": "object",
+        "description": "One selectable value with its Hungarian label.",
+        "required": [
+          "key",
+          "label_hu"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label_hu": {
+            "type": "string"
+          }
+        }
+      },
+      "Lookups": {
+        "type": "object",
+        "description": "Every client-facing enumeration in one document. Clients fetch it once,\ncache it, and render selects, chips and labels from it.",
+        "required": [
+          "damage_types",
+          "severities",
+          "verdicts",
+          "walkaround_kinds",
+          "fuel_levels",
+          "heating_fuels",
+          "defrost_modes",
+          "order_relations",
+          "task_entity_types",
+          "currencies",
+          "invoice_payment_methods",
+          "annulment_codes",
+          "image_categories",
+          "email_themes",
+          "error_texts"
+        ],
+        "properties": {
+          "damage_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "severities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "verdicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "walkaround_kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "fuel_levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "heating_fuels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "defrost_modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "order_relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "task_entity_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "currencies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "invoice_payment_methods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "annulment_codes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LookupItem"
+            }
+          },
+          "image_categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImageCategoryEntry"
+            }
+          },
+          "email_themes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailThemeEntry"
+            }
+          },
+          "error_texts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErrorTextEntry"
+            }
           }
         }
       },
@@ -16250,9 +17869,22 @@
       "ReplaceTemplatesBody": {
         "type": "object",
         "required": [
+          "kind",
           "zones"
         ],
         "properties": {
+          "project_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The project type the list is for; null replaces the general list."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`checkout` or `checkin`."
+          },
           "zones": {
             "type": "array",
             "items": {
@@ -16370,7 +18002,8 @@
           "display_name",
           "role",
           "must_change_password",
-          "session_kind"
+          "session_kind",
+          "hr_access"
         ],
         "properties": {
           "id": {
@@ -16392,6 +18025,10 @@
           },
           "session_kind": {
             "$ref": "#/components/schemas/SessionKind"
+          },
+          "hr_access": {
+            "type": "boolean",
+            "description": "Whether the HR module is open to this user: admins, and users an admin granted it."
           }
         }
       },
@@ -17364,6 +19001,13 @@
               "boolean",
               "null"
             ]
+          },
+          "hr_access": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Unlocks the HR module for a non-admin. Admins have it regardless."
           }
         }
       },
@@ -17508,6 +19152,7 @@
           "role",
           "is_active",
           "must_change_password",
+          "hr_access",
           "created_at",
           "updated_at"
         ],
@@ -17530,6 +19175,10 @@
           },
           "must_change_password": {
             "type": "boolean"
+          },
+          "hr_access": {
+            "type": "boolean",
+            "description": "Unlocks the HR module on top of the role. Admins have it regardless."
           },
           "created_at": {
             "type": "string",
@@ -17826,6 +19475,67 @@
           }
         }
       },
+      "WebsiteLead": {
+        "type": "object",
+        "description": "An enquiry from the autotherm.hu contact form.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Who is asking."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "At least one of `email` and `phone` is required, so the office can answer."
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The visitor's message."
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What they ask about, e.g. the service. Becomes the lead title."
+          },
+          "vehicle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The vehicle, if the form asks for it."
+          },
+          "page": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The page the form was sent from."
+          },
+          "company": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Honeypot: the form renders this hidden. A bot fills it, a person never does; such\na submission is acknowledged and dropped."
+          }
+        }
+      },
       "WorkloadDay": {
         "type": "object",
         "required": [
@@ -17885,6 +19595,7 @@
         "required": [
           "zone_key",
           "position",
+          "title",
           "instruction",
           "optional",
           "required"
@@ -17896,6 +19607,10 @@
           "position": {
             "type": "integer",
             "format": "int32"
+          },
+          "title": {
+            "type": "string",
+            "description": "The short heading the phone shows for the zone."
           },
           "instruction": {
             "type": "string"
@@ -17913,8 +19628,10 @@
         "required": [
           "id",
           "set_key",
+          "kind",
           "zone_key",
           "position",
+          "title",
           "instruction",
           "optional",
           "required"
@@ -17925,7 +19642,20 @@
             "format": "int64"
           },
           "set_key": {
-            "type": "string"
+            "type": "string",
+            "description": "Names the list this zone belongs to, e.g. `refrigerated_body:checkin`, or\n`default:checkin` for the general list. Derived from the two fields below."
+          },
+          "project_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The project type that owns this list; null for the general list. When a project\ntype has no list of its own this is null on what it is served."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the\nsecond, the vehicle leaving (kiadás)."
           },
           "zone_key": {
             "type": "string"
@@ -17933,6 +19663,10 @@
           "position": {
             "type": "integer",
             "format": "int32"
+          },
+          "title": {
+            "type": "string",
+            "description": "The short heading the phone shows; `instruction` is the sentence under it."
           },
           "instruction": {
             "type": "string"

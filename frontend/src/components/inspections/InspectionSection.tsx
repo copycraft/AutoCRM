@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { inspectionsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
+import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { errorMessage } from '@/lib/api/errors';
 import { canChangeStage, useAuth } from '@/lib/auth/context';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -22,26 +23,10 @@ import type {
   InspectionDamage,
 } from '@/lib/api/types';
 
-const DAMAGE_HU: Record<string, string> = {
-  scratch: 'Karcolás',
-  dent: 'Horpadás',
-  crack: 'Repedés',
-  chip: 'Lepattanás',
-  broken: 'Törött alkatrész',
-  missing: 'Hiányzó alkatrész',
-  stain: 'Folt',
-  tear: 'Szakadás',
-  other: 'Egyéb',
-};
-
-const SEVERITY_HU: Record<string, string> = {
-  minor: 'Enyhe',
-  moderate: 'Közepes',
-  severe: 'Súlyos',
-};
-
-function kindLabel(kind: string, t: (k: string) => string): string {
-  return kind === 'checkin' ? t('checkin') : t('checkout');
+/** The walkaround heading from the server's lookups; unknown kinds read as themselves. */
+function useKindLabel(): (kind: string) => string {
+  const { data: lookups } = useLookups();
+  return (kind: string) => lookupLabel(lookups?.walkaround_kinds, kind);
 }
 
 export function InspectionSection({ orderId }: { orderId: number }) {
@@ -83,6 +68,7 @@ export function InspectionSection({ orderId }: { orderId: number }) {
 
 function InspectionCard({ inspection }: { inspection: Inspection }) {
   const t = useTranslations('orders');
+  const kindLabel = useKindLabel();
   const [open, setOpen] = useState(false);
   const detail = useQuery({
     queryKey: qk.inspection(inspection.id),
@@ -100,7 +86,7 @@ function InspectionCard({ inspection }: { inspection: Inspection }) {
       >
         <span className="min-w-0 flex-1">
           <span className="block text-body font-medium">
-            {kindLabel(inspection.kind, t)} · {inspection.vehicle_plate}
+            {kindLabel(inspection.kind)} · {inspection.vehicle_plate}
           </span>
           <span className="block text-metadata text-steel-500">
             {inspection.inspector_name} ·{' '}
@@ -133,6 +119,11 @@ function InspectionCard({ inspection }: { inspection: Inspection }) {
   );
 }
 
+/** A zone's heading from the titles the server sent with the inspection; its key if the list no longer has it. */
+function zoneName(titles: Record<string, string>, key: string): string {
+  return titles[key] ?? key;
+}
+
 function InspectionDetailView({
   inspectionId,
   kind,
@@ -143,7 +134,7 @@ function InspectionDetailView({
   detail: import('@/lib/api/types').InspectionDetail;
 }) {
   const t = useTranslations('orders');
-  const { inspection, photos, damages, verdicts, signatures, notes } = detail;
+  const { inspection, photos, damages, verdicts, signatures, notes, zone_titles: titles } = detail;
   const overviews = photos.filter((p) => p.purpose === 'overview');
 
   return (
@@ -177,15 +168,15 @@ function InspectionDetailView({
                     // Plain img: presigned S3 URLs never match next/image remotePatterns.
                     <img
                       src={photo.display_url ?? photo.thumb_url ?? ''}
-                      alt={photo.zone_key}
+                      alt={zoneName(titles, photo.zone_key)}
                       className="aspect-[4/3] w-full rounded-lg border border-steel-200 object-cover"
                       loading="lazy"
                     />
                   ) : (
                     <div className="aspect-[4/3] w-full rounded-lg bg-panel" aria-hidden />
                   )}
-                  <figcaption className="mt-1 font-mono text-metadata text-steel-500">
-                    {photo.zone_key}
+                  <figcaption className="mt-1 text-metadata text-steel-500">
+                    {zoneName(titles, photo.zone_key)}
                   </figcaption>
                 </figure>
               </li>
@@ -201,7 +192,7 @@ function InspectionDetailView({
           </h3>
           <ul className="mt-2 space-y-2">
             {damages.map((damage) => (
-              <DamageRow key={damage.id} damage={damage} />
+              <DamageRow key={damage.id} damage={damage} titles={titles} />
             ))}
           </ul>
         </div>
@@ -222,14 +213,21 @@ function InspectionDetailView({
   );
 }
 
-function DamageRow({ damage }: { damage: InspectionDamage }) {
+function DamageRow({
+  damage,
+  titles,
+}: {
+  damage: InspectionDamage;
+  titles: Record<string, string>;
+}) {
+  const { data: lookups } = useLookups();
   return (
     <li className="rounded-lg border border-steel-200 p-3">
       <p className="flex flex-wrap items-center gap-2 text-body font-medium">
-        <span className="font-mono text-metadata text-steel-500">{damage.zone_key}</span>
-        {DAMAGE_HU[damage.damage_type] ?? damage.damage_type}
+        <span className="text-metadata text-steel-500">{zoneName(titles, damage.zone_key)}</span>
+        {lookupLabel(lookups?.damage_types, damage.damage_type)}
         <StatusBadge tone={damage.severity === 'severe' ? 'signal' : 'steel'}>
-          {SEVERITY_HU[damage.severity] ?? damage.severity}
+          {lookupLabel(lookups?.severities, damage.severity)}
         </StatusBadge>
       </p>
       {damage.note && <p className="mt-1 text-body">{damage.note}</p>}
@@ -249,6 +247,9 @@ function ComparisonView({ inspectionId }: { inspectionId: number }) {
   // Reviewing needs the capability, and only a draft check-in takes verdicts:
   // a signed inspection is locked (the API answers 422 `locked`).
   const review = canChangeStage(user) && query.data?.checkin.inspection.status === 'draft';
+  // The verdict buttons are the server's verdict list, not a local table.
+  const { data: lookups } = useLookups();
+  const verdictOptions = lookups?.verdicts ?? [];
 
   const verdict = useMutation({
     mutationFn: (body: { checkin_damage_id: number; checkout_damage_id: number | null; verdict: string }) =>
@@ -284,37 +285,37 @@ function ComparisonView({ inspectionId }: { inspectionId: number }) {
             return (
               <li key={damage.id} className="rounded-lg border border-steel-200 p-3">
                 <p className="flex flex-wrap items-center gap-2 text-body font-medium">
-                  <span className="font-mono text-metadata text-steel-500">{damage.zone_key}</span>
-                  {DAMAGE_HU[damage.damage_type] ?? damage.damage_type}
+                  <span className="text-metadata text-steel-500">
+                    {zoneName(comparison.checkin.zone_titles, damage.zone_key)}
+                  </span>
+                  {lookupLabel(lookups?.damage_types, damage.damage_type)}
                   {suggestion?.suggested === 'preexisting' ? (
-                    <StatusBadge tone="cold">{t('verdictPreexisting')}</StatusBadge>
+                    <StatusBadge tone="cold">
+                      {lookupLabel(lookups?.verdicts, 'preexisting')}
+                    </StatusBadge>
                   ) : (
-                    <StatusBadge tone="signal">{t('verdictNew')}</StatusBadge>
+                    <StatusBadge tone="signal">{lookupLabel(lookups?.verdicts, 'new')}</StatusBadge>
                   )}
                   {current && (
                     <StatusBadge tone="done">
-                      {t('verdictDecided', { verdict: current.verdict })}
+                      {t('verdictDecided', {
+                        verdict: lookupLabel(lookups?.verdicts, current.verdict),
+                      })}
                     </StatusBadge>
                   )}
                 </p>
                 {matched && (
                   <p className="mt-1 text-metadata text-steel-500">
-                    {t('verdictMatches')}: {matched.zone_key} ·{' '}
-                    {DAMAGE_HU[matched.damage_type] ?? matched.damage_type}
+                    {t('verdictMatches')}: {zoneName(comparison.checkout.zone_titles, matched.zone_key)} ·{' '}
+                    {lookupLabel(lookups?.damage_types, matched.damage_type)}
                   </p>
                 )}
                 {damage.note && <p className="mt-1 text-body">{damage.note}</p>}
                 {review && (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {(
-                      [
-                        ['preexisting', t('verdictPreexisting')],
-                        ['new', t('verdictNew')],
-                        ['dismissed', t('verdictDismissed')],
-                      ] as const
-                    ).map(([value, label]) => (
+                    {verdictOptions.map((option) => (
                       <button
-                        key={value}
+                        key={option.key}
                         type="button"
                         className="btn-ghost btn-sm"
                         disabled={verdict.isPending}
@@ -324,14 +325,14 @@ function ComparisonView({ inspectionId }: { inspectionId: number }) {
                             // Only a pre-existing verdict points at a check-out damage;
                             // "new" and "dismissed" stand alone (as the phone sends them).
                             checkout_damage_id:
-                              value === 'preexisting'
+                              option.key === 'preexisting'
                                 ? (suggestion?.checkout_damage_id ?? null)
                                 : null,
-                            verdict: value,
+                            verdict: option.key,
                           })
                         }
                       >
-                        {label}
+                        {option.label_hu}
                       </button>
                     ))}
                   </div>

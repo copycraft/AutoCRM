@@ -29,11 +29,30 @@ pub fn config() -> Config {
         database_max_connections: 5,
         upload_signing_key: vec![7; 32],
         s3: S3Config {
-            endpoint: Some("http://127.0.0.1:9".into()),
+            // Unreachable by default: storage tests skip. TEST_S3_ENDPOINT=http://127.0.0.1:9000
+            // (with the docker-compose minio and its dev credentials) runs them for real.
+            endpoint: Some(
+                std::env::var("TEST_S3_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9".into()),
+            ),
             region: "us-east-1".into(),
-            bucket: "test".into(),
-            access_key: "test".into(),
-            secret_key: "test".into(),
+            bucket: if std::env::var("TEST_S3_ENDPOINT").is_ok() {
+                "autocrm"
+            } else {
+                "test"
+            }
+            .into(),
+            access_key: if std::env::var("TEST_S3_ENDPOINT").is_ok() {
+                "autocrm"
+            } else {
+                "test"
+            }
+            .into(),
+            secret_key: if std::env::var("TEST_S3_ENDPOINT").is_ok() {
+                "autocrm-dev-secret"
+            } else {
+                "test"
+            }
+            .into(),
             force_path_style: true,
             intake_lock_years: 0,
         },
@@ -51,6 +70,7 @@ pub fn config() -> Config {
         // state, and most tests have nothing to do with it.
         nav: None,
         newsletter_api_key: None,
+        leads_api_key: None,
         business_tz: chrono_tz::Europe::Budapest,
         worker_enabled: false,
         worker_id: "test".into(),
@@ -93,6 +113,7 @@ pub async fn user(pool: &PgPool, role: Role) -> AuthUser {
         display_name: u.display_name,
         role,
         must_change_password: false,
+        hr_access: false,
     }
 }
 

@@ -37,9 +37,14 @@ import hu.autotherm.autocrm.data.api.ApiException
 import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.api.LeadDetail
 import hu.autotherm.autocrm.data.api.LeadSummary
+import hu.autotherm.autocrm.data.api.Lookups
+import hu.autotherm.autocrm.data.api.LookupItem
 import hu.autotherm.autocrm.data.api.OrderBody
 import hu.autotherm.autocrm.data.api.OrderRef
 import hu.autotherm.autocrm.data.api.TransitionOption
+import hu.autotherm.autocrm.data.inspection.cachedLookups
+import hu.autotherm.autocrm.data.inspection.downloadLookups
+import hu.autotherm.autocrm.data.prefs.LookupsCache
 import hu.autotherm.autocrm.ui.common.Card
 import hu.autotherm.autocrm.ui.common.AutoCrmTextField
 import hu.autotherm.autocrm.ui.common.DetailSkeleton
@@ -228,7 +233,7 @@ fun LeadListScreen(
     }
 }
 
-class LeadDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
+class LeadDetailViewModel(private val api: AutoCrmApi, private val lookupsCache: LookupsCache) : ViewModel() {
 
     data class State(
         val loading: Boolean = true,
@@ -243,6 +248,8 @@ class LeadDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
         val convertError: String? = null,
         /** Order currency for the conversion: the partner's default, changeable. */
         val convertCurrency: String = "HUF",
+        /** The server's enumerations; cached for offline opens. */
+        val lookups: Lookups? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -257,7 +264,12 @@ class LeadDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
                 error = null,
             )
             try {
-                _state.value = State(loading = false, detail = api.lead(id))
+                val lookups = downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
+                _state.value = State(
+                    loading = false,
+                    detail = api.lead(id),
+                    lookups = lookups,
+                )
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(
                     loading = false,
@@ -298,11 +310,20 @@ class LeadDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
 
     fun openConvert() {
         _state.value = _state.value.copy(convertOpen = true, convertError = null, convertCurrency = "HUF")
-        // Same prefill as the web dialog: the partner's default currency (MAJOR-03).
+        // Same prefill as the web dialog: the partner's default currency (MAJOR-03),
+        // when the server lists it; else the first listed currency; HUF (the business
+        // default) when offline with nothing cached.
         val partnerId = _state.value.detail?.lead?.partnerId ?: return
         viewModelScope.launch {
+            val lookups = downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
             val default = runCatching { api.partner(partnerId).partner.defaultCurrency }.getOrNull()
-            _state.value = _state.value.copy(convertCurrency = convertBody("", default).currency ?: "HUF")
+            val listed = lookups?.currencies.orEmpty()
+            val currency = when {
+                default != null && (listed.isEmpty() || listed.any { it.key == default }) -> default
+                listed.isNotEmpty() -> listed.first().key
+                else -> "HUF"
+            }
+            _state.value = _state.value.copy(convertCurrency = currency, lookups = lookups)
         }
     }
 
@@ -482,6 +503,8 @@ fun LeadDetailScreen(
             error = state.convertError,
             initialTitle = state.detail?.lead?.title.orEmpty(),
             currency = state.convertCurrency,
+            currencies = state.lookups?.currencies?.takeIf { it.isNotEmpty() }
+                ?: listOf(LookupItem(state.convertCurrency, state.convertCurrency)),
             onCurrency = viewModel::setConvertCurrency,
             onDismiss = viewModel::closeConvert,
             onConfirm = { title -> viewModel.convert(leadId, title, onConverted) },
@@ -496,11 +519,12 @@ internal fun isExpired(
 ): Boolean = runCatching { LocalDate.parse(validUntil).isBefore(today) }.getOrDefault(false)
 
 /**
- * The conversion body. Currency follows the partner's default (EUR stays EUR), HUF when
- * there is none — the web dialog's rule (docs/history/REMEDIATION.md MAJOR-03).
+ * The conversion body. The chosen currency travels as-is; the server refuses
+ * what it does not know. Blank means the business default (HUF) — the web
+ * dialog's rule (docs/history/REMEDIATION.md MAJOR-03).
  */
 internal fun convertBody(title: String, currency: String?): OrderBody =
-    OrderBody(title = title, currency = if (currency == "EUR") "EUR" else "HUF")
+    OrderBody(title = title, currency = currency?.takeIf { it.isNotBlank() } ?: "HUF")
 
 /** A lead that became an order is worked on the order; its stage is fixed. */
 internal fun canChangeLeadStage(orders: List<OrderRef>): Boolean = orders.isEmpty()
@@ -512,6 +536,8 @@ private fun ConvertDialog(
     error: String?,
     initialTitle: String,
     currency: String,
+    /** The server's currencies; offline with nothing cached, the current choice alone. */
+    currencies: List<LookupItem>,
     onCurrency: (String) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
@@ -536,11 +562,11 @@ private fun ConvertDialog(
             modifier = Modifier.fillMaxWidth(),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("HUF", "EUR").forEach { code ->
+            currencies.forEach { entry ->
                 FilterChip(
-                    selected = currency == code,
-                    onClick = { onCurrency(code) },
-                    label = { Text(code) },
+                    selected = currency == entry.key,
+                    onClick = { onCurrency(entry.key) },
+                    label = { Text(entry.key) },
                 )
             }
         }

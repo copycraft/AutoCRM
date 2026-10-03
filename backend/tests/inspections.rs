@@ -205,18 +205,299 @@ async fn checkout_checkin_roundtrip_with_verdicts(pool: sqlx::PgPool) {
     );
 }
 
-#[sqlx::test(migrations = "./migrations")]
-async fn zone_templates_seed_default_and_cooling(pool: sqlx::PgPool) {
-    let zones = inspections::templates_for_sets(&pool, &["default".to_string()])
-        .await
-        .unwrap();
-    assert_eq!(zones.len(), 15);
-    assert!(zones.iter().any(|z| z.zone_key == "front" && !z.optional));
-    assert!(zones.iter().any(|z| z.zone_key == "roof" && z.optional));
+// ── Zone lists per vehicle kind and walkaround kind ──────────────────────────────
 
-    let cooling = inspections::templates_for_sets(&pool, &["cooling".to_string()])
+use autocrm::repo::inspections::{NewZone, ZoneTemplate};
+
+async fn list(pool: &sqlx::PgPool, project_type: Option<&str>, kind: &str) -> Vec<ZoneTemplate> {
+    let mut conn = pool.acquire().await.unwrap();
+    let id = match project_type {
+        Some(key) => Some(project_type_id(pool, key).await),
+        None => None,
+    };
+    inspections::templates_for(&mut conn, id, kind)
+        .await
+        .unwrap()
+}
+
+async fn project_type_id(pool: &sqlx::PgPool, key: &str) -> i64 {
+    sqlx::query_scalar("SELECT id FROM project_types WHERE key = $1")
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+fn keys(zones: &[ZoneTemplate]) -> Vec<&str> {
+    zones.iter().map(|z| z.zone_key.as_str()).collect()
+}
+
+fn zone(key: &str, position: i32, optional: bool) -> NewZone {
+    NewZone {
+        zone_key: key.into(),
+        position,
+        title: key.into(),
+        instruction: format!("Fotó: {key}"),
+        optional,
+        required: !optional,
+    }
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn the_general_list_serves_both_walkarounds_and_every_type_without_its_own(
+    pool: sqlx::PgPool,
+) {
+    for kind in ["checkout", "checkin"] {
+        let general = list(&pool, None, kind).await;
+        assert_eq!(general.len(), 15, "{kind}");
+        assert!(general.iter().any(|z| z.zone_key == "front" && !z.optional));
+        assert!(general.iter().any(|z| z.zone_key == "roof" && z.optional));
+        assert!(general.iter().all(|z| z.project_type_id.is_none()));
+        assert!(general.iter().all(|z| !z.title.is_empty()));
+        // Project types with no list of their own are served the general one.
+        for key in ["heated_body", "repair", "other"] {
+            assert_eq!(
+                keys(&list(&pool, Some(key), kind).await),
+                keys(&general),
+                "{key} {kind}"
+            );
+        }
+    }
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_converted_van_keeps_the_general_zones_plus_the_cargo_extras(pool: sqlx::PgPool) {
+    // What the old `default` + `cooling` lookup gave refrigerated project types, now stored
+    // as the project type's own list.
+    for key in ["van_conversion", "unit_install"] {
+        for kind in ["checkout", "checkin"] {
+            let zones = list(&pool, Some(key), kind).await;
+            assert_eq!(zones.len(), 18, "{key} {kind}");
+            assert!(zones.iter().all(|z| z.project_type_id.is_some()));
+            for extra in ["cargo_box", "cargo_doors", "refrigeration_unit"] {
+                assert!(keys(&zones).contains(&extra), "{key} {kind} {extra}");
+            }
+        }
+    }
+}
+
+/// Every photo of the example set of a finished alváz-with-box (Elkészült Meo.zip),
+/// in the order they were taken.
+const ALVAZ_BOX_OUTGO: [&str; 38] = [
+    "type_plate",
+    "engine_bay",
+    "cab_reefer_display",
+    "cab_driver_side",
+    "door_right_inner",
+    "cab_passenger_side",
+    "door_left_inner",
+    "box_side_door",
+    "box_side_threshold",
+    "box_interior_side",
+    "box_interior_rear",
+    "reefer_unit_inside",
+    "box_interior_full",
+    "wheelhouse_1",
+    "wheelhouse_2",
+    "rear_doors_open",
+    "rear_door_1",
+    "rear_door_2",
+    "rear_hinge",
+    "roof_corner_1",
+    "roof_corner_2",
+    "reefer_unit_roof",
+    "front_right",
+    "mirror_right",
+    "shore_power",
+    "wheel_rear_1",
+    "rear_lights_1",
+    "rear_right",
+    "rear",
+    "rear_left",
+    "rear_lights_2",
+    "wheel_rear_2",
+    "chassis_side",
+    "left_side",
+    "mirror_left",
+    "headlight_bumper",
+    "front_left",
+    "vin_windshield",
+];
+
+#[sqlx::test(migrations = "./migrations")]
+async fn an_alvaz_with_box_leaves_with_every_photo_of_the_example_set(pool: sqlx::PgPool) {
+    let outgo = list(&pool, Some("refrigerated_body"), "checkin").await;
+    // The 38 photos, in their order, all required; plus an optional odometer shot that is
+    // not part of the example.
+    let example: Vec<&str> = keys(&outgo)
+        .into_iter()
+        .filter(|k| *k != "interior_dashboard")
+        .collect();
+    assert_eq!(example, ALVAZ_BOX_OUTGO);
+    let owner = project_type_id(&pool, "refrigerated_body").await;
+    for z in &outgo {
+        assert_eq!(
+            z.optional,
+            z.zone_key == "interior_dashboard",
+            "{}",
+            z.zone_key
+        );
+        assert_eq!(z.required, !z.optional, "{}", z.zone_key);
+        assert_eq!(z.project_type_id, Some(owner));
+    }
+    // Positions are the order: distinct and increasing.
+    assert!(outgo.windows(2).all(|w| w[0].position < w[1].position));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn an_alvaz_arrives_as_a_bare_cab_and_every_intake_zone_can_be_compared_at_outgo(
+    pool: sqlx::PgPool,
+) {
+    let intake = list(&pool, Some("refrigerated_body"), "checkout").await;
+    let outgo = list(&pool, Some("refrigerated_body"), "checkin").await;
+
+    // The box does not exist yet: nothing about it is asked for at intake.
+    for box_zone in [
+        "box_side_door",
+        "box_interior_side",
+        "box_interior_rear",
+        "reefer_unit_inside",
+        "reefer_unit_roof",
+        "rear_doors_open",
+        "roof_corner_1",
+        "shore_power",
+        "cab_reefer_display",
+    ] {
+        assert!(!keys(&intake).contains(&box_zone), "{box_zone}");
+    }
+    for cab_zone in [
+        "type_plate",
+        "vin_windshield",
+        "engine_bay",
+        "cab_driver_side",
+        "front_left",
+    ] {
+        assert!(keys(&intake).contains(&cab_zone), "{cab_zone}");
+    }
+    // A damage is compared by zone key between the two walkarounds, so an intake zone with
+    // no outgo twin would never be checked for new damage.
+    for z in &intake {
+        assert!(
+            keys(&outgo).contains(&z.zone_key.as_str()),
+            "intake zone {} has no outgo zone to compare with",
+            z.zone_key
+        );
+    }
+    assert!(outgo.len() > intake.len());
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn editing_one_list_leaves_the_others_alone_and_removing_it_falls_back(pool: sqlx::PgPool) {
+    let heated = project_type_id(&pool, "heated_body").await;
+    let general_before: Vec<String> = keys(&list(&pool, None, "checkin").await)
+        .into_iter()
+        .map(String::from)
+        .collect();
+
+    let mut tx = pool.begin().await.unwrap();
+    let saved = inspections::replace_template_list(
+        &mut tx,
+        Some(heated),
+        "checkin",
+        &[zone("rear", 1, false), zone("front", 2, true)],
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(keys(&saved), ["rear", "front"]);
+    assert_eq!(saved[0].set_key, "heated_body:checkin");
+
+    // Its own list wins for that walkaround only.
+    assert_eq!(
+        keys(&list(&pool, Some("heated_body"), "checkin").await),
+        ["rear", "front"]
+    );
+    assert_eq!(list(&pool, Some("heated_body"), "checkout").await.len(), 15);
+    // Nobody else moved.
+    let general: Vec<String> = keys(&list(&pool, None, "checkin").await)
+        .into_iter()
+        .map(String::from)
+        .collect();
+    assert_eq!(general, general_before);
+    assert_eq!(
+        list(&pool, Some("refrigerated_body"), "checkin")
+            .await
+            .len(),
+        39
+    );
+
+    // Replacing again replaces, it does not append.
+    let mut tx = pool.begin().await.unwrap();
+    inspections::replace_template_list(&mut tx, Some(heated), "checkin", &[zone("roof", 1, true)])
         .await
         .unwrap();
-    assert_eq!(cooling.len(), 3);
-    assert!(cooling.iter().any(|z| z.zone_key == "refrigeration_unit"));
+    tx.commit().await.unwrap();
+    assert_eq!(
+        keys(&list(&pool, Some("heated_body"), "checkin").await),
+        ["roof"]
+    );
+
+    // Removing it serves the general list again; removing it twice finds nothing.
+    let mut tx = pool.begin().await.unwrap();
+    assert!(
+        inspections::delete_template_list(&mut tx, Some(heated), "checkin")
+            .await
+            .unwrap()
+    );
+    assert!(
+        !inspections::delete_template_list(&mut tx, Some(heated), "checkin")
+            .await
+            .unwrap()
+    );
+    tx.commit().await.unwrap();
+    assert_eq!(list(&pool, Some("heated_body"), "checkin").await.len(), 15);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_list_cannot_hold_the_same_zone_twice(pool: sqlx::PgPool) {
+    let mut tx = pool.begin().await.unwrap();
+    let twice = inspections::replace_template_list(
+        &mut tx,
+        None,
+        "checkin",
+        &[zone("front", 1, false), zone("front", 2, false)],
+    )
+    .await;
+    assert!(
+        twice.is_err(),
+        "a duplicate zone key in one list must be refused"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn every_zone_is_either_required_or_optional(pool: sqlx::PgPool) {
+    // The seeds agree (the roof used to be optional and required at once)...
+    let disagreeing: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM inspection_zone_templates WHERE required = optional",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(disagreeing, 0);
+    let roof: bool = sqlx::query_scalar(
+        "SELECT required FROM inspection_zone_templates WHERE zone_key = 'roof' AND project_type_id IS NULL AND kind = 'checkin'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(!roof, "the optional roof is not also required");
+
+    // ...and the database refuses a row that does not.
+    let both = sqlx::query(
+        "INSERT INTO inspection_zone_templates (kind, zone_key, position, title, instruction, optional, required)
+         VALUES ('checkin', 'x', 99, 'X', 'X', true, true)",
+    )
+    .execute(&pool)
+    .await;
+    assert!(both.is_err());
 }

@@ -1,6 +1,7 @@
 package hu.autotherm.autocrm.ui.common
 
 import hu.autotherm.autocrm.data.api.ApiException
+import hu.autotherm.autocrm.data.inspection.ServerErrorTexts
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -28,10 +29,11 @@ private fun describeApi(e: ApiException): String = when (e) {
     is ApiException.Forbidden -> "Ehhez nincs jogosultságod."
     is ApiException.NotFound -> "Nem található."
     // Validation carries the field-level reason in its detail; every other code reads
-    // from the shared catalog so the phone and the web say the same thing.
+    // from the shared catalog so the phone and the web say the same thing. Fresh
+    // server texts (see ServerErrorTexts) win over the built-in map below.
     is ApiException.Rule ->
         if (e.code == "validation") e.detail ?: ERROR_TEXT.getValue("validation")
-        else ERROR_TEXT[e.code] ?: e.detail ?: e.code
+        else ServerErrorTexts.texts[e.code] ?: ERROR_TEXT[e.code] ?: e.detail ?: e.code
     is ApiException.Server -> "Szerverhiba (${e.status}): ${e.detail ?: "nincs részlet"}"
 }
 
@@ -39,6 +41,9 @@ private fun describeApi(e: ApiException): String = when (e) {
  * The backend error-code catalog (`backend/src/error.rs::ERROR_CODES`, published in
  * `openapi.json` as `ErrorCode` with `x-error-catalog`), Hungarian text only.
  * `ErrorCatalogTest` fails when a code is missing here or its text drifts.
+ *
+ * This map is the cold-start fallback: fresh server texts (`ServerErrorTexts`,
+ * from `GET /config/lookups`) win whenever they have arrived.
  */
 internal val ERROR_TEXT: Map<String, String> = mapOf(
     "unauthenticated" to "Nincs bejelentkezve. Jelentkezzen be újra.",
@@ -68,8 +73,8 @@ internal val ERROR_TEXT: Map<String, String> = mapOf(
     "upload_mismatch" to "A feltöltött fájl nem egyezik a bejelentettel.",
     "invalid_ticket" to "Érvénytelen vagy lejárt feltöltési jegy.",
     "already_attached" to "Ez a fotó már csatolva van.",
-    "checkout_open" to "Már van nyitott kiadási jegyzőkönyv. Előbb írassa alá vagy dobja el.",
-    "checkout_required" to "A visszavételhez előbb aláírt kiadási jegyzőkönyv kell.",
+    "checkout_open" to "Már van nyitott átvételi jegyzőkönyv. Előbb írassa alá vagy dobja el.",
+    "checkout_required" to "A kiadáshoz előbb aláírt átvételi jegyzőkönyv kell.",
     "locked" to "Az aláírt jegyzőkönyv már nem módosítható; utólagos megjegyzést lehet hozzáfűzni.",
     "signatures_required" to "A lezáráshoz mindkét aláírás szükséges.",
     "verdicts_pending" to "Előbb minden új sérülésnél dönteni kell.",

@@ -75,6 +75,11 @@ export function constraintName(err: unknown): string | null {
  * `t` is the `errors` catalogue translator; catalogue lookup falls back to
  * the raw backend message, then to `fallback`. Validation errors always show
  * the backend's message — it carries the field-level reason.
+ *
+ * Fresh server texts win over the catalogue: `useLookups` refreshes them from
+ * `GET /config/lookups` with every fetch, so a reworded message reaches the
+ * web without a deploy. The catalogue stays as the cold-start fallback (a
+ * login failure happens before the first fetch).
  */
 export function errorMessage(
   err: unknown,
@@ -84,9 +89,25 @@ export function errorMessage(
   if (err instanceof ContractError) return t('contractViolation');
   if (err instanceof ApiError) {
     if (err.code === 'validation') return err.backendMessage;
+    const fresh = serverErrorTexts[err.code];
+    if (fresh) return fresh;
     const key = codeKey(err.code);
     const msg = t(key);
     return msg === key ? err.backendMessage : msg;
   }
   return fallback;
+}
+
+/**
+ * Error texts from the server's lookups (`error_texts`), keyed by code.
+ * Refreshed by `useLookups`; empty until the first fetch.
+ */
+let serverErrorTexts: Record<string, string> = {};
+
+export function setServerErrorTexts(entries: { code: string; text_hu: string }[]): void {
+  const next: Record<string, string> = {};
+  for (const entry of entries) {
+    if (entry.code && entry.text_hu.trim()) next[entry.code] = entry.text_hu;
+  }
+  serverErrorTexts = next;
 }

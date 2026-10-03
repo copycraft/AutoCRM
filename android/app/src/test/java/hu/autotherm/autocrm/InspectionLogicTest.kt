@@ -264,7 +264,7 @@ class InspectionLogicTest {
     // moved into the queue, so no second copy is left behind.
     @Test
     fun `a camera photo leaves no orphan copy in the queue directory`() = runBlocking {
-        val vm = OrderPhotoViewModel(app.uploadQueue, app.capturePrefs)
+        val vm = OrderPhotoViewModel(app.uploadQueue, app.capturePrefs, app.api, app.lookupsCache)
         val pendingDir = File(app.filesDir, "pending").apply { mkdirs() }
         val target = File(pendingDir, "camera-1.jpg").apply { writeText("camera-bytes") }
 

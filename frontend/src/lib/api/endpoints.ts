@@ -117,6 +117,9 @@ export const ordersApi = {
 export const invoicesApi = {
   forOrder: (orderId: number): Promise<S['Items_Invoice']> =>
     request(`/orders/${orderId}/invoices`, s.zInvoicesListForOrderResponse),
+  // The Számlázó page: every invoice and storno, newest first, across orders.
+  all: (search: QueryOf<'invoices_list_all'> = {}): Promise<S['Items_BilledInvoice']> =>
+    request('/invoices', s.zInvoicesListAllResponse, { search }),
   get: (id: number): Promise<S['InvoiceDetail']> =>
     request(`/invoices/${id}`, s.zInvoicesDetailResponse),
   create: (orderId: number, body: S['IssueRequest']): Promise<S['Invoice']> =>
@@ -131,6 +134,9 @@ export const invoicesApi = {
     request(`/invoices/${id}/pdf`, s.zInvoicesRefetchPdfResponse, { method: 'POST' }),
   proformas: (orderId: number): Promise<S['Items_Proforma']> =>
     request(`/orders/${orderId}/proformas`, s.zInvoicesListProformasResponse),
+  // The Számlázó page: every díjbekérő, newest first, across orders.
+  proformasAll: (): Promise<S['Items_BilledProforma']> =>
+    request('/proformas', s.zInvoicesListAllProformasResponse),
   createProforma: (orderId: number, body: S['ProformaRequest']): Promise<S['ProformaCreated']> =>
     request(`/orders/${orderId}/proformas`, s.zInvoicesCreateProformaResponse, {
       method: 'POST',
@@ -248,6 +254,11 @@ export const configApi = {
   settings: (): Promise<S['Settings']> => request('/settings', s.zConfigurationGetSettingsResponse),
   saveSettings: (body: S['SettingsBody']): Promise<S['Settings']> =>
     request('/settings', s.zConfigurationPutSettingsResponse, { method: 'PUT', body }),
+  // Every client-facing enumeration in one document (damage types, fuel levels,
+  // currencies, image categories, ...). Selects, chips and labels render from
+  // this; nothing in it is duplicated in the clients.
+  lookups: (): Promise<S['Lookups']> =>
+    request('/config/lookups', s.zConfigurationLookupsResponse),
 };
 
 // ── Reports ──
@@ -276,7 +287,9 @@ export const searchApi = {
 // ── Tasks ──
 export const tasksApi = {
   mine: (): Promise<S['Items_Task']> => request('/tasks', s.zTasksMineResponse),
-  forEntity: (entity: 'order' | 'lead' | 'partner', id: number): Promise<S['Items_Task']> =>
+  // `entity` is any task entity type the server lists (`GET /config/lookups`);
+  // the server refuses what it does not know.
+  forEntity: (entity: string, id: number): Promise<S['Items_Task']> =>
     request(`/tasks/for/${entity}/${id}`, s.zTasksForEntityResponse),
   create: (body: S['TaskBody']): Promise<S['Task']> =>
     request('/tasks', s.zTasksCreateResponse, { method: 'POST', body }),
@@ -284,6 +297,9 @@ export const tasksApi = {
     request(`/tasks/${id}/done`, s.zTasksSetDoneResponse, { method: 'POST', body: { done } }),
   remove: (id: number): Promise<void> => requestNoContent(`/tasks/${id}`, { method: 'DELETE' }),
 };
+
+/** The two walkarounds: `checkout` is the first (átvétel, the vehicle arriving), `checkin` the second (kiadás). */
+export type ZoneKind = 'checkout' | 'checkin';
 
 // ── Handover inspections (átadás-átvétel) ──
 // Created on the phone (guided walkaround); the web reads history, reviews
@@ -302,17 +318,22 @@ export const inspectionsApi = {
     }),
   note: (id: number, body: S['NoteBody']): Promise<S['InspectionNote']> =>
     request(`/inspections/${id}/notes`, s.zInspectionsAddNoteResponse, { method: 'POST', body }),
-  templates: (projectTypeId?: number): Promise<S['Items_ZoneTemplate']> =>
+  // The zone list a vehicle kind is walked with for one walkaround: its own list, else the
+  // general one (items then carry project_type_id null).
+  templates: (projectTypeId: number | null, kind: ZoneKind): Promise<S['Items_ZoneTemplate']> =>
     request('/inspections/templates', s.zInspectionsTemplatesResponse, {
-      search: { project_type_id: projectTypeId },
+      search: { project_type_id: projectTypeId ?? undefined, kind },
     }),
-  saveTemplates: (
-    set: string,
-    body: S['ReplaceTemplatesBody'],
-  ): Promise<S['Items_ZoneTemplate']> =>
-    request(`/inspections/templates/${set}`, s.zInspectionsReplaceTemplatesResponse, {
+  saveTemplates: (body: S['ReplaceTemplatesBody']): Promise<S['Items_ZoneTemplate']> =>
+    request('/inspections/templates', s.zInspectionsReplaceTemplatesResponse, {
       method: 'PUT',
       body,
+    }),
+  // Removes a vehicle kind's own list; it is then served the general one again.
+  deleteTemplates: (projectTypeId: number, kind: ZoneKind): Promise<void> =>
+    requestNoContent('/inspections/templates', {
+      method: 'DELETE',
+      search: { project_type_id: projectTypeId, kind },
     }),
 };
 
@@ -328,4 +349,22 @@ export const adminApi = {
     request(`/admin/run/${kind}`, s.zAdminRunNowResponse, { method: 'POST' }),
   testEmail: (body: S['EmailTestBody']): Promise<S['EmailTestResult']> =>
     request('/admin/email/test', s.zAdminTestEmailResponse, { method: 'POST', body }),
+};
+
+// ── HR (admins and users with HR access) ──
+export const hrApi = {
+  list: (search: { q?: string; include_archived?: boolean } = {}): Promise<S['Items_Employee']> =>
+    request('/hr/employees', s.zHrListResponse, { search }),
+  create: (body: S['EmployeeBody']): Promise<S['Employee']> =>
+    request('/hr/employees', s.zHrCreateResponse, { method: 'POST', body }),
+  update: (id: number, body: S['EmployeeBody']): Promise<S['Employee']> =>
+    request(`/hr/employees/${id}`, s.zHrUpdateResponse, { method: 'PATCH', body }),
+  archive: (id: number): Promise<S['Employee']> =>
+    request(`/hr/employees/${id}/archive`, s.zHrArchiveResponse, { method: 'POST' }),
+  unarchive: (id: number): Promise<S['Employee']> =>
+    request(`/hr/employees/${id}/unarchive`, s.zHrUnarchiveResponse, { method: 'POST' }),
+  setPhoto: (id: number, file: Blob): Promise<S['Employee']> =>
+    request(`/hr/employees/${id}/photo`, s.zHrSetPhotoResponse, { method: 'PUT', rawBody: file }),
+  removePhoto: (id: number): Promise<S['Employee']> =>
+    request(`/hr/employees/${id}/photo`, s.zHrRemovePhotoResponse, { method: 'DELETE' }),
 };
