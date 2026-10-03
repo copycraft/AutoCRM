@@ -59,6 +59,11 @@ Content-Type: application/json
 | `vehicle` | no | 300 | Free text. Added to the description as `Jármű: …`. |
 | `page` | no | 300 | The page the form was on. Added to the description as `Oldal: …`. |
 | `company` | no | | **Honeypot, see below.** Send empty or omit. |
+| `utm_source` | no | 300 | From the landing URL, e.g. `google`, `facebook`, `hirlevel`. See *Source tracking*. |
+| `utm_medium` | no | 300 | e.g. `cpc`, `social`, `email`, `organic`. |
+| `utm_campaign` | no | 300 | The campaign name you chose. |
+| `referrer` | no | 500 | `document.referrer` from the visitor's **first** page of the visit. |
+| `landing_page` | no | 500 | The path of the **first** page of the visit (not the form's page). |
 
 At least one of `email` or `phone` is required, so the office has a way to reply.
 Empty strings count as "not sent". Unknown extra fields are ignored. All text is stored
@@ -71,6 +76,47 @@ Add an extra input named `company` to the HTML form, hidden with CSS
 or fill it; simple bots fill every field. If `company` arrives non-empty the CRM answers
 `202` as usual but **stores nothing**, so the bot learns nothing. Forward the field's value
 as-is.
+
+## Source tracking (where each lead came from)
+
+The CRM's Reports page shows which channels and campaigns bring leads, and how many of them
+were won. For that the form needs to send where the visitor *originally* arrived from, which
+is only known on their first page, so capture it once and keep it until the form is sent.
+
+Put this on every page (it only stores the first visit's values for the browser session):
+
+```js
+// Run on every page load.
+(function () {
+  if (sessionStorage.getItem('attribution')) return; // first page of the visit only
+  var q = new URLSearchParams(location.search);
+  sessionStorage.setItem('attribution', JSON.stringify({
+    utm_source: q.get('utm_source') || '',
+    utm_medium: q.get('utm_medium') || '',
+    utm_campaign: q.get('utm_campaign') || '',
+    referrer: document.referrer || '',
+    landing_page: location.pathname,
+  }));
+})();
+```
+
+When the form is submitted, read it back and include its five fields in the request your
+**server** sends to the CRM (alongside `name`, `email`...):
+
+```js
+var attribution = JSON.parse(sessionStorage.getItem('attribution') || '{}');
+// post attribution.utm_source, utm_medium, utm_campaign, referrer, landing_page
+// to your own backend together with the form fields.
+```
+
+All five are optional. The CRM sorts them into a **channel** itself: `paid` (UTM medium
+`cpc`, `ppc`, `paid`, `display`...), `email`, `social`, `organic` (a search engine
+referrer), `referral` (a link from another site) or `direct` (nothing sent, or the visitor
+came from your own pages). A tagged medium wins over the referrer.
+
+Tag the links of your ads and newsletters, for example:
+`https://autotherm.hu/?utm_source=google&utm_medium=cpc&utm_campaign=tavasz-hutokamra`.
+Use lower-case, consistent names: `Google` and `google` are different campaigns.
 
 ## Responses
 

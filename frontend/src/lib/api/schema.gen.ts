@@ -1788,6 +1788,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/lead-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where website leads come from, and how many of them were won. Leads entered by hand have
+         *     no source and are not counted.
+         */
+        get: operations["reports_lead_sources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/search": {
         parameters: {
             query?: never;
@@ -2310,6 +2330,16 @@ export interface components {
             /** @description Content-ID without brackets (`doc-42`); only set together with mode "embedded". */
             content_id?: string | null;
         };
+        /** @description What the website told us about one lead, plus the channel the server worked out. */
+        Attribution: {
+            /** @description `paid` | `organic` | `social` | `email` | `referral` | `direct`. */
+            channel: string;
+            utm_source?: string | null;
+            utm_medium?: string | null;
+            utm_campaign?: string | null;
+            referrer?: string | null;
+            landing_page?: string | null;
+        };
         AuditEntry: {
             /** Format: int64 */
             id: number;
@@ -2478,6 +2508,16 @@ export interface components {
              */
             waiting_days: number;
         };
+        CampaignRow: {
+            channel: string;
+            utm_source?: string | null;
+            utm_medium?: string | null;
+            utm_campaign?: string | null;
+            /** Format: int64 */
+            leads: number;
+            /** Format: int64 */
+            won: number;
+        };
         /**
          * @description One document in the invoice's chain at NAV.
          *
@@ -2497,6 +2537,16 @@ export interface components {
         ChangePasswordBody: {
             current_password: string;
             new_password: string;
+        };
+        ChannelRow: {
+            channel: string;
+            /** Format: int64 */
+            leads: number;
+            /**
+             * Format: int64
+             * @description Leads now in the `won` stage.
+             */
+            won: number;
         };
         Comparison: {
             checkin: components["schemas"]["InspectionDetail"];
@@ -2580,6 +2630,17 @@ export interface components {
             phone?: string | null;
             position?: string | null;
             notes?: string | null;
+        };
+        /** @description A person at a partner company. */
+        ContactHit: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            partner_id: number;
+            name: string;
+            partner_name: string;
+            email?: string | null;
+            phone?: string | null;
         };
         CreateBody: {
             /** Format: int64 */
@@ -2752,6 +2813,15 @@ export interface components {
         DurationReport: {
             period: components["schemas"]["Period"];
             rows: components["schemas"]["StageDurationRow"][];
+        };
+        EmailHit: {
+            /** Format: int64 */
+            id: number;
+            subject: string;
+            to_address: string;
+            status: string;
+            /** Format: date-time */
+            queued_at: string;
         };
         EmailMessage: {
             /** Format: int64 */
@@ -2933,6 +3003,15 @@ export interface components {
              */
             annual_leave_days?: number | null;
         };
+        /** @description A member of staff. Only ever returned to users with HR access. */
+        EmployeeHit: {
+            /** Format: int64 */
+            id: number;
+            full_name: string;
+            email?: string | null;
+            company_phone?: string | null;
+            archived: boolean;
+        };
         /** @description The body of every non-2xx response. */
         ErrorBody: {
             error: components["schemas"]["ErrorDetail"];
@@ -2980,6 +3059,10 @@ export interface components {
             orders: components["schemas"]["OrderHit"][];
             partners: components["schemas"]["PartnerHit"][];
             leads: components["schemas"]["LeadHit"][];
+            contacts: components["schemas"]["ContactHit"][];
+            emails: components["schemas"]["EmailHit"][];
+            /** @description Empty unless the caller has HR access. */
+            employees: components["schemas"]["EmployeeHit"][];
         };
         Image: {
             /** Format: int64 */
@@ -4286,6 +4369,7 @@ export interface components {
             orders: components["schemas"]["OrderRef"][];
             /** @description V2.4: the quotation and anything else filed against the enquiry itself. */
             documents: components["schemas"]["Document"][];
+            attribution?: null | components["schemas"]["Attribution"];
         };
         LeadHit: {
             /** Format: int64 */
@@ -4293,6 +4377,24 @@ export interface components {
             title: string;
             contact_name?: string | null;
             stage_label: string;
+        };
+        LeadSources: {
+            period: components["schemas"]["Period"];
+            /**
+             * Format: int64
+             * @description Website leads in the period (those carrying attribution).
+             */
+            total: number;
+            /**
+             * Format: int64
+             * @description Leads now in the won stage.
+             */
+            won: number;
+            by_channel: components["schemas"]["ChannelRow"][];
+            /** @description Tagged traffic only (a UTM source or campaign was sent). */
+            by_campaign: components["schemas"]["CampaignRow"][];
+            /** @description The most common first pages of a visit. */
+            by_page: components["schemas"]["PageRow"][];
         };
         LeadSummary: {
             /** Format: int64 */
@@ -4735,6 +4837,13 @@ export interface components {
             url: string;
             /** @description Hex sha256 of the original file. */
             sha256: string;
+        };
+        PageRow: {
+            landing_page: string;
+            /** Format: int64 */
+            leads: number;
+            /** Format: int64 */
+            won: number;
         };
         Partner: {
             /** Format: int64 */
@@ -5541,6 +5650,14 @@ export interface components {
              *     a submission is acknowledged and dropped.
              */
             company?: string | null;
+            /** @description UTM tags from the landing URL (`?utm_source=...`), if the visitor arrived tagged. */
+            utm_source?: string | null;
+            utm_medium?: string | null;
+            utm_campaign?: string | null;
+            /** @description The page that sent the visitor (`document.referrer` at their first visit). */
+            referrer?: string | null;
+            /** @description The first page of the visit, which is not always the page the form is on. */
+            landing_page?: string | null;
         };
         WorkloadDay: {
             /** Format: date */
@@ -11210,6 +11327,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Items_FxRate"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reports_lead_sources: {
+        parameters: {
+            query?: {
+                /** @description Defaults to 365 days before `to`. */
+                from?: string;
+                /** @description Defaults to today. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadSources"];
                 };
             };
             /** @description Client error; see `error.code` */

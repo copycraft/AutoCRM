@@ -113,6 +113,12 @@ class OpenApiContractTest {
         assertHasFields("Absence", "id", "employee_id", "employee_name", "kind", "start_date", "end_date", "working_days", "note")
         assertHasFields("Notification", "id", "kind", "title", "body", "link", "created_at", "read_at")
         assertHasFields("NotificationList", "items", "unread")
+        assertHasFields("Attribution", "channel", "utm_source", "utm_medium", "utm_campaign", "referrer", "landing_page")
+        assertHasFields("LeadDetail", "lead", "stage", "history", "orders", "attribution")
+        assertHasFields("GlobalResults", "orders", "partners", "leads", "contacts", "emails", "employees")
+        assertHasFields("ContactHit", "id", "partner_id", "name", "partner_name", "email", "phone")
+        assertHasFields("EmailHit", "id", "subject", "to_address", "status")
+        assertHasFields("EmployeeHit", "id", "full_name", "email", "company_phone", "archived")
     }
 
     @Test

@@ -9,10 +9,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * The phone owns two things: photos that have not reached the server yet, and
- * handover-inspection drafts that have not been signed on the server yet.
- * Everything it shows is read from the API and may be stale; caching orders
- * locally would mean deciding what happens when the cached copy and the server
- * disagree, which is a synchronisation problem nobody asked for.
+ * handover-inspection drafts that have not been signed on the server yet. This database
+ * holds work that exists nowhere else, so it never migrates destructively.
+ *
+ * What the screens read is cached elsewhere, in its own throwaway database
+ * (`data/cache/ResponseCache`): a copy of what the server said, served only when the server
+ * cannot be reached. It is never written back, so there is nothing to reconcile.
  */
 @Database(
     entities = [PendingUpload::class, InspectionDraft::class],

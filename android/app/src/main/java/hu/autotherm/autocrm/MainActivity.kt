@@ -14,6 +14,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.platform.LocalContext
 import hu.autotherm.autocrm.data.notifications.NotificationPollWorker
 import hu.autotherm.autocrm.ui.hr.LeaveScreen
+import hu.autotherm.autocrm.ui.search.SearchScreen
+import hu.autotherm.autocrm.ui.search.SearchViewModel
+import hu.autotherm.autocrm.util.formatTime
 import hu.autotherm.autocrm.ui.hr.LeaveViewModel
 import hu.autotherm.autocrm.ui.notifications.NotificationsScreen
 import hu.autotherm.autocrm.ui.notifications.NotificationsViewModel
@@ -27,6 +30,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +49,8 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.ManageAccounts
@@ -214,6 +223,8 @@ class MainActivity : ComponentActivity() {
  * their parent section.
  */
 private sealed class Destination(val route: String, val label: String, val icon: ImageVector) {
+    /** One box for orders, partners, leads, contacts, emails (and staff, with HR access). */
+    data object Search : Destination("search", "Keresés", Icons.Filled.Search)
     data object Orders : Destination("orders", "Munkák", Icons.Filled.Build)
     /** Capture-first photography: pick the van, shoot, pick the next one. */
     data object Capture : Destination("capture", "Fotózás", Icons.Filled.PhotoCamera)
@@ -233,6 +244,7 @@ private sealed class Destination(val route: String, val label: String, val icon:
 }
 
 private val DESTINATIONS = listOf(
+    Destination.Search,
     Destination.Orders,
     Destination.Capture,
     Destination.Leads,
@@ -257,6 +269,7 @@ private fun parentOf(route: String?): Destination = when {
     route.startsWith("email") -> Destination.Emails
     route.startsWith("task") -> Destination.Tasks
     route.startsWith("report") -> Destination.Reports
+    route.startsWith("search") -> Destination.Search
     route.startsWith("notifications") -> Destination.Notifications
     route.startsWith("hr") -> Destination.Hr
     route.startsWith("users") -> Destination.Users
@@ -275,6 +288,7 @@ private fun AppScaffold(
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    val offlineSince by app.api.offlineSince.collectAsState()
     var unreadNotifications by rememberSaveable { mutableStateOf(0L) }
     // Android 13+ asks before an app may show notifications. Asked once the user is in; a
     // refusal is fine, the same items are in the Értesítések list.
@@ -381,6 +395,8 @@ private fun AppScaffold(
                             scope.launch {
                                 runCatching { app.api.logout() }
                                 app.sessionStore.clear()
+                                // What the next user of this phone must not be able to read.
+                                app.responseCache.clear()
                             }
                         } else confirmLogout = true
                     },
@@ -391,10 +407,26 @@ private fun AppScaffold(
             }
         },
     ) {
+        Column(Modifier.fillMaxSize()) {
+        // Shown while the screen below is read from the phone's copy, not the server.
+        offlineSince?.let { since ->
+            Row(
+                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer)
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Filled.CloudOff, contentDescription = null)
+                Text(
+                    "Nincs kapcsolat: a legutóbbi frissítés adatai (${formatTime(since)})",
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
         NavHost(
             navController = navController,
             startDestination = Destination.Orders.route,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f),
             // One motion language for the whole app: new screens slide in from the
             // right and fade, leaving screens hold still and fade. Fast enough to
             // feel instant on a shop floor (220ms), present enough to feel spatial.
@@ -661,6 +693,13 @@ private fun AppScaffold(
             }
             // The server refuses these to everyone else; the guard also covers a route that
             // is open while a grant is taken away (the account refresh below follows).
+            composable(Destination.Search.route) {
+                SearchScreen(
+                    viewModel = viewModel { SearchViewModel(app.api) },
+                    onMenu = openDrawer,
+                    onOpen = { route -> navController.navigate(route) },
+                )
+            }
             composable(Destination.Notifications.route) {
                 NotificationsScreen(
                     viewModel = viewModel { NotificationsViewModel(app.api) },
@@ -763,6 +802,7 @@ private fun AppScaffold(
                     onBack = { navController.popBackStack() },
                 )
             }
+        }
         }
     }
 }

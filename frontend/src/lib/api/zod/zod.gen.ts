@@ -54,6 +54,18 @@ export const zAttachmentRef = z.object({
     content_id: z.string().nullish()
 });
 
+/**
+ * What the website told us about one lead, plus the channel the server worked out.
+ */
+export const zAttribution = z.object({
+    channel: z.string(),
+    utm_source: z.string().nullish(),
+    utm_medium: z.string().nullish(),
+    utm_campaign: z.string().nullish(),
+    referrer: z.string().nullish(),
+    landing_page: z.string().nullish()
+});
+
 export const zAuditEntry = z.object({
     id: z.number().int(),
     at: z.string().datetime(),
@@ -133,6 +145,15 @@ export const zBlockerLoadEntry = zBlockerLoadRow.and(z.object({
     share_of_waiting: z.number()
 }));
 
+export const zCampaignRow = z.object({
+    channel: z.string(),
+    utm_source: z.string().nullish(),
+    utm_medium: z.string().nullish(),
+    utm_campaign: z.string().nullish(),
+    leads: z.number().int(),
+    won: z.number().int()
+});
+
 /**
  * One document in the invoice's chain at NAV.
  *
@@ -150,6 +171,12 @@ export const zChainStep = z.object({
 export const zChangePasswordBody = z.object({
     current_password: z.string(),
     new_password: z.string()
+});
+
+export const zChannelRow = z.object({
+    channel: z.string(),
+    leads: z.number().int(),
+    won: z.number().int()
 });
 
 export const zCompleteBody = z.object({
@@ -197,6 +224,18 @@ export const zContactBody = z.object({
     phone: z.string().nullish(),
     position: z.string().nullish(),
     notes: z.string().nullish()
+});
+
+/**
+ * A person at a partner company.
+ */
+export const zContactHit = z.object({
+    id: z.number().int(),
+    partner_id: z.number().int(),
+    name: z.string(),
+    partner_name: z.string(),
+    email: z.string().nullish(),
+    phone: z.string().nullish()
 });
 
 export const zCreateBody = z.object({
@@ -285,6 +324,14 @@ export const zDoneBody = z.object({
 
 export const zDownloadUrl = z.object({
     url: z.string()
+});
+
+export const zEmailHit = z.object({
+    id: z.number().int(),
+    subject: z.string(),
+    to_address: z.string(),
+    status: z.string(),
+    queued_at: z.string().datetime()
 });
 
 export const zEmailStatus = z.enum([
@@ -443,6 +490,17 @@ export const zEmployeeBody = z.object({
     company_phone: z.string().nullish(),
     personal_phone: z.string().nullish(),
     annual_leave_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish()
+});
+
+/**
+ * A member of staff. Only ever returned to users with HR access.
+ */
+export const zEmployeeHit = z.object({
+    id: z.number().int(),
+    full_name: z.string(),
+    email: z.string().nullish(),
+    company_phone: z.string().nullish(),
+    archived: z.boolean()
 });
 
 /**
@@ -1785,6 +1843,12 @@ export const zOriginalImageUrl = z.object({
     sha256: z.string()
 });
 
+export const zPageRow = z.object({
+    landing_page: z.string(),
+    leads: z.number().int(),
+    won: z.number().int()
+});
+
 export const zPartnerHit = z.object({
     id: z.number().int(),
     name: z.string(),
@@ -1795,7 +1859,10 @@ export const zPartnerHit = z.object({
 export const zGlobalResults = z.object({
     orders: z.array(zOrderHit),
     partners: z.array(zPartnerHit),
-    leads: z.array(zLeadHit)
+    leads: z.array(zLeadHit),
+    contacts: z.array(zContactHit),
+    emails: z.array(zEmailHit),
+    employees: z.array(zEmployeeHit)
 });
 
 export const zPartnerKind = z.enum(['business', 'person']);
@@ -1968,6 +2035,15 @@ export const zBlockerLoadReport = z.object({
     period: zPeriod,
     total_waiting_days: z.number(),
     rows: z.array(zBlockerLoadEntry)
+});
+
+export const zLeadSources = z.object({
+    period: zPeriod,
+    total: z.number().int(),
+    won: z.number().int(),
+    by_channel: z.array(zChannelRow),
+    by_campaign: z.array(zCampaignRow),
+    by_page: z.array(zPageRow)
 });
 
 export const zPickerOrder = z.object({
@@ -2358,7 +2434,8 @@ export const zLeadDetail = z.object({
     stage: zCurrentStage.nullish(),
     history: z.array(zStageEntry),
     orders: z.array(zOrderRef),
-    documents: z.array(zDocument)
+    documents: z.array(zDocument),
+    attribution: zAttribution.nullish()
 });
 
 export const zStageView = z.object({
@@ -2639,7 +2716,12 @@ export const zWebsiteLead = z.object({
     subject: z.string().nullish(),
     vehicle: z.string().nullish(),
     page: z.string().nullish(),
-    company: z.string().nullish()
+    company: z.string().nullish(),
+    utm_source: z.string().nullish(),
+    utm_medium: z.string().nullish(),
+    utm_campaign: z.string().nullish(),
+    referrer: z.string().nullish(),
+    landing_page: z.string().nullish()
 });
 
 export const zWorkloadDay = z.object({
@@ -3624,6 +3706,13 @@ export const zReportsFxRatesQuery = z.object({
  * Stored MNB rates
  */
 export const zReportsFxRatesResponse = zItemsFxRate;
+
+export const zReportsLeadSourcesQuery = z.object({
+    from: z.string().date().optional(),
+    to: z.string().date().optional()
+});
+
+export const zReportsLeadSourcesResponse = zLeadSources;
 
 export const zSearchGlobalQuery = z.object({
     q: z.string().optional()

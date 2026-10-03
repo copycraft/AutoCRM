@@ -161,3 +161,31 @@ unread count in the web menu (refreshed every 30 s), and a system notification o
 The phone **polls about every 15 minutes** (Android's minimum for background work), so a lead
 can take up to 15 minutes to reach it; instant push would need Firebase Cloud Messaging and a
 Firebase project. The feed (`GET /api/notifications`) is per user, kept 60 days.
+
+## Source tracking, search and offline
+
+**Source tracking.** The website form can send `utm_source`, `utm_medium`, `utm_campaign`,
+`referrer` and `landing_page` (see `docs/websiteleadsinstructions.md`, with a copy-paste
+snippet). The server sorts them into a channel (paid, organic, social, email, referral,
+direct). The lead shows where it came from, and Reports shows leads and wins per channel,
+campaign and landing page. Only leads the website filed have a source.
+
+**Search.** The header box (`/` to focus, or the command palette) and the phone's Keresés
+screen search orders, partners, leads, contacts, emails and, for users with HR access, the
+staff directory. Every word must match, in any order; accents and punctuation are ignored
+(`kovacs gyor` finds Kovács, Győr), and phone numbers and plates match in any spelling.
+Better matches (exact, then prefix) rank first.
+
+**Offline phone.** Every read the phone makes is kept as the last good copy and shown when the
+server cannot be reached, with a banner saying how old it is. Writes are never faked: editing
+needs a connection (photo uploads and handover inspections still queue as before). Not kept on
+the phone on purpose: the staff directory and user list, notifications, search, and anything
+with an expiring link (photos, documents). The copy is cleared on sign-out.
+
+## API docs
+
+`/api/docs` is a browsable page for the whole API (Swagger UI, loaded from a CDN, so the
+browser needs internet); `/api/docs/openapi.json` is the live contract it reads. In `dev` and
+`staging` both are open and "Try it out" works with your session cookie. In `production` they
+need an admin session and the page is read-only. The same pages are reachable through the web
+app at `/api/docs`. The checked-in copy is `openapi/openapi.json`.

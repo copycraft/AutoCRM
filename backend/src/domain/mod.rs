@@ -4,6 +4,7 @@
 //! mirror types, but nothing in this module performs IO. Every rule is unit-testable
 //! without a database.
 
+pub mod attribution;
 pub mod blocker;
 pub mod email;
 pub mod invoice;
@@ -14,5 +15,6 @@ pub mod money;
 pub mod order;
 pub mod partner;
 pub mod role;
+pub mod search_terms;
 pub mod stage;
 pub mod template;

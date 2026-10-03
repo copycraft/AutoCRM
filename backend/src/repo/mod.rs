@@ -2,6 +2,7 @@
 //! pool or inside a transaction (`&mut *tx`). All queries are compile-time checked.
 
 pub mod absences;
+pub mod attribution;
 pub mod audit;
 pub mod blockers;
 pub mod config;

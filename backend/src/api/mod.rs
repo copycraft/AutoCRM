@@ -8,6 +8,7 @@ pub mod admin;
 pub mod auth;
 pub mod blockers;
 pub mod configuration;
+pub mod docs;
 pub mod email;
 pub mod extract;
 pub mod hr;
@@ -81,6 +82,7 @@ pub fn router(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health))
+        .merge(docs::routes(state.config.env))
         .nest("/api", api)
         // JSON lists compress 5-10x; the phone on the shop wifi feels it the most.
         .layer(CompressionLayer::new().gzip(true))

@@ -276,6 +276,8 @@ export const reportsApi = {
     request('/reports/fx-rates', s.zReportsFxRatesResponse, { search }),
   workload: (search: QueryOf<'reports_workload'> = {}): Promise<S['WorkloadReport']> =>
     request('/reports/workload', s.zReportsWorkloadResponse, { search }),
+  leadSources: (search: QueryOf<'reports_lead_sources'> = {}): Promise<S['LeadSources']> =>
+    request('/reports/lead-sources', s.zReportsLeadSourcesResponse, { search }),
 };
 
 // ── Global search ──

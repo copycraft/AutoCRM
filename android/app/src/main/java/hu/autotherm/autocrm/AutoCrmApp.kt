@@ -5,6 +5,7 @@ import android.os.StrictMode
 import androidx.work.Configuration
 import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.auth.SessionStore
+import hu.autotherm.autocrm.data.cache.ResponseCache
 import hu.autotherm.autocrm.data.db.AutoCrmDatabase
 import hu.autotherm.autocrm.data.inspection.InspectionSyncWorker
 import hu.autotherm.autocrm.data.notifications.NotificationCursor
@@ -35,7 +36,17 @@ class AutoCrmApp : Application(), Configuration.Provider {
     val zoneListCache: ZoneListCache by lazy { ZoneListCache(this) }
     val lookupsCache: LookupsCache by lazy { LookupsCache(this) }
     val notificationCursor: NotificationCursor by lazy { NotificationCursor(this) }
-    val api: AutoCrmApi by lazy { AutoCrmApi(serverStore, sessionStore) }
+    val responseCache: ResponseCache by lazy { ResponseCache(this) }
+    val api: AutoCrmApi by lazy {
+        AutoCrmApi(serverStore, sessionStore, cache = responseCache, isOnline = ::hasNetwork)
+    }
+
+    /** Whether the phone has any route to the internet right now. */
+    private fun hasNetwork(): Boolean {
+        val manager = getSystemService(android.net.ConnectivityManager::class.java) ?: return true
+        val caps = manager.getNetworkCapabilities(manager.activeNetwork ?: return false) ?: return false
+        return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
     val uploadQueue: UploadQueue by lazy { UploadQueue(this, database.pendingUploads()) }
 
     override val workManagerConfiguration: Configuration

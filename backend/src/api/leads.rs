@@ -12,10 +12,12 @@ use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::orders::{OrderBody, fields_from_body};
 use super::{Items, optional, page_limit, page_offset, patch as patch_field, patch_text, required};
 use crate::AppState;
+use crate::domain::attribution;
 use crate::domain::email::normalize_address;
 use crate::domain::money::Currency;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
+use crate::repo::attribution::Attribution;
 use crate::repo::documents::{self, Document};
 use crate::repo::leads::{Lead, LeadInput, LeadSummary};
 use crate::repo::orders::Order;
@@ -193,11 +195,20 @@ pub struct WebsiteLead {
     /// Honeypot: the form renders this hidden. A bot fills it, a person never does; such
     /// a submission is acknowledged and dropped.
     company: Option<String>,
+    /// UTM tags from the landing URL (`?utm_source=...`), if the visitor arrived tagged.
+    utm_source: Option<String>,
+    utm_medium: Option<String>,
+    utm_campaign: Option<String>,
+    /// The page that sent the visitor (`document.referrer` at their first visit).
+    referrer: Option<String>,
+    /// The first page of the visit, which is not always the page the form is on.
+    landing_page: Option<String>,
 }
 
 const MAX_NAME: usize = 200;
 const MAX_FIELD: usize = 300;
 const MAX_MESSAGE: usize = 5000;
+const MAX_URL: usize = 500;
 
 fn capped(field: &str, value: Option<String>, max: usize) -> AppResult<Option<String>> {
     let value = optional(value);
@@ -209,7 +220,8 @@ fn capped(field: &str, value: Option<String>, max: usize) -> AppResult<Option<St
     }
 }
 
-fn lead_from_website(b: WebsiteLead) -> AppResult<LeadInput> {
+/// A website form, as the lead to file and where it came from.
+fn lead_from_website(b: WebsiteLead) -> AppResult<(LeadInput, Attribution)> {
     let name = capped("name", Some(b.name), MAX_NAME)?
         .ok_or_else(|| AppError::validation("name is required"))?;
     let email = match capped("email", b.email, MAX_FIELD)? {
@@ -227,6 +239,25 @@ fn lead_from_website(b: WebsiteLead) -> AppResult<LeadInput> {
     let message = capped("message", b.message, MAX_MESSAGE)?;
     let vehicle = capped("vehicle", b.vehicle, MAX_FIELD)?;
     let page = capped("page", b.page, MAX_FIELD)?;
+    let utm_source = capped("utm_source", b.utm_source, MAX_FIELD)?;
+    let utm_medium = capped("utm_medium", b.utm_medium, MAX_FIELD)?;
+    let utm_campaign = capped("utm_campaign", b.utm_campaign, MAX_FIELD)?;
+    let referrer = capped("referrer", b.referrer, MAX_URL)?;
+    let landing_page = capped("landing_page", b.landing_page, MAX_URL)?;
+    let attribution = Attribution {
+        channel: attribution::classify(
+            utm_source.as_deref(),
+            utm_medium.as_deref(),
+            referrer.as_deref(),
+        )
+        .as_str()
+        .to_string(),
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        referrer,
+        landing_page,
+    };
 
     let mut parts = Vec::new();
     if let Some(m) = message {
@@ -238,7 +269,7 @@ fn lead_from_website(b: WebsiteLead) -> AppResult<LeadInput> {
     if let Some(p) = page {
         parts.push(format!("Oldal: {p}"));
     }
-    Ok(LeadInput {
+    let input = LeadInput {
         title: format!("Weboldal: {}", subject.unwrap_or_else(|| name.clone())),
         partner_id: None,
         contact_id: None,
@@ -251,7 +282,8 @@ fn lead_from_website(b: WebsiteLead) -> AppResult<LeadInput> {
         quoted_value_minor: None,
         currency: None,
         quote_valid_until: None,
-    })
+    };
+    Ok((input, attribution))
 }
 
 /// Website enquiry: `POST` the form with `X-Leads-Key`. No staff login; the key keeps
@@ -279,8 +311,8 @@ async fn website(
     if optional(b.company.clone()).is_some() {
         return Ok(StatusCode::ACCEPTED);
     }
-    let input = lead_from_website(b)?;
-    let lead = service::leads::create_from_website(&state.db, input).await?;
+    let (input, attribution) = lead_from_website(b)?;
+    let lead = service::leads::create_from_website(&state.db, input, &attribution).await?;
     // The lead is already committed; a failed alert is logged, never the visitor's problem.
     if let Err(e) = service::email::website_lead_alert(&state, &lead).await {
         tracing::error!(lead_id = lead.id, error = %e, "could not queue the website lead alert");
@@ -307,6 +339,8 @@ struct LeadDetail {
     orders: Vec<OrderRef>,
     /// V2.4: the quotation and anything else filed against the enquiry itself.
     documents: Vec<Document>,
+    /// Where the lead came from, for leads the website filed.
+    attribution: Option<Attribution>,
 }
 
 #[utoipa::path(
@@ -330,12 +364,14 @@ async fn detail(
         .map(|(id, number)| OrderRef { id, number })
         .collect();
     let documents = documents::list_for_lead(&state.db, id).await?;
+    let attribution = crate::repo::attribution::find(&state.db, id).await?;
     Ok(Json(LeadDetail {
         lead,
         stage,
         history,
         orders,
         documents,
+        attribution,
     }))
 }
 

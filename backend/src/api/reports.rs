@@ -13,6 +13,7 @@ use super::Items;
 use super::extract::{ApiQuery, Auth};
 use crate::AppState;
 use crate::error::{AppError, AppResult};
+use crate::repo::attribution::{self, CampaignRow, ChannelRow, PageRow};
 use crate::repo::fx::{self, FxRate};
 use crate::repo::reports::{
     self, BlockerLoadRow, StageDurationRow, StalledOrder, ThroughputRow, VolumeRow,
@@ -28,6 +29,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(stalled))
         .routes(routes!(blocker_load))
         .routes(routes!(fx_rates))
+        .routes(routes!(lead_sources))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -365,4 +367,45 @@ mod tests {
             63
         );
     }
+}
+
+#[derive(Serialize, ToSchema)]
+struct LeadSources {
+    period: Period,
+    /// Website leads in the period (those carrying attribution).
+    total: i64,
+    /// Leads now in the won stage.
+    won: i64,
+    by_channel: Vec<ChannelRow>,
+    /// Tagged traffic only (a UTM source or campaign was sent).
+    by_campaign: Vec<CampaignRow>,
+    /// The most common first pages of a visit.
+    by_page: Vec<PageRow>,
+}
+
+/// Where website leads come from, and how many of them were won. Leads entered by hand have
+/// no source and are not counted.
+#[utoipa::path(
+    get, path = "/reports/lead-sources", tag = "reports",
+    params(Range),
+    responses((status = 200, body = LeadSources))
+)]
+async fn lead_sources(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<Range>,
+) -> AppResult<Json<LeadSources>> {
+    let p = period(&state, q.from, q.to)?;
+    let (from, to) = utc_bounds(state.config.business_tz, &p);
+    let by_channel = attribution::by_channel(&state.db, from, to).await?;
+    let by_campaign = attribution::by_campaign(&state.db, from, to).await?;
+    let by_page = attribution::by_page(&state.db, from, to).await?;
+    Ok(Json(LeadSources {
+        total: by_channel.iter().map(|r| r.leads).sum(),
+        won: by_channel.iter().map(|r| r.won).sum(),
+        period: p,
+        by_channel,
+        by_campaign,
+        by_page,
+    }))
 }

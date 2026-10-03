@@ -15,6 +15,7 @@ import { qk } from '@/lib/query/provider';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useRecent } from '@/hooks/useRecent';
 import { cn } from '@/lib/utils/format';
+import { buildSearchHits } from '@/components/search/searchHits';
 
 export function GlobalSearch() {
   const t = useTranslations('dashboard');
@@ -68,38 +69,18 @@ export function GlobalSearch() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const flat: { href: string; title: string; sub: string }[] = useMemo(() => {
-    const items = results.data;
-    if (!items) return [];
-    return [
-      ...items.orders.map((o) => ({
-        href: `/${locale}/orders/${o.id}`,
-        title: `#${o.number} · ${o.plate ?? '—'}`,
-        sub: `${o.title} · ${o.stage_label}`,
-      })),
-      ...items.partners.map((p) => ({
-        href: `/${locale}/partners/${p.id}`,
-        title: p.name,
-        sub: [p.kind === 'business' ? 'Üzleti' : 'Magán', p.city].filter(Boolean).join(' · '),
-      })),
-      ...items.leads.map((l) => ({
-        href: `/${locale}/leads/${l.id}`,
-        title: l.title,
-        sub: [l.contact_name, l.stage_label].filter(Boolean).join(' · '),
-      })),
-    ];
-  }, [results.data, locale]);
-
-  const groups: { label: string; from: number; to: number }[] = useMemo(() => {
-    const o = results.data?.orders.length ?? 0;
-    const p = results.data?.partners.length ?? 0;
-    const l = results.data?.leads.length ?? 0;
-    return [
-      { label: t('searchOrders'), from: 0, to: o },
-      { label: t('searchPartners'), from: o, to: o + p },
-      { label: t('searchLeads'), from: o + p, to: o + p + l },
-    ].filter((g) => g.to > g.from);
-  }, [results.data, t]);
+  const { flat, groups } = useMemo(
+    () =>
+      buildSearchHits(results.data, locale, {
+        orders: t('searchOrders'),
+        partners: t('searchPartners'),
+        leads: t('searchLeads'),
+        contacts: t('searchContacts'),
+        emails: t('searchEmails'),
+        employees: t('searchEmployees'),
+      }),
+    [results.data, locale, t],
+  );
 
   const openHit = (index: number) => {
     const hit = flat[index];

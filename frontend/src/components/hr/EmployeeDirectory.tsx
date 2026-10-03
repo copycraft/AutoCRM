@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Plus, Search, UserRound } from 'lucide-react';
@@ -67,7 +68,9 @@ export function EmployeeDirectory() {
 export function Directory() {
   const t = useTranslations('hr');
   const tc = useTranslations('common');
-  const [q, setQ] = useState('');
+  // A search hit links here with the name already in the box.
+  const initialQ = useSearchParams()?.get('q') ?? '';
+  const [q, setQ] = useState(initialQ);
   const [archived, setArchived] = useState(false);
   const [editing, setEditing] = useState<Employee | 'new' | null>(null);
   const debouncedQ = useDebouncedValue(q);

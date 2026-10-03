@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FilePlus2, LayoutDashboard, Mail, MonitorPlay, BarChart3, Package, Target } from 'lucide-react';
 import { searchApi } from '@/lib/api/endpoints';
+import { buildSearchHits } from '@/components/search/searchHits';
 import { qk } from '@/lib/query/provider';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useRecent } from '@/hooks/useRecent';
@@ -108,27 +109,18 @@ export function CommandPalette() {
     return list;
   }, [locale, tn, to, tl, tp, user]);
 
-  const hits: PaletteHit[] = useMemo(() => {
-    const items = results.data;
-    if (!items) return [];
-    return [
-      ...items.orders.map((o) => ({
-        href: `/${locale}/orders/${o.id}`,
-        title: `#${o.number} · ${o.plate ?? '—'}`,
-        sub: `${o.title} · ${o.stage_label}`,
-      })),
-      ...items.partners.map((p) => ({
-        href: `/${locale}/partners/${p.id}`,
-        title: p.name,
-        sub: [p.kind === 'business' ? 'Üzleti' : 'Magán', p.city].filter(Boolean).join(' · '),
-      })),
-      ...items.leads.map((l) => ({
-        href: `/${locale}/leads/${l.id}`,
-        title: l.title,
-        sub: [l.contact_name, l.stage_label].filter(Boolean).join(' · '),
-      })),
-    ];
-  }, [results.data, locale]);
+  const hits: PaletteHit[] = useMemo(
+    () =>
+      buildSearchHits(results.data, locale, {
+        orders: t('searchOrders'),
+        partners: t('searchPartners'),
+        leads: t('searchLeads'),
+        contacts: t('searchContacts'),
+        emails: t('searchEmails'),
+        employees: t('searchEmployees'),
+      }).flat,
+    [results.data, locale, t],
+  );
 
   const visibleActions = useMemo(() => matchActions(debouncedQ, actions), [debouncedQ, actions]);
   const total = visibleActions.length + hits.length;

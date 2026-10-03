@@ -440,6 +440,12 @@ fun LeadDetailScreen(
                                 EmailInfo("E-mail", lead.contactEmail)
                                 PhoneInfo("Telefon", lead.contactPhone)
                                 Info("Forrás", lead.source)
+                                detail.attribution?.let { a ->
+                                    Info("Csatorna", channelLabel(a.channel))
+                                    a.utmCampaign?.let { Info("Kampány", it) }
+                                    Info("Első oldal", a.landingPage)
+                                    Info("Hivatkozó oldal", a.referrer)
+                                }
                                 Info("Leírás", lead.description)
                             }
                         }
@@ -577,4 +583,15 @@ private fun ConvertDialog(
         )
         error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Signal) }
     }
+}
+
+/** The server's channel code in words. */
+internal fun channelLabel(channel: String): String = when (channel) {
+    "paid" -> "Fizetett hirdetés"
+    "organic" -> "Keresőből (ingyenes)"
+    "social" -> "Közösségi média"
+    "email" -> "E-mail / hírlevél"
+    "referral" -> "Másik oldalról"
+    "direct" -> "Közvetlen"
+    else -> channel
 }

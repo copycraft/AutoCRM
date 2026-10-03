@@ -65,9 +65,14 @@ pub async fn create(db: &PgPool, user: &AuthUser, input: LeadInput) -> AppResult
 
 /// A website enquiry becomes a lead in the first stage, with no staff user behind it.
 /// Unassigned: the office picks it up from the list.
-pub async fn create_from_website(db: &PgPool, input: LeadInput) -> AppResult<Lead> {
+pub async fn create_from_website(
+    db: &PgPool,
+    input: LeadInput,
+    attribution: &crate::repo::attribution::Attribution,
+) -> AppResult<Lead> {
     let mut tx = db.begin().await?;
     let lead = leads::insert_by(&mut *tx, &input, None).await?;
+    crate::repo::attribution::insert(&mut *tx, lead.id, attribution).await?;
     let definitions = config::stage_definitions(&mut *tx, StageEntity::Lead).await?;
     let initial = initial_stage(&definitions)
         .ok_or_else(|| AppError::internal("no active initial lead stage is configured"))?;

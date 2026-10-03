@@ -496,6 +496,8 @@ data class LeadDetail(
     @SerialName("stage") val stage: CurrentStage? = null,
     @SerialName("history") val history: List<StageEntry> = emptyList(),
     @SerialName("orders") val orders: List<OrderRef> = emptyList(),
+    /** Where the lead came from; only leads the website filed have it. */
+    @SerialName("attribution") val attribution: LeadAttribution? = null,
 )
 
 // ── Write bodies ────────────────────────────────────────────────────────────────
@@ -991,3 +993,80 @@ data class NotificationFeed(
 
 @Serializable
 data class MarkReadBody(@SerialName("ids") val ids: List<Long>)
+
+/** What the website told us about where a lead came from. */
+@Serializable
+data class LeadAttribution(
+    /** `paid` | `organic` | `social` | `email` | `referral` | `direct`. */
+    @SerialName("channel") val channel: String,
+    @SerialName("utm_source") val utmSource: String? = null,
+    @SerialName("utm_medium") val utmMedium: String? = null,
+    @SerialName("utm_campaign") val utmCampaign: String? = null,
+    @SerialName("referrer") val referrer: String? = null,
+    @SerialName("landing_page") val landingPage: String? = null,
+)
+
+// ── Search ──────────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class OrderHit(
+    @SerialName("id") val id: Long,
+    @SerialName("number") val number: String,
+    @SerialName("title") val title: String,
+    @SerialName("plate") val plate: String? = null,
+    @SerialName("stage_label") val stageLabel: String,
+)
+
+@Serializable
+data class PartnerHit(
+    @SerialName("id") val id: Long,
+    @SerialName("name") val name: String,
+    @SerialName("kind") val kind: String,
+    @SerialName("city") val city: String? = null,
+)
+
+@Serializable
+data class LeadHit(
+    @SerialName("id") val id: Long,
+    @SerialName("title") val title: String,
+    @SerialName("contact_name") val contactName: String? = null,
+    @SerialName("stage_label") val stageLabel: String,
+)
+
+@Serializable
+data class ContactHit(
+    @SerialName("id") val id: Long,
+    @SerialName("partner_id") val partnerId: Long,
+    @SerialName("name") val name: String,
+    @SerialName("partner_name") val partnerName: String,
+    @SerialName("email") val email: String? = null,
+    @SerialName("phone") val phone: String? = null,
+)
+
+@Serializable
+data class EmailHit(
+    @SerialName("id") val id: Long,
+    @SerialName("subject") val subject: String,
+    @SerialName("to_address") val toAddress: String,
+    @SerialName("status") val status: String,
+)
+
+@Serializable
+data class EmployeeHit(
+    @SerialName("id") val id: Long,
+    @SerialName("full_name") val fullName: String,
+    @SerialName("email") val email: String? = null,
+    @SerialName("company_phone") val companyPhone: String? = null,
+    @SerialName("archived") val archived: Boolean = false,
+)
+
+@Serializable
+data class SearchResults(
+    @SerialName("orders") val orders: List<OrderHit> = emptyList(),
+    @SerialName("partners") val partners: List<PartnerHit> = emptyList(),
+    @SerialName("leads") val leads: List<LeadHit> = emptyList(),
+    @SerialName("contacts") val contacts: List<ContactHit> = emptyList(),
+    @SerialName("emails") val emails: List<EmailHit> = emptyList(),
+    /** Empty unless the caller has HR access. */
+    @SerialName("employees") val employees: List<EmployeeHit> = emptyList(),
+)

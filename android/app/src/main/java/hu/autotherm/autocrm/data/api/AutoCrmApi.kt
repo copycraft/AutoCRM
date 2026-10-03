@@ -1,8 +1,12 @@
 package hu.autotherm.autocrm.data.api
 
 import hu.autotherm.autocrm.data.auth.SessionStore
+import hu.autotherm.autocrm.data.cache.ResponseCache
 import hu.autotherm.autocrm.data.prefs.ServerStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.KSerializer
@@ -30,12 +34,30 @@ import java.util.concurrent.TimeUnit
  *    can be added that forgets it.
  *  - A non-2xx response becomes an [ApiException] with the API's own error code. Nothing
  *    returns a null that a screen has to interpret.
+ *  - A read that cannot reach the server is answered from the last good copy of it, if the
+ *    phone has one ([cache]), and [offlineSince] says so; writes never are. That one rule
+ *    is what lets every list and detail screen work in a workshop with no signal.
  */
 class AutoCrmApi(
     private val serverStore: ServerStore,
     private val sessionStore: SessionStore,
     val http: OkHttpClient = defaultClient(),
+    private val cache: ResponseCache? = null,
+    /**
+     * Whether the phone reports any network. A hint, never a verdict: when it says no, the
+     * request is still tried, but with a short deadline, so a dead signal fails in seconds
+     * instead of after the full connect timeout (and a wrong hint costs nothing).
+     */
+    private val isOnline: () -> Boolean = { true },
 ) {
+    private val _offlineSince = MutableStateFlow<Long?>(null)
+
+    /**
+     * When the data currently on screen was fetched, while it is coming from the cache;
+     * null whenever the server answered. The scaffold shows a banner from this.
+     */
+    val offlineSince: StateFlow<Long?> = _offlineSince.asStateFlow()
+
     private val json = Json {
         ignoreUnknownKeys = true // the server may add fields; the phone must not break.
         explicitNulls = false // omit nulls rather than sending them: PATCH treats null as "clear".
@@ -46,6 +68,9 @@ class AutoCrmApi(
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     companion object {
+        /** How long a request may take when the phone says it has no network. */
+        private const val OFFLINE_DEADLINE_SECONDS = 4L
+
         /**
          * Timeouts sized for a van in a yard, not a desk. A 10-second connect timeout on a
          * weak signal produces a spurious failure and a photo the fitter believes is lost;
@@ -101,7 +126,8 @@ class AutoCrmApi(
         if (token != null) request.header("Authorization", "Bearer $token")
         request.header("Accept", "application/json")
         val raw = try {
-            http.newCall(request.build()).execute().use { response ->
+            val client = if (isOnline()) http else http.newBuilder().callTimeout(OFFLINE_DEADLINE_SECONDS, TimeUnit.SECONDS).build()
+            client.newCall(request.build()).execute().use { response ->
                 Raw(response.code, response.body?.string().orEmpty())
             }
         } catch (e: IOException) {
@@ -110,7 +136,11 @@ class AutoCrmApi(
         // A 401 on a request that carried our token means the session is gone. Forgetting
         // it returns the app to the login screen (MainActivity keys off the stored account);
         // the upload queue is untouched and resumes after the next sign-in.
-        if (raw.code == 401 && token != null) sessionStore.clearIfToken(token)
+        if (raw.code == 401 && token != null) {
+            sessionStore.clearIfToken(token)
+            // The next person to sign in on this phone must not read this one's data.
+            cache?.clear()
+        }
         raw
     }
 
@@ -119,15 +149,40 @@ class AutoCrmApi(
         request: Request.Builder,
         serializer: KSerializer<T>,
     ): T {
-        val raw = execute(request)
+        // Only reads of cacheable resources are ever stored or served from the cache.
+        val probe = request.build()
+        val cacheKey = probe.url.toString().takeIf {
+            cache != null && probe.method == "GET" && ResponseCache.isCacheable(probe.url.encodedPath)
+        }
+        val userId = if (cacheKey != null) sessionStore.currentAccount()?.userId else null
+
+        val raw = try {
+            execute(request)
+        } catch (e: ApiException.Network) {
+            if (cacheKey != null && userId != null) {
+                val hit = cache!!.get(cacheKey, userId)
+                if (hit != null) {
+                    val parsed = runCatching { json.decodeFromString(serializer, hit.body) }.getOrNull()
+                    if (parsed != null) {
+                        _offlineSince.value = hit.fetchedAt
+                        return parsed
+                    }
+                }
+            }
+            throw e
+        }
+        // The server answered, whatever it said: not offline.
+        _offlineSince.value = null
         if (raw.code !in 200..299) throw errorFor(raw.code, raw.body)
-        return try {
+        val parsed = try {
             json.decodeFromString(serializer, raw.body)
         } catch (e: Exception) {
             // A body that does not parse is a contract break, not a user error. Reported as
             // a server fault so the queue retries rather than discarding work.
             throw ApiException.Server(raw.code, "unparseable response: ${e.message}")
         }
+        if (cacheKey != null && userId != null) runCatching { cache!!.put(cacheKey, userId, raw.body) }
+        return parsed
     }
 
     private suspend fun sendNoContent(request: Request.Builder) {
@@ -232,6 +287,14 @@ class AutoCrmApi(
             Request.Builder().url(url("/hr/employees/$id/photo").build()).delete(),
             Employee.serializer(),
         )
+
+    // ── Search ──────────────────────────────────────────────────────────────────────
+
+    /** Never cached: each query is a new question (see ResponseCache.isCacheable). */
+    suspend fun search(q: String): SearchResults {
+        val u = url("/search").addQueryParameter("q", q)
+        return send(Request.Builder().url(u.build()).get(), SearchResults.serializer())
+    }
 
     // ── HR leave ────────────────────────────────────────────────────────────────────
 

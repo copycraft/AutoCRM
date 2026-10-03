@@ -7472,6 +7472,69 @@
         }
       }
     },
+    "/reports/lead-sources": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Where website leads come from, and how many of them were won. Leads entered by hand have\nno source and are not counted.",
+        "operationId": "reports_lead_sources",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Defaults to 365 days before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Defaults to today.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadSources"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/search": {
       "get": {
         "tags": [
@@ -9401,6 +9464,49 @@
           }
         }
       },
+      "Attribution": {
+        "type": "object",
+        "description": "What the website told us about one lead, plus the channel the server worked out.",
+        "required": [
+          "channel"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "`paid` | `organic` | `social` | `email` | `referral` | `direct`."
+          },
+          "utm_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_medium": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_campaign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referrer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "landing_page": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AuditEntry": {
         "type": "object",
         "required": [
@@ -9944,6 +10050,45 @@
           }
         }
       },
+      "CampaignRow": {
+        "type": "object",
+        "required": [
+          "channel",
+          "leads",
+          "won"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "utm_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_medium": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_campaign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leads": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "won": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ChainStep": {
         "type": "object",
         "description": "One document in the invoice's chain at NAV.\n\nThe sidecar speaks NAV's camelCase; this API does not. Restating the four fields the\nscreen uses keeps the contract in one shape rather than leaving a camelCase island in\nthe middle of it.",
@@ -9985,6 +10130,28 @@
           },
           "new_password": {
             "type": "string"
+          }
+        }
+      },
+      "ChannelRow": {
+        "type": "object",
+        "required": [
+          "channel",
+          "leads",
+          "won"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "leads": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "won": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Leads now in the `won` stage."
           }
         }
       },
@@ -10255,6 +10422,44 @@
             ]
           },
           "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ContactHit": {
+        "type": "object",
+        "description": "A person at a partner company.",
+        "required": [
+          "id",
+          "partner_id",
+          "name",
+          "partner_name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partner_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "partner_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
             "type": [
               "string",
               "null"
@@ -10827,6 +11032,35 @@
             "items": {
               "$ref": "#/components/schemas/StageDurationRow"
             }
+          }
+        }
+      },
+      "EmailHit": {
+        "type": "object",
+        "required": [
+          "id",
+          "subject",
+          "to_address",
+          "status",
+          "queued_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "to_address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "queued_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -11450,6 +11684,39 @@
           }
         }
       },
+      "EmployeeHit": {
+        "type": "object",
+        "description": "A member of staff. Only ever returned to users with HR access.",
+        "required": [
+          "id",
+          "full_name",
+          "archived"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "company_phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "The body of every non-2xx response.",
@@ -11942,7 +12209,10 @@
         "required": [
           "orders",
           "partners",
-          "leads"
+          "leads",
+          "contacts",
+          "emails",
+          "employees"
         ],
         "properties": {
           "orders": {
@@ -11962,6 +12232,25 @@
             "items": {
               "$ref": "#/components/schemas/LeadHit"
             }
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContactHit"
+            }
+          },
+          "emails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailHit"
+            }
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmployeeHit"
+            },
+            "description": "Empty unless the caller has HR access."
           }
         }
       },
@@ -16149,6 +16438,17 @@
               "$ref": "#/components/schemas/Document"
             },
             "description": "V2.4: the quotation and anything else filed against the enquiry itself."
+          },
+          "attribution": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Attribution",
+                "description": "Where the lead came from, for leads the website filed."
+              }
+            ]
           }
         }
       },
@@ -16175,6 +16475,52 @@
           },
           "stage_label": {
             "type": "string"
+          }
+        }
+      },
+      "LeadSources": {
+        "type": "object",
+        "required": [
+          "period",
+          "total",
+          "won",
+          "by_channel",
+          "by_campaign",
+          "by_page"
+        ],
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Website leads in the period (those carrying attribution)."
+          },
+          "won": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Leads now in the won stage."
+          },
+          "by_channel": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelRow"
+            }
+          },
+          "by_campaign": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampaignRow"
+            },
+            "description": "Tagged traffic only (a UTM source or campaign was sent)."
+          },
+          "by_page": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PageRow"
+            },
+            "description": "The most common first pages of a visit."
           }
         }
       },
@@ -17587,6 +17933,27 @@
           "sha256": {
             "type": "string",
             "description": "Hex sha256 of the original file."
+          }
+        }
+      },
+      "PageRow": {
+        "type": "object",
+        "required": [
+          "landing_page",
+          "leads",
+          "won"
+        ],
+        "properties": {
+          "landing_page": {
+            "type": "string"
+          },
+          "leads": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "won": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -20294,6 +20661,39 @@
               "null"
             ],
             "description": "Honeypot: the form renders this hidden. A bot fills it, a person never does; such\na submission is acknowledged and dropped."
+          },
+          "utm_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "UTM tags from the landing URL (`?utm_source=...`), if the visitor arrived tagged."
+          },
+          "utm_medium": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_campaign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referrer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The page that sent the visitor (`document.referrer` at their first visit)."
+          },
+          "landing_page": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The first page of the visit, which is not always the page the form is on."
           }
         }
       },

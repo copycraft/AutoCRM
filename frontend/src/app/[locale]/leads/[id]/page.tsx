@@ -38,6 +38,7 @@ function expired(validUntil: string): boolean {
 export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   const t = useTranslations('leads');
+  const ta = useTranslations('leadSources');
   const tc = useTranslations('common');
   const tn = useTranslations('navigation');
   const tt = useTranslations('tasks');
@@ -104,7 +105,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
         </>
       ) : (
         (() => {
-          const { lead, stage, history, orders, documents } = detail.data;
+          const { lead, stage, history, orders, documents, attribution } = detail.data;
           const defs = stagesQuery.data?.items ?? [];
           const currentDef = defs.find((d) => d.key === stage?.stage_key);
           // V2.7: one enquiry for three vans is three orders; converting again is allowed
@@ -209,6 +210,23 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     <Info label={t('description')} value={lead.description ?? '—'} />
                     <Info label={t('createdAt')} value={<DateDisplay value={lead.created_at} />} />
                   </div>
+
+                  {/* Website leads: where the visitor came from. */}
+                  {attribution && (
+                    <div className="mt-5 border-t border-steel-200 pt-5" data-testid="lead-attribution">
+                      <h2 className="text-section font-semibold">{t('attribution')}</h2>
+                      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <Info label={t('channel')} value={ta(`channels.${attribution.channel}`)} />
+                        <Info label={t('campaign')} value={attribution.utm_campaign ?? '—'} />
+                        <Info
+                          label={t('sourceMedium')}
+                          value={[attribution.utm_source, attribution.utm_medium].filter(Boolean).join(' / ') || '—'}
+                        />
+                        <Info label={t('referrer')} value={attribution.referrer ?? '—'} />
+                        <Info label={t('landingPage')} value={attribution.landing_page ?? '—'} />
+                      </div>
+                    </div>
+                  )}
 
                   {/* V2.3: the quotation — the six weeks between "we sent them a price"
                       and "they said yes" were invisible before this. */}

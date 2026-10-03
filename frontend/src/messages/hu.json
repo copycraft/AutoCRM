@@ -224,7 +224,13 @@
     "quotationSend": "Árajánlat elküldése",
     "quotationQueued": "Árajánlat sorba állítva.",
     "quotationPreview": "Előnézet",
-    "quotationPreviewHint": "Írjon szöveget az előnézethez — üresen a lead adataiból épül fel a levél."
+    "quotationPreviewHint": "Írjon szöveget az előnézethez — üresen a lead adataiból épül fel a levél.",
+    "attribution": "Honnan érkezett",
+    "channel": "Csatorna",
+    "campaign": "Kampány",
+    "sourceMedium": "Forrás / közeg",
+    "referrer": "Hivatkozó oldal",
+    "landingPage": "Első oldal"
   },
   "orders": {
     "title": "Megrendelések",
@@ -855,7 +861,10 @@
     "searchEmpty": "Nincs találat.",
     "searchClose": "Bezárás",
     "searchMinChars": "Írj be legalább 2 karaktert.",
-    "searchLoading": "Keresés…"
+    "searchLoading": "Keresés…",
+    "searchContacts": "Kapcsolattartók",
+    "searchEmails": "E-mailek",
+    "searchEmployees": "Munkatársak"
   },
   "validation": {
     "required": "Ez a mező kötelező",
@@ -1136,5 +1145,29 @@
     "markAllRead": "Mind olvasott",
     "unread": "olvasatlan",
     "bell": "Értesítések"
+  },
+  "leadSources": {
+    "title": "Honnan jönnek az érdeklődők",
+    "subtitle": "A weboldalról érkezett érdeklődések csatornánként. Kézzel felvett leadek nem szerepelnek.",
+    "period": "Időszak",
+    "lastDays": "Utolsó {days} nap",
+    "empty": "Ebben az időszakban nem érkezett weboldalas érdeklődés.",
+    "emptyHint": "A forrás adatait a weboldal fejlesztője küldi az űrlappal együtt.",
+    "summary": "{total} érdeklődés, ebből {won} megnyert.",
+    "byChannel": "Csatorna",
+    "byCampaign": "Kampány",
+    "byPage": "Első oldal",
+    "sourceMedium": "Forrás / közeg",
+    "leads": "Lead",
+    "won": "Megnyert",
+    "winRate": "Siker",
+    "channels": {
+      "paid": "Fizetett hirdetés",
+      "organic": "Keresőből (ingyenes)",
+      "social": "Közösségi média",
+      "email": "E-mail / hírlevél",
+      "referral": "Másik oldalról",
+      "direct": "Közvetlen"
+    }
   }
 }
