@@ -133,7 +133,7 @@ docker-compose.yml  dev Postgres, MinIO (object lock enabled), Mailpit, nav-side
   switching to production.
 - Newsletter signup from the website: set `NEWSLETTER_API_KEY`, and switch automatic email on
   first, or the confirmation letters are cancelled and nobody can confirm.
-- Website enquiries: set `LEADS_API_KEY` (`openssl rand -hex 32`). The autotherm.hu form's
+- Website enquiries: set `LEADS_API_KEY` (each new one is also mailed to `LEADS_NOTIFY_TO`, default vastag.peter@autotherm.hu; needs automatic email on) (`openssl rand -hex 32`). The autotherm.hu form's
   server (not the browser, or the key leaks) POSTs JSON to `/api/leads/website` with the
   header `X-Leads-Key`: `name` plus `email` and/or `phone` are required; `message`,
   `subject`, `vehicle`, `page` are optional; `company` is a hidden honeypot field. Answer is

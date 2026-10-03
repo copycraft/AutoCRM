@@ -190,3 +190,9 @@ $status = curl_getinfo($ch, CURLINFO_HTTP_CODE); // 202 on success
   `openssl rand -hex 32`. Unset it and the endpoint answers `403` to everyone.
 - To rotate the key: set a new `LEADS_API_KEY`, restart the CRM, update the website's secret.
 - The machine-readable contract is `openapi/openapi.json` (operation `POST /leads/website`).
+- **Office notification:** every accepted website lead also queues an email to the office
+  mailbox (default `vastag.peter@autotherm.hu`; change it with `LEADS_NOTIFY_TO`, or set it
+  empty to switch the alert off). It is automatic mail, so it only goes out when
+  *Automatic email* is switched on in the CRM settings and the mail transport is configured
+  (`EMAIL_MODE=smtp`). The send window and the per-recipient daily cap do not apply to it.
+  A failed alert never loses the lead; check the *E-mailek* list if one does not arrive.

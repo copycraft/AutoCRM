@@ -41,6 +41,12 @@ pub const VARIABLES: &[(&str, &str)] = &[
         "Hány napja járt le az akadály határideje",
     ),
     ("user.name", "Küldő munkatárs neve"),
+    // Resolved by the website lead alert, the only letter that carries them.
+    ("lead.contact_email", "Érdeklődő e-mail-címe"),
+    ("lead.contact_phone", "Érdeklődő telefonszáma"),
+    ("lead.source", "Az érdeklődés forrása"),
+    ("lead.description", "Az érdeklődés szövege"),
+    ("lead.url", "Az érdeklődés linkje a CRM-ben"),
     // Resolved by the website signup, the only letter that carries it.
     (
         "newsletter.confirm_url",

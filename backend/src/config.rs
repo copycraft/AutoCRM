@@ -183,12 +183,17 @@ pub struct Config {
     /// API key the main website sends as `X-Leads-Key` to file enquiries as leads.
     /// None means the public endpoint is off.
     pub leads_api_key: Option<String>,
+    /// Where the alert for each new website lead goes. Defaults to the sales mailbox;
+    /// `LEADS_NOTIFY_TO=` (set, but empty) turns the alert off.
+    pub leads_notify_to: Option<String>,
     pub business_tz: Tz,
     pub worker_enabled: bool,
     pub worker_id: String,
     pub log_format: LogFormat,
     pub log_dir: Option<PathBuf>,
 }
+
+const DEFAULT_LEADS_NOTIFY_TO: &str = "vastag.peter@autotherm.hu";
 
 #[derive(Debug, thiserror::Error)]
 #[error("invalid configuration:\n  - {}", .0.join("\n  - "))]
@@ -480,6 +485,18 @@ impl Config {
         let log_dir = r.optional("LOG_DIR").map(PathBuf::from);
         let newsletter_api_key = r.optional("NEWSLETTER_API_KEY");
         let leads_api_key = r.optional("LEADS_API_KEY");
+        let leads_notify_to = match std::env::var("LEADS_NOTIFY_TO") {
+            Err(_) => Some(DEFAULT_LEADS_NOTIFY_TO.to_string()),
+            Ok(v) if v.trim().is_empty() => None,
+            Ok(v) => match crate::domain::email::normalize_address(&v) {
+                Some(a) => Some(a),
+                None => {
+                    r.errors
+                        .push("LEADS_NOTIFY_TO is not a valid email address".into());
+                    None
+                }
+            },
+        };
 
         if env == AppEnv::Production {
             if !cookie_secure {
@@ -514,6 +531,7 @@ impl Config {
             mnb_endpoint,
             newsletter_api_key,
             leads_api_key,
+            leads_notify_to,
             business_tz,
             worker_enabled,
             worker_id,

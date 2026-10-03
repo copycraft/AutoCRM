@@ -280,7 +280,11 @@ async fn website(
         return Ok(StatusCode::ACCEPTED);
     }
     let input = lead_from_website(b)?;
-    service::leads::create_from_website(&state.db, input).await?;
+    let lead = service::leads::create_from_website(&state.db, input).await?;
+    // The lead is already committed; a failed alert is logged, never the visitor's problem.
+    if let Err(e) = service::email::website_lead_alert(&state, &lead).await {
+        tracing::error!(lead_id = lead.id, error = %e, "could not queue the website lead alert");
+    }
     Ok(StatusCode::ACCEPTED)
 }
 

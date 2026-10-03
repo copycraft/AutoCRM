@@ -71,6 +71,7 @@ pub fn config() -> Config {
         nav: None,
         newsletter_api_key: None,
         leads_api_key: None,
+        leads_notify_to: None,
         business_tz: chrono_tz::Europe::Budapest,
         worker_enabled: false,
         worker_id: "test".into(),

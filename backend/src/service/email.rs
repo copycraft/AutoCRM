@@ -25,6 +25,7 @@ use crate::error::{AppError, AppResult};
 use crate::integrations::email::{Mailer, OutgoingAttachment, OutgoingEmail, SendError};
 use crate::media::storage::content_disposition;
 use crate::repo::emails::{self, NewEmail};
+use crate::repo::leads::Lead;
 use crate::repo::{
     blockers, config, contacts, documents, jobs, leads, newsletter, orders, partners, stages,
     templates,
@@ -35,6 +36,8 @@ pub mod triggers {
     pub const MANUAL: &str = "manual";
     pub const NEWSLETTER: &str = "newsletter";
     pub const NEWSLETTER_CONFIRM: &str = "newsletter_confirm";
+    /// Internal alert to the office for a lead the website filed.
+    pub const WEBSITE_LEAD_ALERT: &str = "website_lead_alert";
     pub const QUOTATION: &str = "quotation";
     pub const NUDGE_BLOCKER: &str = "nudge_blocker";
     pub const STAGE_CHANGED: &str = "stage_changed";
@@ -1001,6 +1004,54 @@ pub async fn newsletter_signup(state: &AppState, address: &str, name: &str) -> A
     Ok(())
 }
 
+/// Keeps visitor text from being mistaken for template syntax in the stored letter.
+fn plain(value: Option<&str>) -> String {
+    match value.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(v) => v.replace("{{", "{ {"),
+        None => "—".to_string(),
+    }
+}
+
+/// Tells the office a lead came in from the website. Queued after the lead is committed,
+/// in its own transaction: a failure here is logged by the caller and must never cost the
+/// lead. One alert per lead (idempotent on the lead id). A no-op when no recipient is
+/// configured.
+pub async fn website_lead_alert(state: &AppState, lead: &Lead) -> AppResult<()> {
+    let Some(to) = state.config.leads_notify_to.as_deref() else {
+        return Ok(());
+    };
+    let mut mail = AutomaticEmail::new(
+        "website_lead_alert",
+        About {
+            lead_id: Some(lead.id),
+            ..About::default()
+        },
+        to,
+        triggers::WEBSITE_LEAD_ALERT,
+        format!("website_lead_alert:{}", lead.id),
+    );
+    mail.extra_values
+        .insert("lead.contact_email", plain(lead.contact_email.as_deref()));
+    mail.extra_values
+        .insert("lead.contact_phone", plain(lead.contact_phone.as_deref()));
+    mail.extra_values
+        .insert("lead.source", plain(lead.source.as_deref()));
+    mail.extra_values
+        .insert("lead.description", plain(lead.description.as_deref()));
+    mail.extra_values.insert(
+        "lead.url",
+        format!(
+            "{}/hu/leads/{}",
+            state.config.public_base_url.trim_end_matches('/'),
+            lead.id
+        ),
+    );
+    let mut tx = state.db.begin().await?;
+    queue_automatic(&mut tx, &state.config, mail).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 pub struct AutomaticEmail<'a> {
     pub template_key: &'a str,
     pub about: About,
@@ -1144,10 +1195,19 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
 
     if email.is_automatic {
         let settings = config::settings(&mut *tx).await?;
+        // An alert to our own mailbox is not mail to a customer: the send window and the
+        // per-recipient cap exist to protect outsiders, and would hold a lead alert until
+        // Monday or cancel the fourth one of the day. The kill switch and the suppression
+        // list still apply.
+        let internal_alert = email.trigger == triggers::WEBSITE_LEAD_ALERT;
         let window = SendWindow {
             start: settings.send_window_start,
-            end: settings.send_window_end,
-            weekdays_only: settings.send_window_weekdays_only,
+            end: if internal_alert {
+                settings.send_window_start // an empty window is always open
+            } else {
+                settings.send_window_end
+            },
+            weekdays_only: settings.send_window_weekdays_only && !internal_alert,
             tz: state.config.business_tz,
         };
         let ctx = AutoSendContext {
@@ -1158,7 +1218,11 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
                 &email.to_address,
             )
             .await?,
-            max_per_recipient_day: settings.max_auto_emails_per_recipient_day,
+            max_per_recipient_day: if internal_alert {
+                i32::MAX
+            } else {
+                settings.max_auto_emails_per_recipient_day
+            },
             has_unresolved_variables: has_unresolved_markers(&email.subject)
                 || has_unresolved_markers(&email.body_text),
         };
