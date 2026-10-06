@@ -28,15 +28,19 @@ export function presetLabel(days: number): string {
   return PRESETS.find((p) => p.days === days)?.label ?? `${days} nap`;
 }
 
-export function FollowupSteps({ editable }: { editable: boolean }) {
+/**
+ * `kind`: quote — days after a quotation goes out; invoice — days after an unpaid
+ * invoice's payment deadline (the automatic payment reminders).
+ */
+export function FollowupSteps({ editable, kind = 'quote' }: { editable: boolean; kind?: 'quote' | 'invoice' }) {
   const t = useTranslations('followups');
   const ter = useTranslations('errors');
   const qc = useQueryClient();
-  const steps = useQuery({ queryKey: ['followup-steps'], queryFn: () => followupsApi.steps() });
+  const steps = useQuery({ queryKey: ['followup-steps', kind], queryFn: () => followupsApi.steps(kind) });
   const templates = useQuery({ queryKey: ['email-templates'], queryFn: () => emailApi.templates() });
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(7);
-  const [templateKey, setTemplateKey] = useState('quote_followup_1');
+  const [templateKey, setTemplateKey] = useState(kind === 'invoice' ? 'invoice_overdue_1' : 'quote_followup_1');
 
   const live = (templates.data?.items ?? []).filter((x) => !x.archived_at);
   const refresh = () => {
@@ -51,19 +55,19 @@ export function FollowupSteps({ editable }: { editable: boolean }) {
     onError,
   });
   const create = useMutation({
-    mutationFn: () => followupsApi.createStep({ label: presetLabel(days), delay_days: days, template_key: templateKey }),
+    mutationFn: () => followupsApi.createStep({ label: presetLabel(days), delay_days: days, template_key: templateKey, kind }),
     onSuccess: refresh,
     onError,
   });
 
   return (
-    <section className="card" data-testid="followup-steps">
+    <section className="card" data-testid={`followup-steps-${kind}`}>
       <div className="card-header flex items-center gap-2">
         <CalendarClock className="h-5 w-5 text-steel-500" aria-hidden />
-        <h2 className="text-section font-semibold">{t('stepsTitle')}</h2>
+        <h2 className="text-section font-semibold">{t(kind === 'invoice' ? 'reminderStepsTitle' : 'stepsTitle')}</h2>
       </div>
       <div className="card-content space-y-3">
-        <p className="text-metadata text-steel-500">{t('stepsIntro')}</p>
+        <p className="text-metadata text-steel-500">{t(kind === 'invoice' ? 'reminderStepsIntro' : 'stepsIntro')}</p>
         {error && <p className="text-body text-signal" role="alert">{error}</p>}
         <ol className="space-y-2">
           {(steps.data?.items ?? []).map((s: FollowupStep) => (
@@ -82,7 +86,7 @@ export function FollowupSteps({ editable }: { editable: boolean }) {
                   <option key={d} value={d}>{presetLabel(d)}</option>
                 ))}
               </select>
-              <span className="text-metadata text-steel-500">{t('afterQuote')}</span>
+              <span className="text-metadata text-steel-500">{t(kind === 'invoice' ? 'afterDeadline' : 'afterQuote')}</span>
               <select
                 className="input h-8 min-w-0 flex-1 py-0"
                 aria-label={t('template')}

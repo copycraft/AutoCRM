@@ -80,6 +80,19 @@ export const leadsApi = {
     request(`/leads/${id}/quotation`, s.zLeadsQuotationResponse, { method: 'POST', body }),
   setTags: (id: number, tag_ids: number[]): Promise<S['Items_LeadTagRef']> =>
     request(`/leads/${id}/tags`, s.zLeadsSetLeadTagsResponse, { method: 'PUT', body: { tag_ids } }),
+  // Ticked rows of the list: assign, tag, untag or move them in one go.
+  bulk: (body: S['BulkActionBody']): Promise<S['BulkResult']> =>
+    request('/leads/bulk-actions', s.zLeadsBulkActionResponse, { method: 'POST', body }),
+  // Open quotes running out within `days` (or just ran out).
+  expiringQuotes: (search: QueryOf<'leads_expiring_quotes'> = {}): Promise<S['Items_ExpiringQuote']> =>
+    request('/leads/quotes/expiring', s.zLeadsExpiringQuotesResponse, { search }),
+  // Why leads are lost: the choices offered when one moves to Elveszett.
+  lostReasons: (archived = false): Promise<S['Items_LostReason']> =>
+    request('/lost-reasons', s.zLeadsListLostReasonsResponse, { search: { archived: archived || undefined } }),
+  createLostReason: (body: S['LostReasonBody']): Promise<S['LostReason']> =>
+    request('/lost-reasons', s.zLeadsCreateLostReasonResponse, { method: 'POST', body }),
+  updateLostReason: (id: number, body: S['LostReasonBody']): Promise<S['LostReason']> =>
+    request(`/lost-reasons/${id}`, s.zLeadsUpdateLostReasonResponse, { method: 'PUT', body }),
 };
 
 // ── Lead tags (per-market lists; domains tag website leads on arrival) ──
@@ -122,6 +135,8 @@ export const ordersApi = {
   patchItem: (id: number, body: S['PatchItem']): Promise<S['ItemView']> =>
     request(`/order-items/${id}`, s.zOrdersUpdateItemResponse, { method: 'PATCH', body }),
   deleteItem: (id: number): Promise<void> => requestNoContent(`/order-items/${id}`, { method: 'DELETE' }),
+  bulk: (body: S['OrderBulkBody']): Promise<S['OrderBulkResult']> =>
+    request('/orders/bulk-actions', s.zOrdersBulkActionResponse, { method: 'POST', body }),
 };
 
 // ── Invoicing ──
@@ -161,6 +176,11 @@ export const invoicesApi = {
     request('/invoices/buckets', s.zInvoicesBucketCountsResponse),
   setPaid: (id: number, paid: boolean): Promise<void> =>
     requestNoContent(`/invoices/${id}/paid`, { method: 'POST', body: { paid } }),
+  // Automatic payment reminders: stop them for one invoice; the overdue list.
+  setRemindersOff: (id: number, off: boolean): Promise<void> =>
+    requestNoContent(`/invoices/${id}/reminders`, { method: 'POST', body: { off } }),
+  overdue: (search: QueryOf<'invoices_overdue'> = {}): Promise<S['Items_OverdueInvoice']> =>
+    request('/invoices/overdue', s.zInvoicesOverdueResponse, { search }),
 };
 
 // ── Incoming (supplier) invoices ──
@@ -299,6 +319,15 @@ export const newsletterApi = {
     request('/newsletter/import', s.zNewsletterImportResponse, { method: 'POST', body }),
   audience: (tagIds: number[]): Promise<S['Audience']> =>
     request('/newsletter/audience', s.zNewsletterAudienceResponse, { search: { tags: tagIds.join(',') || undefined } }),
+  // Tracked sends: one letter per reader, now or at a set time, with opens and clicks.
+  schedule: (body: S['ScheduleSendBody']): Promise<S['ScheduledSend']> =>
+    request('/newsletter/sends', s.zNewsletterScheduleSendResponse, { method: 'POST', body }),
+  sends: (): Promise<S['Items_NewsletterSend']> =>
+    request('/newsletter/sends', s.zNewsletterListSendsResponse),
+  sendStats: (id: number): Promise<S['SendStats']> =>
+    request(`/newsletter/sends/${id}/stats`, s.zNewsletterSendStatsResponse),
+  cancelSend: (id: number): Promise<S['Cancelled']> =>
+    request(`/newsletter/sends/${id}/cancel`, s.zNewsletterCancelSendResponse, { method: 'POST' }),
 };
 
 // ── Configuration ──
@@ -342,6 +371,8 @@ export const reportsApi = {
     request('/reports/workload', s.zReportsWorkloadResponse, { search }),
   leadSources: (search: QueryOf<'reports_lead_sources'> = {}): Promise<S['LeadSources']> =>
     request('/reports/lead-sources', s.zReportsLeadSourcesResponse, { search }),
+  websiteConversion: (search: QueryOf<'reports_website_conversion'> = {}): Promise<S['WebsiteConversion']> =>
+    request('/reports/website-conversion', s.zReportsWebsiteConversionResponse, { search }),
 };
 
 // ── Global search ──
@@ -468,6 +499,28 @@ export const hrApi = {
     request(`/hr/applications/${id}`, s.zHrUpdateApplicationResponse, { method: 'PATCH', body: { notes } }),
   deleteApplication: (id: number): Promise<void> =>
     requestNoContent(`/hr/applications/${id}`, { method: 'DELETE' }),
+  // The papers HR collects; what is missing drives the "…adatokra vár" statuses.
+  details: (id: number): Promise<S['EmployeeDetails']> =>
+    request(`/hr/employees/${id}/details`, s.zHrGetDetailsResponse),
+  saveDetails: (id: number, body: S['EmployeeDetails']): Promise<S['EmployeeDetails']> =>
+    request(`/hr/employees/${id}/details`, s.zHrPutDetailsResponse, { method: 'PUT', body }),
+  // Documents with an expiry (medical, contract, licence...).
+  documents: (id: number): Promise<S['Items_EmployeeDocument']> =>
+    request(`/hr/employees/${id}/documents`, s.zHrListDocumentsResponse),
+  createDocument: (id: number, body: S['NewDocument']): Promise<S['EmployeeDocument']> =>
+    request(`/hr/employees/${id}/documents`, s.zHrCreateDocumentResponse, { method: 'POST', body }),
+  deleteDocument: (id: number, docId: number): Promise<void> =>
+    requestNoContent(`/hr/employees/${id}/documents/${docId}`, { method: 'DELETE' }),
+  uploadDocumentFile: (id: number, docId: number, file: File): Promise<void> =>
+    requestNoContent(`/hr/employees/${id}/documents/${docId}/file`, {
+      method: 'POST',
+      rawBody: file,
+      search: { filename: file.name },
+    }),
+  documentFileUrl: (id: number, docId: number): Promise<S['DocumentFileUrl']> =>
+    request(`/hr/employees/${id}/documents/${docId}/file-url`, s.zHrDocumentFileUrlResponse),
+  expiringDocuments: (): Promise<S['Items_ExpiringDocument']> =>
+    request('/hr/documents/expiring', s.zHrExpiringDocumentsResponse),
 };
 
 // ── Notifications (the signed-in user's own) ──
@@ -503,7 +556,8 @@ export const assistantApi = {
 
 // ── Quote follow-ups: the default sequence and each lead's scheduled letters ──
 export const followupsApi = {
-  steps: (): Promise<S['Items_FollowupStep']> => request('/followup-steps', s.zFollowupsListStepsResponse),
+  steps: (kind: 'quote' | 'invoice' = 'quote'): Promise<S['Items_FollowupStep']> =>
+    request('/followup-steps', s.zFollowupsListStepsResponse, { search: { kind } }),
   createStep: (body: S['StepBody']): Promise<S['FollowupStep']> =>
     request('/followup-steps', s.zFollowupsCreateStepResponse, { method: 'POST', body }),
   updateStep: (id: number, body: S['StepPatch']): Promise<S['FollowupStep']> =>

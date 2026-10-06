@@ -28,6 +28,7 @@ export function LeadStageDialog({
   const [target, setTarget] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [reasonId, setReasonId] = useState<number | null>(null);
 
   const transitions = useQuery({
     queryKey: qk.leadTransitions(leadId),
@@ -41,11 +42,22 @@ export function LeadStageDialog({
   const effective = selected?.stage_key ?? '';
   const needsNote = selected?.requires_note ?? false;
   const gateBlocked = selected ? !selected.gates_met : false;
-  const currentLabel = detail.history.at(-1)?.label_hu ?? detail.stage?.stage_key ?? '—';
+  // Losing a lead asks why: the reasons feed the win/loss report.
+  const losing = effective === 'lost';
+  const reasons = useQuery({
+    queryKey: ['lost-reasons'],
+    queryFn: () => leadsApi.lostReasons(),
+    enabled: losing,
+  });
+  const currentLabel =detail.history.at(-1)?.label_hu ?? detail.stage?.stage_key ?? '—';
 
   const change = useMutation({
     mutationFn: () =>
-      leadsApi.stage(leadId, { stage: effective, note: note.trim() || undefined }),
+      leadsApi.stage(leadId, {
+        stage: effective,
+        note: note.trim() || undefined,
+        lost_reason_id: losing ? reasonId : undefined,
+      }),
     onMutate: async () => {
       await qc.cancelQueries({ queryKey: qk.lead(leadId) });
       const prev = qc.getQueryData<LeadDetail>(qk.lead(leadId));
@@ -126,6 +138,22 @@ export function LeadStageDialog({
                     ))}
                   </select>
                 </div>
+                {losing && (
+                  <div>
+                    <label className="label" htmlFor="ls-reason">{t('lostReason')}</label>
+                    <select
+                      id="ls-reason"
+                      className="input"
+                      value={reasonId ?? ''}
+                      onChange={(e) => setReasonId(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">{t('lostReasonNone')}</option>
+                      {(reasons.data?.items ?? []).map((r) => (
+                        <option key={r.id} value={r.id}>{r.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="label" htmlFor="ls-note">
                     {t('note')}{needsNote ? ' *' : ''}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -23,6 +23,7 @@ import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
 import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
 import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
 import { ExportCsvButton, collectAll } from '@/components/tables/ExportCsvButton';
+import { LeadBulkBar, selectColumn } from '@/components/tables/BulkBar';
 import { errorMessage } from '@/lib/api/errors';
 import { configApi, leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
@@ -37,6 +38,7 @@ import type { LeadRow, StageDefinition } from '@/lib/api/types';
 
 export default function LeadsPage() {
   const t = useTranslations('leads');
+  const tb = useTranslations('bulk');
   const tc = useTranslations('common');
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
@@ -193,6 +195,14 @@ export default function LeadsPage() {
     [defs, locale, t, tc, tt],
   );
 
+  // Ticked rows for the bulk bar; survives paging so a selection can span pages.
+  const [ticked, setTicked] = useState<number[]>([]);
+  const bulkable = canEditLeads(user);
+  const pageRows = query.data?.items ?? [];
+  const tableColumns = bulkable
+    ? [selectColumn(pageRows, ticked, setTicked, tb('tick')) as ColumnDef<LeadRow>, ...columns]
+    : columns;
+
   const clear = () => {
     setQ('');
     setStage('');
@@ -219,7 +229,8 @@ export default function LeadsPage() {
         offset,
       }),
     );
-    const items = all;
+    // With rows ticked, only those are exported.
+    const items = ticked.length > 0 ? all.filter((l) => ticked.includes(l.id)) : all;
     return {
       header: [
         t('title'), t('partner'), t('contactName'), t('contactEmail'), t('source'), t('stage'), tt('tags'),
@@ -367,13 +378,14 @@ export default function LeadsPage() {
         </label>
       </FilterBar>
       <ActiveFilterChips chips={chips} />
+      {bulkable && ticked.length > 0 && <LeadBulkBar ids={ticked} onClear={() => setTicked([])} />}
 
       {query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
         <>
           <DataTable
-            columns={columns}
+            columns={tableColumns}
             data={query.data?.items ?? []}
             isLoading={query.isPending}
             isFetching={query.isFetching && !query.isPending}

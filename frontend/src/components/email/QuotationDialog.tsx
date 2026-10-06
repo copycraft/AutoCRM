@@ -44,7 +44,7 @@ export function QuotationDialog({
   const [error, setError] = useState<string | null>(null);
   // Follow-up letters after this quotation: the active default steps, ticked; null until
   // the steps load, so an untouched dialog sends "the defaults".
-  const steps = useQuery({ queryKey: ['followup-steps'], queryFn: () => followupsApi.steps() });
+  const steps = useQuery({ queryKey: ['followup-steps', 'quote'], queryFn: () => followupsApi.steps('quote') });
   const [followups, setFollowups] = useState<number[] | null>(null);
   const activeSteps = (steps.data?.items ?? []).filter((s) => s.is_active);
   const chosenSteps = followups ?? activeSteps.map((s) => s.id);

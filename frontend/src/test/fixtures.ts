@@ -733,6 +733,8 @@ export const billedInvoice: BilledInvoice = {
   partner_name: 'Müller Kühltransporte GmbH',
   bucket: 'issued',
   paid_at: null,
+  reminders_off: false,
+  reminders_sent: 0,
 };
 
 export const billedStorno: BilledInvoice = {
@@ -748,6 +750,8 @@ export const billedStorno: BilledInvoice = {
   partner_name: 'Müller Kühltransporte GmbH',
   bucket: 'storno',
   paid_at: null,
+  reminders_off: false,
+  reminders_sent: 0,
 };
 
 export const billedProforma: BilledProforma = {

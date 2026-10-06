@@ -233,31 +233,19 @@ pub async fn apply_pending_tags(
     db: impl PgExecutor<'_>,
     subscription_id: i64,
 ) -> sqlx::Result<u64> {
-    let tags: Option<Vec<i64>> = sqlx::query_scalar(
-        "SELECT pending_tag_ids FROM newsletter_subscriptions WHERE id = $1",
-    )
-    .bind(subscription_id)
-    .fetch_optional(db)
-    .await?
-    .flatten();
-    let tags = tags.unwrap_or_default();
-    if tags.is_empty() {
-        return Ok(0);
-    }
+    // One statement: every CTE reads the row as it was before the clearing UPDATE.
     let done = sqlx::query(
-        "INSERT INTO newsletter_subscription_tags (subscription_id, tag_id)
-         SELECT $1, t FROM unnest($2::bigint[]) t
-         WHERE EXISTS (SELECT 1 FROM newsletter_tags WHERE id = t AND archived_at IS NULL)
+        "WITH old AS (SELECT pending_tag_ids AS tags FROM newsletter_subscriptions WHERE id = $1),
+              cleared AS (UPDATE newsletter_subscriptions SET pending_tag_ids = '{}'
+                           WHERE id = $1 AND pending_tag_ids <> '{}' RETURNING id)
+         INSERT INTO newsletter_subscription_tags (subscription_id, tag_id)
+         SELECT $1, t FROM old, unnest(old.tags) t
+          WHERE EXISTS (SELECT 1 FROM newsletter_tags WHERE id = t AND archived_at IS NULL)
          ON CONFLICT DO NOTHING",
     )
     .bind(subscription_id)
-    .bind(&tags)
     .execute(db)
     .await?;
-    sqlx::query("UPDATE newsletter_subscriptions SET pending_tag_ids = '{}' WHERE id = $1")
-        .bind(subscription_id)
-        .execute(db)
-        .await?;
     Ok(done.rows_affected())
 }
 
@@ -420,16 +408,13 @@ pub async fn record_click(
     token: &str,
     url: &str,
 ) -> sqlx::Result<Option<String>> {
-    let id: Option<i64> =
-        sqlx::query_scalar("SELECT id FROM email_messages WHERE tracking_token = $1")
-            .bind(token)
-            .fetch_optional(db)
-            .await?;
-    let Some(id) = id else { return Ok(None) };
-    sqlx::query("INSERT INTO email_clicks (email_id, url) VALUES ($1, $2)")
-        .bind(id)
-        .bind(url)
-        .execute(db)
-        .await?;
-    Ok(Some(url.to_string()))
+    sqlx::query_scalar(
+        "INSERT INTO email_clicks (email_id, url)
+         SELECT id, $2 FROM email_messages WHERE tracking_token = $1
+         RETURNING url",
+    )
+    .bind(token)
+    .bind(url)
+    .fetch_optional(db)
+    .await
 }

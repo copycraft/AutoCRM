@@ -805,7 +805,7 @@ async fn bulk_action(
             .await
         {
             Ok(_) => moved += 1,
-            Err(e) => skipped.push(OrderBulkSkip { id, error: format!("{e:?}") }),
+            Err(e) => skipped.push(OrderBulkSkip { id, error: e.to_string() }),
         }
     }
     Ok(Json(OrderBulkResult { moved, skipped }))

@@ -86,3 +86,73 @@ pub async fn soft_delete(db: impl PgExecutor<'_>, id: i64, employee_id: i64) -> 
 pub fn kind_ok(kind: &str) -> bool {
     matches!(kind, "medical" | "contract" | "licence" | "training" | "other")
 }
+
+/// Stores the uploaded file's location on the document. False when there is no such live
+/// document of this employee.
+pub async fn set_file(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    employee_id: i64,
+    key: &str,
+    name: &str,
+    content_type: &str,
+    size: i64,
+) -> sqlx::Result<bool> {
+    let done = sqlx::query(
+        "UPDATE employee_documents SET file_key = $3, file_name = $4, file_type = $5, file_size = $6
+          WHERE id = $1 AND employee_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(employee_id)
+    .bind(key)
+    .bind(name)
+    .bind(content_type)
+    .bind(size)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected() == 1)
+}
+
+/// The stored file's key and name, when the document has one.
+pub async fn file_of(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    employee_id: i64,
+) -> sqlx::Result<Option<(String, String)>> {
+    sqlx::query_as(
+        "SELECT file_key, coalesce(file_name, 'dokumentum') FROM employee_documents
+          WHERE id = $1 AND employee_id = $2 AND deleted_at IS NULL AND file_key IS NOT NULL",
+    )
+    .bind(id)
+    .bind(employee_id)
+    .fetch_optional(db)
+    .await
+}
+
+/// Documents running out within `days` (or already expired), soonest first: for the HR
+/// page's warning list.
+#[derive(Debug, Clone, Serialize, ToSchema, sqlx::FromRow)]
+pub struct ExpiringDocument {
+    pub id: i64,
+    pub employee_id: i64,
+    pub employee_name: String,
+    pub kind: String,
+    pub title: String,
+    pub valid_until: NaiveDate,
+}
+
+pub async fn expiring(
+    db: impl PgExecutor<'_>,
+    until: NaiveDate,
+) -> sqlx::Result<Vec<ExpiringDocument>> {
+    sqlx::query_as(
+        "SELECT d.id, d.employee_id, e.full_name AS employee_name, d.kind, d.title, d.valid_until
+           FROM employee_documents d
+           JOIN employees e ON e.id = d.employee_id AND e.archived_at IS NULL
+          WHERE d.deleted_at IS NULL AND d.valid_until IS NOT NULL AND d.valid_until <= $1
+          ORDER BY d.valid_until, d.id",
+    )
+    .bind(until)
+    .fetch_all(db)
+    .await
+}

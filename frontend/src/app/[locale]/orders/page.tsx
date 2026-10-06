@@ -25,11 +25,12 @@ import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
 import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
 import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
 import { ExportCsvButton, collectAll } from '@/components/tables/ExportCsvButton';
+import { OrderBulkBar, selectColumn } from '@/components/tables/BulkBar';
 import { minorToMajorString } from '@/lib/utils/format';
 import { configApi, ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
-import { canEditOrders, useAuth } from '@/lib/auth/context';
+import { canChangeStage, canEditOrders, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import type { OrderSummary, StageDefinition } from '@/lib/api/types';
@@ -38,6 +39,7 @@ import type { OrderSummary, StageDefinition } from '@/lib/api/types';
 
 export default function OrdersPage() {
   const t = useTranslations('orders');
+  const tb = useTranslations('bulk');
   const tc = useTranslations('common');
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
@@ -190,6 +192,14 @@ export default function OrdersPage() {
   };
 
   /** Current filters, first 200 rows (the API max page) — what the table shows. */
+  // Ticked rows for the bulk bar; survives paging so a selection can span pages.
+  const [ticked, setTicked] = useState<number[]>([]);
+  const bulkable = canChangeStage(user);
+  const pageRows = query.data?.items ?? [];
+  const tableColumns = bulkable
+    ? [selectColumn(pageRows, ticked, setTicked, tb('tick')) as ColumnDef<OrderSummary>, ...columns]
+    : columns;
+
   const exportOrders = async () => {
     const all = await collectAll((offset, limit) =>
       ordersApi.list({
@@ -204,7 +214,8 @@ export default function OrdersPage() {
         offset,
       }),
     );
-    const items = all;
+    // With rows ticked, only those are exported.
+    const items = ticked.length > 0 ? all.filter((o) => ticked.includes(o.id)) : all;
     return {
       header: [t('number'), t('fieldTitle'), tc('partner'), t('stageFilter'), t('total'), t('vehiclePlate'), t('dueDate')],
       rows: items.map((o) => [
@@ -334,13 +345,14 @@ export default function OrdersPage() {
         </label>
       </FilterBar>
       <ActiveFilterChips chips={chips} />
+      {bulkable && ticked.length > 0 && <OrderBulkBar ids={ticked} onClear={() => setTicked([])} />}
 
       {query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
         <>
           <DataTable
-            columns={columns}
+            columns={tableColumns}
             data={query.data?.items ?? []}
             isLoading={query.isPending}
             isFetching={query.isFetching && !query.isPending}

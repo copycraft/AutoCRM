@@ -1047,6 +1047,19 @@ pub async fn newsletter_signup_with_tags(
         mail.extra_values
             .insert("newsletter.confirm_url", confirm_url);
         queue_automatic(&mut tx, &state.config, mail).await?;
+    } else if !tag_ids.is_empty() {
+        // Already on the list: no new confirmation, but a form for another list still
+        // files them there. Only a confirmed, subscribed reader; nobody is told anything.
+        let active: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM newsletter_subscriptions
+              WHERE lower(email) = lower($1) AND confirmed_at IS NOT NULL AND unsubscribed_at IS NULL",
+        )
+        .bind(address.trim())
+        .fetch_optional(&mut *tx)
+        .await?;
+        if let Some(id) = active {
+            crate::repo::newsletter_tags::add(&mut *tx, &[id], tag_ids).await?;
+        }
     }
     tx.commit().await?;
     Ok(())

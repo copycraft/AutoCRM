@@ -80,7 +80,10 @@ export default function NewEmailPage({
                 ? t('newsletterQueuedNote', { count: newsletterRecipients })
                 : t('queuedNote'),
             );
-            router.replace(`/${locale}/emails/${id}`);
+            // A newsletter is a tracked send (one letter per reader), shown on Marketing.
+            router.replace(
+              newsletterRecipients != null ? `/${locale}/marketing?tab=sends` : `/${locale}/emails/${id}`,
+            );
           }}
         />
       </div>

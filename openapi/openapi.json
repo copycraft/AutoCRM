@@ -2042,6 +2042,167 @@
         }
       }
     },
+    "/lost-reasons": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "Why leads are lost: the choices offered when a lead moves to \"Elveszett\".",
+        "operationId": "leads_list_lost_reasons",
+        "parameters": [
+          {
+            "name": "archived",
+            "in": "query",
+            "description": "The archived tags instead of the live ones.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_LostReason"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_create_lost_reason",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LostReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LostReason"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lost-reasons/{id}": {
+      "put": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_update_lost_reason",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LostReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LostReason"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/leads": {
       "get": {
         "tags": [
@@ -2600,6 +2761,117 @@
         }
       }
     },
+    "/leads/quotes/expiring": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_expiring_quotes",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "How many days around today to cover; defaults to 7.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "assigned_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_ExpiringQuote"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/bulk-actions": {
+      "post": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_bulk_action",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkActionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResult"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/orders": {
       "get": {
         "tags": [
@@ -2967,6 +3239,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Items_TransitionOption"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/bulk-actions": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "orders_bulk_action",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderBulkBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderBulkResult"
                 }
               }
             }
@@ -5831,6 +6153,325 @@
         }
       }
     },
+    "/newsletter/sends": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_list_sends",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_NewsletterSend"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_schedule_send",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleSendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduledSend"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/sends/{id}/stats": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_send_stats",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendStats"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such send"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/sends/{id}/cancel": {
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_cancel_send",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cancelled"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such send"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/track/open": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_track_open",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pixel",
+            "content": {
+              "image/gif": {}
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/track/click": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_track_click",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "url",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "s",
+            "in": "path",
+            "description": "The link's signature; without a valid one the reader goes to the home page.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Redirect to the target"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/newsletter/tags": {
       "get": {
         "tags": [
@@ -7268,6 +7909,17 @@
           "followups"
         ],
         "operationId": "followups_list_steps",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "quote (default): letters after a quotation; invoice: payment reminders.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -8050,6 +8702,467 @@
                 }
               }
             }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/details": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_get_details",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeDetails"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_put_details",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmployeeDetails"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeDetails"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/documents": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_list_documents",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_EmployeeDocument"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_create_document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeDocument"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/documents/{doc_id}": {
+      "delete": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_delete_document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "404": {
+            "description": "No such document"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/documents/expiring": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "Documents that ran out or run out within 30 days, across all employees.",
+        "operationId": "hr_expiring_documents",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_ExpiringDocument"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/documents/{doc_id}/file-url": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_document_file_url",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentFileUrl"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No file"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/documents/{doc_id}/file": {
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "The scan of a document: the raw file as the body (PDF, JPEG, PNG or WebP, at most\n25 MB), its name in `?filename=`. Replaces any earlier file.",
+        "operationId": "hr_upload_document_file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "query",
+            "description": "The file's original name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Stored"
+          },
+          "404": {
+            "description": "No such document"
           },
           "4XX": {
             "description": "Client error; see `error.code`",
@@ -9700,6 +10813,69 @@
         }
       }
     },
+    "/reports/website-conversion": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Leads → quotes → orders per source website (the domain the lead was tagged from).",
+        "operationId": "reports_website_conversion",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Defaults to 365 days before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Defaults to today.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebsiteConversion"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/search": {
       "get": {
         "tags": [
@@ -11003,6 +12179,117 @@
           },
           "422": {
             "description": "Not an issued invoice"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/{id}/reminders": {
+      "post": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Stops (or restarts) the automatic payment reminders of one invoice: a customer who pays\nlate by agreement should not be chased.",
+        "operationId": "invoices_set_reminders",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemindersBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Updated"
+          },
+          "404": {
+            "description": "No such invoice"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/overdue": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Unpaid invoices past their deadline, oldest first.",
+        "operationId": "invoices_overdue",
+        "parameters": [
+          {
+            "name": "partner_id",
+            "in": "query",
+            "description": "Only this customer's.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_OverdueInvoice"
+                }
+              }
+            }
           },
           "4XX": {
             "description": "Client error; see `error.code`",
@@ -12660,7 +13947,9 @@
           "gross_amount",
           "created_at",
           "updated_at",
-          "bucket"
+          "bucket",
+          "reminders_off",
+          "reminders_sent"
         ],
         "properties": {
           "id": {
@@ -12822,6 +14111,15 @@
             ],
             "format": "date-time",
             "description": "When the customer paid. Set on issue for cash; marked by the office for transfer."
+          },
+          "reminders_off": {
+            "type": "boolean",
+            "description": "The office stopped the automatic payment reminders for this invoice."
+          },
+          "reminders_sent": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many payment reminders went out."
           }
         }
       },
@@ -13166,6 +14464,143 @@
           }
         }
       },
+      "BulkAction": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "assigned_to",
+              "action"
+            ],
+            "properties": {
+              "assigned_to": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "assign"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "tag_id",
+              "action"
+            ],
+            "properties": {
+              "tag_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "add_tag"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "tag_id",
+              "action"
+            ],
+            "properties": {
+              "tag_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "remove_tag"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "stage",
+              "action"
+            ],
+            "properties": {
+              "stage": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "stage"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "One bulk operation over a ticked set of leads. Stage changes run the same per-lead\nrules as one-by-one changes, so an invalid transition skips that lead rather than\nfailing the whole batch."
+      },
+      "BulkActionBody": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BulkAction"
+          },
+          {
+            "type": "object",
+            "required": [
+              "ids"
+            ],
+            "properties": {
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "BulkResult": {
+        "type": "object",
+        "required": [
+          "applied",
+          "skipped"
+        ],
+        "properties": {
+          "applied": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkSkip"
+            }
+          }
+        }
+      },
+      "BulkSkip": {
+        "type": "object",
+        "required": [
+          "id",
+          "error"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
       "BulkTagsBody": {
         "type": "object",
         "required": [
@@ -13260,9 +14695,7 @@
         ],
         "properties": {
           "cancelled": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
+            "type": "boolean"
           }
         }
       },
@@ -14248,6 +15681,18 @@
           }
         }
       },
+      "DocumentFileUrl": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Presigned, expires after one hour; opens in the browser."
+          }
+        }
+      },
       "DocumentKind": {
         "type": "string",
         "enum": [
@@ -15009,6 +16454,186 @@
           }
         }
       },
+      "EmployeeDetails": {
+        "type": "object",
+        "required": [
+          "employee_id"
+        ],
+        "properties": {
+          "employee_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "birth_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "birth_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "birth_place": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mother_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nationality": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id_card_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "taj_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bank_account": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "marital_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "children_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "emergency_contact_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emergency_contact_phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "EmployeeDocument": {
+        "type": "object",
+        "required": [
+          "id",
+          "employee_id",
+          "kind",
+          "title",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "employee_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "file_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "EmployeeHit": {
         "type": "object",
         "description": "A member of staff. Only ever returned to users with HR access.",
@@ -15577,6 +17202,107 @@
           }
         }
       },
+      "ExpiringDocument": {
+        "type": "object",
+        "description": "Documents running out within `days` (or already expired), soonest first: for the HR\npage's warning list.",
+        "required": [
+          "id",
+          "employee_id",
+          "employee_name",
+          "kind",
+          "title",
+          "valid_until"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "employee_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "employee_name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "ExpiringQuote": {
+        "type": "object",
+        "description": "An open lead whose quote runs out soon (or ran out in the last days).",
+        "required": [
+          "lead_id",
+          "title",
+          "valid_until",
+          "days_left"
+        ],
+        "properties": {
+          "lead_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "partner_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assigned_to": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "assigned_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quoted_value_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date"
+          },
+          "days_left": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Negative once it has expired."
+          }
+        }
+      },
       "FileUrl": {
         "type": "object",
         "required": [
@@ -15695,7 +17421,8 @@
           "delay_days",
           "template_key",
           "template_name",
-          "is_active"
+          "is_active",
+          "kind"
         ],
         "properties": {
           "id": {
@@ -15721,6 +17448,10 @@
           "is_active": {
             "type": "boolean",
             "description": "Inactive steps are not scheduled for new quotations."
+          },
+          "kind": {
+            "type": "string",
+            "description": "quote (days after a quotation) or invoice (days after the payment deadline)."
           }
         }
       },
@@ -17338,7 +19069,9 @@
                 "gross_amount",
                 "created_at",
                 "updated_at",
-                "bucket"
+                "bucket",
+                "reminders_off",
+                "reminders_sent"
               ],
               "properties": {
                 "id": {
@@ -17500,6 +19233,15 @@
                   ],
                   "format": "date-time",
                   "description": "When the customer paid. Set on issue for cash; marked by the office for transfer."
+                },
+                "reminders_off": {
+                  "type": "boolean",
+                  "description": "The office stopped the automatic payment reminders for this invoice."
+                },
+                "reminders_sent": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "How many payment reminders went out."
                 }
               }
             }
@@ -18254,6 +19996,93 @@
           }
         }
       },
+      "Items_EmployeeDocument": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "employee_id",
+                "kind",
+                "title",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "employee_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "valid_until": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "file_key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_size": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created_by": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_EmployeeStatus": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -18314,6 +20143,131 @@
                   "type": "integer",
                   "format": "int64",
                   "description": "Employees on it now."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_ExpiringDocument": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Documents running out within `days` (or already expired), soonest first: for the HR\npage's warning list.",
+              "required": [
+                "id",
+                "employee_id",
+                "employee_name",
+                "kind",
+                "title",
+                "valid_until"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "employee_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "employee_name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "valid_until": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_ExpiringQuote": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "An open lead whose quote runs out soon (or ran out in the last days).",
+              "required": [
+                "lead_id",
+                "title",
+                "valid_until",
+                "days_left"
+              ],
+              "properties": {
+                "lead_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "partner_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "contact_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "assigned_to": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "assigned_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "quoted_value_minor": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "currency": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "valid_until": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "days_left": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Negative once it has expired."
                 }
               }
             }
@@ -18413,7 +20367,8 @@
                 "delay_days",
                 "template_key",
                 "template_name",
-                "is_active"
+                "is_active",
+                "kind"
               ],
               "properties": {
                 "id": {
@@ -18439,6 +20394,10 @@
                 "is_active": {
                   "type": "boolean",
                   "description": "Inactive steps are not scheduled for new quotations."
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "quote (days after a quotation) or invoice (days after the payment deadline)."
                 }
               }
             }
@@ -19472,6 +21431,148 @@
           }
         }
       },
+      "Items_LostReason": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "label",
+                "position",
+                "leads"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "archived_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "leads": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Leads lost for this reason."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_NewsletterSend": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "One newsletter send: the letter plus when it goes out.",
+              "required": [
+                "id",
+                "subject",
+                "body",
+                "body_markdown",
+                "tag_ids",
+                "attachment_document_ids",
+                "embed_document_ids",
+                "send_at",
+                "recipients",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "body_markdown": {
+                  "type": "boolean"
+                },
+                "hero": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tag_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                },
+                "attachment_document_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                },
+                "embed_document_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                },
+                "send_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "recipients": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "created_by": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "cancelled_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_NewsletterTag": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -19713,6 +21814,73 @@
                 "updated_at": {
                   "type": "string",
                   "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_OverdueInvoice": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "An unpaid invoice past its deadline: for the assistant and the dashboard.",
+              "required": [
+                "id",
+                "number",
+                "order_id",
+                "partner_id",
+                "partner_name",
+                "currency",
+                "gross_amount",
+                "payment_date",
+                "days_overdue",
+                "reminders_sent"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "partner_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "partner_name": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "gross_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "payment_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "days_overdue": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "reminders_sent": {
+                  "type": "integer",
+                  "format": "int64"
                 }
               }
             }
@@ -21343,6 +23511,17 @@
               "$ref": "#/components/schemas/LeadTagRef"
             },
             "description": "The lead tags, each with the domain that put it there when the server did."
+          },
+          "lost_reason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LostReason",
+                "description": "Why it was lost, when it was."
+              }
+            ]
           }
         }
       },
@@ -21900,6 +24079,55 @@
           }
         }
       },
+      "LostReason": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "position",
+          "leads"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "label": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "leads": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Leads lost for this reason."
+          }
+        }
+      },
+      "LostReasonBody": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "true archives: it leaves the choices, lost leads keep it."
+          }
+        }
+      },
       "MarkRead": {
         "type": "object",
         "required": [
@@ -21961,6 +24189,59 @@
           }
         }
       },
+      "NewDocument": {
+        "type": "object",
+        "required": [
+          "kind",
+          "title"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "file_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "NewsletterRequest": {
         "type": "object",
         "description": "A newsletter blast: one row, everyone in BCC, nobody sees the list.\n\nBodies are literal — a blast has no single partner or lead, so `{{variables}}` have\nnothing to resolve against, and any braces found refuse the send loudly rather than\nmailing `{{MISSING:…}}` to hundreds of people. Unsubscribed and globally suppressed\naddresses never make the BCC list.",
@@ -22008,6 +24289,90 @@
               "format": "int64"
             },
             "description": "Only subscribers with any of these newsletter tags; empty sends to everyone."
+          }
+        }
+      },
+      "NewsletterSend": {
+        "type": "object",
+        "description": "One newsletter send: the letter plus when it goes out.",
+        "required": [
+          "id",
+          "subject",
+          "body",
+          "body_markdown",
+          "tag_ids",
+          "attachment_document_ids",
+          "embed_document_ids",
+          "send_at",
+          "recipients",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "body_markdown": {
+            "type": "boolean"
+          },
+          "hero": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "attachment_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "embed_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "send_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recipients": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelled_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -22501,6 +24866,67 @@
             "items": {
               "$ref": "#/components/schemas/ItemBody"
             }
+          }
+        }
+      },
+      "OrderBulkBody": {
+        "type": "object",
+        "required": [
+          "ids",
+          "stage"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "stage": {
+            "type": "string",
+            "description": "All orders move to this stage; orders whose rules refuse are skipped and reported."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OrderBulkResult": {
+        "type": "object",
+        "required": [
+          "moved",
+          "skipped"
+        ],
+        "properties": {
+          "moved": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderBulkSkip"
+            }
+          }
+        }
+      },
+      "OrderBulkSkip": {
+        "type": "object",
+        "required": [
+          "id",
+          "error"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error": {
+            "type": "string"
           }
         }
       },
@@ -23012,6 +25438,61 @@
           "sha256": {
             "type": "string",
             "description": "Hex sha256 of the original file."
+          }
+        }
+      },
+      "OverdueInvoice": {
+        "type": "object",
+        "description": "An unpaid invoice past its deadline: for the assistant and the dashboard.",
+        "required": [
+          "id",
+          "number",
+          "order_id",
+          "partner_id",
+          "partner_name",
+          "currency",
+          "gross_amount",
+          "payment_date",
+          "days_overdue",
+          "reminders_sent"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partner_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "partner_name": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "gross_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payment_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "days_overdue": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reminders_sent": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -24117,6 +26598,24 @@
           }
         }
       },
+      "ReasonCount": {
+        "type": "object",
+        "description": "How many leads were lost for each reason, among leads created in a period.",
+        "required": [
+          "reason",
+          "leads"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "\"Nincs megadva\" when the lead was lost without a reason."
+          },
+          "leads": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "RelatedOrder": {
         "type": "object",
         "required": [
@@ -24139,6 +26638,18 @@
           "relation": {
             "type": "string",
             "description": "'warranty' | 'rework' | 'repeat'."
+          }
+        }
+      },
+      "RemindersBody": {
+        "type": "object",
+        "required": [
+          "off"
+        ],
+        "properties": {
+          "off": {
+            "type": "boolean",
+            "description": "True stops the automatic payment reminders for this invoice."
           }
         }
       },
@@ -24293,6 +26804,130 @@
               "null"
             ],
             "description": "Defaults to \"N nap\"."
+          }
+        }
+      },
+      "ScheduleSendBody": {
+        "type": "object",
+        "description": "One tracked newsletter send: the same letter as the BCC blast, but split into one\nmessage per reader so each can carry its own links, pixel and unsubscribe.",
+        "required": [
+          "subject",
+          "body"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "body_markdown": {
+            "type": "boolean"
+          },
+          "hero": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "attachment_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "embed_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "send_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it goes out; omitted sends as soon as the dispatch job runs."
+          }
+        }
+      },
+      "ScheduledSend": {
+        "type": "object",
+        "required": [
+          "id",
+          "recipients"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recipients": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SendStats": {
+        "type": "object",
+        "description": "Per-send results: how many letters, how many opened, how many clicks.",
+        "required": [
+          "send_id",
+          "recipients",
+          "queued",
+          "sent",
+          "opened",
+          "opens",
+          "clicks",
+          "clicked",
+          "unsubscribed"
+        ],
+        "properties": {
+          "send_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recipients": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sent": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "opened": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "opens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "clicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "clicked": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unsubscribed": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -24609,6 +27244,43 @@
           }
         }
       },
+      "SiteFunnel": {
+        "type": "object",
+        "description": "One website's funnel in a period: of its leads, how many got a quote, were won, or\nbecame orders. Only leads the server tagged (matched_domain set) are attributed.",
+        "required": [
+          "site",
+          "leads",
+          "quoted",
+          "won",
+          "orders",
+          "lost"
+        ],
+        "properties": {
+          "site": {
+            "type": "string"
+          },
+          "leads": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quoted": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "won": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "orders": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lost": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "SpecBody": {
         "type": "object",
         "description": "The build spec as the form sends it. `form` is not taken on trust: it must match what\nthe order's project type asks for, or the row would mean something the office did not\nchoose.",
@@ -24719,6 +27391,14 @@
               "null"
             ],
             "description": "Required for backward moves and reopening a terminal stage."
+          },
+          "lost_reason_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Why it was lost, when moving to `lost`: an id from `/lost-reasons`."
           }
         }
       },
@@ -25010,11 +27690,18 @@
           "delay_days": {
             "type": "integer",
             "format": "int32",
-            "description": "Days after the quotation is sent, 1 to 365."
+            "description": "Days after the quotation is sent (quote) or after the payment deadline (invoice)."
           },
           "template_key": {
             "type": "string",
             "description": "An email template key (see /email-templates)."
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "quote (default) or invoice."
           }
         }
       },
@@ -25176,6 +27863,14 @@
           },
           "name": {
             "type": "string"
+          },
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Lists the website form signs the reader up to; applied on confirm."
           }
         }
       },
@@ -26184,6 +28879,32 @@
             "type": "integer",
             "format": "int64",
             "description": "Orders excluded from the normalised sum because no rate was available."
+          }
+        }
+      },
+      "WebsiteConversion": {
+        "type": "object",
+        "required": [
+          "period",
+          "rows",
+          "lost_reasons"
+        ],
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteFunnel"
+            }
+          },
+          "lost_reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonCount"
+            },
+            "description": "Why the period's lost leads were lost."
           }
         }
       },

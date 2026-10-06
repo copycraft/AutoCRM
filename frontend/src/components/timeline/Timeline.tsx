@@ -215,7 +215,10 @@ function Event({ e, last }: { e: TimelineEvent; last: boolean }) {
               ) : (
                 e.text
               )}
-              {e.detail && <span className="text-steel-500"> → {e.detail}</span>}
+              {e.detail && e.action !== 'received' && <span className="text-steel-500"> → {e.detail}</span>}
+              {e.detail && e.action === 'received' && (
+                <span className="mt-1 block whitespace-pre-wrap border-l-2 border-steel-200 pl-2 text-steel-500">{e.detail}</span>
+              )}
             </p>
           )}
           {e.kind === 'event' && e.text && (
@@ -251,7 +254,7 @@ function title(t: ReturnType<typeof useTranslations>, e: TimelineEvent): string 
     case 'task':
       return e.action === 'done' ? t('taskDone') : t('taskCreated');
     case 'email':
-      return ['sent', 'failed', 'queued', 'cancelled', 'needs_review', 'sending'].includes(e.action)
+      return ['sent', 'failed', 'queued', 'cancelled', 'needs_review', 'sending', 'received'].includes(e.action)
         ? t(`email.${e.action}`)
         : t('email.sent');
     default: {
@@ -260,6 +263,8 @@ function title(t: ReturnType<typeof useTranslations>, e: TimelineEvent): string 
         'invoice_storno', 'invoice_annul', 'invoice_annulled', 'invoice_rejected', 'invoice_reconciled',
         'proforma_created', 'paid', 'unpaid', 'photo_set', 'photo_removed', 'delete', 'item_add',
         'item_update', 'item_remove', 'spec_set', 'blocker_nudge', 'import',
+        'customer_replied', 'followup_sent', 'payment_reminder_sent', 'reminders_off', 'reminders_on',
+        'document_file',
       ];
       return known.includes(e.action) ? t(`actions.${e.action}`) : e.action.replace(/_/g, ' ');
     }

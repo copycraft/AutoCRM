@@ -137,7 +137,7 @@ struct UploadQuery {
 }
 
 /// What a file is, from its first bytes; the Content-Type header is only a hint.
-fn sniff(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
+pub(crate) fn sniff(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
     if bytes.starts_with(b"%PDF") {
         Some(("application/pdf", "pdf"))
     } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {

@@ -22,6 +22,7 @@ import { useToast } from '@/components/ui/Toasts';
 import { StatusSelect, StatusSidebar, useStatuses } from './StatusSidebar';
 import { ExportMenu } from '@/components/tables/ExportCsvButton';
 import { Timeline } from '@/components/timeline/Timeline';
+import { EmployeeDetailsForm, EmployeeDocuments, ExpiringDocumentsBanner } from './EmployeePapers';
 import type { Employee } from '@/lib/api/types';
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
@@ -90,6 +91,17 @@ export function Directory() {
       }),
   });
   const items = query.data?.items ?? [];
+  // A notification about an expiring document links here with the employee to open.
+  const wanted = Number(useSearchParams()?.get('employee')) || null;
+  const [openedWanted, setOpenedWanted] = useState(false);
+  useEffect(() => {
+    if (!wanted || openedWanted) return;
+    setOpenedWanted(true);
+    void hrApi.list({ include_archived: true }).then((r) => {
+      const found = r.items.find((e) => e.id === wanted);
+      if (found) setEditing(found);
+    });
+  }, [wanted, openedWanted]);
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
@@ -97,6 +109,16 @@ export function Directory() {
         <StatusSidebar value={status} onChange={setStatus} />
       </aside>
     <div className="min-w-0 space-y-4">
+      <ExpiringDocumentsBanner
+        onOpen={(id) => {
+          const hit = items.find((e) => e.id === id);
+          if (hit) setEditing(hit);
+          else void hrApi.list({ include_archived: true }).then((r) => {
+            const found = r.items.find((e) => e.id === id);
+            if (found) setEditing(found);
+          });
+        }}
+      />
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-64 flex-1 max-w-md">
           <Search
@@ -286,7 +308,7 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
       <Dialog.Root open onOpenChange={(open) => !open && !busy && onClose()}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-steel-900/40" />
-          <Dialog.Content className="card fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
+          <Dialog.Content className="card fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[92vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -424,6 +446,8 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
                 </button>
               </div>
             </form>
+            {employee && <EmployeeDetailsForm employeeId={employee.id} />}
+            {employee && <EmployeeDocuments employeeId={employee.id} />}
             {employee && (
               <section className="card-content border-t border-steel-200">
                 <h3 className="mb-3 text-section font-semibold">{tl('title')}</h3>

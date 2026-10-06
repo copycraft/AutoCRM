@@ -15,6 +15,7 @@ import { Money } from '@/components/ui/Money';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection';
 import { RecentRecords, ResumeBanner } from '@/components/layout/RecentRecords';
+import { DashboardReminders } from './DashboardReminders';
 import { blockersApi, leadsApi, ordersApi, reportsApi, tasksApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { daysSince } from '@/lib/utils/format';
@@ -284,6 +285,8 @@ export function DashboardView() {
           </ul>
         )}
       </CollapsibleSection>
+
+      <DashboardReminders />
 
       <CollapsibleSection
         storageKey="dash-pipeline"

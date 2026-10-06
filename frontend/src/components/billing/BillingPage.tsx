@@ -281,7 +281,13 @@ function InvoiceRow({
     mutationFn: (next: boolean) => invoicesApi.setPaid(invoice.id, next),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['invoices'] }),
   });
+  const reminders = useMutation({
+    mutationFn: (off: boolean) => invoicesApi.setRemindersOff(invoice.id, off),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['invoices'] }),
+  });
   const payable = invoice.kind === 'invoice' && invoice.status === 'issued' && canIssueInvoices(user);
+  // Automatic payment reminders run for unpaid transfer invoices.
+  const remindable = payable && !invoice.paid_at && invoice.payment_method === 'TRANSFER';
   const { data: lookups } = useLookups();
   return (
     <li className="card p-4">
@@ -314,6 +320,19 @@ function InvoiceRow({
             onClick={() => paid.mutate(!invoice.paid_at)}
           >
             {invoice.paid_at ? t('buckets.markUnpaid') : t('buckets.markPaid')}
+          </button>
+        )}
+        {invoice.reminders_sent > 0 && (
+          <span>{t('reminders.sent', { count: invoice.reminders_sent })}</span>
+        )}
+        {remindable && (
+          <button
+            className="underline hover:text-steel-900"
+            disabled={reminders.isPending}
+            title={t('reminders.hint')}
+            onClick={() => reminders.mutate(!invoice.reminders_off)}
+          >
+            {invoice.reminders_off ? t('reminders.turnOn') : t('reminders.turnOff')}
           </button>
         )}
         <button

@@ -30,6 +30,8 @@ const MAX_PHOTO_BYTES: usize = 8 * 1024 * 1024;
 const MAX_NAME: usize = 200;
 const MAX_EMAIL: usize = 300;
 const MAX_PHONE: usize = 50;
+/// Scans of certificates and contracts.
+const MAX_DOCUMENT_BYTES: usize = 25 * 1024 * 1024;
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
@@ -43,7 +45,15 @@ pub fn routes() -> OpenApiRouter<AppState> {
                 .layer(DefaultBodyLimit::max(MAX_PHOTO_BYTES)),
         )
         .routes(routes!(get_details, put_details))
-        .routes(routes!(list_documents, create_document, delete_document))
+        .routes(routes!(list_documents, create_document))
+        .routes(routes!(delete_document))
+        .routes(routes!(expiring_documents))
+        .routes(routes!(document_file_url))
+        .merge(
+            OpenApiRouter::new()
+                .routes(routes!(upload_document_file))
+                .layer(DefaultBodyLimit::max(MAX_DOCUMENT_BYTES)),
+        )
 }
 
 #[utoipa::path(
@@ -133,7 +143,7 @@ async fn create_document(
     employees::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("employee"))?;
-    let title = b.title.trim();
+    let title = b.title.trim().to_string();
     if title.is_empty() {
         return Err(AppError::validation("title is required"));
     }
@@ -143,7 +153,12 @@ async fn create_document(
         ));
     }
     let mut clean = b;
-    clean.title = title.to_string();
+    clean.title = title;
+    // The file comes through its own upload; a client never names a storage key.
+    clean.file_key = None;
+    clean.file_name = None;
+    clean.file_type = None;
+    clean.file_size = None;
     let doc = employee_documents::insert(&state.db, id, &clean, me.user_id).await?;
     Ok((StatusCode::CREATED, Json(doc)))
 }
@@ -163,6 +178,107 @@ async fn delete_document(
         return Err(AppError::NotFound("document"));
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct DocumentFileQuery {
+    /// The file's original name.
+    filename: String,
+}
+
+/// The scan of a document: the raw file as the body (PDF, JPEG, PNG or WebP, at most
+/// 25 MB), its name in `?filename=`. Replaces any earlier file.
+#[utoipa::path(
+    post, path = "/hr/employees/{id}/documents/{doc_id}/file", tag = "hr",
+    params(("id" = i64, Path), ("doc_id" = i64, Path), DocumentFileQuery),
+    request_body(content = Vec<u8>, content_type = "application/octet-stream"),
+    responses((status = 204, description = "Stored"), (status = 404, description = "No such document"))
+)]
+async fn upload_document_file(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath((id, doc_id)): ApiPath<(i64, i64)>,
+    ApiQuery(q): ApiQuery<DocumentFileQuery>,
+    body: Bytes,
+) -> AppResult<StatusCode> {
+    me.require(Capability::AccessHr)?;
+    if body.is_empty() {
+        return Err(AppError::validation("the request body must be the file"));
+    }
+    let name: String = required("filename", &q.filename)?.chars().take(200).collect();
+    let (content_type, ext) = super::incoming_invoices::sniff(&body)
+        .filter(|(_, ext)| *ext != "xml")
+        .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
+    let random: [u8; 12] = rand::random();
+    let key = format!("employee-documents/{id}/{doc_id}-{}.{ext}", hex::encode(random));
+    let size = body.len() as i64;
+    state
+        .storage
+        .put_bytes(&key, body.to_vec(), content_type)
+        .await
+        .map_err(|e| AppError::internal(format!("storing employee document: {e}")))?;
+    let mut tx = state.db.begin().await?;
+    if !employee_documents::set_file(&mut *tx, doc_id, id, &key, &name, content_type, size).await? {
+        return Err(AppError::NotFound("document"));
+    }
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "employee",
+        id,
+        "document_file",
+        json!({ "document_id": doc_id, "file_name": name }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize, ToSchema)]
+struct DocumentFileUrl {
+    /// Presigned, expires after one hour; opens in the browser.
+    url: String,
+}
+
+#[utoipa::path(
+    get, path = "/hr/employees/{id}/documents/{doc_id}/file-url", tag = "hr",
+    params(("id" = i64, Path), ("doc_id" = i64, Path)),
+    responses((status = 200, body = DocumentFileUrl), (status = 404, description = "No file"))
+)]
+async fn document_file_url(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath((id, doc_id)): ApiPath<(i64, i64)>,
+) -> AppResult<Json<DocumentFileUrl>> {
+    me.require(Capability::AccessHr)?;
+    let (key, name) = employee_documents::file_of(&state.db, doc_id, id)
+        .await?
+        .ok_or(AppError::NotFound("document file"))?;
+    let url = state
+        .storage
+        .presign_get(
+            &key,
+            PHOTO_URL_TTL,
+            Some(crate::media::storage::content_disposition("inline", &name)),
+        )
+        .await?;
+    Ok(Json(DocumentFileUrl { url }))
+}
+
+/// Documents that ran out or run out within 30 days, across all employees.
+#[utoipa::path(
+    get, path = "/hr/documents/expiring", tag = "hr",
+    responses((status = 200, body = Items<employee_documents::ExpiringDocument>))
+)]
+async fn expiring_documents(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+) -> AppResult<Json<Items<employee_documents::ExpiringDocument>>> {
+    me.require(Capability::AccessHr)?;
+    let until = crate::service::business_today(state.config.business_tz)
+        + chrono::TimeDelta::days(crate::service::reminders::DOCUMENT_EXPIRY_DAYS);
+    Ok(Items::new(employee_documents::expiring(&state.db, until).await?))
 }
 
 #[derive(Serialize, ToSchema)]

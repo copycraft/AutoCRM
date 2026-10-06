@@ -24,18 +24,21 @@ use crate::error::{AppError, AppResult};
 use crate::repo::newsletter::{self, NewsletterSend, SendStats, Subscription};
 use crate::repo::newsletter_tags;
 use crate::service::email::{self, NewsletterRequest};
-use crate::service::newsletter;
+use crate::service::newsletter as sends;
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(subscriptions, add_subscription))
         .routes(routes!(remove_subscription))
         .routes(routes!(send))
-        .routes(routes!(subscribe, unsubscribe))
+        .routes(routes!(subscribe))
+        .routes(routes!(unsubscribe))
         .routes(routes!(confirm))
         .routes(routes!(schedule_send, list_sends))
-        .routes(routes!(send_stats, cancel_send))
-        .routes(routes!(track_open, track_click))
+        .routes(routes!(send_stats))
+        .routes(routes!(cancel_send))
+        .routes(routes!(track_open))
+        .routes(routes!(track_click))
 }
 
 /// Everyone on the list, unsubscribed included: the office sees who opted out, because a
@@ -223,7 +226,16 @@ async fn confirm(
     ApiQuery(q): ApiQuery<ConfirmQuery>,
 ) -> AppResult<Json<Confirmed>> {
     let token = q.token.trim();
-    let confirmed = !token.is_empty() && newsletter::confirm(&state.db, token).await?.is_some();
+    let mut confirmed = false;
+    if !token.is_empty() {
+        let mut tx = state.db.begin().await?;
+        if let Some(id) = newsletter::confirm(&mut *tx, token).await? {
+            // The lists the website form signed them up to apply once they said yes.
+            newsletter::apply_pending_tags(&mut *tx, id).await?;
+            confirmed = true;
+        }
+        tx.commit().await?;
+    }
     Ok(Json(Confirmed { confirmed }))
 }
 
@@ -322,7 +334,7 @@ async fn schedule_send(
     ApiJson(b): ApiJson<ScheduleSendBody>,
 ) -> AppResult<(StatusCode, Json<ScheduledSend>)> {
     me.require(Capability::SendEmail)?;
-    let c = newsletter::Compose {
+    let c = sends::Compose {
         subject: b.subject,
         body: b.body,
         body_markdown: b.body_markdown,
@@ -332,7 +344,7 @@ async fn schedule_send(
         embed_document_ids: b.embed_document_ids,
         send_at: b.send_at.unwrap_or_else(chrono::Utc::now),
     };
-    let (id, recipients) = newsletter::schedule(&state, &me, &c).await?;
+    let (id, recipients) = sends::schedule(&state, &me, &c).await?;
     Ok((StatusCode::CREATED, Json(ScheduledSend { id, recipients })))
 }
 
@@ -404,7 +416,7 @@ struct TrackOpenQuery {
 #[utoipa::path(
     get, path = "/newsletter/track/open", tag = "newsletter",
     params(TrackOpenQuery),
-    responses((status = 200, description = "The pixel", content((status = 200, content_type = "image/gif"))))
+    responses((status = 200, description = "The pixel", content_type = "image/gif"))
 )]
 async fn track_open(
     State(state): State<AppState>,
@@ -427,6 +439,8 @@ async fn track_open(
 struct TrackClickQuery {
     token: String,
     url: String,
+    /// The link's signature; without a valid one the reader goes to the home page.
+    s: Option<String>,
 }
 
 #[utoipa::path(
@@ -438,11 +452,20 @@ async fn track_click(
     State(state): State<AppState>,
     ApiQuery(q): ApiQuery<TrackClickQuery>,
 ) -> Response {
-    let target = match newsletter::record_click(&state.db, &q.token, &q.url).await {
-        Ok(Some(url)) => url,
-        _ => q.url.clone(),
+    let home = format!("{}/", state.config.public_base_url.trim_end_matches('/'));
+    let signed = q.s.as_deref().is_some_and(|s| {
+        sends::link_signature_ok(&state.config.upload_signing_key, &q.token, &q.url, s)
+    });
+    // Only links this server wrote into a letter are followed: never an open redirect.
+    let target = if signed {
+        match newsletter::record_click(&state.db, &q.token, &q.url).await {
+            Ok(Some(url)) => url,
+            _ => home,
+        }
+    } else {
+        home
     };
-    Redirect::temporary(&newsletter::safe_redirect(
+    Redirect::temporary(&sends::safe_redirect(
         &state.config.public_base_url,
         &target,
     ))

@@ -82,6 +82,7 @@ export default function TemplatesPage() {
       </div>
 
       {tab === 'sales' && <FollowupSteps editable={editable} />}
+      {tab === 'billing' && <FollowupSteps editable={editable} kind="invoice" />}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div className="min-w-0">

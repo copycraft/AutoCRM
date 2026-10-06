@@ -41,6 +41,8 @@ export function ComposeForm({
   const ter = useTranslations('errors');
   const [audience, setAudience] = useState<Audience>(defaultAudience ?? 'direct');
   const [tagIds, setTagIds] = useState<number[]>(defaultTagIds ?? []);
+  // Empty: the newsletter goes now. A local date-time schedules it.
+  const [sendAt, setSendAt] = useState('');
   const [to, setTo] = useState(defaultTo ?? '');
   const [cc, setCc] = useState('');
   const [templateKey, setTemplateKey] = useState('');
@@ -203,7 +205,9 @@ export function ComposeForm({
   const send = useMutation({
     mutationFn: async (): Promise<{ id: number; newsletterRecipients?: number }> => {
       if (audience === 'newsletter') {
-        const sent = await newsletterApi.send({
+        // One tracked letter per reader (own unsubscribe link, opens, clicks), now or
+        // at the time picked; the answer is the send and how many readers it covers.
+        const sent = await newsletterApi.schedule({
           subject: subject.trim(),
           hero: hero.trim() || null,
           body,
@@ -211,10 +215,9 @@ export function ComposeForm({
           attachment_document_ids: attachmentIds,
           embed_document_ids: embedIds,
           tag_ids: tagIds,
+          send_at: sendAt ? new Date(sendAt).toISOString() : null,
         });
-        // The server's answer says how many addresses made the list — that, not
-        // the client-side estimate, is what "sent" meant (MAIL-L5).
-        return { id: sent.email_id, newsletterRecipients: sent.recipients };
+        return { id: sent.id, newsletterRecipients: sent.recipients };
       }
       const mail = await emailApi.send({
         ...draft,
@@ -274,6 +277,21 @@ export function ComposeForm({
               <NewsletterTagPicker label={t('newsletterPickTags')} value={tagIds} onChange={setTagIds} />
             </div>
             <p className="text-body text-steel-900">{t('newsletterAudience', { count: activeCount })}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-metadata text-steel-500" htmlFor="compose-send-at">{t('newsletterSendAt')}</label>
+              <input
+                id="compose-send-at"
+                type="datetime-local"
+                className="input h-8 w-auto py-0"
+                value={sendAt}
+                onChange={(e) => setSendAt(e.target.value)}
+              />
+              {sendAt && (
+                <button type="button" className="text-metadata underline" onClick={() => setSendAt('')}>
+                  {t('newsletterSendNow')}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -447,7 +465,7 @@ export function ComposeForm({
         </div>
 
         <button type="button" className="btn-primary" disabled={!canSend} onClick={() => send.mutate()}>
-          {send.isPending ? '…' : audience === 'newsletter' ? t('sendNewsletter') : t('send')}
+          {send.isPending ? '…' : audience === 'newsletter' ? t(sendAt ? 'scheduleNewsletter' : 'sendNewsletter') : t('send')}
         </button>
       </div>
 

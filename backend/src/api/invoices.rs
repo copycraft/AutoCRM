@@ -455,6 +455,7 @@ async fn set_reminders(
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 struct OverdueQuery {
     /// Only this customer's.
     partner_id: Option<i64>,

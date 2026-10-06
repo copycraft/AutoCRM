@@ -22,6 +22,8 @@ import { newsletterApi } from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
 import { canSendEmail, useAuth } from '@/lib/auth/context';
 import { TagSidebar, type Selection } from '@/components/marketing/TagSidebar';
+import { NewsletterSends } from '@/components/marketing/NewsletterSends';
+import { SignupSnippet } from '@/components/marketing/SignupSnippet';
 import {
   NewsletterChips,
   NewsletterTagPicker,
@@ -50,6 +52,8 @@ export default function MarketingPage() {
   const [tagRaw, setTagRaw] = useUrlState('tag', '');
   const [untagged, setUntagged] = useUrlFlag('untagged', false);
   const [page, setPage] = useUrlInt('page', 1);
+  // Subscribers (the default) or the tracked sends.
+  const [view, setView] = useUrlState('tab', '');
   const debouncedQ = useDebouncedValue(q);
   const tag = Number(tagRaw) || null;
   const offset = Math.max(0, (page - 1) * PAGE);
@@ -150,6 +154,26 @@ export default function MarketingPage() {
           {error}
         </p>
       )}
+      <div className="mb-3 flex gap-1 border-b border-steel-200" role="tablist">
+        {(['', 'sends'] as const).map((v) => (
+          <button
+            key={v || 'subscribers'}
+            type="button"
+            role="tab"
+            aria-selected={view === v}
+            onClick={() => setView(v)}
+            className={`-mb-px border-b-2 px-3 py-2 text-body font-medium ${
+              view === v ? 'border-steel-900 text-steel-900' : 'border-transparent text-steel-500 hover:text-steel-900'
+            }`}
+          >
+            {t(v === 'sends' ? 'tabSends' : 'tabSubscribers')}
+          </button>
+        ))}
+      </div>
+      {view === 'sends' ? (
+        <NewsletterSends editable={editable} />
+      ) : (
+      <>
       <SavedViewsBar listKey="subscribers" />
       {panel === 'add' && <AddPanel defaultTags={tag ? [tag] : []} onDone={refresh} />}
       {panel === 'import' && <ImportPanel defaultTags={tag ? [tag] : []} onDone={refresh} />}
@@ -163,6 +187,7 @@ export default function MarketingPage() {
             onSelect={select}
             editable={editable}
           />
+          {editable && selectedTag && <SignupSnippet tagId={selectedTag.id} tagLabel={selectedTag.label} />}
         </aside>
 
         <div className="min-w-0 space-y-3">
@@ -360,6 +385,8 @@ export default function MarketingPage() {
           />
         </div>
       </div>
+      </>
+      )}
 
       <ConfirmDialog
         open={removing !== null}

@@ -113,7 +113,7 @@ async fn bulk_action(
         };
         match outcome {
             Ok(()) => applied += 1,
-            Err(e) => skipped.push(BulkSkip { id, error: format!("{e:?}") }),
+            Err(e) => skipped.push(BulkSkip { id, error: e.to_string() }),
         }
     }
     Ok(Json(BulkResult { applied, skipped }))

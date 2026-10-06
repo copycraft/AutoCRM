@@ -194,7 +194,7 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
              <a href=\"{unsub}\" style=\"color:#8a847a;\">Leiratkozás a hírlevélről</a></p>"
         );
         let body_text = format!("{}{}", embedded_text, footer_text);
-        let with_links = rewrite_links(&embedded_html, base, &token);
+        let with_links = rewrite_links(&embedded_html, base, &token, &state.config.upload_signing_key);
         let pixel = format!(
             "<img src=\"{base}/api/newsletter/track/open?token={token}\" width=\"1\" height=\"1\" alt=\"\" />"
         );
@@ -276,13 +276,15 @@ fn distinct_ids(ids: &[i64]) -> Vec<i64> {
 
 /// Rewrites absolute links so a click is recorded before the reader continues.
 /// The unsubscribe link and the pixel are added afterwards and stay direct.
-fn rewrite_links(html: &str, base: &str, token: &str) -> String {
+fn rewrite_links(html: &str, base: &str, token: &str, key: &[u8]) -> String {
     let re = Regex::new(r#"href="(https?://[^"]+)""#).expect("valid link pattern");
     re.replace_all(html, |caps: &regex::Captures| {
-        let url = &caps[1];
+        // The HTML escapes & in attribute values; the reader must land on the real URL.
+        let url = &caps[1].replace("&amp;", "&");
         format!(
-            "href=\"{base}/api/newsletter/track/click?token={token}&url={}\"",
-            percent_encode(url)
+            "href=\"{base}/api/newsletter/track/click?token={token}&url={}&s={}\"",
+            percent_encode(url),
+            link_signature(key, token, url)
         )
     })
     .into_owned()
@@ -309,5 +311,47 @@ pub fn safe_redirect(base: &str, url: &str) -> String {
         url.to_string()
     } else {
         format!("{}/", base.trim_end_matches('/'))
+    }
+}
+
+/// Signs a tracked link, so the click endpoint only ever redirects to links this server
+/// wrote into a letter — never to whatever a crafted URL asks for.
+pub fn link_signature(key: &[u8], token: &str, url: &str) -> String {
+    use hmac::{Hmac, Mac};
+    let mut mac = <Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
+    mac.update(token.as_bytes());
+    mac.update(b"\n");
+    mac.update(url.as_bytes());
+    hex::encode(&mac.finalize().into_bytes()[..16])
+}
+
+/// Whether `signature` is the one [`link_signature`] gives, compared in constant time.
+pub fn link_signature_ok(key: &[u8], token: &str, url: &str, signature: &str) -> bool {
+    use hmac::{Hmac, Mac};
+    let Ok(given) = hex::decode(signature) else {
+        return false;
+    };
+    let mut mac = <Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
+    mac.update(token.as_bytes());
+    mac.update(b"\n");
+    mac.update(url.as_bytes());
+    mac.verify_truncated_left(&given).is_ok() && given.len() == 16
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn links_are_rewritten_with_a_signature_only_this_key_accepts() {
+        let html = r#"<a href="https://autotherm.hu/x?a=1&b=2">x</a> <a href="mailto:a@b.hu">m</a>"#;
+        let out = rewrite_links(html, "https://crm.autotherm.hu", "tok", b"key");
+        assert!(out.contains("/api/newsletter/track/click?token=tok&url=https%3A%2F%2Fautotherm.hu%2Fx%3Fa%3D1%26b%3D2&s="));
+        assert!(out.contains("mailto:a@b.hu"), "only http(s) links are tracked");
+        let sig = link_signature(b"key", "tok", "https://autotherm.hu/x?a=1&b=2");
+        assert!(link_signature_ok(b"key", "tok", "https://autotherm.hu/x?a=1&b=2", &sig));
+        assert!(!link_signature_ok(b"other", "tok", "https://autotherm.hu/x?a=1&b=2", &sig));
+        assert!(!link_signature_ok(b"key", "tok", "https://evil.example", &sig));
+        assert!(!link_signature_ok(b"key", "tok", "https://autotherm.hu/x?a=1&b=2", ""));
     }
 }

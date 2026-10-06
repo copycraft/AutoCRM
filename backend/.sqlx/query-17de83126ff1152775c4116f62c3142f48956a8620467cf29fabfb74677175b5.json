@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id, i.order_id, o.number AS order_number, p.name AS partner_name,\n                  i.number, i.kind AS \"kind: InvoiceKind\", i.status AS \"status: InvoiceStatus\",\n                  i.original_invoice_id, i.currency, i.issue_date, i.delivery_date, i.payment_date,\n                  i.payment_method, i.net_amount, i.vat_amount, i.gross_amount,\n                  i.nav_transaction_id, i.nav_status, i.nav_error_code, i.nav_message,\n                  i.annulment_transaction_id, i.annulment_code, i.annulment_reason,\n                  i.annulled_at, i.document_id, i.submitted_at, i.issued_at,\n                  i.created_by, i.created_at, i.updated_at,\n                  b.bucket AS \"bucket!\", i.paid_at\n             FROM invoices i\n             JOIN invoice_buckets b ON b.id = i.id\n             JOIN orders o ON o.id = i.order_id\n             JOIN partners p ON p.id = o.partner_id\n            WHERE ($1::text IS NULL OR i.status::text = $1)\n              AND ($2::text IS NULL OR i.kind::text = $2)\n              AND ($4::text IS NULL OR b.bucket = $4)\n            ORDER BY i.id DESC LIMIT $3",
+  "query": "SELECT i.id, i.order_id, o.number AS order_number, p.name AS partner_name,\n                  i.number, i.kind AS \"kind: InvoiceKind\", i.status AS \"status: InvoiceStatus\",\n                  i.original_invoice_id, i.currency, i.issue_date, i.delivery_date, i.payment_date,\n                  i.payment_method, i.net_amount, i.vat_amount, i.gross_amount,\n                  i.nav_transaction_id, i.nav_status, i.nav_error_code, i.nav_message,\n                  i.annulment_transaction_id, i.annulment_code, i.annulment_reason,\n                  i.annulled_at, i.document_id, i.submitted_at, i.issued_at,\n                  i.created_by, i.created_at, i.updated_at,\n                  b.bucket AS \"bucket!\", i.paid_at, i.reminders_off,\n                  (SELECT count(*) FROM invoice_reminders r\n                    WHERE r.invoice_id = i.id AND r.status = 'sent') AS \"reminders_sent!\"\n             FROM invoices i\n             JOIN invoice_buckets b ON b.id = i.id\n             JOIN orders o ON o.id = i.order_id\n             JOIN partners p ON p.id = o.partner_id\n            WHERE ($1::text IS NULL OR i.status::text = $1)\n              AND ($2::text IS NULL OR i.kind::text = $2)\n              AND ($4::text IS NULL OR b.bucket = $4)\n            ORDER BY i.id DESC LIMIT $3",
   "describe": {
     "columns": [
       {
@@ -185,6 +185,16 @@
         "ordinal": 31,
         "name": "paid_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 32,
+        "name": "reminders_off",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 33,
+        "name": "reminders_sent!",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -227,8 +237,10 @@
       false,
       false,
       true,
-      true
+      true,
+      false,
+      null
     ]
   },
-  "hash": "197f076784c70284d9ea838e2e77f0088104d3cb7eed9d632d4ca386e1543dfc"
+  "hash": "17de83126ff1152775c4116f62c3142f48956a8620467cf29fabfb74677175b5"
 }

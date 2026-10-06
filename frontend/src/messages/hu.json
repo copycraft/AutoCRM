@@ -232,7 +232,15 @@
     "campaign": "Kampány",
     "sourceMedium": "Forrás / közeg",
     "referrer": "Hivatkozó oldal",
-    "landingPage": "Első oldal"
+    "landingPage": "Első oldal",
+    "lostReason": "Elvesztés oka",
+    "lostReasonNone": "— nincs megadva —",
+    "lostReasonsTitle": "Elvesztés okai",
+    "lostReasonsIntro": "Ezek közül lehet választani, amikor egy lead „Elveszett” lesz. A szám mellette: hány lead került ide.",
+    "lostReasonNew": "Új ok…",
+    "add": "Hozzáadás",
+    "archive": "Archiválás",
+    "restore": "Visszaállítás"
   },
   "orders": {
     "title": "Megrendelések",
@@ -487,7 +495,7 @@
     "newsletterTags": "Címzettek:",
     "newsletterEveryone": "minden aktív feliratkozó",
     "newsletterPickTags": "Címkék szerint",
-    "newsletterQueuedNote": "Hírlevél sorba állítva, {count} címzettnek elküldve.",
+    "newsletterQueuedNote": "Hírlevél elindítva: {count} olvasónak megy ki, egyenként követve (Marketing → Kiküldések).",
     "ccHint": "Több cím pontosvesszővel",
     "noTemplate": "Nincs sablon",
     "theme": "Téma",
@@ -529,7 +537,10 @@
     "confirmTitle": "Hírlevél-feliratkozás megerősítése",
     "confirmedDone": "Köszönjük, a feliratkozást megerősítette. Hamarosan jelentkezünk.",
     "confirmInvalid": "Ez a link már nem érvényes: felhasználták, vagy 7 napnál régebbi. Iratkozzon fel újra a honlapon.",
-    "confirmMissing": "A link hiányos. Nyissa meg újra a levélben kapott linket."
+    "confirmMissing": "A link hiányos. Nyissa meg újra a levélben kapott linket.",
+    "newsletterSendAt": "Kiküldés ideje:",
+    "newsletterSendNow": "azonnal",
+    "scheduleNewsletter": "Hírlevél ütemezése"
   },
   "reports": {
     "title": "Jelentések",
@@ -873,7 +884,19 @@
     "searchLoading": "Keresés…",
     "searchContacts": "Kapcsolattartók",
     "searchEmails": "E-mailek",
-    "searchEmployees": "Munkatársak"
+    "searchEmployees": "Munkatársak",
+    "expiringQuotesTitle": "Lejáró árajánlatok (7 nap)",
+    "expiringQuotesEmpty": "A következő héten nem jár le árajánlat.",
+    "mineOnly": "Csak az enyéim",
+    "expiredDaysAgo": "{days} napja lejárt",
+    "expiresToday": "Ma lejár",
+    "expiresInDays": "{days} nap múlva",
+    "unassigned": "nincs felelős",
+    "overdueInvoicesTitle": "Lejárt, kifizetetlen számlák",
+    "overdueInvoicesEmpty": "Nincs lejárt, kifizetetlen számla.",
+    "overdueDays": "{days} napja lejárt",
+    "paymentDue": "Fizetési határidő",
+    "remindersSent": "{count, plural, =0 {még nem ment emlékeztető} other {# emlékeztető ment ki}}"
   },
   "validation": {
     "required": "Ez a mező kötelező",
@@ -1116,6 +1139,12 @@
       "gross": "Bruttó",
       "currency": "Pénznem",
       "paidAt": "Fizetve"
+    },
+    "reminders": {
+      "sent": "{count} emlékeztető kiküldve",
+      "hint": "Automatikus fizetési emlékeztetők ehhez a számlához",
+      "turnOn": "Emlékeztetők bekapcsolása",
+      "turnOff": "Emlékeztetők kikapcsolása"
     }
   },
   "hr": {
@@ -1358,7 +1387,8 @@
       "queued": "E-mail sorban",
       "failed": "Sikertelen e-mail",
       "cancelled": "E-mail visszavonva",
-      "needs_review": "E-mail ellenőrzésre vár"
+      "needs_review": "E-mail ellenőrzésre vár",
+      "received": "Válasz érkezett"
     },
     "actions": {
       "status": "Státuszváltás",
@@ -1384,7 +1414,13 @@
       "item_remove": "Tétel törölve",
       "spec_set": "Műszaki adatok módosítva",
       "blocker_nudge": "Emlékeztető az akadályról",
-      "import": "Importálás"
+      "import": "Importálás",
+      "customer_replied": "Az ügyfél válaszolt, az utánkövetés leállt",
+      "followup_sent": "Utánkövető levél kiment",
+      "payment_reminder_sent": "Fizetési emlékeztető kiment",
+      "reminders_off": "Fizetési emlékeztetők kikapcsolva",
+      "reminders_on": "Fizetési emlékeztetők bekapcsolva",
+      "document_file": "Dokumentum fájl feltöltve"
     }
   },
   "tagKit": {
@@ -1444,7 +1480,27 @@
       "source": "Forrás",
       "confirmed": "Megerősítve",
       "unsubscribed": "Leiratkozott"
-    }
+    },
+    "tabSubscribers": "Feliratkozók",
+    "tabSends": "Kiküldések",
+    "sendsEmpty": "Még nem ment ki követett hírlevél.",
+    "sendsEmptyHint": "Az „Hírlevél küldése” gombbal indíthat egyet, azonnal vagy időzítve.",
+    "sendSubject": "Tárgy",
+    "sendWhen": "Kiküldés",
+    "sendRecipients": "Címzett",
+    "sendDelivered": "Kiment",
+    "sendOpened": "Megnyitotta",
+    "sendClicked": "Kattintott",
+    "sendUnsubscribed": "Leiratkozott",
+    "sendCancelled": "Visszavonva",
+    "sendScheduled": "Ütemezve",
+    "sendOpens": "{count} megnyitás összesen",
+    "sendClicks": "{count} kattintás összesen",
+    "sendCancel": "Visszavonás",
+    "signupTitle": "Feliratkozó űrlap: {tag}",
+    "signupHint": "A weboldal szervere ezzel a hívással iratkoztatja fel az olvasót erre a listára. A megerősítő levél után kerül fel.",
+    "copy": "Másolás",
+    "copied": "Kimásolva"
   },
   "leadTags": {
     "title": "Lead címkék",
@@ -1580,7 +1636,10 @@
       "sent": "Elküldve",
       "cancelled": "Leállítva",
       "skipped": "Kimaradt"
-    }
+    },
+    "reminderStepsTitle": "Fizetési emlékeztetők",
+    "reminderStepsIntro": "Ki nem fizetett, átutalásos számlákra automatikusan kimenő emlékeztetők, a fizetési határidőtől számolva. Számlánként kikapcsolható a Számlázóban.",
+    "afterDeadline": "a fizetési határidő után"
   },
   "templatesPage": {
     "new": "Új sablon",
@@ -1618,5 +1677,83 @@
       "workflow": "Emailek munkafolyamatokhoz",
       "design": "Sablonminták (másolásra)"
     }
+  },
+  "websiteConversion": {
+    "title": "Weboldalak konverziója",
+    "subtitle": "Weboldalanként: érdeklődés → ajánlat → megrendelés, és miért vesztek el a leadek.",
+    "empty": "Ebben az időszakban nincs weboldalról jött lead.",
+    "emptyHint": "A weboldal szerint felcímkézett leadek kerülnek ide.",
+    "bySite": "Weboldal",
+    "leads": "Lead",
+    "quoted": "Ajánlat",
+    "won": "Megnyert",
+    "orders": "Megrendelés",
+    "lost": "Elveszett",
+    "noSites": "Nincs weboldalhoz rendelt lead ebben az időszakban.",
+    "lostReasons": "Elvesztés okai",
+    "noLost": "Nem veszett el lead ebben az időszakban."
+  },
+  "hrPapers": {
+    "detailsTitle": "Személyes adatok",
+    "complete": "Minden adat megvan",
+    "missing": {
+      "personal": "Személyi adatok hiányoznak",
+      "financial": "Pénzügyi adatok hiányoznak",
+      "family": "Családi adatok hiányoznak"
+    },
+    "groups": {
+      "personal": "Személyi adatok",
+      "financial": "Pénzügyi adatok",
+      "family": "Családi, szociális adatok"
+    },
+    "fields": {
+      "birth_name": "Születési név",
+      "birth_date": "Születési dátum",
+      "birth_place": "Születési hely",
+      "mother_name": "Anyja neve",
+      "nationality": "Állampolgárság",
+      "address": "Lakcím",
+      "id_card_number": "Személyi igazolvány száma",
+      "tax_id": "Adóazonosító jel",
+      "taj_number": "TAJ szám",
+      "bank_account": "Bankszámlaszám",
+      "marital_status": "Családi állapot",
+      "children_count": "Gyermekek száma",
+      "emergency_contact_name": "Értesítendő személy",
+      "emergency_contact_phone": "Értesítendő telefonszáma"
+    },
+    "saveDetails": "Adatok mentése",
+    "saved": "Mentve",
+    "documentsTitle": "Dokumentumok",
+    "noDocuments": "Még nincs dokumentum.",
+    "kind": "Típus",
+    "kinds": {
+      "medical": "Orvosi alkalmassági",
+      "contract": "Szerződés",
+      "licence": "Jogosítvány / engedély",
+      "training": "Oktatás",
+      "other": "Egyéb"
+    },
+    "docTitle": "Megnevezés",
+    "validUntil": "Érvényes:",
+    "expired": "Lejárt:",
+    "addDocument": "Dokumentum hozzáadása",
+    "remove": "Törlés",
+    "expiringTitle": "{count} dokumentum lejárt vagy egy hónapon belül lejár"
+  },
+  "bulk": {
+    "tick": "Kijelölés",
+    "selected": "{count} kijelölve",
+    "action": "Művelet",
+    "value": "Érték",
+    "assign": "Felelős beállítása",
+    "addTag": "Címke hozzáadása",
+    "removeTag": "Címke levétele",
+    "stage": "Fázis",
+    "note": "Megjegyzés",
+    "apply": "Alkalmaz",
+    "clear": "Kijelölés törlése",
+    "applied": "{count} kész",
+    "skipped": "{count} kihagyva"
   }
 }

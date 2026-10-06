@@ -40,7 +40,7 @@ describe('newsletter audience', () => {
       unresolved: [],
       recipient_suppressed: false,
     }));
-    overrides.set('/newsletter/send', () => ({ email_id: 99, recipients: 3 }));
+    overrides.set('/newsletter/sends', () => ({ id: 99, recipients: 3 }));
     const seen: { id: number; recipients?: number }[] = [];
     renderPage(
       <ComposeForm

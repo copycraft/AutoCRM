@@ -107,7 +107,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
         </>
       ) : (
         (() => {
-          const { lead, stage, orders, documents, attribution, tags } = detail.data;
+          const { lead, stage, orders, documents, attribution, tags, lost_reason } = detail.data;
           const defs = stagesQuery.data?.items ?? [];
           const currentDef = defs.find((d) => d.key === stage?.stage_key);
           // V2.7: one enquiry for three vans is three orders; converting again is allowed
@@ -170,6 +170,11 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   {stage && (
                     <span className="text-metadata text-steel-500">
                       {t('since')} <DateDisplay withTime value={stage.entered_at} />
+                    </span>
+                  )}
+                  {lost_reason && stage?.stage_key === 'lost' && (
+                    <span className="text-metadata text-steel-500" data-testid="lead-lost-reason">
+                      {t('lostReason')}: <span className="text-steel-900">{lost_reason.label}</span>
                     </span>
                   )}
                   {orders.map((o) => (
