@@ -1618,5 +1618,83 @@
       "workflow": "Emailek munkafolyamatokhoz",
       "design": "Sablonminták (másolásra)"
     }
+  },
+  "privacy": {
+    "title": "Adatkezelés az Autotherm-nél",
+    "intro": "Ezt az oldalt azért látod, mert egy Autotherm által küldött levélben, ajánlatban vagy visszaigazolásban az erre mutató linkre kattintottál. Itt röviden és közérthetően leírjuk, ki kezeli az adataidat, mire használjuk őket, és mit tehetsz, ha kérdésed van.",
+    "howTitle": "Hogyan kerültél ide?",
+    "howBody": "Valószínűleg megkerestél minket (például ajánlatot kértél a weboldalunkon, telefonon vagy e-mailben), megrendeltél tőlünk valamit, vagy feliratkoztál a hírlevelünkre. Az adataidat ilyenkor az Autotherm rögzítette. Az adatkezelő tehát az Autotherm, nem valamilyen külső szolgáltató.",
+    "systemTitle": "Milyen rendszerben tároljuk az adatokat?",
+    "systemBody": "Az ügyfélkapcsolati és megrendeléskezelő rendszerünk (AutoCRM) az Autotherm saját, általa üzemeltetett belső rendszere. Csak az arra jogosult munkatársaink érhetik el, egyéni belépéssel, és a hozzáférések szerepkörökhöz kötöttek.",
+    "whoTitle": "Kik vagyunk?",
+    "whoBody": "Az Autotherm járműátalakítással és járműfelszereléssel foglalkozó vállalkozás.",
+    "dataTitle": "Milyen adatokat kezelünk, és miért?",
+    "colWho": "Kinek az adata",
+    "colData": "Milyen adat",
+    "colPurpose": "Mire használjuk",
+    "colBasis": "Jogalap",
+    "rows": {
+      "enquiry": {
+        "who": "Ajánlatot kérők, érdeklődők",
+        "data": "Név, e-mail-cím, telefonszám, az üzenet szövege, a jármű adatai, az űrlap oldala és az, hogy honnan érkeztél (például melyik hirdetésből).",
+        "purpose": "Az érdeklődés megválaszolása, ajánlatadás; az érkezési forrást arra használjuk, hogy lássuk, melyik megjelenésünk hoz érdeklődőket.",
+        "basis": "A szerződéskötést megelőző lépések az érintett kérésére; az érdeklődés megválaszolásához és a marketing eredményességének méréséhez fűződő jogos érdek."
+      },
+      "customers": {
+        "who": "Ügyfelek, partnerek és kapcsolattartóik",
+        "data": "Név, cím, adószám, e-mail-cím, telefonszám, a megrendelések, ajánlatok és a velük kapcsolatos levelezés.",
+        "purpose": "A megrendelés teljesítése, kapcsolattartás.",
+        "basis": "Szerződés teljesítése; jogi kötelezettség teljesítése."
+      },
+      "vehicles": {
+        "who": "Járművek és fotók",
+        "data": "Rendszám, alvázszám, az átvételkor és átadáskor készült fotók és jegyzőkönyvek (az aláírással együtt).",
+        "purpose": "A vállalt munka és a jármű állapotának dokumentálása, vitás esetek elkerülése.",
+        "basis": "Szerződés teljesítése; jogos érdek."
+      },
+      "invoicing": {
+        "who": "Számlázás",
+        "data": "A számlán szereplő adatok (név, cím, adószám, tételek, összegek).",
+        "purpose": "Számlázás, a számviteli és adózási kötelezettségek teljesítése, adatszolgáltatás a NAV felé.",
+        "basis": "Jogi kötelezettség; a megőrzési időt jogszabály határozza meg."
+      },
+      "newsletter": {
+        "who": "Hírlevélre feliratkozók",
+        "data": "E-mail-cím, név.",
+        "purpose": "Hírlevél küldése.",
+        "basis": "Hozzájárulás. Bármikor visszavonhatod, lásd lent."
+      },
+      "mail": {
+        "who": "Akivel levelezünk",
+        "data": "Az e-mail-cím és a küldött levelek naplója.",
+        "purpose": "Kapcsolattartás, annak igazolása, hogy mit és mikor küldtünk.",
+        "basis": "Szerződés teljesítése; jogos érdek."
+      }
+    },
+    "employeesNote": "A munkatársaink adatairól külön tájékoztatást adunk.",
+    "sharingTitle": "Kinek adjuk át az adataidat?",
+    "sharingBody": "Az adataidat nem adjuk el. Csak ott adjuk tovább, ahol a szolgáltatás nyújtásához vagy jogszabály miatt szükséges: a számlázási adatokat jogszabály alapján a NAV felé jelentjük, a levelezésünket e-mail-szolgáltató kezeli, és a könyvelési feladatokhoz szükséges adatokat az ezzel megbízott könyvelőnk is megkaphatja. A teljes lista az Adatkezelési tájékoztatóban található.",
+    "rightsTitle": "Mit tehetsz?",
+    "rights": {
+      "access": "Tájékoztatást kérhetsz arról, milyen adataidat kezeljük, és másolatot kérhetsz róluk.",
+      "rectify": "Kérheted az adataid helyesbítését.",
+      "erase": "Kérheted az adataid törlését, ha nincs jogszabályi vagy más kötelező okunk a megőrzésre.",
+      "restrict": "Kérheted az adatkezelés korlátozását, vagy tiltakozhatsz ellene.",
+      "portability": "Kérheted az általad megadott adatok átvételét géppel olvasható formában.",
+      "withdraw": "A hozzájárulásodat bármikor visszavonhatod; ez nem érinti a korábbi adatkezelés jogszerűségét."
+    },
+    "rightsHow": "Ha élni szeretnél valamelyikkel, írj nekünk az alábbi elérhetőségen. A kérésedre legfeljebb egy hónapon belül válaszolunk.",
+    "unsubscribeText": "Nem szeretnél több hírlevelet?",
+    "unsubscribeLink": "Leiratkozás a hírlevélről",
+    "complaintTitle": "Ha úgy érzed, hogy jogsértés történt",
+    "complaintBody": "Panaszt tehetsz a Nemzeti Adatvédelmi és Információszabadság Hatóságnál (NAIH, www.naih.hu), vagy bírósághoz fordulhatsz.",
+    "contactTitle": "Kapcsolat",
+    "controller": "Adatkezelő",
+    "address": "Székhely",
+    "registration": "Cégjegyzékszám / adószám",
+    "email": "E-mail",
+    "phone": "Telefon",
+    "fullNotice": "A teljes Adatkezelési tájékoztató",
+    "link": "Adatkezelés"
   }
 }
