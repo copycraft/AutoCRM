@@ -13,6 +13,7 @@ pub struct EmployeeRow {
     pub personal_phone: Option<String>,
     pub photo_key: Option<String>,
     pub annual_leave_days: i32,
+    pub status_id: Option<i64>,
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -28,22 +29,25 @@ pub struct EmployeeInput {
 }
 
 const COLUMNS: &str = "id, full_name, email, company_phone, personal_phone, photo_key,
-                       annual_leave_days, archived_at, created_at, updated_at";
+                       annual_leave_days, status_id, archived_at, created_at, updated_at";
 
 pub async fn list(
     db: impl PgExecutor<'_>,
     pattern: Option<&str>,
     include_archived: bool,
+    status_id: Option<i64>,
 ) -> sqlx::Result<Vec<EmployeeRow>> {
     sqlx::query_as(&format!(
         "SELECT {COLUMNS} FROM employees
          WHERE ($1::text IS NULL OR full_name ILIKE $1 OR email ILIKE $1
                 OR company_phone ILIKE $1 OR personal_phone ILIKE $1)
-           AND ($2 OR archived_at IS NULL)
+           AND ($2 OR $3::bigint IS NOT NULL OR archived_at IS NULL)
+           AND ($3::bigint IS NULL OR status_id = $3)
          ORDER BY archived_at IS NOT NULL, lower(full_name), id"
     ))
     .bind(pattern)
     .bind(include_archived)
+    .bind(status_id)
     .fetch_all(db)
     .await
 }
@@ -61,8 +65,12 @@ pub async fn insert(
     created_by: i64,
 ) -> sqlx::Result<EmployeeRow> {
     sqlx::query_as(&format!(
-        "INSERT INTO employees (full_name, email, company_phone, personal_phone, annual_leave_days, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING {COLUMNS}"
+        "INSERT INTO employees (full_name, email, company_phone, personal_phone, annual_leave_days, created_by,
+                                status_id)
+         VALUES ($1, $2, $3, $4, $5, $6, (SELECT id FROM employee_statuses
+                                             WHERE is_default AND archived_at IS NULL
+                                             ORDER BY position LIMIT 1))
+         RETURNING {COLUMNS}"
     ))
     .bind(&e.full_name)
     .bind(&e.email)
@@ -100,7 +108,17 @@ pub async fn set_archived(
     archived: bool,
 ) -> sqlx::Result<Option<EmployeeRow>> {
     sqlx::query_as(&format!(
-        "UPDATE employees SET archived_at = CASE WHEN $2 THEN coalesce(archived_at, now()) END
+        "UPDATE employees SET
+             archived_at = CASE WHEN $2 THEN coalesce(archived_at, now()) END,
+             -- Leaving puts them on the ended list; coming back takes them off it.
+             status_id = CASE
+                 WHEN $2 THEN coalesce((SELECT id FROM employee_statuses
+                                        WHERE ends_employment AND archived_at IS NULL
+                                        ORDER BY position LIMIT 1), status_id)
+                 WHEN status_id IN (SELECT id FROM employee_statuses WHERE ends_employment)
+                     THEN (SELECT id FROM employee_statuses WHERE is_default AND archived_at IS NULL
+                           ORDER BY position LIMIT 1)
+                 ELSE status_id END
          WHERE id = $1 RETURNING {COLUMNS}"
     ))
     .bind(id)
@@ -129,6 +147,31 @@ pub async fn set_photo(
     ))
     .bind(id)
     .bind(key)
+    .fetch_optional(db)
+    .await
+}
+
+/// Puts the employee on a status. A status that ends employment archives them; any other
+/// brings an archived employee back.
+pub async fn set_status(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    status_id: i64,
+) -> sqlx::Result<Option<EmployeeRow>> {
+    sqlx::query_as(&format!(
+        "UPDATE employees e SET status_id = s.id,
+             archived_at = CASE WHEN s.ends_employment THEN coalesce(e.archived_at, now()) END
+         FROM employee_statuses s
+         WHERE e.id = $1 AND s.id = $2
+         RETURNING {}",
+        COLUMNS
+            .split(',')
+            .map(|c| format!("e.{}", c.trim()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ))
+    .bind(id)
+    .bind(status_id)
     .fetch_optional(db)
     .await
 }

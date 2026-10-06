@@ -24,7 +24,7 @@ import { useRememberList } from '@/hooks/useListMemory';
 import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
 import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
 import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
-import { ExportCsvButton } from '@/components/tables/ExportCsvButton';
+import { ExportCsvButton, collectAll } from '@/components/tables/ExportCsvButton';
 import { minorToMajorString } from '@/lib/utils/format';
 import { configApi, ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
@@ -191,7 +191,8 @@ export default function OrdersPage() {
 
   /** Current filters, first 200 rows (the API max page) — what the table shows. */
   const exportOrders = async () => {
-    const data = await ordersApi.list({
+    const all = await collectAll((offset, limit) =>
+      ordersApi.list({
       q: debouncedQ || undefined,
       stage: stage || undefined,
       partner_id: partnerId ? Number(partnerId) : undefined,
@@ -199,10 +200,11 @@ export default function OrdersPage() {
       assigned_to: assignedTo ?? undefined,
       open: openOnly || undefined,
       sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
-      limit: 200,
-      offset: 0,
-    });
-    const items = data.items ?? [];
+        limit,
+        offset,
+      }),
+    );
+    const items = all;
     return {
       header: [t('number'), t('fieldTitle'), tc('partner'), t('stageFilter'), t('total'), t('vehiclePlate'), t('dueDate')],
       rows: items.map((o) => [

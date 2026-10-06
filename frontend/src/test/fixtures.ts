@@ -6,6 +6,8 @@ import type {
   LeaveBalance,
   NotificationList,
   Employee,
+  JobApplication,
+  JobPosting,
   AuditEntry,
   BilledInvoice,
   BilledProforma,
@@ -18,6 +20,12 @@ import type {
   Lead,
   LeadDetail,
   LeadSummary,
+  LeadRow,
+  LeadTag,
+  NewsletterTag,
+  IncomingInvoice,
+  TimelineEvent,
+  SubscriberRow,
   Lookups,
   Order,
   OrderDetail,
@@ -336,6 +344,23 @@ export const leadDetail: LeadDetail = {
   history: [{ ...stageEntry, stage_key: 'quoted', label_hu: 'Árajánlat kiadva' }],
   orders: [{ id: 3, number: 'MC-1001' }],
   documents: [],
+  tags: [
+    { id: 41, market: 'de', label: 'bestattungswagen.at', color: '#c9402a', matched_domain: 'bestattungswagen.at' },
+  ],
+};
+
+export const leadRow: LeadRow = { ...leadSummary, tags: leadDetail.tags };
+
+export const leadTag: LeadTag = {
+  id: 41,
+  market: 'de',
+  label: 'bestattungswagen.at',
+  color: '#c9402a',
+  domains: ['bestattungswagen.at'],
+  position: 130,
+  archived_at: null,
+  open_leads: 1,
+  total_leads: 4,
 };
 
 export const partnerDetail: PartnerDetail = {
@@ -706,6 +731,8 @@ export const billedInvoice: BilledInvoice = {
   ...issuedInvoice,
   order_number: 'MC-1001',
   partner_name: 'Müller Kühltransporte GmbH',
+  bucket: 'issued',
+  paid_at: null,
 };
 
 export const billedStorno: BilledInvoice = {
@@ -719,6 +746,8 @@ export const billedStorno: BilledInvoice = {
   gross_amount: -127_000_000,
   order_number: 'MC-1001',
   partner_name: 'Müller Kühltransporte GmbH',
+  bucket: 'storno',
+  paid_at: null,
 };
 
 export const billedProforma: BilledProforma = {
@@ -810,4 +839,98 @@ export const notificationList: NotificationList = {
     },
   ],
   unread: 1,
+};
+
+export const jobPosting: JobPosting = {
+  id: 3,
+  title: 'Hűtős szerelő',
+  description: 'Műszakban, hűtőkamrák építése.',
+  location: 'Budapest',
+  status: 'draft',
+  public_url: 'https://crm.autotherm.hu/hu/jobs/00ab12cd34ef5678',
+  application_count: 1,
+  published_at: null,
+  created_at: NOW,
+  updated_at: NOW,
+};
+
+export const jobApplication: JobApplication = {
+  id: 11,
+  job_id: 3,
+  full_name: 'Tóth Gábor',
+  email: 'gabor@example.hu',
+  phone: '+36 30 999 8888',
+  age: 31,
+  city: 'Szeged',
+  message: 'Szívesen dolgoznék önöknél.',
+  resume_filename: 'Önéletrajz.pdf',
+  resume_url: 'https://files.example/resume.pdf',
+  notes: null,
+  created_at: NOW,
+};
+
+export const newsletterTag: NewsletterTag = {
+  id: 7,
+  section: 'Listák',
+  label: 'Pékségek',
+  color: '#dbe8ff',
+  position: 160,
+  archived_at: null,
+  active_subscribers: 1,
+  total_subscribers: 1,
+};
+
+export const subscriberRow: SubscriberRow = {
+  id: 3,
+  email: 'info@pekseg.hu',
+  name: 'Kovács Pékség',
+  source: 'import',
+  subscribed_at: NOW,
+  confirmed_at: NOW,
+  unsubscribed_at: null,
+  tag_ids: [7],
+};
+
+export const incomingInvoice: IncomingInvoice = {
+  id: 12,
+  kind: 'invoice',
+  supplier_name: 'Hűtőgép Kft.',
+  supplier_tax_number: '12345678-2-41',
+  partner_id: null,
+  invoice_number: 'HG-2026/118',
+  issue_date: DAY,
+  due_date: DAY,
+  currency: 'HUF',
+  net_amount: 10_000_000,
+  vat_amount: 2_700_000,
+  gross_amount: 12_700_000,
+  payment_method: 'TRANSFER',
+  paid_amount: 0,
+  paid_on: null,
+  booking_only: false,
+  notes: null,
+  file_name: 'szamla-118.pdf',
+  file_type: 'application/pdf',
+  file_size: 52_000,
+  bucket: 'open_invoice',
+  created_at: NOW,
+  updated_at: NOW,
+};
+
+export const timelineEvent: TimelineEvent = {
+  at: NOW,
+  kind: 'change',
+  action: 'update',
+  user_name: 'Iroda Ilona',
+  changes: { assigned_to: ['Kiss Péter', 'Busa Ádám'] },
+  text: null,
+  detail: null,
+  file_name: null,
+  file_size: null,
+  document_id: null,
+  image_id: null,
+  incoming_invoice_id: null,
+  email_id: null,
+  order_id: null,
+  lead_id: null,
 };

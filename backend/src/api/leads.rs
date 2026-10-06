@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
@@ -14,11 +16,13 @@ use super::{Items, optional, page_limit, page_offset, patch as patch_field, patc
 use crate::AppState;
 use crate::domain::attribution;
 use crate::domain::email::normalize_address;
+use crate::domain::lead_tag;
 use crate::domain::money::Currency;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::repo::attribution::Attribution;
 use crate::repo::documents::{self, Document};
+use crate::repo::lead_tags::{self, LeadTagRef};
 use crate::repo::leads::{Lead, LeadInput, LeadSummary};
 use crate::repo::orders::Order;
 use crate::repo::stages::{CurrentStage, StageEntry};
@@ -45,6 +49,8 @@ struct SearchQuery {
     /// Stage key.
     stage: Option<String>,
     assigned_to: Option<i64>,
+    /// Only leads carrying this tag.
+    tag: Option<i64>,
     /// Only leads not in a terminal stage.
     #[serde(default)]
     open: bool,
@@ -57,13 +63,13 @@ struct SearchQuery {
 #[utoipa::path(
     get, path = "/leads", tag = "leads",
     params(SearchQuery),
-    responses((status = 200, body = Items<LeadSummary>))
+    responses((status = 200, body = Items<LeadRow>))
 )]
 async fn search(
     State(state): State<AppState>,
     Auth(_): Auth,
     ApiQuery(q): ApiQuery<SearchQuery>,
-) -> AppResult<Json<Items<LeadSummary>>> {
+) -> AppResult<Json<Items<LeadRow>>> {
     let pattern = q.q.as_deref().and_then(like_pattern);
     let phone = q.q.as_deref().and_then(phone_pattern);
     let sort_key = parse_sort(q.sort.as_deref(), leads::LEAD_SORTS, leads::DEFAULT_SORT)
@@ -74,13 +80,34 @@ async fn search(
         phone.as_deref(),
         optional(q.stage).as_deref(),
         q.assigned_to,
+        q.tag,
         q.open,
         &sort_key,
         page_limit(q.limit),
         page_offset(q.offset),
     )
     .await?;
+    let ids: Vec<i64> = rows.iter().map(|r| r.id).collect();
+    let mut tags: HashMap<i64, Vec<LeadTagRef>> = HashMap::new();
+    for (lead_id, tag) in lead_tags::for_leads(&state.db, &ids).await? {
+        tags.entry(lead_id).or_default().push(tag);
+    }
+    let rows = rows
+        .into_iter()
+        .map(|lead| LeadRow {
+            tags: tags.remove(&lead.id).unwrap_or_default(),
+            lead,
+        })
+        .collect();
     Ok(Items::new(rows))
+}
+
+/// A lead in the list, with its tags.
+#[derive(Serialize, ToSchema)]
+struct LeadRow {
+    #[serde(flatten)]
+    lead: LeadSummary,
+    tags: Vec<LeadTagRef>,
 }
 
 /// Create requires `title`. On PATCH every field is optional; `null` clears.
@@ -110,6 +137,10 @@ struct LeadBody {
     currency: Option<Option<Currency>>,
     #[serde(default, deserialize_with = "patch_field")]
     quote_valid_until: Option<Option<NaiveDate>>,
+    /// Create only: the tags to file the lead under. Tags whose domain the source names
+    /// are added on their own. Change them later with `PUT /leads/{id}/tags`.
+    #[serde(default)]
+    tag_ids: Vec<i64>,
 }
 
 fn merge(current: Option<&Lead>, b: LeadBody) -> AppResult<LeadInput> {
@@ -168,11 +199,12 @@ fn merge(current: Option<&Lead>, b: LeadBody) -> AppResult<LeadInput> {
 async fn create(
     State(state): State<AppState>,
     Auth(me): Auth,
-    ApiJson(b): ApiJson<LeadBody>,
+    ApiJson(mut b): ApiJson<LeadBody>,
 ) -> AppResult<(StatusCode, Json<Lead>)> {
     me.require(Capability::EditLeads)?;
+    let tag_ids = std::mem::take(&mut b.tag_ids);
     let input = merge(None, b)?;
-    let lead = service::leads::create(&state.db, &me, input).await?;
+    let lead = service::leads::create(&state.db, &me, input, &tag_ids).await?;
     Ok((StatusCode::CREATED, Json(lead)))
 }
 
@@ -203,6 +235,9 @@ pub struct WebsiteLead {
     referrer: Option<String>,
     /// The first page of the visit, which is not always the page the form is on.
     landing_page: Option<String>,
+    /// The website the form is on (`hutoautok.hu` or its URL), when several sites post
+    /// here. Lead tags claiming that domain are put on the lead.
+    site: Option<String>,
 }
 
 const MAX_NAME: usize = 200;
@@ -220,8 +255,14 @@ fn capped(field: &str, value: Option<String>, max: usize) -> AppResult<Option<St
     }
 }
 
-/// A website form, as the lead to file and where it came from.
-fn lead_from_website(b: WebsiteLead) -> AppResult<(LeadInput, Attribution)> {
+/// A website form, as the lead to file, where it came from, and every host known about the
+/// visit for recognising lead tags. `origin` and `referer` are the request headers: a form
+/// posted straight from the browser carries the site in them.
+fn lead_from_website(
+    b: WebsiteLead,
+    origin: Option<&str>,
+    referer: Option<&str>,
+) -> AppResult<(LeadInput, Attribution, Vec<String>)> {
     let name = capped("name", Some(b.name), MAX_NAME)?
         .ok_or_else(|| AppError::validation("name is required"))?;
     let email = match capped("email", b.email, MAX_FIELD)? {
@@ -244,6 +285,18 @@ fn lead_from_website(b: WebsiteLead) -> AppResult<(LeadInput, Attribution)> {
     let utm_campaign = capped("utm_campaign", b.utm_campaign, MAX_FIELD)?;
     let referrer = capped("referrer", b.referrer, MAX_URL)?;
     let landing_page = capped("landing_page", b.landing_page, MAX_URL)?;
+    let site = capped("site", b.site, MAX_URL)?;
+    // Strongest evidence first: the site the form is on, then where the visit began, then
+    // whatever sent the visitor.
+    let hosts = lead_tag::hosts_of([
+        site.as_deref(),
+        page.as_deref(),
+        landing_page.as_deref(),
+        origin,
+        referer,
+        utm_source.as_deref(),
+        referrer.as_deref(),
+    ]);
     let attribution = Attribution {
         channel: attribution::classify(
             utm_source.as_deref(),
@@ -283,7 +336,7 @@ fn lead_from_website(b: WebsiteLead) -> AppResult<(LeadInput, Attribution)> {
         currency: None,
         quote_valid_until: None,
     };
-    Ok((input, attribution))
+    Ok((input, attribution, hosts))
 }
 
 /// Website enquiry: `POST` the form with `X-Leads-Key`. No staff login; the key keeps
@@ -311,8 +364,11 @@ async fn website(
     if optional(b.company.clone()).is_some() {
         return Ok(StatusCode::ACCEPTED);
     }
-    let (input, attribution) = lead_from_website(b)?;
-    let lead = service::leads::create_from_website(&state.db, input, &attribution).await?;
+    let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
+    let (input, attribution, hosts) =
+        lead_from_website(b, header("origin"), header("referer"))?;
+    let lead =
+        service::leads::create_from_website(&state.db, input, &attribution, &hosts).await?;
     // The lead is already committed; a failed alert is logged, never the visitor's problem.
     if let Err(e) = service::email::website_lead_alert(&state, &lead).await {
         tracing::error!(lead_id = lead.id, error = %e, "could not queue the website lead alert");
@@ -341,6 +397,8 @@ struct LeadDetail {
     documents: Vec<Document>,
     /// Where the lead came from, for leads the website filed.
     attribution: Option<Attribution>,
+    /// The lead tags, each with the domain that put it there when the server did.
+    tags: Vec<LeadTagRef>,
 }
 
 #[utoipa::path(
@@ -365,6 +423,7 @@ async fn detail(
         .collect();
     let documents = documents::list_for_lead(&state.db, id).await?;
     let attribution = crate::repo::attribution::find(&state.db, id).await?;
+    let tags = lead_tags::for_lead(&state.db, id).await?;
     Ok(Json(LeadDetail {
         lead,
         stage,
@@ -372,6 +431,7 @@ async fn detail(
         orders,
         documents,
         attribution,
+        tags,
     }))
 }
 

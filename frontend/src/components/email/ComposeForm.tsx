@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { emailApi, leadsApi, mediaApi, newsletterApi } from '@/lib/api/endpoints';
+import { NewsletterChips, NewsletterTagPicker, useNewsletterTags } from '@/components/marketing/NewsletterTags';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { errorMessage } from '@/lib/api/errors';
@@ -27,16 +28,19 @@ export function ComposeForm({
   about,
   defaultTo,
   defaultAudience,
+  defaultTagIds,
   onSent,
 }: {
   about?: { order_id?: number; lead_id?: number; partner_id?: number };
   defaultTo?: string;
   defaultAudience?: Audience;
+  defaultTagIds?: number[];
   onSent: (emailId: number, newsletterRecipients?: number) => void;
 }) {
   const t = useTranslations('emails');
   const ter = useTranslations('errors');
   const [audience, setAudience] = useState<Audience>(defaultAudience ?? 'direct');
+  const [tagIds, setTagIds] = useState<number[]>(defaultTagIds ?? []);
   const [to, setTo] = useState(defaultTo ?? '');
   const [cc, setCc] = useState('');
   const [templateKey, setTemplateKey] = useState('');
@@ -122,30 +126,15 @@ export function ComposeForm({
     queryFn: () => emailApi.variables(),
     staleTime: 10 * 60_000,
   });
-  const subscribers = useQuery({
-    queryKey: ['newsletter-subscriptions'],
-    queryFn: () => newsletterApi.subscriptions(),
+  // Exactly who the server would send to now: active, not suppressed, and with one of
+  // the chosen tags (none chosen is everyone). Counted by the same query as the send.
+  const audienceQuery = useQuery({
+    queryKey: ['newsletter-audience', tagIds],
+    queryFn: () => newsletterApi.audience(tagIds),
     enabled: audience === 'newsletter',
   });
-  // Globally suppressed addresses never make the BCC list, even when still
-  // subscribed — so they must not count as the audience either (MAIL-L5).
-  const suppressions = useQuery({
-    queryKey: ['email-suppressions'],
-    queryFn: () => emailApi.suppressions(),
-    enabled: audience === 'newsletter',
-  });
-  const activeCount = useMemo(() => {
-    const suppressed = new Set(
-      (suppressions.data?.items ?? []).map((s) => s.email.trim().toLowerCase()),
-    );
-    return (subscribers.data?.items ?? []).filter(
-      // Same rule as the server: confirmed, not opted out, not suppressed.
-      (s) =>
-        !!s.confirmed_at &&
-        !s.unsubscribed_at &&
-        !suppressed.has(s.email.trim().toLowerCase()),
-    ).length;
-  }, [subscribers.data, suppressions.data]);
+  const activeCount = audienceQuery.data?.recipients ?? 0;
+  const newsletterTags = useNewsletterTags();
 
   const applyTemplate = (key: string) => {
     setTemplateKey(key);
@@ -221,6 +210,7 @@ export function ComposeForm({
           body_markdown: markdown,
           attachment_document_ids: attachmentIds,
           embed_document_ids: embedIds,
+          tag_ids: tagIds,
         });
         // The server's answer says how many addresses made the list — that, not
         // the client-side estimate, is what "sent" meant (MAIL-L5).
@@ -272,9 +262,19 @@ export function ComposeForm({
             </div>
           </>
         ) : (
-          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900">
-            {t('newsletterAudience', { count: activeCount })}
-          </p>
+          <div className="space-y-2 rounded-lg bg-steel-200/50 px-3 py-2" data-testid="newsletter-audience">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-metadata text-steel-500">{t('newsletterTags')}</span>
+              {tagIds.length === 0 && <span className="text-metadata font-medium">{t('newsletterEveryone')}</span>}
+              <NewsletterChips
+                ids={tagIds}
+                all={newsletterTags.data?.items ?? []}
+                onRemove={(id) => setTagIds(tagIds.filter((x) => x !== id))}
+              />
+              <NewsletterTagPicker label={t('newsletterPickTags')} value={tagIds} onChange={setTagIds} />
+            </div>
+            <p className="text-body text-steel-900">{t('newsletterAudience', { count: activeCount })}</p>
+          </div>
         )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -82,6 +82,25 @@ services:
       - "8025:8025"
     profiles: ["mail"]
 
+  # The assistant's language model: Qwen2.5-0.5B-Instruct (494M parameters, 4-bit, ~400 MB)
+  # on llama.cpp's OpenAI-compatible server, CPU only. `--jinja` turns on tool calling.
+  # The model is fetched from Hugging Face on first start and kept in the `models` volume.
+  # Point the backend at it with AI_URL=http://127.0.0.1:8081.
+  ai:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    command: >
+      -hf Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M
+      --jinja --ctx-size 8192 --parallel 2 --threads 4
+      --host 0.0.0.0 --port 8080
+    environment:
+      LLAMA_CACHE: /models
+    ports:
+      - "8081:8080"
+    volumes:
+      - models:/models
+    profiles: ["ai"]
+
 volumes:
   pgdata:
   miniodata:
+  models:

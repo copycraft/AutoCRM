@@ -22,7 +22,7 @@ import { useRememberList } from '@/hooks/useListMemory';
 import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
 import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
 import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
-import { ExportCsvButton } from '@/components/tables/ExportCsvButton';
+import { ExportCsvButton, collectAll } from '@/components/tables/ExportCsvButton';
 import { emailApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import type { EmailStatus, EmailSummary } from '@/lib/api/types';
@@ -153,13 +153,15 @@ export default function EmailsPage() {
 
   /** Current status filter, first 200 rows (the API max page); text search stays client-side. */
   const exportEmails = async () => {
-    const data = await emailApi.list({
+    const all = await collectAll((offset, limit) =>
+      emailApi.list({
       status: status || undefined,
-      limit: 200,
-      offset: 0,
-    });
+        limit,
+        offset,
+      }),
+    );
     const needle = debouncedQ.trim().toLowerCase();
-    const items = (data.items ?? []).filter(
+    const items = all.filter(
       (m) =>
         !needle ||
         m.subject.toLowerCase().includes(needle) ||

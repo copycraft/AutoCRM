@@ -9,6 +9,15 @@ export const zAddItem = z.object({
     position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish()
 });
 
+/**
+ * The office hand-add: confirmed on insert, because the office holds the consent.
+ */
+export const zAddSubscriptionBody = z.object({
+    email: z.string(),
+    name: z.string().optional(),
+    tag_ids: z.array(z.number().int()).optional()
+});
+
 export const zAddSuppression = z.object({
     email: z.string(),
     reason: z.string().nullish()
@@ -30,6 +39,44 @@ export const zAdminStatus = z.object({
 export const zAnnulRequest = z.object({
     code: z.string(),
     reason: z.string()
+});
+
+export const zApplication = z.object({
+    id: z.number().int(),
+    job_id: z.number().int(),
+    full_name: z.string(),
+    email: z.string(),
+    phone: z.string(),
+    age: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    city: z.string().nullish(),
+    message: z.string().nullish(),
+    resume_filename: z.string(),
+    resume_url: z.string().nullish(),
+    notes: z.string().nullish(),
+    created_at: z.string().datetime()
+});
+
+export const zApplicationPatch = z.object({
+    notes: z.string().nullish()
+});
+
+/**
+ * The application form as multipart/form-data. Documented as a schema, parsed by hand.
+ */
+export const zApplyForm = z.object({
+    full_name: z.string(),
+    email: z.string(),
+    phone: z.string(),
+    age: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    city: z.string().nullish(),
+    message: z.string().nullish(),
+    resume: z.array(z.number().int().gte(0)),
+    company: z.string().nullish()
+});
+
+export const zAssistantStatus = z.object({
+    enabled: z.boolean(),
+    model: z.string().nullish()
 });
 
 export const zAttachBody = z.object({
@@ -64,6 +111,10 @@ export const zAttribution = z.object({
     utm_campaign: z.string().nullish(),
     referrer: z.string().nullish(),
     landing_page: z.string().nullish()
+});
+
+export const zAudience = z.object({
+    recipients: z.number().int().gte(0)
 });
 
 export const zAuditEntry = z.object({
@@ -145,6 +196,25 @@ export const zBlockerLoadEntry = zBlockerLoadRow.and(z.object({
     share_of_waiting: z.number()
 }));
 
+/**
+ * How many invoices are on each list.
+ */
+export const zBucketCount = z.object({
+    bucket: z.string(),
+    count: z.number().int()
+});
+
+export const zBulkTagsBody = z.object({
+    subscription_ids: z.array(z.number().int()),
+    add: z.array(z.number().int()).optional(),
+    remove: z.array(z.number().int()).optional()
+});
+
+export const zBulkTagsResult = z.object({
+    added: z.number().int().gte(0),
+    removed: z.number().int().gte(0)
+});
+
 export const zCampaignRow = z.object({
     channel: z.string(),
     utm_source: z.string().nullish(),
@@ -152,6 +222,10 @@ export const zCampaignRow = z.object({
     utm_campaign: z.string().nullish(),
     leads: z.number().int(),
     won: z.number().int()
+});
+
+export const zCancelled = z.object({
+    cancelled: z.number().int().gte(0)
 });
 
 /**
@@ -177,6 +251,15 @@ export const zChannelRow = z.object({
     channel: z.string(),
     leads: z.number().int(),
     won: z.number().int()
+});
+
+export const zChatMessage = z.object({
+    role: z.string(),
+    content: z.string()
+});
+
+export const zChatBody = z.object({
+    messages: z.array(zChatMessage)
 });
 
 export const zCompleteBody = z.object({
@@ -253,6 +336,12 @@ export const zCreateBody = z.object({
     client_key: z.string().nullish()
 });
 
+export const zCreateNewsletterTag = z.object({
+    section: z.string(),
+    label: z.string(),
+    color: z.string().nullish()
+});
+
 export const zCreateProjectType = z.object({
     key: z.string(),
     label_hu: z.string(),
@@ -260,11 +349,26 @@ export const zCreateProjectType = z.object({
     spec_form: z.string().nullish()
 });
 
+export const zCreateStatus = z.object({
+    section: z.string(),
+    label: z.string(),
+    color: z.string().nullish()
+});
+
+export const zCreateTag = z.object({
+    market: z.string(),
+    label: z.string(),
+    color: z.string().nullish(),
+    domains: z.array(z.string()).optional()
+});
+
 export const zCreateTemplate = z.object({
-    key: z.string(),
+    key: z.string().nullish(),
     name: z.string(),
     subject: z.string(),
-    body: z.string()
+    body: z.string(),
+    category: z.string().nullish(),
+    folder: z.string().nullish()
 });
 
 export const zCurrency = z.enum(['HUF', 'EUR']);
@@ -406,7 +510,10 @@ export const zEmailTemplate = z.object({
     locale: z.string(),
     is_automatic: z.boolean(),
     updated_at: z.string().datetime(),
-    updated_by: z.number().int().nullish()
+    updated_by: z.number().int().nullish(),
+    category: z.string(),
+    folder: z.string(),
+    archived_at: z.string().datetime().nullish()
 });
 
 /**
@@ -476,6 +583,7 @@ export const zEmployee = z.object({
     personal_phone: z.string().nullish(),
     photo_url: z.string().nullish(),
     annual_leave_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    status_id: z.number().int().nullish(),
     archived_at: z.string().datetime().nullish(),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime()
@@ -503,6 +611,22 @@ export const zEmployeeHit = z.object({
     archived: z.boolean()
 });
 
+export const zEmployeeStatus = z.object({
+    id: z.number().int(),
+    section: z.string(),
+    label: z.string(),
+    color: z.string(),
+    position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    ends_employment: z.boolean(),
+    is_default: z.boolean(),
+    archived_at: z.string().datetime().nullish(),
+    employees: z.number().int()
+});
+
+export const zEmployeeStatusBody = z.object({
+    status_id: z.number().int()
+});
+
 /**
  * Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.
  */
@@ -514,6 +638,10 @@ export const zErrorCode = z.enum([
     'too_many_requests',
     'duplicate',
     'overlap',
+    'domain_taken',
+    'assistant_unavailable',
+    'template_in_use',
+    'status_required',
     'invalid_reference',
     'constraint_violation',
     'immutable',
@@ -580,6 +708,43 @@ export const zErrorBody = z.object({
 export const zErrorTextEntry = z.object({
     code: z.string(),
     text_hu: z.string()
+});
+
+export const zFileUrl = z.object({
+    url: z.string()
+});
+
+/**
+ * A list filter the model built: open it, or save it as a view of that list.
+ */
+export const zFilterSuggestion = z.object({
+    list: z.string(),
+    params: z.record(z.string()),
+    path: z.string(),
+    label: z.string()
+});
+
+export const zFollowup = z.object({
+    id: z.number().int(),
+    lead_id: z.number().int(),
+    label: z.string(),
+    template_key: z.string(),
+    template_name: z.string(),
+    due_at: z.string().datetime(),
+    status: z.string(),
+    email_id: z.number().int().nullish(),
+    note: z.string().nullish(),
+    created_by_name: z.string().nullish(),
+    updated_at: z.string().datetime()
+});
+
+export const zFollowupStep = z.object({
+    id: z.number().int(),
+    label: z.string(),
+    delay_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    template_key: z.string(),
+    template_name: z.string(),
+    is_active: z.boolean()
 });
 
 export const zFxFetch = z.object({
@@ -653,6 +818,71 @@ export const zImageView = zImage.and(z.object({
     thumb_url: z.string().nullish(),
     display_url: z.string().nullish()
 }));
+
+export const zImportBody = z.object({
+    text: z.string(),
+    tag_ids: z.array(z.number().int()).optional()
+});
+
+export const zImportResult = z.object({
+    added: z.number().int().gte(0),
+    existing: z.number().int().gte(0),
+    opted_out: z.number().int().gte(0),
+    invalid: z.array(z.string())
+});
+
+/**
+ * Every field optional: absent keeps, `null` clears.
+ */
+export const zIncomingBody = z.object({
+    kind: z.string().nullish(),
+    supplier_name: z.string().nullish(),
+    supplier_tax_number: z.string().nullish(),
+    partner_id: z.number().int().nullish(),
+    invoice_number: z.string().nullish(),
+    issue_date: z.string().date().nullish(),
+    due_date: z.string().date().nullish(),
+    currency: z.string().nullish(),
+    net_amount: z.number().int().nullish(),
+    vat_amount: z.number().int().nullish(),
+    gross_amount: z.number().int().nullish(),
+    payment_method: z.string().nullish(),
+    paid_amount: z.number().int().nullish(),
+    paid_on: z.string().date().nullish(),
+    booking_only: z.boolean().nullish(),
+    notes: z.string().nullish()
+});
+
+export const zIncomingBucketCount = z.object({
+    bucket: z.string(),
+    count: z.number().int()
+});
+
+export const zIncomingInvoice = z.object({
+    id: z.number().int(),
+    kind: z.string(),
+    supplier_name: z.string(),
+    supplier_tax_number: z.string().nullish(),
+    partner_id: z.number().int().nullish(),
+    invoice_number: z.string().nullish(),
+    issue_date: z.string().date().nullish(),
+    due_date: z.string().date().nullish(),
+    currency: z.string(),
+    net_amount: z.number().int().nullish(),
+    vat_amount: z.number().int().nullish(),
+    gross_amount: z.number().int().nullish(),
+    payment_method: z.string(),
+    paid_amount: z.number().int(),
+    paid_on: z.string().date().nullish(),
+    booking_only: z.boolean(),
+    notes: z.string().nullish(),
+    file_name: z.string().nullish(),
+    file_type: z.string().nullish(),
+    file_size: z.number().int().nullish(),
+    bucket: z.string(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime()
+});
 
 export const zInspection = z.object({
     id: z.number().int(),
@@ -807,7 +1037,9 @@ export const zBilledInvoice = z.object({
     issued_at: z.string().datetime().nullish(),
     created_by: z.number().int().nullish(),
     created_at: z.string().datetime(),
-    updated_at: z.string().datetime()
+    updated_at: z.string().datetime(),
+    bucket: z.string(),
+    paid_at: z.string().datetime().nullish()
 });
 
 /**
@@ -828,6 +1060,26 @@ export const zItemBody = z.object({
     description: z.string(),
     quantity: z.string(),
     unit_price: z.number().int()
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsApplication = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        job_id: z.number().int(),
+        full_name: z.string(),
+        email: z.string(),
+        phone: z.string(),
+        age: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        city: z.string().nullish(),
+        message: z.string().nullish(),
+        resume_filename: z.string(),
+        resume_url: z.string().nullish(),
+        notes: z.string().nullish(),
+        created_at: z.string().datetime()
+    }))
 });
 
 /**
@@ -880,7 +1132,9 @@ export const zItemsBilledInvoice = z.object({
         issued_at: z.string().datetime().nullish(),
         created_by: z.number().int().nullish(),
         created_at: z.string().datetime(),
-        updated_at: z.string().datetime()
+        updated_at: z.string().datetime(),
+        bucket: z.string(),
+        paid_at: z.string().datetime().nullish()
     }))
 });
 
@@ -930,6 +1184,16 @@ export const zItemsBlocker = z.object({
         created_at: z.string().datetime(),
         updated_at: z.string().datetime(),
         is_overdue: z.boolean()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsBucketCount = z.object({
+    items: z.array(z.object({
+        bucket: z.string(),
+        count: z.number().int()
     }))
 });
 
@@ -1024,7 +1288,10 @@ export const zItemsEmailTemplate = z.object({
         locale: z.string(),
         is_automatic: z.boolean(),
         updated_at: z.string().datetime(),
-        updated_by: z.number().int().nullish()
+        updated_by: z.number().int().nullish(),
+        category: z.string(),
+        folder: z.string(),
+        archived_at: z.string().datetime().nullish()
     }))
 });
 
@@ -1040,9 +1307,60 @@ export const zItemsEmployee = z.object({
         personal_phone: z.string().nullish(),
         photo_url: z.string().nullish(),
         annual_leave_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        status_id: z.number().int().nullish(),
         archived_at: z.string().datetime().nullish(),
         created_at: z.string().datetime(),
         updated_at: z.string().datetime()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsEmployeeStatus = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        section: z.string(),
+        label: z.string(),
+        color: z.string(),
+        position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        ends_employment: z.boolean(),
+        is_default: z.boolean(),
+        archived_at: z.string().datetime().nullish(),
+        employees: z.number().int()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsFollowup = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        lead_id: z.number().int(),
+        label: z.string(),
+        template_key: z.string(),
+        template_name: z.string(),
+        due_at: z.string().datetime(),
+        status: z.string(),
+        email_id: z.number().int().nullish(),
+        note: z.string().nullish(),
+        created_by_name: z.string().nullish(),
+        updated_at: z.string().datetime()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsFollowupStep = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        label: z.string(),
+        delay_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        template_key: z.string(),
+        template_name: z.string(),
+        is_active: z.boolean()
     }))
 });
 
@@ -1068,6 +1386,47 @@ export const zItemsImageView = z.object({
         thumb_url: z.string().nullish(),
         display_url: z.string().nullish()
     })))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsIncomingBucketCount = z.object({
+    items: z.array(z.object({
+        bucket: z.string(),
+        count: z.number().int()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsIncomingInvoice = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        kind: z.string(),
+        supplier_name: z.string(),
+        supplier_tax_number: z.string().nullish(),
+        partner_id: z.number().int().nullish(),
+        invoice_number: z.string().nullish(),
+        issue_date: z.string().date().nullish(),
+        due_date: z.string().date().nullish(),
+        currency: z.string(),
+        net_amount: z.number().int().nullish(),
+        vat_amount: z.number().int().nullish(),
+        gross_amount: z.number().int().nullish(),
+        payment_method: z.string(),
+        paid_amount: z.number().int(),
+        paid_on: z.string().date().nullish(),
+        booking_only: z.boolean(),
+        notes: z.string().nullish(),
+        file_name: z.string().nullish(),
+        file_type: z.string().nullish(),
+        file_size: z.number().int().nullish(),
+        bucket: z.string(),
+        created_at: z.string().datetime(),
+        updated_at: z.string().datetime()
+    }))
 });
 
 /**
@@ -1121,26 +1480,60 @@ export const zItemsJob = z.object({
 /**
  * The list envelope: `{"items": [...]}`.
  */
-export const zItemsLeadSummary = z.object({
+export const zItemsJobPosting = z.object({
     items: z.array(z.object({
         id: z.number().int(),
         title: z.string(),
-        partner_id: z.number().int().nullish(),
-        partner_name: z.string().nullish(),
-        contact_name: z.string().nullish(),
-        contact_email: z.string().nullish(),
-        source: z.string().nullish(),
-        assigned_to: z.number().int().nullish(),
-        assigned_name: z.string().nullish(),
-        quoted_value_minor: z.number().int().nullish(),
-        currency: z.string().nullish(),
-        quote_valid_until: z.string().date().nullish(),
-        stage_key: z.string(),
-        stage_label: z.string(),
-        stage_entered_at: z.string().datetime(),
-        order_id: z.number().int().nullish(),
-        order_number: z.string().nullish(),
-        created_at: z.string().datetime()
+        description: z.string().nullish(),
+        location: z.string().nullish(),
+        status: z.string(),
+        public_url: z.string(),
+        application_count: z.number().int(),
+        published_at: z.string().datetime().nullish(),
+        created_at: z.string().datetime(),
+        updated_at: z.string().datetime()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsKnownSupplier = z.object({
+    items: z.array(z.object({
+        supplier_name: z.string(),
+        supplier_tax_number: z.string().nullish(),
+        payment_method: z.string(),
+        currency: z.string()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsLeadTag = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        market: z.string(),
+        label: z.string(),
+        color: z.string(),
+        domains: z.array(z.string()),
+        position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        archived_at: z.string().datetime().nullish(),
+        open_leads: z.number().int(),
+        total_leads: z.number().int()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsLeadTagRef = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        market: z.string(),
+        label: z.string(),
+        color: z.string(),
+        matched_domain: z.string().nullish()
     }))
 });
 
@@ -1158,6 +1551,22 @@ export const zItemsLeaveBalance = z.object({
         sick_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
         unpaid_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
         other_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' })
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsNewsletterTag = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        section: z.string(),
+        label: z.string(),
+        color: z.string(),
+        position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        archived_at: z.string().datetime().nullish(),
+        active_subscribers: z.number().int(),
+        total_subscribers: z.number().int()
     }))
 });
 
@@ -1347,6 +1756,29 @@ export const zItemsTemplateVariable = z.object({
 /**
  * The list envelope: `{"items": [...]}`.
  */
+export const zItemsTimelineEvent = z.object({
+    items: z.array(z.object({
+        at: z.string().datetime(),
+        kind: z.string(),
+        action: z.string(),
+        user_name: z.string().nullish(),
+        changes: z.record(z.unknown()),
+        text: z.string().nullish(),
+        detail: z.string().nullish(),
+        file_name: z.string().nullish(),
+        file_size: z.number().int().nullish(),
+        document_id: z.number().int().nullish(),
+        image_id: z.number().int().nullish(),
+        incoming_invoice_id: z.number().int().nullish(),
+        email_id: z.number().int().nullish(),
+        order_id: z.number().int().nullish(),
+        lead_id: z.number().int().nullish()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
 export const zItemsTransitionOption = z.object({
     items: z.array(z.object({
         stage_key: z.string(),
@@ -1410,8 +1842,38 @@ export const zJob = z.object({
     created_at: z.string().datetime()
 });
 
+export const zJobBody = z.object({
+    title: z.string().nullish(),
+    description: z.string().nullish(),
+    location: z.string().nullish()
+});
+
+export const zJobPosting = z.object({
+    id: z.number().int(),
+    title: z.string(),
+    description: z.string().nullish(),
+    location: z.string().nullish(),
+    status: z.string(),
+    public_url: z.string(),
+    application_count: z.number().int(),
+    published_at: z.string().datetime().nullish(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime()
+});
+
 export const zJobQueued = z.object({
     job_id: z.number().int().nullish()
+});
+
+/**
+ * Each supplier used before, with the tax number, payment method and currency of their
+ * latest invoice: picking the name fills in the rest on the next one.
+ */
+export const zKnownSupplier = z.object({
+    supplier_name: z.string(),
+    supplier_tax_number: z.string().nullish(),
+    payment_method: z.string(),
+    currency: z.string()
 });
 
 export const zLead = z.object({
@@ -1449,7 +1911,8 @@ export const zLeadBody = z.object({
     assigned_to: z.number().int().nullish(),
     quoted_value_minor: z.number().int().nullish(),
     currency: zCurrency.nullish(),
-    quote_valid_until: z.string().date().nullish()
+    quote_valid_until: z.string().date().nullish(),
+    tag_ids: z.array(z.number().int()).optional()
 });
 
 export const zLeadHit = z.object({
@@ -1478,6 +1941,52 @@ export const zLeadSummary = z.object({
     order_id: z.number().int().nullish(),
     order_number: z.string().nullish(),
     created_at: z.string().datetime()
+});
+
+/**
+ * A tag as the settings list shows it, with how many leads carry it.
+ */
+export const zLeadTag = z.object({
+    id: z.number().int(),
+    market: z.string(),
+    label: z.string(),
+    color: z.string(),
+    domains: z.array(z.string()),
+    position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    archived_at: z.string().datetime().nullish(),
+    open_leads: z.number().int(),
+    total_leads: z.number().int()
+});
+
+/**
+ * A tag on one lead.
+ */
+export const zLeadTagRef = z.object({
+    id: z.number().int(),
+    market: z.string(),
+    label: z.string(),
+    color: z.string(),
+    matched_domain: z.string().nullish()
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsLeadRow = z.object({
+    items: z.array(zLeadSummary.and(z.object({
+        tags: z.array(zLeadTagRef)
+    })))
+});
+
+/**
+ * A lead in the list, with its tags.
+ */
+export const zLeadRow = zLeadSummary.and(z.object({
+    tags: z.array(zLeadTagRef)
+}));
+
+export const zLeadTagsBody = z.object({
+    tag_ids: z.array(z.number().int())
 });
 
 export const zLeaveBalance = z.object({
@@ -1671,7 +2180,8 @@ export const zNewsletterRequest = z.object({
     body_markdown: z.boolean().optional(),
     hero: z.string().nullish(),
     attachment_document_ids: z.array(z.number().int()).optional(),
-    embed_document_ids: z.array(z.number().int()).optional()
+    embed_document_ids: z.array(z.number().int()).optional(),
+    tag_ids: z.array(z.number().int()).optional()
 });
 
 /**
@@ -1681,6 +2191,17 @@ export const zNewsletterRequest = z.object({
 export const zNewsletterSent = z.object({
     email_id: z.number().int(),
     recipients: z.number().int().gte(0)
+});
+
+export const zNewsletterTag = z.object({
+    id: z.number().int(),
+    section: z.string(),
+    label: z.string(),
+    color: z.string(),
+    position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    archived_at: z.string().datetime().nullish(),
+    active_subscribers: z.number().int(),
+    total_subscribers: z.number().int()
 });
 
 export const zNoteBody = z.object({
@@ -1847,6 +2368,10 @@ export const zPageRow = z.object({
     landing_page: z.string(),
     leads: z.number().int(),
     won: z.number().int()
+});
+
+export const zPaidBody = z.object({
+    paid: z.boolean()
 });
 
 export const zPartnerHit = z.object({
@@ -2023,7 +2548,10 @@ export const zPatchStage = z.object({
 export const zPatchTemplate = z.object({
     name: z.string().nullish(),
     subject: z.string().nullish(),
-    body: z.string().nullish()
+    body: z.string().nullish(),
+    category: z.string().nullish(),
+    folder: z.string().nullish(),
+    archived: z.boolean().nullish()
 });
 
 export const zPeriod = z.object({
@@ -2121,6 +2649,13 @@ export const zProjectType = z.object({
     spec_form: z.string().nullish()
 });
 
+export const zPublicJob = z.object({
+    title: z.string(),
+    description: z.string().nullish(),
+    location: z.string().nullish(),
+    status: z.string()
+});
+
 /**
  * A quotation letter for a lead: the one letter that shouts. Hero band on top, the
  * lead's quotation PDF attached, sent by the staff member as themselves.
@@ -2135,7 +2670,8 @@ export const zQuotationRequest = z.object({
     body: z.string().nullish(),
     hero: z.string().nullish(),
     body_markdown: z.boolean().optional(),
-    attachment_document_ids: z.array(z.number().int()).optional()
+    attachment_document_ids: z.array(z.number().int()).optional(),
+    followup_step_ids: z.array(z.number().int()).nullish()
 });
 
 /**
@@ -2155,6 +2691,21 @@ export const zRelatedOrder = z.object({
     number: z.string(),
     title: z.string(),
     relation: z.string()
+});
+
+export const zReorderNewsletterTags = z.object({
+    section: z.string(),
+    ids: z.array(z.number().int())
+});
+
+export const zReorderStatuses = z.object({
+    section: z.string(),
+    ids: z.array(z.number().int())
+});
+
+export const zReorderTags = z.object({
+    market: z.string(),
+    ids: z.array(z.number().int())
 });
 
 export const zResetPassword = z.object({
@@ -2198,6 +2749,12 @@ export const zItemsUser = z.object({
         created_at: z.string().datetime(),
         updated_at: z.string().datetime()
     }))
+});
+
+export const zScheduleBody = z.object({
+    delay_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    template_key: z.string(),
+    label: z.string().nullish()
 });
 
 export const zSessionKind = z.enum(['web', 'mobile']);
@@ -2435,7 +2992,8 @@ export const zLeadDetail = z.object({
     history: z.array(zStageEntry),
     orders: z.array(zOrderRef),
     documents: z.array(zDocument),
-    attribution: zAttribution.nullish()
+    attribution: zAttribution.nullish(),
+    tags: z.array(zLeadTagRef)
 });
 
 export const zStageView = z.object({
@@ -2459,9 +3017,33 @@ export const zStalledOrder = z.object({
     open_blockers: z.number().int()
 });
 
+export const zStepBody = z.object({
+    label: z.string(),
+    delay_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    template_key: z.string()
+});
+
+export const zStepPatch = z.object({
+    label: z.string().nullish(),
+    delay_days: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    template_key: z.string().nullish(),
+    is_active: z.boolean().nullish()
+});
+
 export const zStornoRequest = z.object({
     issue_date: z.string().date().nullish(),
     send_email: z.boolean().optional()
+});
+
+/**
+ * Counts for the list's header: everyone, the active ones, and those with no tag.
+ */
+export const zSubscriberCounts = z.object({
+    total: z.number().int(),
+    active: z.number().int(),
+    pending: z.number().int(),
+    unsubscribed: z.number().int(),
+    untagged: z.number().int()
 });
 
 export const zSubscription = z.object({
@@ -2474,9 +3056,29 @@ export const zSubscription = z.object({
     unsubscribed_at: z.string().datetime().nullish()
 });
 
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsSubscriberRow = z.object({
+    items: z.array(zSubscription.and(z.object({
+        tag_ids: z.array(z.number().int())
+    })))
+});
+
+/**
+ * A subscriber with the ids of their tags.
+ */
+export const zSubscriberRow = zSubscription.and(z.object({
+    tag_ids: z.array(z.number().int())
+}));
+
 export const zSubscriptionBody = z.object({
     email: z.string(),
     name: z.string().optional()
+});
+
+export const zSubscriptionTagsBody = z.object({
+    tag_ids: z.array(z.number().int())
 });
 
 export const zSuggestion = z.object({
@@ -2536,6 +3138,39 @@ export const zThroughputReport = z.object({
     rows: z.array(zThroughputRow)
 });
 
+export const zTimelineEvent = z.object({
+    at: z.string().datetime(),
+    kind: z.string(),
+    action: z.string(),
+    user_name: z.string().nullish(),
+    changes: z.record(z.unknown()),
+    text: z.string().nullish(),
+    detail: z.string().nullish(),
+    file_name: z.string().nullish(),
+    file_size: z.number().int().nullish(),
+    document_id: z.number().int().nullish(),
+    image_id: z.number().int().nullish(),
+    incoming_invoice_id: z.number().int().nullish(),
+    email_id: z.number().int().nullish(),
+    order_id: z.number().int().nullish(),
+    lead_id: z.number().int().nullish()
+});
+
+/**
+ * One tool the model used, for showing its work.
+ */
+export const zToolStep = z.object({
+    tool: z.string(),
+    arguments: z.record(z.unknown()),
+    ok: z.boolean()
+});
+
+export const zAssistantReply = z.object({
+    reply: z.string(),
+    filters: z.array(zFilterSuggestion),
+    steps: z.array(zToolStep)
+});
+
 export const zTransitionKind = z.enum([
     'forward',
     'backward',
@@ -2568,6 +3203,31 @@ export const zTransitionOption = z.object({
  */
 export const zUnsubscribed = z.object({
     unsubscribed: z.boolean()
+});
+
+export const zUpdateNewsletterTag = z.object({
+    section: z.string().nullish(),
+    label: z.string().nullish(),
+    color: z.string().nullish(),
+    archived: z.boolean().nullish()
+});
+
+export const zUpdateStatus = z.object({
+    section: z.string().nullish(),
+    label: z.string().nullish(),
+    color: z.string().nullish(),
+    archived: z.boolean().nullish()
+});
+
+/**
+ * Every field optional; absent keeps the current value.
+ */
+export const zUpdateTag = z.object({
+    market: z.string().nullish(),
+    label: z.string().nullish(),
+    color: z.string().nullish(),
+    domains: z.array(z.string()).nullish(),
+    archived: z.boolean().nullish()
 });
 
 export const zUpdateUser = z.object({
@@ -2721,7 +3381,8 @@ export const zWebsiteLead = z.object({
     utm_medium: z.string().nullish(),
     utm_campaign: z.string().nullish(),
     referrer: z.string().nullish(),
-    landing_page: z.string().nullish()
+    landing_page: z.string().nullish(),
+    site: z.string().nullish()
 });
 
 export const zWorkloadDay = z.object({
@@ -2978,17 +3639,51 @@ export const zMigrationOrderRawImportPath = z.object({
 
 export const zMigrationOrderRawImportResponse = zRawImportView;
 
+export const zLeadsListTagsQuery = z.object({
+    archived: z.boolean().optional()
+});
+
+export const zLeadsListTagsResponse = zItemsLeadTag;
+
+export const zLeadsCreateTagBody = zCreateTag;
+
+export const zLeadsCreateTagResponse = zLeadTag;
+
+export const zLeadsUpdateTagBody = zUpdateTag;
+
+export const zLeadsUpdateTagPath = z.object({
+    id: z.number().int()
+});
+
+export const zLeadsUpdateTagResponse = zLeadTag;
+
+export const zLeadsReorderTagsBody = zReorderTags;
+
+/**
+ * Reordered
+ */
+export const zLeadsReorderTagsResponse = z.void();
+
+export const zLeadsSetLeadTagsBody = zLeadTagsBody;
+
+export const zLeadsSetLeadTagsPath = z.object({
+    id: z.number().int()
+});
+
+export const zLeadsSetLeadTagsResponse = zItemsLeadTagRef;
+
 export const zLeadsSearchQuery = z.object({
     q: z.string().optional(),
     stage: z.string().optional(),
     assigned_to: z.number().int().optional(),
+    tag: z.number().int().optional(),
     open: z.boolean().optional(),
     sort: z.string().optional(),
     limit: z.number().int().optional(),
     offset: z.number().int().optional()
 });
 
-export const zLeadsSearchResponse = zItemsLeadSummary;
+export const zLeadsSearchResponse = zItemsLeadRow;
 
 export const zLeadsCreateBody = zLeadBody;
 
@@ -3436,7 +4131,7 @@ export const zMobileOrderPickerResponse = zItemsPickerOrder;
 
 export const zNewsletterSubscriptionsResponse = zItemsSubscription;
 
-export const zNewsletterAddSubscriptionBody = zSubscriptionBody;
+export const zNewsletterAddSubscriptionBody = zAddSubscriptionBody;
 
 export const zNewsletterAddSubscriptionResponse = zSubscription;
 
@@ -3467,6 +4162,73 @@ export const zNewsletterConfirmPath = z.object({
 });
 
 export const zNewsletterConfirmResponse = zConfirmed;
+
+export const zNewsletterListTagsQuery = z.object({
+    archived: z.boolean().optional()
+});
+
+export const zNewsletterListTagsResponse = zItemsNewsletterTag;
+
+export const zNewsletterCreateTagBody = zCreateNewsletterTag;
+
+export const zNewsletterCreateTagResponse = zNewsletterTag;
+
+export const zNewsletterUpdateTagBody = zUpdateNewsletterTag;
+
+export const zNewsletterUpdateTagPath = z.object({
+    id: z.number().int()
+});
+
+export const zNewsletterUpdateTagResponse = zNewsletterTag;
+
+export const zNewsletterReorderTagsBody = zReorderNewsletterTags;
+
+/**
+ * Reordered
+ */
+export const zNewsletterReorderTagsResponse = z.void();
+
+export const zNewsletterSearchSubscribersQuery = z.object({
+    q: z.string().optional(),
+    tag: z.number().int().optional(),
+    untagged: z.boolean().optional(),
+    status: z.enum([
+        'active',
+        'pending',
+        'unsubscribed'
+    ]).optional(),
+    limit: z.number().int().optional(),
+    offset: z.number().int().optional()
+});
+
+export const zNewsletterSearchSubscribersResponse = zItemsSubscriberRow;
+
+export const zNewsletterSubscriberCountsResponse = zSubscriberCounts;
+
+export const zNewsletterSetSubscriptionTagsBody = zSubscriptionTagsBody;
+
+export const zNewsletterSetSubscriptionTagsPath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * The subscriber's tag ids
+ */
+export const zNewsletterSetSubscriptionTagsResponse = z.array(z.number().int());
+
+export const zNewsletterBulkTagsBody = zBulkTagsBody;
+
+export const zNewsletterBulkTagsResponse = zBulkTagsResult;
+
+export const zNewsletterImportBody = zImportBody;
+
+export const zNewsletterImportResponse = zImportResult;
+
+export const zNewsletterAudienceQuery = z.object({
+    tags: z.string().optional()
+});
+
+export const zNewsletterAudienceResponse = zAudience;
 
 export const zNotificationsListQuery = z.object({
     after_id: z.number().int().optional(),
@@ -3550,6 +4312,12 @@ export const zEmailUpdateTemplatePath = z.object({
 
 export const zEmailUpdateTemplateResponse = zEmailTemplate;
 
+export const zEmailCopyTemplatePath = z.object({
+    id: z.number().int()
+});
+
+export const zEmailCopyTemplateResponse = zEmailTemplate;
+
 export const zEmailListSuppressionsResponse = zItemsSuppression;
 
 export const zEmailAddSuppressionBody = zAddSuppression;
@@ -3568,9 +4336,50 @@ export const zEmailRemoveSuppressionPath = z.object({
  */
 export const zEmailRemoveSuppressionResponse = z.void();
 
+export const zFollowupsListStepsResponse = zItemsFollowupStep;
+
+export const zFollowupsCreateStepBody = zStepBody;
+
+export const zFollowupsCreateStepResponse = zFollowupStep;
+
+export const zFollowupsUpdateStepBody = zStepPatch;
+
+export const zFollowupsUpdateStepPath = z.object({
+    id: z.number().int()
+});
+
+export const zFollowupsUpdateStepResponse = zFollowupStep;
+
+export const zFollowupsListForLeadPath = z.object({
+    id: z.number().int()
+});
+
+export const zFollowupsListForLeadResponse = zItemsFollowup;
+
+export const zFollowupsScheduleBody = zScheduleBody;
+
+export const zFollowupsSchedulePath = z.object({
+    id: z.number().int()
+});
+
+export const zFollowupsScheduleResponse = zFollowup;
+
+export const zFollowupsCancelAllPath = z.object({
+    id: z.number().int()
+});
+
+export const zFollowupsCancelAllResponse = zCancelled;
+
+export const zFollowupsCancelOnePath = z.object({
+    id: z.number().int()
+});
+
+export const zFollowupsCancelOneResponse = zFollowup;
+
 export const zHrListQuery = z.object({
     q: z.string().optional(),
-    include_archived: z.boolean().optional()
+    include_archived: z.boolean().optional(),
+    status: z.number().int().optional()
 });
 
 export const zHrListResponse = zItemsEmployee;
@@ -3622,6 +4431,39 @@ export const zHrSetPhotoPath = z.object({
 
 export const zHrSetPhotoResponse = zEmployee;
 
+export const zHrListStatusesQuery = z.object({
+    archived: z.boolean().optional()
+});
+
+export const zHrListStatusesResponse = zItemsEmployeeStatus;
+
+export const zHrCreateStatusBody = zCreateStatus;
+
+export const zHrCreateStatusResponse = zEmployeeStatus;
+
+export const zHrUpdateStatusBody = zUpdateStatus;
+
+export const zHrUpdateStatusPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrUpdateStatusResponse = zEmployeeStatus;
+
+export const zHrReorderStatusesBody = zReorderStatuses;
+
+/**
+ * Reordered
+ */
+export const zHrReorderStatusesResponse = z.void();
+
+export const zHrSetEmployeeStatusBody = zEmployeeStatusBody;
+
+export const zHrSetEmployeeStatusPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrSetEmployeeStatusResponse = zEmployee;
+
 export const zHrListAbsencesQuery = z.object({
     from: z.string().date(),
     to: z.string().date(),
@@ -3652,6 +4494,82 @@ export const zHrLeaveSummaryQuery = z.object({
 });
 
 export const zHrLeaveSummaryResponse = zItemsLeaveBalance;
+
+export const zHrListJobsResponse = zItemsJobPosting;
+
+export const zHrCreateJobBody = zJobBody;
+
+export const zHrCreateJobResponse = zJobPosting;
+
+export const zHrDeleteJobPath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * Deleted
+ */
+export const zHrDeleteJobResponse = z.void();
+
+export const zHrJobDetailPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrJobDetailResponse = zJobPosting;
+
+export const zHrUpdateJobBody = zJobBody;
+
+export const zHrUpdateJobPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrUpdateJobResponse = zJobPosting;
+
+export const zHrPublishJobPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrPublishJobResponse = zJobPosting;
+
+export const zHrCloseJobPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrCloseJobResponse = zJobPosting;
+
+export const zHrJobApplicationsPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrJobApplicationsResponse = zItemsApplication;
+
+export const zHrDeleteApplicationPath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * Deleted
+ */
+export const zHrDeleteApplicationResponse = z.void();
+
+export const zHrUpdateApplicationBody = zApplicationPatch;
+
+export const zHrUpdateApplicationPath = z.object({
+    id: z.number().int()
+});
+
+export const zHrUpdateApplicationResponse = zApplication;
+
+export const zRecruitmentPublicJobPath = z.object({
+    slug: z.string()
+});
+
+export const zRecruitmentPublicJobResponse = zPublicJob;
+
+export const zRecruitmentApplyBody = zApplyForm;
+
+export const zRecruitmentApplyPath = z.object({
+    slug: z.string()
+});
 
 export const zReportsVolumeQuery = z.object({
     from: z.string().date().optional(),
@@ -3747,6 +4665,17 @@ export const zTasksRemovePath = z.object({
 
 export const zTasksRemoveResponse = z.void();
 
+export const zTimelineHistoryPath = z.object({
+    entity: z.string(),
+    id: z.number().int()
+});
+
+export const zTimelineHistoryQuery = z.object({
+    limit: z.number().int().optional()
+});
+
+export const zTimelineHistoryResponse = zItemsTimelineEvent;
+
 export const zAdminStatusResponse = zAdminStatus;
 
 export const zAdminListJobsQuery = z.object({
@@ -3773,6 +4702,12 @@ export const zAdminRunNowResponse = zJobQueued;
 export const zAdminTestEmailBody = zEmailTestBody;
 
 export const zAdminTestEmailResponse = zEmailTestResult;
+
+export const zAssistantStatusResponse = zAssistantStatus;
+
+export const zAssistantChatBody = zChatBody;
+
+export const zAssistantChatResponse = zAssistantReply;
 
 export const zVehiclesSearchQuery = z.object({
     q: z.string().optional(),
@@ -3824,10 +4759,24 @@ export const zVehiclesDetachResponse = z.void();
 export const zInvoicesListAllQuery = z.object({
     status: z.string().optional(),
     kind: z.string().optional(),
+    bucket: z.string().optional(),
     limit: z.number().int().optional()
 });
 
 export const zInvoicesListAllResponse = zItemsBilledInvoice;
+
+export const zInvoicesBucketCountsResponse = zItemsBucketCount;
+
+export const zInvoicesMarkPaidBody = zPaidBody;
+
+export const zInvoicesMarkPaidPath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * Updated
+ */
+export const zInvoicesMarkPaidResponse = z.void();
 
 export const zInvoicesListAllProformasQuery = z.object({
     limit: z.number().int().optional()
@@ -3899,3 +4848,53 @@ export const zInvoicesCreateProformaPath = z.object({
 });
 
 export const zInvoicesCreateProformaResponse = zProformaCreated;
+
+export const zIncomingInvoicesListQuery = z.object({
+    q: z.string().optional(),
+    bucket: z.string().optional(),
+    limit: z.number().int().optional(),
+    offset: z.number().int().optional()
+});
+
+export const zIncomingInvoicesListResponse = zItemsIncomingInvoice;
+
+export const zIncomingInvoicesCountsResponse = zItemsIncomingBucketCount;
+
+export const zIncomingInvoicesSuppliersResponse = zItemsKnownSupplier;
+
+export const zIncomingInvoicesRemovePath = z.object({
+    id: z.number().int()
+});
+
+/**
+ * Removed from the lists; the record and file are kept
+ */
+export const zIncomingInvoicesRemoveResponse = z.void();
+
+export const zIncomingInvoicesDetailPath = z.object({
+    id: z.number().int()
+});
+
+export const zIncomingInvoicesDetailResponse = zIncomingInvoice;
+
+export const zIncomingInvoicesUpdateBody = zIncomingBody;
+
+export const zIncomingInvoicesUpdatePath = z.object({
+    id: z.number().int()
+});
+
+export const zIncomingInvoicesUpdateResponse = zIncomingInvoice;
+
+export const zIncomingInvoicesFileUrlPath = z.object({
+    id: z.number().int()
+});
+
+export const zIncomingInvoicesFileUrlResponse = zFileUrl;
+
+export const zIncomingInvoicesUploadBody = z.array(z.number().int().gte(0).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }));
+
+export const zIncomingInvoicesUploadQuery = z.object({
+    filename: z.string()
+});
+
+export const zIncomingInvoicesUploadResponse = zIncomingInvoice;

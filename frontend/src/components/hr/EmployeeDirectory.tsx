@@ -19,6 +19,9 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmailValue, PhoneValue } from '@/components/ui/ContactLinks';
 import { useToast } from '@/components/ui/Toasts';
+import { StatusSelect, StatusSidebar, useStatuses } from './StatusSidebar';
+import { ExportMenu } from '@/components/tables/ExportCsvButton';
+import { Timeline } from '@/components/timeline/Timeline';
 import type { Employee } from '@/lib/api/types';
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
@@ -72,18 +75,28 @@ export function Directory() {
   const initialQ = useSearchParams()?.get('q') ?? '';
   const [q, setQ] = useState(initialQ);
   const [archived, setArchived] = useState(false);
+  const [status, setStatus] = useState<number | null>(null);
+  const statuses = useStatuses();
   const [editing, setEditing] = useState<Employee | 'new' | null>(null);
   const debouncedQ = useDebouncedValue(q);
 
   const query = useQuery({
-    queryKey: qk.employees({ q: debouncedQ, archived }),
+    queryKey: qk.employees({ q: debouncedQ, archived, status }),
     queryFn: () =>
-      hrApi.list({ q: debouncedQ.trim() || undefined, include_archived: archived || undefined }),
+      hrApi.list({
+        q: debouncedQ.trim() || undefined,
+        include_archived: archived || undefined,
+        status: status ?? undefined,
+      }),
   });
   const items = query.data?.items ?? [];
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <aside className="card self-start p-3">
+        <StatusSidebar value={status} onChange={setStatus} />
+      </aside>
+    <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-64 flex-1 max-w-md">
           <Search
@@ -103,10 +116,31 @@ export function Directory() {
           <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />
           {t('showArchived')}
         </label>
-        <button className="btn-primary ml-auto" onClick={() => setEditing('new')}>
+        <div className="ml-auto flex items-center gap-2">
+        <ExportMenu
+          base="munkatarsak"
+          onExport={async () => {
+            const data = await hrApi.list({
+              q: debouncedQ.trim() || undefined,
+              include_archived: archived || undefined,
+              status: status ?? undefined,
+            });
+            const statusName = (id: number | null | undefined) =>
+              statuses.data?.items.find((s) => s.id === id)?.label ?? '';
+            return {
+              header: [t('export.name'), t('email'), t('companyPhone'), t('personalPhone'), t('export.status'), t('export.leaveDays'), t('export.left')],
+              rows: data.items.map((e) => [
+                e.full_name, e.email, e.company_phone, e.personal_phone, statusName(e.status_id), e.annual_leave_days, e.archived_at,
+              ]),
+              count: data.items.length,
+            };
+          }}
+        />
+        <button className="btn-primary" onClick={() => setEditing('new')}>
           <Plus className="h-4 w-4" aria-hidden />
           {t('newEmployee')}
         </button>
+        </div>
       </div>
 
       {query.isLoading ? (
@@ -143,6 +177,7 @@ export function Directory() {
                       <EmailValue value={e.email} />
                     </dd>
                   </dl>
+                  <StatusSelect employeeId={e.id} statusId={e.status_id} />
                 </div>
               </div>
               <div className="card-footer justify-end">
@@ -164,6 +199,7 @@ export function Directory() {
         />
       )}
     </div>
+    </div>
   );
 }
 
@@ -171,6 +207,7 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
   const t = useTranslations('hr');
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
+  const tl = useTranslations('timeline');
   const qc = useQueryClient();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -387,6 +424,12 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
                 </button>
               </div>
             </form>
+            {employee && (
+              <section className="card-content border-t border-steel-200">
+                <h3 className="mb-3 text-section font-semibold">{tl('title')}</h3>
+                <Timeline entity="employee" id={employee.id} />
+              </section>
+            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

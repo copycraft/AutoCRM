@@ -77,6 +77,7 @@ pub fn config() -> Config {
         worker_id: "test".into(),
         log_format: LogFormat::Pretty,
         log_dir: None,
+        ai: None,
     }
 }
 

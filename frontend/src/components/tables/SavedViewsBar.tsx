@@ -7,9 +7,11 @@ import { useToast } from '@/components/ui/Toasts';
 
 export const LIST_PARAM_KEYS: Record<string, string[]> = {
   orders: ['q', 'stage', 'partner', 'ptype', 'assignee', 'open', 'sort', 'page'],
-  leads: ['q', 'stage', 'assignee', 'open', 'sort', 'page'],
+  leads: ['q', 'stage', 'tag', 'assignee', 'open', 'sort', 'page'],
   partners: ['q', 'arch', 'sort', 'page'],
   emails: ['q', 'status', 'page'],
+  incoming_invoices: ['q', 'bucket', 'page'],
+  subscribers: ['q', 'status', 'tag', 'untagged', 'page'],
 };
 
 export function SavedViewsBar({ listKey }: { listKey: string }) {

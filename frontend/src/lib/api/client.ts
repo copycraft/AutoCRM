@@ -16,6 +16,8 @@ type Search = Record<string, string | number | boolean | undefined | null>;
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
+  /** A multipart form (the public application: details and resume), instead of JSON. */
+  formBody?: FormData;
   /** A file sent as-is (the HR photo), instead of JSON. */
   rawBody?: Blob;
   search?: Search;
@@ -34,7 +36,7 @@ function buildUrl(path: string, search?: Search): string {
 }
 
 async function send(path: string, opts: RequestOptions): Promise<Response> {
-  const { method = 'GET', body, rawBody, search, signal } = opts;
+  const { method = 'GET', body, rawBody, formBody, search, signal } = opts;
   const res = await fetch(buildUrl(path, search), {
     method,
     credentials: 'include',
@@ -44,7 +46,8 @@ async function send(path: string, opts: RequestOptions): Promise<Response> {
       : body !== undefined
         ? { 'Content-Type': 'application/json' }
         : undefined,
-    body: rawBody ?? (body !== undefined ? JSON.stringify(body) : undefined),
+    // A FormData body carries its own Content-Type, with the multipart boundary.
+    body: formBody ?? rawBody ?? (body !== undefined ? JSON.stringify(body) : undefined),
   });
   if (!res.ok) throw await parseApiError(res);
   return res;

@@ -9,7 +9,6 @@ import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { configApi, adminApi } from '@/lib/api/endpoints';
-import { NewsletterList } from '@/components/email/NewsletterList';
 import { ZoneTemplates } from '@/components/inspections/ZoneTemplates';
 import { qk } from '@/lib/query/provider';
 import { ApiError, errorMessage } from '@/lib/api/errors';
@@ -39,7 +38,6 @@ export default function SettingsPage() {
         <>
           <SettingsForm key={query.data.updated_at} initial={query.data} />
           <ZoneTemplates />
-          <NewsletterList />
         </>
       )}
     </AppShell>

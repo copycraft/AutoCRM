@@ -43,6 +43,8 @@ pub mod triggers {
     pub const STAGE_CHANGED: &str = "stage_changed";
     pub const READY_FOR_PICKUP: &str = "ready_for_pickup";
     pub const STALLED_ORDER: &str = "stalled_order";
+    /// A "did you get our offer?" letter after a quotation (service::followups).
+    pub const QUOTE_FOLLOWUP: &str = "quote_followup";
 }
 
 const MAX_ATTACHMENT_BYTES: i64 = 10 * 1024 * 1024;
@@ -665,6 +667,11 @@ pub struct QuotationRequest {
     pub body_markdown: bool,
     #[serde(default)]
     pub attachment_document_ids: Vec<i64>,
+    /// Follow-up letters to schedule (ids of `/followup-steps`), counted from this send.
+    /// Omitted: every active default step. `[]`: none. Any still waiting from an earlier
+    /// quotation of the lead are cancelled either way.
+    #[serde(default)]
+    pub followup_step_ids: Option<Vec<i64>>,
 }
 
 pub async fn send_quotation(
@@ -807,6 +814,14 @@ pub async fn send_quotation(
     )
     .await?
     .ok_or_else(|| AppError::internal("email insert returned no id"))?;
+    crate::service::followups::schedule_for_quotation(
+        &mut tx,
+        lead_id,
+        req.followup_step_ids.as_deref(),
+        Utc::now(),
+        user.user_id,
+    )
+    .await?;
     jobs::enqueue(
         &mut *tx,
         "send_email",
@@ -840,6 +855,9 @@ pub struct NewsletterRequest {
     /// Documents shown inline via `![alt](doc:ID)`, sent as `cid:doc-ID` parts.
     #[serde(default)]
     pub embed_document_ids: Vec<i64>,
+    /// Only subscribers with any of these newsletter tags; empty sends to everyone.
+    #[serde(default)]
+    pub tag_ids: Vec<i64>,
 }
 
 pub async fn send_newsletter(
@@ -869,15 +887,10 @@ pub async fn send_newsletter(
 
     let mut tx = state.db.begin().await?;
     // Suppressed addresses never make the BCC list, even when still subscribed.
-    let mut clean = Vec::new();
-    for addr in newsletter::active_emails(&mut *tx).await? {
-        if !emails::is_suppressed(&mut *tx, &addr).await? {
-            clean.push(addr);
-        }
-    }
+    let clean = crate::repo::newsletter_tags::audience(&mut *tx, &req.tag_ids).await?;
     if clean.is_empty() {
         return Err(AppError::validation(
-            "nobody to send to: the newsletter list is empty or all suppressed",
+            "nobody to send to: the chosen list is empty or all suppressed",
         ));
     }
 

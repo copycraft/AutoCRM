@@ -10,7 +10,7 @@ default-run = "autocrm"
 anyhow = "1"
 argon2 = { version = "0.5", features = ["std"] }
 aws-sdk-s3 = "1"
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "multipart"] }
 axum-extra = { version = "0.10", features = ["cookie"] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }

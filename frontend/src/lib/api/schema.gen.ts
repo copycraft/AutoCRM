@@ -446,6 +446,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/lead-tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["leads_list_tags"];
+        put?: never;
+        post: operations["leads_create_tag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lead-tags/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["leads_update_tag"];
+        trace?: never;
+    };
+    "/lead-tags/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["leads_reorder_tags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leads/{id}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["leads_set_lead_tags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leads": {
         parameters: {
             query?: never;
@@ -1313,6 +1377,156 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/newsletter/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["newsletter_list_tags"];
+        put?: never;
+        post: operations["newsletter_create_tag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/tags/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["newsletter_update_tag"];
+        trace?: never;
+    };
+    "/newsletter/tags/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["newsletter_reorder_tags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/subscribers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The subscriber list, a page at a time, newest first, each row with its tag ids. */
+        get: operations["newsletter_search_subscribers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/subscribers/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["newsletter_subscriber_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/subscriptions/{id}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["newsletter_set_subscription_tags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/subscriptions/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tag or untag many subscribers at once (the ticked rows of the list). */
+        post: operations["newsletter_bulk_tags"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Paste a list of addresses. New ones join as confirmed subscribers: importing says the
+         *     office holds their consent, as a hand-add does. Opted-out addresses are skipped.
+         */
+        post: operations["newsletter_import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/newsletter/audience": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["newsletter_audience"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications": {
         parameters: {
             query?: never;
@@ -1489,6 +1703,26 @@ export interface paths {
         patch: operations["email_update_template"];
         trace?: never;
     };
+    "/email-templates/{id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A copy to edit: "<name> (másolat)", same area and folder, a fresh key. How the design
+         *     samples are meant to be used, and how a customer letter gets a German twin.
+         */
+        post: operations["email_copy_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/email-suppressions": {
         parameters: {
             query?: never;
@@ -1516,6 +1750,88 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["email_remove_suppression"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/followup-steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["followups_list_steps"];
+        put?: never;
+        post: operations["followups_create_step"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/followup-steps/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["followups_update_step"];
+        trace?: never;
+    };
+    "/leads/{id}/followups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["followups_list_for_lead"];
+        put?: never;
+        /** One more follow-up for this lead, counted from now. */
+        post: operations["followups_schedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leads/{id}/followups/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stops every follow-up still waiting for this lead. */
+        post: operations["followups_cancel_all"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/followups/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["followups_cancel_one"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1606,6 +1922,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/hr/statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["hr_list_statuses"];
+        put?: never;
+        post: operations["hr_create_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/statuses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["hr_update_status"];
+        trace?: never;
+    };
+    "/hr/statuses/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["hr_reorder_statuses"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/employees/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Moves the employee to a status. Megszűnt jogviszony (a status that ends employment)
+         *     archives them; any other brings an archived employee back.
+         */
+        put: operations["hr_set_employee_status"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/hr/absences": {
         parameters: {
             query?: never;
@@ -1666,6 +2050,151 @@ export interface paths {
         get: operations["hr_leave_summary"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["hr_list_jobs"];
+        put?: never;
+        /** Creates a draft and returns it with its link. Nothing is public until it is published. */
+        post: operations["hr_create_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["hr_job_detail"];
+        put?: never;
+        post?: never;
+        /**
+         * A listing nobody applied to can go. One with applicants cannot: close it instead, so a
+         *     profile is only ever deleted on purpose.
+         */
+        delete: operations["hr_delete_job"];
+        options?: never;
+        head?: never;
+        patch: operations["hr_update_job"];
+        trace?: never;
+    };
+    "/hr/jobs/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Opens the form: the link starts accepting applications (also reopens a closed listing). */
+        post: operations["hr_publish_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/jobs/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stops accepting applications; the link then says the position is closed. */
+        post: operations["hr_close_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/jobs/{id}/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["hr_job_applications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/applications/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Deletes the profile and its resume file: the applicant is not getting the job. The
+         *     audit log keeps only that it happened, not who they were.
+         */
+        delete: operations["hr_delete_application"];
+        options?: never;
+        head?: never;
+        patch: operations["hr_update_application"];
+        trace?: never;
+    };
+    "/public/jobs/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the application page shows for a listing's link. Drafts do not exist publicly. */
+        get: operations["recruitment_public_job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/jobs/{slug}/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply to a listing: `multipart/form-data` with the details and the resume file. The
+         *     resume is stored and a profile is created for HR in one go; there is no login. Only a
+         *     published listing takes applications.
+         */
+        post: operations["recruitment_apply"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1892,6 +2421,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/timeline/{entity}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["timeline_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/status": {
         parameters: {
             query?: never;
@@ -1995,6 +2540,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["assistant_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * One turn of the conversation. Read-only: the assistant looks things up and builds
+         *     filters, it never changes data.
+         */
+        post: operations["assistant_chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vehicles": {
         parameters: {
             query?: never;
@@ -2070,6 +2651,43 @@ export interface paths {
         get: operations["invoices_list_all"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/buckets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many invoices are on each list, for the Számlázó sidebar. */
+        get: operations["invoices_bucket_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{id}/paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Marks an issued invoice paid (Fizetve) or back to unpaid (Kiállítva). Cash invoices
+         *     are paid on issue without this.
+         */
+        post: operations["invoices_mark_paid"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2220,6 +2838,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incoming-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["incoming_invoices_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incoming-invoices/buckets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["incoming_invoices_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incoming-invoices/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Suppliers seen before, for filling in the next invoice from the same one. */
+        get: operations["incoming_invoices_suppliers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incoming-invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["incoming_invoices_detail"];
+        put?: never;
+        post?: never;
+        delete: operations["incoming_invoices_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["incoming_invoices_update"];
+        trace?: never;
+    };
+    "/incoming-invoices/{id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["incoming_invoices_file_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incoming-invoices/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * One supplier invoice: the raw file as the body (PDF, JPEG, PNG, WebP or XML, up to
+         *     25 MB), its name in `?filename=`. It lands on Nyitott számla with nothing filled in.
+         *     The same file twice is refused, naming the invoice that already holds it.
+         */
+        post: operations["incoming_invoices_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2267,6 +2987,13 @@ export interface components {
             /** Format: int32 */
             position?: number | null;
         };
+        /** @description The office hand-add: confirmed on insert, because the office holds the consent. */
+        AddSubscriptionBody: {
+            email: string;
+            name?: string;
+            /** @description Newsletter tags to file the subscriber under. */
+            tag_ids?: number[];
+        };
         AddSuppression: {
             email: string;
             reason?: string | null;
@@ -2295,6 +3022,57 @@ export interface components {
             code: string;
             /** @description Why. NAV stores it and shows it in the Online Számla portal. */
             reason: string;
+        };
+        Application: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            job_id: number;
+            full_name: string;
+            email: string;
+            phone: string;
+            /** Format: int32 */
+            age: number;
+            city?: string | null;
+            message?: string | null;
+            resume_filename: string;
+            /**
+             * @description A short-lived download link to the resume (about 15 minutes); None if it cannot be
+             *     signed.
+             */
+            resume_url?: string | null;
+            /** @description HR's own notes, e.g. from the phone interview. */
+            notes?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ApplicationPatch: {
+            /** @description `null` or blank clears the notes. */
+            notes?: string | null;
+        };
+        /** @description The application form as multipart/form-data. Documented as a schema, parsed by hand. */
+        ApplyForm: {
+            full_name: string;
+            email: string;
+            phone: string;
+            /** Format: int32 */
+            age: number;
+            city?: string | null;
+            message?: string | null;
+            /** @description A PDF, DOC, DOCX, ODT or RTF file, up to 10 MB. */
+            resume: number[];
+            /** @description Honeypot: real visitors leave it empty; a filled one is silently dropped. */
+            company?: string | null;
+        };
+        AssistantReply: {
+            reply: string;
+            filters: components["schemas"]["FilterSuggestion"][];
+            steps: components["schemas"]["ToolStep"][];
+        };
+        AssistantStatus: {
+            /** @description False when no model is configured (AI_URL unset): the UI hides the assistant. */
+            enabled: boolean;
+            model?: string | null;
         };
         AttachBody: {
             /** Format: int64 */
@@ -2339,6 +3117,10 @@ export interface components {
             utm_campaign?: string | null;
             referrer?: string | null;
             landing_page?: string | null;
+        };
+        Audience: {
+            /** @description Active, not suppressed, deduplicated: exactly who a blast would go to now. */
+            recipients: number;
         };
         AuditEntry: {
             /** Format: int64 */
@@ -2402,6 +3184,16 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            /**
+             * @description The list it is on, worked out from the data: to_issue, issued, paid, archived,
+             *     stornoed, storno.
+             */
+            bucket: string;
+            /**
+             * Format: date-time
+             * @description When the customer paid. Set on issue for cash; marked by the office for transfer.
+             */
+            paid_at?: string | null;
         };
         /** @description A proforma with the order and partner it belongs to. */
         BilledProforma: {
@@ -2508,6 +3300,23 @@ export interface components {
              */
             waiting_days: number;
         };
+        /** @description How many invoices are on each list. */
+        BucketCount: {
+            bucket: string;
+            /** Format: int64 */
+            count: number;
+        };
+        BulkTagsBody: {
+            subscription_ids: number[];
+            add?: number[];
+            remove?: number[];
+        };
+        BulkTagsResult: {
+            /** Format: int64 */
+            added: number;
+            /** Format: int64 */
+            removed: number;
+        };
         CampaignRow: {
             channel: string;
             utm_source?: string | null;
@@ -2517,6 +3326,10 @@ export interface components {
             leads: number;
             /** Format: int64 */
             won: number;
+        };
+        Cancelled: {
+            /** Format: int64 */
+            cancelled: number;
         };
         /**
          * @description One document in the invoice's chain at NAV.
@@ -2547,6 +3360,15 @@ export interface components {
              * @description Leads now in the `won` stage.
              */
             won: number;
+        };
+        ChatBody: {
+            /** @description The conversation so far, oldest first; the last one is the user's question. */
+            messages: components["schemas"]["ChatMessage"][];
+        };
+        ChatMessage: {
+            /** @description `user` or `assistant`. */
+            role: string;
+            content: string;
         };
         Comparison: {
             checkin: components["schemas"]["InspectionDetail"];
@@ -2666,6 +3488,13 @@ export interface components {
              */
             client_key?: string | null;
         };
+        CreateNewsletterTag: {
+            /** @description The heading to list it under; a new heading starts a new section at the end. */
+            section: string;
+            label: string;
+            /** @description `#rrggbb`; light blue when omitted. */
+            color?: string | null;
+        };
         CreatePartner: {
             kind: components["schemas"]["PartnerKind"];
             name: string;
@@ -2714,11 +3543,30 @@ export interface components {
             /** Format: int32 */
             stall_after_days?: number | null;
         };
+        CreateStatus: {
+            section: string;
+            label: string;
+            color?: string | null;
+        };
+        CreateTag: {
+            /** @description Two-letter market code: hu, ro, de, it... */
+            market: string;
+            label: string;
+            /** @description `#rrggbb`; a neutral grey when omitted. */
+            color?: string | null;
+            /** @description Website domains or URLs; stored as bare hosts. */
+            domains?: string[];
+        };
         CreateTemplate: {
-            key: string;
+            /** @description Permanent, for code to refer to. Omitted: made up from the time (custom_...). */
+            key?: string | null;
             name: string;
             subject: string;
             body: string;
+            /** @description sales | projects | billing | marketing | hr | general. Default general. */
+            category?: string | null;
+            /** @description customer | workflow | design. Default customer. */
+            folder?: string | null;
         };
         CreateUser: {
             email: string;
@@ -2911,6 +3759,15 @@ export interface components {
             updated_at: string;
             /** Format: int64 */
             updated_by?: number | null;
+            /** @description The area it belongs to (the tabs): sales, projects, billing, marketing, hr, general. */
+            category: string;
+            /** @description customer (to customers), workflow (for the office), design (samples to copy). */
+            folder: string;
+            /**
+             * Format: date-time
+             * @description Set when moved to the bin.
+             */
+            archived_at?: string | null;
         };
         EmailTestBody: {
             to: string;
@@ -2984,6 +3841,11 @@ export interface components {
              * @description Paid annual leave per calendar year.
              */
             annual_leave_days: number;
+            /**
+             * Format: int64
+             * @description Where the employee stands (/hr/statuses).
+             */
+            status_id?: number | null;
             /** Format: date-time */
             archived_at?: string | null;
             /** Format: date-time */
@@ -3012,6 +3874,32 @@ export interface components {
             company_phone?: string | null;
             archived: boolean;
         };
+        EmployeeStatus: {
+            /** Format: int64 */
+            id: number;
+            /** @description The heading it is listed under: Távollévő munkavállaló, Aktív munkavállaló... */
+            section: string;
+            label: string;
+            /** @description `#rrggbb`. */
+            color: string;
+            /** Format: int32 */
+            position: number;
+            /** @description Choosing it archives the employee; archiving puts them on it. */
+            ends_employment: boolean;
+            /** @description Where new and returning employees start. */
+            is_default: boolean;
+            /** Format: date-time */
+            archived_at?: string | null;
+            /**
+             * Format: int64
+             * @description Employees on it now.
+             */
+            employees: number;
+        };
+        EmployeeStatusBody: {
+            /** Format: int64 */
+            status_id: number;
+        };
         /** @description The body of every non-2xx response. */
         ErrorBody: {
             error: components["schemas"]["ErrorDetail"];
@@ -3020,7 +3908,7 @@ export interface components {
          * @description Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.
          * @enum {string}
          */
-        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "nav_rejected" | "nav_unreachable" | "not_issued" | "pdf_unavailable";
+        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "domain_taken" | "assistant_unavailable" | "template_in_use" | "status_required" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "nav_rejected" | "nav_unreachable" | "not_issued" | "pdf_unavailable";
         ErrorDetail: {
             /** @description Stable machine-readable code, e.g. `validation`, `stage_gate`, `currency_locked`. */
             code: string;
@@ -3038,6 +3926,59 @@ export interface components {
         ErrorTextEntry: {
             code: string;
             text_hu: string;
+        };
+        FileUrl: {
+            /** @description Presigned, expires after one hour; opens in the browser. */
+            url: string;
+        };
+        /** @description A list filter the model built: open it, or save it as a view of that list. */
+        FilterSuggestion: {
+            /** @description leads | orders | partners | incoming_invoices | subscribers */
+            list: string;
+            /** @description The list's own URL parameters (what a saved view stores). */
+            params: {
+                [key: string]: string;
+            };
+            /** @description Where it opens, without the locale: `/leads?stage=quoted&open=1`. */
+            path: string;
+            /** @description A short human description. */
+            label: string;
+        };
+        Followup: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            lead_id: number;
+            label: string;
+            template_key: string;
+            template_name: string;
+            /** Format: date-time */
+            due_at: string;
+            /** @description scheduled | sent | cancelled | skipped */
+            status: string;
+            /** Format: int64 */
+            email_id?: number | null;
+            /** @description Why it was cancelled or skipped. */
+            note?: string | null;
+            created_by_name?: string | null;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        FollowupStep: {
+            /** Format: int64 */
+            id: number;
+            /** @description What the office calls it: "1 hét", "1 hónap". */
+            label: string;
+            /**
+             * Format: int32
+             * @description Days after the quotation was sent.
+             */
+            delay_days: number;
+            /** @description The email template it sends. */
+            template_key: string;
+            template_name: string;
+            /** @description Inactive steps are not scheduled for new quotations. */
+            is_active: boolean;
         };
         FxFetch: {
             /** Format: date */
@@ -3112,6 +4053,110 @@ export interface components {
             thumb_url?: string | null;
             /** @description Presigned, expires after one hour. */
             display_url?: string | null;
+        };
+        ImportBody: {
+            /**
+             * @description One subscriber per line: `email`, or `email;name` / `email,name` / tab-separated,
+             *     as pasted from a spreadsheet. A header line or blank lines are skipped.
+             */
+            text: string;
+            /** @description Tags to put on every imported address, new or already on the list. */
+            tag_ids?: number[];
+        };
+        ImportResult: {
+            /** @description New addresses, subscribed and confirmed. */
+            added: number;
+            /** @description Already on the list: kept as they were, tags added. */
+            existing: number;
+            /** @description Unsubscribed earlier: left out, only they can come back. */
+            opted_out: number;
+            /** @description Lines that held no valid address, as written (at most 50). */
+            invalid: string[];
+        };
+        /** @description Every field optional: absent keeps, `null` clears. */
+        IncomingBody: {
+            /** @description `invoice` | `proforma` | `receipt`. */
+            kind?: string | null;
+            supplier_name?: string | null;
+            supplier_tax_number?: string | null;
+            /** Format: int64 */
+            partner_id?: number | null;
+            invoice_number?: string | null;
+            /** Format: date */
+            issue_date?: string | null;
+            /** Format: date */
+            due_date?: string | null;
+            /** @description `HUF` | `EUR`. */
+            currency?: string | null;
+            /**
+             * Format: int64
+             * @description Minor units (fillér / eurocent).
+             */
+            net_amount?: number | null;
+            /** Format: int64 */
+            vat_amount?: number | null;
+            /** Format: int64 */
+            gross_amount?: number | null;
+            /** @description `TRANSFER` | `CASH` | `CARD`. */
+            payment_method?: string | null;
+            /**
+             * Format: int64
+             * @description How much of the gross has been paid, minor units.
+             */
+            paid_amount?: number | null;
+            /** Format: date */
+            paid_on?: string | null;
+            booking_only?: boolean | null;
+            notes?: string | null;
+        };
+        IncomingBucketCount: {
+            bucket: string;
+            /** Format: int64 */
+            count: number;
+        };
+        IncomingInvoice: {
+            /** Format: int64 */
+            id: number;
+            /** @description `invoice` | `proforma` (díjbekérő) | `receipt` (pénztárbizonylat). */
+            kind: string;
+            supplier_name: string;
+            supplier_tax_number?: string | null;
+            /** Format: int64 */
+            partner_id?: number | null;
+            invoice_number?: string | null;
+            /** Format: date */
+            issue_date?: string | null;
+            /** Format: date */
+            due_date?: string | null;
+            currency: string;
+            /**
+             * Format: int64
+             * @description Minor units; null until read off the document.
+             */
+            net_amount?: number | null;
+            /** Format: int64 */
+            vat_amount?: number | null;
+            /** Format: int64 */
+            gross_amount?: number | null;
+            /** @description `TRANSFER` | `CASH` | `CARD`. */
+            payment_method: string;
+            /** Format: int64 */
+            paid_amount: number;
+            /** Format: date */
+            paid_on?: string | null;
+            /** @description Exists only in the books (Csak könyvelésben létező). */
+            booking_only: boolean;
+            notes?: string | null;
+            file_name?: string | null;
+            file_type?: string | null;
+            /** Format: int64 */
+            file_size?: number | null;
+            /** @description The list it is on, from the figures. */
+            bucket: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         Inspection: {
             /** Format: int64 */
@@ -3416,6 +4461,32 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_Application: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                job_id: number;
+                full_name: string;
+                email: string;
+                phone: string;
+                /** Format: int32 */
+                age: number;
+                city?: string | null;
+                message?: string | null;
+                resume_filename: string;
+                /**
+                 * @description A short-lived download link to the resume (about 15 minutes); None if it cannot be
+                 *     signed.
+                 */
+                resume_url?: string | null;
+                /** @description HR's own notes, e.g. from the phone interview. */
+                notes?: string | null;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_AuditEntry: {
             items: {
                 /** Format: int64 */
@@ -3481,6 +4552,16 @@ export interface components {
                 created_at: string;
                 /** Format: date-time */
                 updated_at: string;
+                /**
+                 * @description The list it is on, worked out from the data: to_issue, issued, paid, archived,
+                 *     stornoed, storno.
+                 */
+                bucket: string;
+                /**
+                 * Format: date-time
+                 * @description When the customer paid. Set on issue for cash; marked by the office for transfer.
+                 */
+                paid_at?: string | null;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -3549,6 +4630,14 @@ export interface components {
                  *     (not UTC midnight — the whole point of this flag).
                  */
                 is_overdue: boolean;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_BucketCount: {
+            items: {
+                bucket: string;
+                /** Format: int64 */
+                count: number;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -3668,6 +4757,15 @@ export interface components {
                 updated_at: string;
                 /** Format: int64 */
                 updated_by?: number | null;
+                /** @description The area it belongs to (the tabs): sales, projects, billing, marketing, hr, general. */
+                category: string;
+                /** @description customer (to customers), workflow (for the office), design (samples to copy). */
+                folder: string;
+                /**
+                 * Format: date-time
+                 * @description Set when moved to the bin.
+                 */
+                archived_at?: string | null;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -3687,12 +4785,84 @@ export interface components {
                  * @description Paid annual leave per calendar year.
                  */
                 annual_leave_days: number;
+                /**
+                 * Format: int64
+                 * @description Where the employee stands (/hr/statuses).
+                 */
+                status_id?: number | null;
                 /** Format: date-time */
                 archived_at?: string | null;
                 /** Format: date-time */
                 created_at: string;
                 /** Format: date-time */
                 updated_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_EmployeeStatus: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** @description The heading it is listed under: Távollévő munkavállaló, Aktív munkavállaló... */
+                section: string;
+                label: string;
+                /** @description `#rrggbb`. */
+                color: string;
+                /** Format: int32 */
+                position: number;
+                /** @description Choosing it archives the employee; archiving puts them on it. */
+                ends_employment: boolean;
+                /** @description Where new and returning employees start. */
+                is_default: boolean;
+                /** Format: date-time */
+                archived_at?: string | null;
+                /**
+                 * Format: int64
+                 * @description Employees on it now.
+                 */
+                employees: number;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_Followup: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                lead_id: number;
+                label: string;
+                template_key: string;
+                template_name: string;
+                /** Format: date-time */
+                due_at: string;
+                /** @description scheduled | sent | cancelled | skipped */
+                status: string;
+                /** Format: int64 */
+                email_id?: number | null;
+                /** @description Why it was cancelled or skipped. */
+                note?: string | null;
+                created_by_name?: string | null;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_FollowupStep: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** @description What the office calls it: "1 hét", "1 hónap". */
+                label: string;
+                /**
+                 * Format: int32
+                 * @description Days after the quotation was sent.
+                 */
+                delay_days: number;
+                /** @description The email template it sends. */
+                template_key: string;
+                template_name: string;
+                /** @description Inactive steps are not scheduled for new quotations. */
+                is_active: boolean;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -3716,6 +4886,61 @@ export interface components {
                 /** @description Presigned, expires after one hour. */
                 display_url?: string | null;
             })[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_IncomingBucketCount: {
+            items: {
+                bucket: string;
+                /** Format: int64 */
+                count: number;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_IncomingInvoice: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** @description `invoice` | `proforma` (díjbekérő) | `receipt` (pénztárbizonylat). */
+                kind: string;
+                supplier_name: string;
+                supplier_tax_number?: string | null;
+                /** Format: int64 */
+                partner_id?: number | null;
+                invoice_number?: string | null;
+                /** Format: date */
+                issue_date?: string | null;
+                /** Format: date */
+                due_date?: string | null;
+                currency: string;
+                /**
+                 * Format: int64
+                 * @description Minor units; null until read off the document.
+                 */
+                net_amount?: number | null;
+                /** Format: int64 */
+                vat_amount?: number | null;
+                /** Format: int64 */
+                gross_amount?: number | null;
+                /** @description `TRANSFER` | `CASH` | `CARD`. */
+                payment_method: string;
+                /** Format: int64 */
+                paid_amount: number;
+                /** Format: date */
+                paid_on?: string | null;
+                /** @description Exists only in the books (Csak könyvelésben létező). */
+                booking_only: boolean;
+                notes?: string | null;
+                file_name?: string | null;
+                file_type?: string | null;
+                /** Format: int64 */
+                file_size?: number | null;
+                /** @description The list it is on, from the figures. */
+                bucket: string;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
         Items_Inspection: {
@@ -3852,34 +5077,83 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
-        Items_LeadSummary: {
+        Items_JobPosting: {
             items: {
                 /** Format: int64 */
                 id: number;
                 title: string;
+                description?: string | null;
+                location?: string | null;
+                /**
+                 * @description `draft` (link exists, form refuses applications), `published` (form open) or
+                 *     `closed` (form says the position is filled).
+                 */
+                status: string;
+                /** @description The link to share: the public application form of this listing. */
+                public_url: string;
                 /** Format: int64 */
-                partner_id?: number | null;
-                partner_name?: string | null;
-                contact_name?: string | null;
-                contact_email?: string | null;
-                source?: string | null;
-                /** Format: int64 */
-                assigned_to?: number | null;
-                assigned_name?: string | null;
-                /** Format: int64 */
-                quoted_value_minor?: number | null;
-                currency?: string | null;
-                /** Format: date */
-                quote_valid_until?: string | null;
-                stage_key: string;
-                stage_label: string;
+                application_count: number;
                 /** Format: date-time */
-                stage_entered_at: string;
-                /** Format: int64 */
-                order_id?: number | null;
-                order_number?: string | null;
+                published_at?: string | null;
                 /** Format: date-time */
                 created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_KnownSupplier: {
+            items: {
+                supplier_name: string;
+                supplier_tax_number?: string | null;
+                payment_method: string;
+                currency: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_LeadRow: {
+            items: (components["schemas"]["LeadSummary"] & {
+                tags: components["schemas"]["LeadTagRef"][];
+            })[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_LeadTag: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** @description Two-letter market code: hu, ro, de, it... */
+                market: string;
+                label: string;
+                /** @description `#rrggbb`. */
+                color: string;
+                /** @description Website domains whose leads get this tag on arrival. */
+                domains: string[];
+                /** Format: int32 */
+                position: number;
+                /** Format: date-time */
+                archived_at?: string | null;
+                /**
+                 * Format: int64
+                 * @description Leads with this tag that are not in a terminal stage.
+                 */
+                open_leads: number;
+                /** Format: int64 */
+                total_leads: number;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_LeadTagRef: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                market: string;
+                label: string;
+                color: string;
+                /**
+                 * @description The domain the server recognised when it tagged the lead itself; null when a
+                 *     person added the tag.
+                 */
+                matched_domain?: string | null;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -3911,6 +5185,30 @@ export interface components {
                 unpaid_days: number;
                 /** Format: int32 */
                 other_days: number;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_NewsletterTag: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** @description The heading it is listed under: Listák, Értékesítés, Vevők, Nem vevők... */
+                section: string;
+                label: string;
+                /** @description `#rrggbb`. */
+                color: string;
+                /** Format: int32 */
+                position: number;
+                /** Format: date-time */
+                archived_at?: string | null;
+                /**
+                 * Format: int64
+                 * @description Confirmed, not unsubscribed: who a blast to this tag would reach (before the
+                 *     suppression list).
+                 */
+                active_subscribers: number;
+                /** Format: int64 */
+                total_subscribers: number;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -4129,6 +5427,12 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_SubscriberRow: {
+            items: (components["schemas"]["Subscription"] & {
+                tag_ids: number[];
+            })[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_Subscription: {
             items: {
                 /** Format: int64 */
@@ -4185,6 +5489,61 @@ export interface components {
             items: {
                 name: string;
                 description: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_TimelineEvent: {
+            items: {
+                /** Format: date-time */
+                at: string;
+                /** @description create | change | stage | file | task | email | note | event */
+                kind: string;
+                /**
+                 * @description The finer action: the audit action, the stage key, the task's created/done,
+                 *     the email status, the image category or document kind.
+                 */
+                action: string;
+                /** @description Who did it; null for the system, the website, or an import. */
+                user_name?: string | null;
+                /**
+                 * @description For `change` (and some events): `{field: [old, new]}`, references already turned
+                 *     into names (partner, contact, user).
+                 */
+                changes: Record<string, unknown>;
+                /** @description The headline: stage label, task title, email subject, note body, order number. */
+                text?: string | null;
+                /** @description A second line: stage note, email recipient, task due date. */
+                detail?: string | null;
+                file_name?: string | null;
+                /** Format: int64 */
+                file_size?: number | null;
+                /**
+                 * Format: int64
+                 * @description Open with `/documents/{id}/download`.
+                 */
+                document_id?: number | null;
+                /**
+                 * Format: int64
+                 * @description Open with `/images/{id}/original`.
+                 */
+                image_id?: number | null;
+                /**
+                 * Format: int64
+                 * @description Open with `/incoming-invoices/{id}/file`.
+                 */
+                incoming_invoice_id?: number | null;
+                /**
+                 * Format: int64
+                 * @description The email at `/emails/{id}`.
+                 */
+                email_id?: number | null;
+                /**
+                 * Format: int64
+                 * @description An order this event links to (a partner's new order, a lead's conversion).
+                 */
+                order_id?: number | null;
+                /** Format: int64 */
+                lead_id?: number | null;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -4294,12 +5653,49 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        JobBody: {
+            title?: string | null;
+            description?: string | null;
+            location?: string | null;
+        };
+        JobPosting: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            description?: string | null;
+            location?: string | null;
+            /**
+             * @description `draft` (link exists, form refuses applications), `published` (form open) or
+             *     `closed` (form says the position is filled).
+             */
+            status: string;
+            /** @description The link to share: the public application form of this listing. */
+            public_url: string;
+            /** Format: int64 */
+            application_count: number;
+            /** Format: date-time */
+            published_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
         JobQueued: {
             /**
              * Format: int64
              * @description Null when an identical job was already queued.
              */
             job_id?: number | null;
+        };
+        /**
+         * @description Each supplier used before, with the tax number, payment method and currency of their
+         *     latest invoice: picking the name fills in the rest on the next one.
+         */
+        KnownSupplier: {
+            supplier_name: string;
+            supplier_tax_number?: string | null;
+            payment_method: string;
+            currency: string;
         };
         Lead: {
             /** Format: int64 */
@@ -4357,6 +5753,11 @@ export interface components {
             currency?: null | components["schemas"]["Currency"];
             /** Format: date */
             quote_valid_until?: string | null;
+            /**
+             * @description Create only: the tags to file the lead under. Tags whose domain the source names
+             *     are added on their own. Change them later with `PUT /leads/{id}/tags`.
+             */
+            tag_ids?: number[];
         };
         LeadDetail: {
             lead: components["schemas"]["Lead"];
@@ -4370,6 +5771,8 @@ export interface components {
             /** @description V2.4: the quotation and anything else filed against the enquiry itself. */
             documents: components["schemas"]["Document"][];
             attribution?: null | components["schemas"]["Attribution"];
+            /** @description The lead tags, each with the domain that put it there when the server did. */
+            tags: components["schemas"]["LeadTagRef"][];
         };
         LeadHit: {
             /** Format: int64 */
@@ -4377,6 +5780,10 @@ export interface components {
             title: string;
             contact_name?: string | null;
             stage_label: string;
+        };
+        /** @description A lead in the list, with its tags. */
+        LeadRow: components["schemas"]["LeadSummary"] & {
+            tags: components["schemas"]["LeadTagRef"][];
         };
         LeadSources: {
             period: components["schemas"]["Period"];
@@ -4423,6 +5830,46 @@ export interface components {
             order_number?: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        /** @description A tag as the settings list shows it, with how many leads carry it. */
+        LeadTag: {
+            /** Format: int64 */
+            id: number;
+            /** @description Two-letter market code: hu, ro, de, it... */
+            market: string;
+            label: string;
+            /** @description `#rrggbb`. */
+            color: string;
+            /** @description Website domains whose leads get this tag on arrival. */
+            domains: string[];
+            /** Format: int32 */
+            position: number;
+            /** Format: date-time */
+            archived_at?: string | null;
+            /**
+             * Format: int64
+             * @description Leads with this tag that are not in a terminal stage.
+             */
+            open_leads: number;
+            /** Format: int64 */
+            total_leads: number;
+        };
+        /** @description A tag on one lead. */
+        LeadTagRef: {
+            /** Format: int64 */
+            id: number;
+            market: string;
+            label: string;
+            color: string;
+            /**
+             * @description The domain the server recognised when it tagged the lead itself; null when a
+             *     person added the tag.
+             */
+            matched_domain?: string | null;
+        };
+        LeadTagsBody: {
+            /** @description The lead's tags after the change; every other tag is removed. */
+            tag_ids: number[];
         };
         LeaveBalance: {
             /** Format: int64 */
@@ -4535,6 +5982,8 @@ export interface components {
             attachment_document_ids?: number[];
             /** @description Documents shown inline via `![alt](doc:ID)`, sent as `cid:doc-ID` parts. */
             embed_document_ids?: number[];
+            /** @description Only subscribers with any of these newsletter tags; empty sends to everyone. */
+            tag_ids?: number[];
         };
         /**
          * @description One row, everyone in BCC. The answer says how many addresses made the list, so the
@@ -4544,6 +5993,27 @@ export interface components {
             /** Format: int64 */
             email_id: number;
             recipients: number;
+        };
+        NewsletterTag: {
+            /** Format: int64 */
+            id: number;
+            /** @description The heading it is listed under: Listák, Értékesítés, Vevők, Nem vevők... */
+            section: string;
+            label: string;
+            /** @description `#rrggbb`. */
+            color: string;
+            /** Format: int32 */
+            position: number;
+            /** Format: date-time */
+            archived_at?: string | null;
+            /**
+             * Format: int64
+             * @description Confirmed, not unsubscribed: who a blast to this tag would reach (before the
+             *     suppression list).
+             */
+            active_subscribers: number;
+            /** Format: int64 */
+            total_subscribers: number;
         };
         NoteBody: {
             body: string;
@@ -4845,6 +6315,9 @@ export interface components {
             /** Format: int64 */
             won: number;
         };
+        PaidBody: {
+            paid: boolean;
+        };
         Partner: {
             /** Format: int64 */
             id: number;
@@ -4995,6 +6468,13 @@ export interface components {
             name?: string | null;
             subject?: string | null;
             body?: string | null;
+            category?: string | null;
+            folder?: string | null;
+            /**
+             * @description true moves it to the bin (Lomtár), false brings it back. A template that code or
+             *     a follow-up sends cannot go to the bin.
+             */
+            archived?: boolean | null;
         };
         Period: {
             /** Format: date */
@@ -5096,6 +6576,13 @@ export interface components {
              */
             spec_form?: string | null;
         };
+        PublicJob: {
+            title: string;
+            description?: string | null;
+            location?: string | null;
+            /** @description `published` or `closed`. A draft is not found. */
+            status: string;
+        };
         /**
          * @description A quotation letter for a lead: the one letter that shouts. Hero band on top, the
          *     lead's quotation PDF attached, sent by the staff member as themselves.
@@ -5112,6 +6599,12 @@ export interface components {
             hero?: string | null;
             body_markdown?: boolean;
             attachment_document_ids?: number[];
+            /**
+             * @description Follow-up letters to schedule (ids of `/followup-steps`), counted from this send.
+             *     Omitted: every active default step. `[]`: none. Any still waiting from an earlier
+             *     quotation of the lead are cancelled either way.
+             */
+            followup_step_ids?: number[] | null;
         };
         /** @description The queued quotation letter. */
         QuotationSent: {
@@ -5138,6 +6631,20 @@ export interface components {
             /** @description 'warranty' | 'rework' | 'repeat'. */
             relation: string;
         };
+        ReorderNewsletterTags: {
+            section: string;
+            /** @description The section's tags, top first. */
+            ids: number[];
+        };
+        ReorderStatuses: {
+            section: string;
+            ids: number[];
+        };
+        ReorderTags: {
+            market: string;
+            /** @description The market's tags, top first. */
+            ids: number[];
+        };
         ReplaceTemplatesBody: {
             /**
              * Format: int64
@@ -5160,6 +6667,16 @@ export interface components {
         };
         /** @enum {string} */
         Role: "admin" | "office" | "designer" | "viewer";
+        ScheduleBody: {
+            /**
+             * Format: int32
+             * @description Days from now.
+             */
+            delay_days: number;
+            template_key: string;
+            /** @description Defaults to "N nap". */
+            label?: string | null;
+        };
         SessionInfo: {
             /** Format: int64 */
             id: number;
@@ -5370,6 +6887,24 @@ export interface components {
             /** Format: int64 */
             open_blockers: number;
         };
+        StepBody: {
+            label: string;
+            /**
+             * Format: int32
+             * @description Days after the quotation is sent, 1 to 365.
+             */
+            delay_days: number;
+            /** @description An email template key (see /email-templates). */
+            template_key: string;
+        };
+        StepPatch: {
+            label?: string | null;
+            /** Format: int32 */
+            delay_days?: number | null;
+            template_key?: string | null;
+            /** @description Off: new quotations do not schedule it; letters already scheduled stay. */
+            is_active?: boolean | null;
+        };
         StornoRequest: {
             /**
              * Format: date
@@ -5377,6 +6912,23 @@ export interface components {
              */
             issue_date?: string | null;
             send_email?: boolean;
+        };
+        /** @description Counts for the list's header: everyone, the active ones, and those with no tag. */
+        SubscriberCounts: {
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            active: number;
+            /** Format: int64 */
+            pending: number;
+            /** Format: int64 */
+            unsubscribed: number;
+            /** Format: int64 */
+            untagged: number;
+        };
+        /** @description A subscriber with the ids of their tags. */
+        SubscriberRow: components["schemas"]["Subscription"] & {
+            tag_ids: number[];
         };
         Subscription: {
             /** Format: int64 */
@@ -5397,6 +6949,10 @@ export interface components {
         SubscriptionBody: {
             email: string;
             name?: string;
+        };
+        SubscriptionTagsBody: {
+            /** @description The subscriber's tags after the change; every other tag is removed. */
+            tag_ids: number[];
         };
         Suggestion: {
             /** Format: int64 */
@@ -5463,6 +7019,65 @@ export interface components {
             /** Format: double */
             avg_lead_days?: number | null;
         };
+        TimelineEvent: {
+            /** Format: date-time */
+            at: string;
+            /** @description create | change | stage | file | task | email | note | event */
+            kind: string;
+            /**
+             * @description The finer action: the audit action, the stage key, the task's created/done,
+             *     the email status, the image category or document kind.
+             */
+            action: string;
+            /** @description Who did it; null for the system, the website, or an import. */
+            user_name?: string | null;
+            /**
+             * @description For `change` (and some events): `{field: [old, new]}`, references already turned
+             *     into names (partner, contact, user).
+             */
+            changes: Record<string, unknown>;
+            /** @description The headline: stage label, task title, email subject, note body, order number. */
+            text?: string | null;
+            /** @description A second line: stage note, email recipient, task due date. */
+            detail?: string | null;
+            file_name?: string | null;
+            /** Format: int64 */
+            file_size?: number | null;
+            /**
+             * Format: int64
+             * @description Open with `/documents/{id}/download`.
+             */
+            document_id?: number | null;
+            /**
+             * Format: int64
+             * @description Open with `/images/{id}/original`.
+             */
+            image_id?: number | null;
+            /**
+             * Format: int64
+             * @description Open with `/incoming-invoices/{id}/file`.
+             */
+            incoming_invoice_id?: number | null;
+            /**
+             * Format: int64
+             * @description The email at `/emails/{id}`.
+             */
+            email_id?: number | null;
+            /**
+             * Format: int64
+             * @description An order this event links to (a partner's new order, a lead's conversion).
+             */
+            order_id?: number | null;
+            /** Format: int64 */
+            lead_id?: number | null;
+        };
+        /** @description One tool the model used, for showing its work. */
+        ToolStep: {
+            tool: string;
+            arguments: Record<string, unknown>;
+            /** @description False when the call was refused (bad arguments); the model was told why. */
+            ok: boolean;
+        };
         /** @enum {string} */
         TransitionKind: "forward" | "backward" | "exit" | "reopen";
         /**
@@ -5489,6 +7104,28 @@ export interface components {
              *     off now" — so typing addresses cannot reveal who is subscribed.
              */
             unsubscribed: boolean;
+        };
+        UpdateNewsletterTag: {
+            section?: string | null;
+            label?: string | null;
+            color?: string | null;
+            /** @description true archives: subscribers keep it, but it leaves the lists and cannot be picked. */
+            archived?: boolean | null;
+        };
+        UpdateStatus: {
+            section?: string | null;
+            label?: string | null;
+            color?: string | null;
+            archived?: boolean | null;
+        };
+        /** @description Every field optional; absent keeps the current value. */
+        UpdateTag: {
+            market?: string | null;
+            label?: string | null;
+            color?: string | null;
+            domains?: string[] | null;
+            /** @description true archives: the tag leaves the lists and stops matching, leads keep it. */
+            archived?: boolean | null;
         };
         UpdateUser: {
             display_name?: string | null;
@@ -5658,6 +7295,11 @@ export interface components {
             referrer?: string | null;
             /** @description The first page of the visit, which is not always the page the form is on. */
             landing_page?: string | null;
+            /**
+             * @description The website the form is on (`hutoautok.hu` or its URL), when several sites post
+             *     here. Lead tags claiming that domain are put on the lead.
+             */
+            site?: string | null;
         };
         WorkloadDay: {
             /** Format: date */
@@ -7137,6 +8779,227 @@ export interface operations {
             };
         };
     };
+    leads_list_tags: {
+        parameters: {
+            query?: {
+                /** @description The archived tags instead of the live ones. */
+                archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_LeadTag"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leads_create_tag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTag"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadTag"];
+                };
+            };
+            /** @description A domain belongs to another tag, or the label is taken in that market */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leads_update_tag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTag"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadTag"];
+                };
+            };
+            /** @description A domain belongs to another tag, or the label is taken in that market */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leads_reorder_tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderTags"];
+            };
+        };
+        responses: {
+            /** @description Reordered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leads_set_lead_tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadTagsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_LeadTagRef"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     leads_search: {
         parameters: {
             query?: {
@@ -7144,6 +9007,8 @@ export interface operations {
                 /** @description Stage key. */
                 stage?: string;
                 assigned_to?: number;
+                /** @description Only leads carrying this tag. */
+                tag?: number;
                 /** @description Only leads not in a terminal stage. */
                 open?: boolean;
                 /** @description Sort key, `-` prefix for descending: created_at, title. */
@@ -7162,7 +9027,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Items_LeadSummary"];
+                    "application/json": components["schemas"]["Items_LeadRow"];
                 };
             };
             /** @description Client error; see `error.code` */
@@ -9677,7 +11542,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SubscriptionBody"];
+                "application/json": components["schemas"]["AddSubscriptionBody"];
             };
         };
         responses: {
@@ -9897,6 +11762,434 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Confirmed"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_list_tags: {
+        parameters: {
+            query?: {
+                /** @description The archived tags instead of the live ones. */
+                archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_NewsletterTag"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_create_tag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateNewsletterTag"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsletterTag"];
+                };
+            };
+            /** @description The label is taken in that section */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_update_tag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateNewsletterTag"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsletterTag"];
+                };
+            };
+            /** @description The label is taken in that section */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_reorder_tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderNewsletterTags"];
+            };
+        };
+        responses: {
+            /** @description Reordered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_search_subscribers: {
+        parameters: {
+            query?: {
+                /** @description Part of the address or the name. */
+                q?: string;
+                /** @description Only subscribers with this tag. */
+                tag?: number;
+                /** @description Only subscribers with no tag at all. */
+                untagged?: boolean;
+                status?: "active" | "pending" | "unsubscribed";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_SubscriberRow"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_subscriber_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriberCounts"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_set_subscription_tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionTagsBody"];
+            };
+        };
+        responses: {
+            /** @description The subscriber's tag ids */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": number[];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_bulk_tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkTagsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkTagsResult"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    newsletter_audience: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated tag ids; none means everyone. */
+                tags?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Audience"];
                 };
             };
             /** @description Client error; see `error.code` */
@@ -10446,6 +12739,45 @@ export interface operations {
             };
         };
     };
+    email_copy_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailTemplate"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     email_list_suppressions: {
         parameters: {
             query?: never;
@@ -10561,6 +12893,294 @@ export interface operations {
             };
         };
     };
+    followups_list_steps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_FollowupStep"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    followups_create_step: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowupStep"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    followups_update_step: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowupStep"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    followups_list_for_lead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Followup"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    followups_schedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Followup"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    followups_cancel_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cancelled"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    followups_cancel_one: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Followup"];
+                };
+            };
+            /** @description Not scheduled any more */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     hr_list: {
         parameters: {
             query?: {
@@ -10568,6 +13188,8 @@ export interface operations {
                 q?: string;
                 /** @description Include employees who have left. */
                 include_archived?: boolean;
+                /** @description Only employees on this status (archived ones included when it is theirs). */
+                status?: number;
             };
             header?: never;
             path?: never;
@@ -10887,6 +13509,219 @@ export interface operations {
             };
         };
     };
+    hr_list_statuses: {
+        parameters: {
+            query?: {
+                archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_EmployeeStatus"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_create_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStatus"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeStatus"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_update_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateStatus"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeStatus"];
+                };
+            };
+            /** @description The default or the ended status cannot be archived */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_reorder_statuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderStatuses"];
+            };
+        };
+        responses: {
+            /** @description Reordered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_set_employee_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeStatusBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     hr_list_absences: {
         parameters: {
             query: {
@@ -11037,6 +13872,504 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Items_LeaveBalance"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_list_jobs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_JobPosting"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_create_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPosting"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_job_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPosting"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_delete_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_update_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPosting"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_publish_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPosting"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_close_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPosting"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_job_applications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Application"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_delete_application: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_update_application: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Application"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    recruitment_public_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicJob"];
+                };
+            };
+            /** @description No such listing, or not yet published */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    recruitment_apply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["ApplyForm"];
+            };
+        };
+        responses: {
+            /** @description Application received */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid form or unusable resume */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such listing, or not yet published */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -11632,6 +14965,50 @@ export interface operations {
             };
         };
     };
+    timeline_history: {
+        parameters: {
+            query?: {
+                /** @description Newest N events. Defaults to 300, at most 1000. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description lead | order | partner | employee | incoming_invoice */
+                entity: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_TimelineEvent"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_status: {
         parameters: {
             query?: never;
@@ -11849,6 +15226,91 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EmailTestResult"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    assistant_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStatus"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    assistant_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantReply"];
+                };
+            };
+            /** @description No model configured, or the model is not reachable */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -12160,6 +15622,8 @@ export interface operations {
                 status?: string;
                 /** @description `invoice` | `storno`. Omitted: both. */
                 kind?: string;
+                /** @description The list: `to_issue` | `issued` | `paid` | `archived` | `stornoed` | `storno`. */
+                bucket?: string;
                 /** @description Newest N rows. Defaults to 100, at most 500. */
                 limit?: number;
             };
@@ -12176,6 +15640,92 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Items_BilledInvoice"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_bucket_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_BucketCount"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_mark_paid: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaidBody"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an issued invoice */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -12619,6 +16169,341 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProformaCreated"];
                 };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_invoices_list: {
+        parameters: {
+            query?: {
+                /** @description Supplier, invoice number, tax number or file name. */
+                q?: string;
+                /** @description open_invoice | open_proforma | transferred | cash | partial | cash_receipt | booking_only */
+                bucket?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_IncomingInvoice"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_invoices_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_IncomingBucketCount"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_invoices_suppliers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_KnownSupplier"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_invoices_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncomingInvoice"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_invoices_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed from the lists; the record and file are kept */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_invoices_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncomingBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncomingInvoice"];
+                };
+            };
+            /** @description That supplier's invoice number is already recorded */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_invoices_file_url: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUrl"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_invoices_upload: {
+        parameters: {
+            query: {
+                /** @description The file's own name, shown in the list and used for the download. */
+                filename: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncomingInvoice"];
+                };
+            };
+            /** @description This file is already uploaded */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Client error; see `error.code` */
             "4XX": {

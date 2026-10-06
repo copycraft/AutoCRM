@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ApiError } from '@/lib/api/errors';
 import { canAccessHr, useAuth } from '@/lib/auth/context';
@@ -9,14 +10,17 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Directory } from '@/components/hr/EmployeeDirectory';
 import { LeaveSection } from '@/components/hr/LeaveSection';
+import { RecruitmentSection } from '@/components/hr/RecruitmentSection';
 
-type Tab = 'people' | 'leave';
+type Tab = 'people' | 'leave' | 'recruitment';
 
-/** The HR module: the staff directory and leave. Gated here once for both tabs. */
+/** The HR module: the staff directory, leave and recruitment. Gated here once for all tabs. */
 export function HrWorkspace() {
   const t = useTranslations('hr');
   const { user, isLoading } = useAuth();
-  const [tab, setTab] = useState<Tab>('people');
+  // A notification about a new applicant opens the recruitment tab directly.
+  const requested = useSearchParams()?.get('tab');
+  const [tab, setTab] = useState<Tab>(requested === 'recruitment' ? 'recruitment' : 'people');
   if (isLoading) return <LoadingState />;
   // The backend refuses everyone else too; this only spares them a request and a 403.
   if (!canAccessHr(user)) return <ErrorState error={new ApiError('forbidden', 403, 'forbidden')} />;
@@ -24,6 +28,7 @@ export function HrWorkspace() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'people', label: t('tabPeople') },
     { key: 'leave', label: t('tabLeave') },
+    { key: 'recruitment', label: t('tabRecruitment') },
   ];
   return (
     <div>
@@ -43,7 +48,9 @@ export function HrWorkspace() {
           </button>
         ))}
       </div>
-      {tab === 'people' ? <Directory /> : <LeaveSection />}
+      {tab === 'people' && <Directory />}
+      {tab === 'leave' && <LeaveSection />}
+      {tab === 'recruitment' && <RecruitmentSection />}
     </div>
   );
 }

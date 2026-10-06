@@ -9,7 +9,8 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { StageHistoryList } from '@/components/ui/StageRail';
+import { Timeline } from '@/components/timeline/Timeline';
+import { LeadFollowups } from '@/components/followups/LeadFollowups';
 import { LeadForm, leadPatchBody, type LeadFormValues } from '@/components/forms/LeadForm';
 import { TaskList } from '@/components/tasks/TaskList';
 import { LeadStageDialog } from '@/components/forms/LeadStageDialog';
@@ -27,6 +28,7 @@ import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
 import { useRecentRecords } from '@/hooks/useRecent';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
 import { Money } from '@/components/ui/Money';
+import { LeadTagsField } from '@/components/leads/LeadTags';
 
 /** A quote whose validity has passed. Plain YYYY-MM-DD compared against the Budapest
  * calendar date — a UTC date would flip the badge around midnight for "today". */
@@ -105,7 +107,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
         </>
       ) : (
         (() => {
-          const { lead, stage, history, orders, documents, attribution } = detail.data;
+          const { lead, stage, orders, documents, attribution, tags } = detail.data;
           const defs = stagesQuery.data?.items ?? [];
           const currentDef = defs.find((d) => d.key === stage?.stage_key);
           // V2.7: one enquiry for three vans is three orders; converting again is allowed
@@ -179,6 +181,9 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                       {t('convertedOrder')}: <span className="font-mono">{o.number}</span>
                     </Link>
                   ))}
+                </div>
+                <div className="mt-3">
+                  <LeadTagsField leadId={id} tags={tags} editable={editable} />
                 </div>
               </section>
 
@@ -269,6 +274,10 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     </div>
                   </div>
 
+                  <div className="mt-5 border-t border-steel-200 pt-5">
+                    <LeadFollowups leadId={id} editable={editable} hasEmail={!!lead.contact_email || !!partnerQuery.data?.partner.email} />
+                  </div>
+
                   {/* V2.4: documents can hang off the lead, so the quotation itself has
                       somewhere to live and can be attached to an email. */}
                   <div className="mt-5 border-t border-steel-200 pt-5">
@@ -295,7 +304,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
               <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
                 <h2 className="text-section font-semibold">{t('history')}</h2>
                 <div className="mt-3">
-                  <StageHistoryList history={history} />
+                  <Timeline entity="lead" id={id} />
                 </div>
               </section>
 

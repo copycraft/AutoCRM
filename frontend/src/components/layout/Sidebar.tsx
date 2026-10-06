@@ -19,6 +19,9 @@ import {
   Users,
   Bell,
   SlidersHorizontal,
+  Megaphone,
+  Inbox,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/format';
 import { useAuth, canAdmin, canAccessHr } from '@/lib/auth/context';
@@ -30,9 +33,12 @@ const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: bo
   { href: '/notifications', icon: Bell, key: 'notifications' },
   { href: '/partners/business', icon: Building2, key: 'business' },
   { href: '/leads', icon: Target, key: 'leads' },
+  { href: '/marketing', icon: Megaphone, key: 'marketing' },
   { href: '/orders', icon: Package, key: 'orders' },
   { href: '/invoices', icon: Receipt, key: 'invoices' },
+  { href: '/incoming-invoices', icon: Inbox, key: 'incoming' },
   { href: '/emails', icon: Mail, key: 'emails' },
+  { href: '/templates', icon: FileText, key: 'templates' },
   { href: '/board', icon: MonitorPlay, key: 'board' },
   { href: '/reports', icon: BarChart3, key: 'reports' },
   { href: '/hr', icon: Users, key: 'hr', hr: true },

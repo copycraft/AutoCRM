@@ -1,8 +1,10 @@
 //! Use cases: orchestration of domain rules, repositories and integrations.
 
 pub mod auth;
+pub mod assistant;
 pub mod automation;
 pub mod email;
+pub mod followups;
 pub mod invoicing;
 pub mod leads;
 pub mod media;

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO email_templates (key, name, subject, body, updated_by) VALUES ($1, $2, $3, $4, $5)\n         RETURNING id, key, name, subject, body, locale, is_automatic, updated_at, updated_by",
+  "query": "UPDATE email_templates SET name = $2, subject = $3, body = $4, updated_by = $5,\n             category = $6, folder = $7,\n             archived_at = CASE WHEN $8 THEN coalesce(archived_at, now()) END\n         WHERE id = $1\n         RETURNING id, key, name, subject, body, locale, is_automatic, updated_at, updated_by, category, folder, archived_at",
   "describe": {
     "columns": [
       {
@@ -47,15 +47,33 @@
         "ordinal": 8,
         "name": "updated_by",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "category",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "folder",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "archived_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
+        "Int8",
         "Text",
         "Text",
         "Text",
+        "Int8",
         "Text",
-        "Int8"
+        "Text",
+        "Bool"
       ]
     },
     "nullable": [
@@ -67,8 +85,11 @@
       false,
       false,
       false,
+      true,
+      false,
+      false,
       true
     ]
   },
-  "hash": "9db883fb4050ac42b6954f1be016dab19af0f31c238aae8d8fb74f9383848a36"
+  "hash": "b2cf52359677c204c8ee62a06e46fda8461622800c78fc2b6b4b2e0a59af1c7f"
 }

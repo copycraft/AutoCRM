@@ -254,7 +254,7 @@ async fn leave_summary(
     }
     let first = NaiveDate::from_ymd_opt(year, 1, 1).expect("a real date");
     let last = NaiveDate::from_ymd_opt(year, 12, 31).expect("a real date");
-    let staff = employees::list(&state.db, None, false).await?;
+    let staff = employees::list(&state.db, None, false, None).await?;
     let all = absences::list(&state.db, first, last, None).await?;
 
     let items = staff

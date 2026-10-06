@@ -24,6 +24,8 @@ pub mod kinds {
     pub const PROCESS_IMAGE: &str = "process_image";
     pub const NUDGE_BLOCKERS: &str = "nudge_blockers";
     pub const STALLED_ORDERS: &str = "stalled_orders";
+    /// Hourly: quote follow-up letters that are due.
+    pub const QUOTE_FOLLOWUPS: &str = "quote_followups";
     pub const FETCH_FX_RATES: &str = "fetch_fx_rates";
     /// Report an invoice or storno to NAV through the sidecar, then store its PDF and
     /// queue the letter. Reporting is asynchronous at NAV, so it is asynchronous here.
@@ -189,6 +191,10 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
             automation::stalled_order_alerts(state).await?;
             Ok(Outcome::Done)
         }
+        kinds::QUOTE_FOLLOWUPS => {
+            crate::service::followups::send_due(state).await?;
+            Ok(Outcome::Done)
+        }
         kinds::NAV_SUBMIT_INVOICE => {
             let p: invoicing::SubmitPayload = payload(job)?;
             invoicing::submit_invoice(state, &p).await?;
@@ -236,6 +242,14 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
             local_now.format("%Y-%m-%dT%H")
         ),
         kinds::NUDGE_BLOCKERS,
+        json!({}),
+    )
+    .await?;
+
+    once(
+        state,
+        &format!("{}:{}", kinds::QUOTE_FOLLOWUPS, local_now.format("%Y-%m-%dT%H")),
+        kinds::QUOTE_FOLLOWUPS,
         json!({}),
     )
     .await?;

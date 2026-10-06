@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, key, name, subject, body, locale, is_automatic, updated_at, updated_by FROM email_templates WHERE key = $1",
+  "query": "SELECT id, key, name, subject, body, locale, is_automatic, updated_at, updated_by, category, folder, archived_at FROM email_templates ORDER BY name",
   "describe": {
     "columns": [
       {
@@ -47,12 +47,25 @@
         "ordinal": 8,
         "name": "updated_by",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "category",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "folder",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "archived_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
-      "Left": [
-        "Text"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -63,8 +76,11 @@
       false,
       false,
       false,
+      true,
+      false,
+      false,
       true
     ]
   },
-  "hash": "4cd891653e5fbf54252e6537ca48823844cd46f1c367c7aff125a2d9bbbc59f1"
+  "hash": "dbe8dd1bcb69227543c068b96777cb9dfb7744760f802b48daddbf07e4dda5fb"
 }

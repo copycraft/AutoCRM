@@ -56,12 +56,14 @@ pub struct Employee {
     pub photo_url: Option<String>,
     /// Paid annual leave per calendar year.
     pub annual_leave_days: i32,
+    /// Where the employee stands (/hr/statuses).
+    pub status_id: Option<i64>,
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-async fn present(state: &AppState, row: EmployeeRow) -> Employee {
+pub(super) async fn present(state: &AppState, row: EmployeeRow) -> Employee {
     let photo_url = match &row.photo_key {
         Some(key) => match state.storage.presign_get(key, PHOTO_URL_TTL, None).await {
             Ok(url) => Some(url),
@@ -80,6 +82,7 @@ async fn present(state: &AppState, row: EmployeeRow) -> Employee {
         personal_phone: row.personal_phone,
         photo_url,
         annual_leave_days: row.annual_leave_days,
+        status_id: row.status_id,
         archived_at: row.archived_at,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -94,6 +97,8 @@ struct ListQuery {
     /// Include employees who have left.
     #[serde(default)]
     include_archived: bool,
+    /// Only employees on this status (archived ones included when it is theirs).
+    status: Option<i64>,
 }
 
 #[utoipa::path(
@@ -108,7 +113,7 @@ async fn list(
 ) -> AppResult<Json<Items<Employee>>> {
     me.require(Capability::AccessHr)?;
     let pattern = q.q.as_deref().and_then(like_pattern);
-    let rows = employees::list(&state.db, pattern.as_deref(), q.include_archived).await?;
+    let rows = employees::list(&state.db, pattern.as_deref(), q.include_archived, q.status).await?;
     let mut items = Vec::with_capacity(rows.len());
     for row in rows {
         items.push(present(&state, row).await);
@@ -472,6 +477,7 @@ mod tests {
             personal_phone: Some("+36 20 333 4444".into()),
             photo_key: None,
             annual_leave_days: 25,
+            status_id: None,
             archived_at: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),

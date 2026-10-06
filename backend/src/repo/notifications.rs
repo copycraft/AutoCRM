@@ -38,6 +38,29 @@ pub async fn broadcast(
     Ok(result.rows_affected())
 }
 
+/// One notification for every active user who can open the HR module: admins, and users an
+/// admin gave `hr_access`. Returns how many.
+pub async fn broadcast_hr(
+    db: impl PgExecutor<'_>,
+    kind: &str,
+    title: &str,
+    body: Option<&str>,
+    link: Option<&str>,
+) -> sqlx::Result<u64> {
+    let result = sqlx::query(
+        "INSERT INTO notifications (user_id, kind, title, body, link)
+         SELECT id, $1, $2, $3, $4 FROM users
+         WHERE is_active AND (role::text = 'admin' OR hr_access)",
+    )
+    .bind(kind)
+    .bind(title)
+    .bind(body)
+    .bind(link)
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// The user's newest notifications, optionally only those after `after_id` and/or unread.
 pub async fn list(
     db: impl PgExecutor<'_>,

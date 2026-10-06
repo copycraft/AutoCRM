@@ -17,6 +17,7 @@ import { qk } from '@/lib/query/provider';
 import { canEditPartners, canSendEmail, useAuth } from '@/lib/auth/context';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { TaskList } from '@/components/tasks/TaskList';
+import { Timeline } from '@/components/timeline/Timeline';
 import { ContactLine, EmailValue, PhoneValue } from '@/components/ui/ContactLinks';
 import { useToast } from '@/components/ui/Toasts';
 import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
@@ -40,6 +41,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
   const tc = useTranslations('common');
   const tn = useTranslations('navigation');
   const tt = useTranslations('tasks');
+  const tl = useTranslations('timeline');
   const locale = useLocale();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -238,6 +240,15 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                   <h2 className="text-section font-semibold">{tt('forRecord')}</h2>
                   <div className="mt-3">
                     <TaskList entity="partner" id={id} />
+                  </div>
+                </section>
+              )}
+
+              {!editing && (
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <h2 className="text-section font-semibold">{tl('title')}</h2>
+                  <div className="mt-3">
+                    <Timeline entity="partner" id={id} />
                   </div>
                 </section>
               )}

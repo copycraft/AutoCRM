@@ -16,7 +16,15 @@ import { useAuth, canSendEmail } from '@/lib/auth/context';
 export default function NewEmailPage({
   searchParams,
 }: {
-  searchParams?: { order_id?: string; lead_id?: string; partner_id?: string; to?: string };
+  searchParams?: {
+    order_id?: string;
+    lead_id?: string;
+    partner_id?: string;
+    to?: string;
+    // `newsletter` opens the blast; `tags` (comma-separated ids) aims it, from Marketing.
+    audience?: string;
+    tags?: string;
+  };
 }) {
   const t = useTranslations('emails');
   const tn = useTranslations('navigation');
@@ -63,6 +71,8 @@ export default function NewEmailPage({
         <ComposeForm
           about={Object.keys(about).length > 0 ? about : undefined}
           defaultTo={params.to}
+          defaultAudience={params.audience === 'newsletter' ? 'newsletter' : undefined}
+          defaultTagIds={(params.tags ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0)}
           onSent={(id, newsletterRecipients) => {
             void qc.invalidateQueries({ queryKey: ['emails'] });
             toast.success(

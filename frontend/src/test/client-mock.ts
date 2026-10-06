@@ -13,15 +13,27 @@ const EXACT: Record<string, Handler> = {
   '/auth/sessions': () => ({ items: [] }),
   '/users': () => ({ items: [f.user, f.officeUser] }),
   '/hr/employees': () => ({ items: [f.employee] }),
+  '/hr/jobs': () => ({ items: [f.jobPosting] }),
   '/hr/absences': () => ({ items: [f.absence] }),
   '/hr/leave-summary': () => ({ items: [f.leaveBalance] }),
   '/notifications': () => f.notificationList,
   '/partners': () => ({ items: [f.partner] }),
-  '/leads': () => ({ items: [f.leadSummary] }),
+  '/leads': () => ({ items: [f.leadRow] }),
+  '/lead-tags': () => ({ items: [f.leadTag] }),
+  '/newsletter/tags': () => ({ items: [f.newsletterTag] }),
+  '/newsletter/subscribers': () => ({ items: [f.subscriberRow] }),
+  '/newsletter/subscribers/counts': () => ({ total: 2, active: 1, pending: 0, unsubscribed: 1, untagged: 0 }),
+  '/newsletter/audience': () => ({ recipients: 1 }),
+  '/incoming-invoices': () => ({ items: [f.incomingInvoice] }),
+  '/incoming-invoices/buckets': () => ({ items: [{ bucket: 'open_invoice', count: 1 }] }),
+  '/incoming-invoices/suppliers': () => ({ items: [] }),
+  '/invoices/buckets': () => ({ items: [{ bucket: 'issued', count: 1 }] }),
+  '/hr/statuses': () => ({ items: [{ id: 10, section: 'Aktív munkavállaló', label: 'Aktív munkavállaló', color: '#1f3a75', position: 2040, ends_employment: false, is_default: true, archived_at: null, employees: 1 }] }),
   '/orders': () => ({ items: [f.orderSummary] }),
   '/blockers': () => ({ items: [f.blocker] }),
   '/emails': () => ({ items: [f.emailSummary] }),
-  '/email-templates': () => ({ items: [] }),
+  '/email-templates': () => ({ items: [{ id: 1, key: 'invoice_overdue_1', name: 'Számla fizetési határidő lejárt #1', subject: 'Fizetési emlékeztető', body: 'Tisztelt {{partner.name}}!', locale: 'hu', is_automatic: false, updated_at: '2026-10-01T10:00:00Z', updated_by: null, category: 'billing', folder: 'customer', archived_at: null }] }),
+  '/followup-steps': () => ({ items: [{ id: 1, label: '1 hét', delay_days: 7, template_key: 'quote_followup_1', template_name: 'Árajánlat utánkövetés: 1 hét', is_active: true }] }),
   '/reports/stalled': () => ({ items: [] }),
   '/email-suppressions': () => ({ items: [] }),
   '/project-types': () => ({
@@ -40,9 +52,12 @@ const EXACT: Record<string, Handler> = {
 };
 
 const PATTERNS: [RegExp, Handler][] = [
+  [/^\/hr\/jobs\/\d+\/applications$/, () => ({ items: [f.jobApplication] })],
   [/^\/partners\/\d+$/, () => f.partnerDetail],
   [/^\/partners\/\d+\/contacts$/, () => ({ items: [f.contact] })],
   [/^\/leads\/\d+$/, () => f.leadDetail],
+  [/^\/timeline\/[a-z_]+\/\d+$/, () => ({ items: [f.timelineEvent] })],
+  [/^\/leads\/\d+\/followups$/, () => ({ items: [] })],
   [/^\/leads\/\d+\/transitions$/, () => ({ items: [] })],
   [/^\/orders\/\d+$/, () => f.orderDetail],
   [/^\/orders\/\d+\/stages$/, () => ({ items: [f.stageEntry] })],
@@ -107,6 +122,7 @@ export function resetWrites(): void {
 interface Opts {
   method?: string;
   body?: unknown;
+  formBody?: FormData;
   search?: Record<string, unknown>;
 }
 
@@ -117,6 +133,14 @@ function record(path: string, opts: Opts): void {
       path,
       method,
       ...(opts.body === undefined ? {} : { body: opts.body }),
+      // A multipart form is recorded as its fields; a file shows as its name.
+      ...(opts.formBody === undefined
+        ? {}
+        : {
+            body: Object.fromEntries(
+              [...opts.formBody.entries()].map(([k, v]) => [k, typeof v === 'string' ? v : v.name]),
+            ),
+          }),
       ...(opts.search === undefined ? {} : { search: opts.search }),
     });
   }

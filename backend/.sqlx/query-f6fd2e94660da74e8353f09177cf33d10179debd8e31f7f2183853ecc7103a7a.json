@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT l.id, l.title, l.partner_id, p.name AS \"partner_name?\", l.contact_name, l.contact_email, l.source,\n                  l.assigned_to, u.display_name AS \"assigned_name?\",\n                  l.quoted_value_minor, l.currency, l.quote_valid_until,\n                  cs.stage_key AS \"stage_key!\", sd.label_hu AS \"stage_label!\", cs.entered_at AS \"stage_entered_at!\",\n                  o.id AS \"order_id?\", o.number AS \"order_number?\", l.created_at\n           FROM leads l\n           JOIN lead_current_stage cs ON cs.lead_id = l.id\n           JOIN stage_definitions sd ON sd.entity = 'lead' AND sd.key = cs.stage_key\n           LEFT JOIN partners p ON p.id = l.partner_id\n           LEFT JOIN users u ON u.id = l.assigned_to\n           -- V2.7: a lead converts as many times as the enquiry had vehicles, so this is a\n           -- LATERAL taking the first order rather than a join that would duplicate the lead.\n           LEFT JOIN LATERAL (SELECT id, number FROM orders WHERE lead_id = l.id ORDER BY id LIMIT 1) o ON true\n            WHERE ($1::text IS NULL OR l.title ILIKE $1 OR l.contact_name ILIKE $1 OR l.contact_email ILIKE $1 OR p.name ILIKE $1\n                   -- Contact phone digits with Hungarian prefixes unified, mirroring\n                   -- domain::partner::normalize_phone.\n                   OR ($2::text IS NOT NULL AND regexp_replace(regexp_replace(regexp_replace(l.contact_phone, '[^0-9]', '', 'g'), '^00', ''), '^06', '36') LIKE $2))\n             AND ($3::text IS NULL OR cs.stage_key = $3)\n             AND ($4::bigint IS NULL OR l.assigned_to = $4)\n             AND (NOT $5 OR NOT sd.is_terminal)\n           ORDER BY\n               CASE WHEN $8 = 'created_at' THEN l.created_at END ASC,\n               CASE WHEN $8 = '-created_at' THEN l.created_at END DESC,\n               CASE WHEN $8 = 'title' THEN l.title END ASC,\n               CASE WHEN $8 = '-title' THEN l.title END DESC,\n               l.id DESC\n           LIMIT $6 OFFSET $7",
+  "query": "SELECT l.id, l.title, l.partner_id, p.name AS \"partner_name?\", l.contact_name, l.contact_email, l.source,\n                  l.assigned_to, u.display_name AS \"assigned_name?\",\n                  l.quoted_value_minor, l.currency, l.quote_valid_until,\n                  cs.stage_key AS \"stage_key!\", sd.label_hu AS \"stage_label!\", cs.entered_at AS \"stage_entered_at!\",\n                  o.id AS \"order_id?\", o.number AS \"order_number?\", l.created_at\n           FROM leads l\n           JOIN lead_current_stage cs ON cs.lead_id = l.id\n           JOIN stage_definitions sd ON sd.entity = 'lead' AND sd.key = cs.stage_key\n           LEFT JOIN partners p ON p.id = l.partner_id\n           LEFT JOIN users u ON u.id = l.assigned_to\n           -- V2.7: a lead converts as many times as the enquiry had vehicles, so this is a\n           -- LATERAL taking the first order rather than a join that would duplicate the lead.\n           LEFT JOIN LATERAL (SELECT id, number FROM orders WHERE lead_id = l.id ORDER BY id LIMIT 1) o ON true\n            WHERE ($1::text IS NULL OR l.title ILIKE $1 OR l.contact_name ILIKE $1 OR l.contact_email ILIKE $1 OR p.name ILIKE $1\n                   -- Contact phone digits with Hungarian prefixes unified, mirroring\n                   -- domain::partner::normalize_phone.\n                   OR ($2::text IS NOT NULL AND regexp_replace(regexp_replace(regexp_replace(l.contact_phone, '[^0-9]', '', 'g'), '^00', ''), '^06', '36') LIKE $2))\n             AND ($3::text IS NULL OR cs.stage_key = $3)\n             AND ($4::bigint IS NULL OR l.assigned_to = $4)\n             AND (NOT $5 OR NOT sd.is_terminal)\n             AND ($9::bigint IS NULL OR EXISTS (SELECT 1 FROM lead_tag_links k WHERE k.lead_id = l.id AND k.tag_id = $9))\n           ORDER BY\n               CASE WHEN $8 = 'created_at' THEN l.created_at END ASC,\n               CASE WHEN $8 = '-created_at' THEN l.created_at END DESC,\n               CASE WHEN $8 = 'title' THEN l.title END ASC,\n               CASE WHEN $8 = '-title' THEN l.title END DESC,\n               l.id DESC\n           LIMIT $6 OFFSET $7",
   "describe": {
     "columns": [
       {
@@ -103,7 +103,8 @@
         "Bool",
         "Int8",
         "Int8",
-        "Text"
+        "Text",
+        "Int8"
       ]
     },
     "nullable": [
@@ -127,5 +128,5 @@
       false
     ]
   },
-  "hash": "11e4cb8d4402779fb516764363b9294673f078b5f73078e4af2a25507d890304"
+  "hash": "f6fd2e94660da74e8353f09177cf33d10179debd8e31f7f2183853ecc7103a7a"
 }

@@ -10,7 +10,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BucketBadge, BucketList, type Bucket } from '@/components/tags/BucketList';
+import { ExportMenu } from '@/components/tables/ExportCsvButton';
+import { canIssueInvoices, useAuth } from '@/lib/auth/context';
 import { invoicesApi, ordersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
@@ -27,6 +30,29 @@ import type { BilledInvoice, BilledProforma, Currency, OrderSummary } from '@/li
 
 const STATUSES = ['submitting', 'issued', 'rejected', 'stornoed', 'annulled'] as const;
 const KINDS = ['invoice', 'storno'] as const;
+
+/** The outgoing lists, grouped and coloured as they were in MiniCRM. */
+export function useOutgoingBuckets(): { title: string; buckets: Bucket[] }[] {
+  const t = useTranslations('invoices.buckets');
+  return [
+    {
+      title: t('groupOpen'),
+      buckets: [
+        { key: 'to_issue', label: t('to_issue'), color: '#dbe8ff' },
+        { key: 'issued', label: t('issued'), color: '#5b93f5' },
+      ],
+    },
+    { title: t('groupDone'), buckets: [{ key: 'paid', label: t('paid'), color: '#2e4a30' }] },
+    {
+      title: t('groupFailed'),
+      buckets: [
+        { key: 'archived', label: t('archived'), color: '#d9862e' },
+        { key: 'stornoed', label: t('stornoed'), color: '#5b3a14' },
+        { key: 'storno', label: t('storno'), color: '#a33122' },
+      ],
+    },
+  ];
+}
 
 function statusTone(status: string): 'done' | 'cold' | 'signal' | 'muted' | 'steel' {
   switch (status) {
@@ -126,17 +152,34 @@ function InvoiceHistory({
   onPickOrder: (order: OrderSummary) => void;
 }) {
   const t = useTranslations('invoices');
+  const [bucket, setBucket] = useState('');
+  const groups = useOutgoingBuckets();
   const query = useQuery({
-    queryKey: qk.invoicesAll({ status: status || undefined, kind: kind || undefined }),
+    queryKey: qk.invoicesAll({ status: status || undefined, kind: kind || undefined, bucket: bucket || undefined }),
     queryFn: () =>
       invoicesApi.all({
         status: status || undefined,
         kind: kind || undefined,
+        bucket: bucket || undefined,
       }),
   });
+  const counts = useQuery({ queryKey: ['invoices', 'buckets'], queryFn: () => invoicesApi.buckets() });
+  const countMap = Object.fromEntries((counts.data?.items ?? []).map((c) => [c.bucket, c.count]));
+  const allBuckets = groups.flatMap((g) => g.buckets);
 
   return (
-    <section>
+    <section className="grid grid-cols-1 gap-5 md:grid-cols-[13rem_minmax(0,1fr)]">
+      <aside className="card self-start p-3">
+        <BucketList
+          title={t('buckets.title')}
+          groups={groups}
+          counts={countMap}
+          value={bucket}
+          onChange={setBucket}
+          allLabel={t('buckets.all')}
+        />
+      </aside>
+      <div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="label" htmlFor="billing-status">
           {t('billingStatus')}
@@ -167,6 +210,34 @@ function InvoiceHistory({
           <option value="invoice">{t('billingKindInvoice')}</option>
           <option value="storno">{t('kindStorno')}</option>
         </select>
+        <div className="ml-auto">
+          <ExportMenu
+            base="szamlak"
+            onExport={async () => {
+              const data = await invoicesApi.all({
+                status: status || undefined,
+                kind: kind || undefined,
+                bucket: bucket || undefined,
+                limit: 500,
+              });
+              const label = (key: string) => allBuckets.find((b) => b.key === key)?.label ?? key;
+              return {
+                header: [
+                  t('export.number'), t('export.list'), t('export.order'), t('export.partner'),
+                  t('export.issueDate'), t('export.deliveryDate'), t('export.paymentDate'),
+                  t('export.paymentMethod'), t('export.net'), t('export.vat'), t('export.gross'),
+                  t('export.currency'), t('export.paidAt'),
+                ],
+                rows: data.items.map((i) => [
+                  i.number, label(i.bucket), i.order_number, i.partner_name, i.issue_date, i.delivery_date,
+                  i.payment_date, i.payment_method, i.net_amount / 100, i.vat_amount / 100, i.gross_amount / 100,
+                  i.currency, i.paid_at,
+                ]),
+                count: data.items.length,
+              };
+            }}
+          />
+        </div>
       </div>
       <div className="mt-3">
         {query.isPending ? (
@@ -178,10 +249,16 @@ function InvoiceHistory({
         ) : (
           <ul className="space-y-2">
             {query.data.items.map((invoice) => (
-              <InvoiceRow key={invoice.id} invoice={invoice} onPickOrder={onPickOrder} />
+              <InvoiceRow
+                key={invoice.id}
+                invoice={invoice}
+                bucket={allBuckets.find((b) => b.key === invoice.bucket)}
+                onPickOrder={onPickOrder}
+              />
             ))}
           </ul>
         )}
+      </div>
       </div>
     </section>
   );
@@ -189,20 +266,33 @@ function InvoiceHistory({
 
 function InvoiceRow({
   invoice,
+  bucket,
   onPickOrder,
 }: {
   invoice: BilledInvoice;
+  bucket: Bucket | undefined;
   onPickOrder: (order: OrderSummary) => void;
 }) {
   const t = useTranslations('invoices');
   const locale = useLocale();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const paid = useMutation({
+    mutationFn: (next: boolean) => invoicesApi.setPaid(invoice.id, next),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['invoices'] }),
+  });
+  const payable = invoice.kind === 'invoice' && invoice.status === 'issued' && canIssueInvoices(user);
   const { data: lookups } = useLookups();
   return (
     <li className="card p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="font-mono text-body font-medium">{invoice.number}</span>
-        <StatusBadge tone={statusTone(invoice.status)}>{t(`status.${invoice.status}`)}</StatusBadge>
-        {invoice.kind === 'storno' && <StatusBadge tone="steel">{t('kindStorno')}</StatusBadge>}
+        <BucketBadge bucket={bucket} />
+        {/* The list says issued, stornoed and storno already; NAV's own word is shown
+            only where it says more: still being reported, rejected, annulled. */}
+        {['submitting', 'rejected', 'annulled'].includes(invoice.status) && (
+          <StatusBadge tone={statusTone(invoice.status)}>{t(`status.${invoice.status}`)}</StatusBadge>
+        )}
         <Money minor={invoice.gross_amount} currency={invoice.currency as Currency} className="ml-auto" />
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-metadata text-steel-500">
@@ -212,6 +302,20 @@ function InvoiceRow({
         <span>{invoice.partner_name}</span>
         <span>{lookupLabel(lookups?.invoice_payment_methods, invoice.payment_method)}</span>
         <DateDisplay value={invoice.issue_date} />
+        {invoice.paid_at && (
+          <span>
+            {t('buckets.paidOn')} <DateDisplay value={invoice.paid_at} />
+          </span>
+        )}
+        {payable && (
+          <button
+            className="underline hover:text-steel-900"
+            disabled={paid.isPending}
+            onClick={() => paid.mutate(!invoice.paid_at)}
+          >
+            {invoice.paid_at ? t('buckets.markUnpaid') : t('buckets.markPaid')}
+          </button>
+        )}
         <button
           className="underline hover:text-steel-900"
           onClick={() =>
@@ -251,7 +355,23 @@ function ProformaHistory({ onPickOrder }: { onPickOrder: (order: OrderSummary) =
 
   return (
     <section>
-      <p className="text-metadata text-steel-500">{t('billingProformaHint')}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-metadata text-steel-500">{t('billingProformaHint')}</p>
+        <ExportMenu
+          base="dijbekerok"
+          onExport={async () => ({
+            header: [
+              t('export.number'), t('export.order'), t('export.partner'), t('export.issueDate'),
+              t('export.paymentDate'), t('export.net'), t('export.vat'), t('export.gross'), t('export.currency'),
+            ],
+            rows: query.data.items.map((p) => [
+              p.number, p.order_number, p.partner_name, p.issue_date, p.payment_date,
+              p.net_amount / 100, p.vat_amount / 100, p.gross_amount / 100, p.currency,
+            ]),
+            count: query.data.items.length,
+          })}
+        />
+      </div>
       <ul className="mt-3 space-y-2">
         {query.data.items.map((proforma) => (
           <ProformaRow key={proforma.id} proforma={proforma} onPickOrder={onPickOrder} />

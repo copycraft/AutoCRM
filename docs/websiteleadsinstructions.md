@@ -64,6 +64,7 @@ Content-Type: application/json
 | `utm_campaign` | no | 300 | The campaign name you chose. |
 | `referrer` | no | 500 | `document.referrer` from the visitor's **first** page of the visit. |
 | `landing_page` | no | 500 | The path of the **first** page of the visit (not the form's page). |
+| `site` | no | 500 | The website the form is on, e.g. `hutoautok.hu` (`location.hostname` works). Send it when several sites post here: lead tags that claim the domain are put on the lead. |
 
 At least one of `email` or `phone` is required, so the office has a way to reply.
 Empty strings count as "not sent". Unknown extra fields are ignored. All text is stored
@@ -96,6 +97,7 @@ Put this on every page (it only stores the first visit's values for the browser 
     utm_campaign: q.get('utm_campaign') || '',
     referrer: document.referrer || '',
     landing_page: location.pathname,
+    site: location.hostname,
   }));
 })();
 ```
@@ -105,7 +107,7 @@ When the form is submitted, read it back and include its five fields in the requ
 
 ```js
 var attribution = JSON.parse(sessionStorage.getItem('attribution') || '{}');
-// post attribution.utm_source, utm_medium, utm_campaign, referrer, landing_page
+// post attribution.utm_source, utm_medium, utm_campaign, referrer, landing_page, site
 // to your own backend together with the form fields.
 ```
 

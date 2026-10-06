@@ -113,6 +113,7 @@ async fn lead_contact_phone_variants_all_match(pool: PgPool) {
             phone.as_deref(),
             None,
             None,
+            None,
             false,
             leads::DEFAULT_SORT,
             50,

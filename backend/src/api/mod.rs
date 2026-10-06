@@ -5,28 +5,36 @@
 //! document therefore cannot be served: the published contract covers the whole API.
 
 pub mod admin;
+pub mod assistant;
 pub mod auth;
 pub mod blockers;
 pub mod configuration;
 pub mod docs;
 pub mod email;
+pub mod followups;
 pub mod extract;
 pub mod hr;
+pub mod hr_statuses;
+pub mod incoming_invoices;
 pub mod inspections;
 pub mod invoices;
+pub mod lead_tags;
 pub mod leads;
 pub mod leave;
 pub mod media;
 pub mod mobile;
 pub mod newsletter;
+pub mod newsletter_tags;
 pub mod notifications;
 pub mod openapi;
 pub mod orders;
 pub mod partners;
 pub mod raw_import;
+pub mod recruitment;
 pub mod reports;
 pub mod search;
 pub mod tasks;
+pub mod timeline;
 pub mod users;
 pub mod vehicles;
 
@@ -57,6 +65,7 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(configuration::routes())
         .merge(partners::routes())
         .merge(raw_import::routes())
+        .merge(lead_tags::routes())
         .merge(leads::routes())
         .merge(orders::routes())
         .merge(blockers::routes())
@@ -64,17 +73,24 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(media::routes())
         .merge(mobile::routes())
         .merge(newsletter::routes())
+        .merge(newsletter_tags::routes())
         .merge(notifications::routes())
         .merge(email::routes())
+        .merge(followups::routes())
         .merge(hr::routes())
+        .merge(hr_statuses::routes())
         .merge(leave::routes())
+        .merge(recruitment::routes())
         .merge(reports::routes())
         .merge(search::routes())
         .merge(tasks::routes())
+        .merge(timeline::routes())
         .merge(admin::routes())
+        .merge(assistant::routes())
         .merge(vehicles::routes())
         // Last, so adding it appends to the generated document instead of reshuffling it.
         .merge(invoices::routes())
+        .merge(incoming_invoices::routes())
 }
 
 pub fn router(state: AppState) -> Router {

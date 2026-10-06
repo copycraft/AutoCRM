@@ -20,6 +20,7 @@ use crate::domain::email::normalize_address;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::repo::newsletter::{self, Subscription};
+use crate::repo::newsletter_tags;
 use crate::service::email::{self, NewsletterRequest};
 
 pub fn routes() -> OpenApiRouter<AppState> {
@@ -51,15 +52,26 @@ pub struct SubscriptionBody {
     pub name: String,
 }
 
+/// The office hand-add: confirmed on insert, because the office holds the consent.
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct AddSubscriptionBody {
+    pub email: String,
+    #[serde(default)]
+    pub name: String,
+    /// Newsletter tags to file the subscriber under.
+    #[serde(default)]
+    pub tag_ids: Vec<i64>,
+}
+
 #[utoipa::path(
     post, path = "/newsletter/subscriptions", tag = "newsletter",
-    request_body = SubscriptionBody,
+    request_body = AddSubscriptionBody,
     responses((status = 201, body = Subscription))
 )]
 async fn add_subscription(
     State(state): State<AppState>,
     Auth(me): Auth,
-    ApiJson(body): ApiJson<SubscriptionBody>,
+    ApiJson(body): ApiJson<AddSubscriptionBody>,
 ) -> AppResult<(StatusCode, Json<Subscription>)> {
     me.require(Capability::SendEmail)?;
     let email = normalize_address(&body.email)
@@ -68,7 +80,18 @@ async fn add_subscription(
     // hand-add must not silently resubscribe someone, or the tombstone that guards the
     // next import is pointless (MAIL-L6).
     refuse_resubscribe(&newsletter::list(&state.db).await?, &email)?;
-    let sub = newsletter::subscribe(&state.db, &email, &body.name, "office").await?;
+    let mut tag_ids = body.tag_ids.clone();
+    tag_ids.sort_unstable();
+    tag_ids.dedup();
+    if !tag_ids.is_empty()
+        && newsletter_tags::count_live(&state.db, &tag_ids).await? != tag_ids.len() as i64
+    {
+        return Err(AppError::validation("a tag does not exist or is archived"));
+    }
+    let mut tx = state.db.begin().await?;
+    let sub = newsletter::subscribe(&mut *tx, &email, &body.name, "office").await?;
+    newsletter_tags::add(&mut *tx, &[sub.id], &tag_ids).await?;
+    tx.commit().await?;
     Ok((StatusCode::CREATED, Json(sub)))
 }
 

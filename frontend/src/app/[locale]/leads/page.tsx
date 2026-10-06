@@ -22,7 +22,7 @@ import { useRememberList } from '@/hooks/useListMemory';
 import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
 import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
 import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
-import { ExportCsvButton } from '@/components/tables/ExportCsvButton';
+import { ExportCsvButton, collectAll } from '@/components/tables/ExportCsvButton';
 import { errorMessage } from '@/lib/api/errors';
 import { configApi, leadsApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
@@ -30,7 +30,8 @@ import { canEditLeads, useAuth } from '@/lib/auth/context';
 import { daysSince } from '@/lib/utils/format';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { stageTone } from '@/lib/utils/stages';
-import type { LeadSummary, StageDefinition } from '@/lib/api/types';
+import { TagChip, sortMarkets, useLeadTags, useMarketName } from '@/components/leads/LeadTags';
+import type { LeadRow, StageDefinition } from '@/lib/api/types';
 
 
 
@@ -40,12 +41,16 @@ export default function LeadsPage() {
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
   const tq = useTranslations('qol');
+  const tt = useTranslations('leadTags');
+  const marketName = useMarketName();
   const ter = useTranslations('errors');
   const locale = useLocale();
   const { user } = useAuth();
   useRememberList('leads');
   const [q, setQ] = useUrlState('q', '');
   const [stage, setStage] = useUrlState('stage', '');
+  const [tagRaw, setTagRaw] = useUrlState('tag', '');
+  const tag = Number(tagRaw) || null;
   const [assigneeRaw, setAssigneeRaw] = useUrlState('assignee', '');
   const [openOnly, setOpenOnly] = useUrlFlag('open', false);
   const [page, setPage] = useUrlInt('page', 1);
@@ -83,12 +88,25 @@ export default function LeadsPage() {
     return m;
   }, [stagesQuery.data]);
 
+  const tagsQuery = useLeadTags();
+  const tagGroups = useMemo(() => {
+    const items = tagsQuery.data?.items ?? [];
+    return sortMarkets(items.map((x) => x.market)).map(
+      (m) => [m, items.filter((x) => x.market === m)] as const,
+    );
+  }, [tagsQuery.data]);
+  const setTag = (id: number | null) => {
+    setTagRaw(id === null ? '' : String(id));
+    setPage(1);
+  };
+
   const query = useQuery({
-    queryKey: qk.leads({ q: debouncedQ, stage, assignedTo, openOnly, offset, pageSize, sort }),
+    queryKey: qk.leads({ q: debouncedQ, stage, tag, assignedTo, openOnly, offset, pageSize, sort }),
     queryFn: () =>
       leadsApi.list({
         q: debouncedQ || undefined,
         stage: stage || undefined,
+        tag: tag ?? undefined,
         assigned_to: assignedTo ?? undefined,
         open: openOnly || undefined,
         sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
@@ -97,7 +115,7 @@ export default function LeadsPage() {
       }),
   });
 
-  const columns = useMemo<ColumnDef<LeadSummary>[]>(
+  const columns = useMemo<ColumnDef<LeadRow>[]>(
     () => [
       {
         header: t('title'),
@@ -135,6 +153,21 @@ export default function LeadsPage() {
         ),
       },
       {
+        header: tt('tags'),
+        id: 'tags',
+        accessorFn: (r) => r.tags.map((x) => x.label).join(', '),
+        cell: ({ row }) =>
+          row.original.tags.length === 0 ? (
+            '—'
+          ) : (
+            <span className="flex max-w-xs flex-wrap gap-1">
+              {row.original.tags.map((x) => (
+                <TagChip key={x.id} tag={x} onClick={() => setTag(x.id)} />
+              ))}
+            </span>
+          ),
+      },
+      {
         header: t('age'),
         id: 'age',
         accessorKey: 'created_at',
@@ -155,12 +188,15 @@ export default function LeadsPage() {
         cell: ({ getValue }) =>           <DateDisplay value={getValue<string>()} />,
       },
     ],
-    [defs, locale, t, tc],
+    // setTag only writes the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [defs, locale, t, tc, tt],
   );
 
   const clear = () => {
     setQ('');
     setStage('');
+    setTagRaw('');
     setAssignee(null);
     setOpenOnly(false);
     setPage(1);
@@ -171,19 +207,37 @@ export default function LeadsPage() {
 
   /** Current filters, first 200 rows (the API max page). */
   const exportLeads = async () => {
-    const data = await leadsApi.list({
+    const all = await collectAll((offset, limit) =>
+      leadsApi.list({
       q: debouncedQ || undefined,
       stage: stage || undefined,
+      tag: tag ?? undefined,
       assigned_to: assignedTo ?? undefined,
       open: openOnly || undefined,
       sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
-      limit: 200,
-      offset: 0,
-    });
-    const items = data.items ?? [];
+        limit,
+        offset,
+      }),
+    );
+    const items = all;
     return {
-      header: [t('title'), t('partner'), t('stage'), t('assignedTo'), t('createdAt')],
-      rows: items.map((l) => [l.title, l.partner_name, l.stage_label, l.assigned_name, l.created_at]),
+      header: [
+        t('title'), t('partner'), t('contactName'), t('contactEmail'), t('source'), t('stage'), tt('tags'),
+        t('quotedValue'), tc('currency'), t('assignedTo'), t('createdAt'),
+      ],
+      rows: items.map((l) => [
+        l.title,
+        l.partner_name,
+        l.contact_name,
+        l.contact_email,
+        l.source,
+        l.stage_label,
+        l.tags.map((x) => `${x.market.toUpperCase()}: ${x.label}`).join(', '),
+        l.quoted_value_minor != null ? l.quoted_value_minor / 100 : null,
+        l.currency,
+        l.assigned_name,
+        l.created_at,
+      ]),
       count: items.length,
     };
   };
@@ -196,6 +250,11 @@ export default function LeadsPage() {
     if (stage !== '') {
       const label = stagesQuery.data?.items.find((d) => d.key === stage)?.label_hu ?? stage;
       list.push({ key: 'stage', label: `${t('stage')}: ${label}`, onRemove: () => { setStage(''); setPage1(); } });
+    }
+    if (tag !== null) {
+      const found = tagsQuery.data?.items.find((x) => x.id === tag);
+      const label = found ? `${marketName(found.market)} · ${found.label}` : `#${tag}`;
+      list.push({ key: 'tag', label: `${tt('filter')}: ${label}`, onRemove: () => setTag(null) });
     }
     if (assignee !== null && assignee !== 'all') {
       const label = assignee === 'me' ? (user?.display_name ?? 'me') : `#${assignee}`;
@@ -210,7 +269,7 @@ export default function LeadsPage() {
     return list;
     // setPage1 is a stable wrapper around setPage.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, stage, assignee, user, openOnly, sort, stagesQuery.data, tc, t, tq]);
+  }, [q, stage, tag, assignee, user, openOnly, sort, stagesQuery.data, tagsQuery.data, tc, t, tq, tt]);
 
   return (
     <AppShell>
@@ -218,9 +277,14 @@ export default function LeadsPage() {
         title={tn('leads')}
         actions={
           canEditLeads(user) && (
-            <Link href={`/${locale}/leads/new`} className="btn-primary btn-sm">
-              {t('newLead')}
-            </Link>
+            <>
+              <Link href={`/${locale}/leads/tags`} className="btn-secondary btn-sm">
+                {tt('manage')}
+              </Link>
+              <Link href={`/${locale}/leads/new`} className="btn-primary btn-sm">
+                {t('newLead')}
+              </Link>
+            </>
           )
         }
       />
@@ -259,6 +323,25 @@ export default function LeadsPage() {
               {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
             </span>
           )}
+        </FilterField>
+        <FilterField label={tt('filter')}>
+          <select
+            className="input"
+            value={tag ?? ''}
+            disabled={tagsQuery.isLoading}
+            onChange={(e) => setTag(e.target.value === '' ? null : Number(e.target.value))}
+          >
+            <option value="">{tc('all')}</option>
+            {tagGroups.map(([market, list]) => (
+              <optgroup key={market} label={marketName(market)}>
+                {list.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.label} ({x.open_leads}/{x.total_leads})
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </FilterField>
         <AssigneeField
           label={t('assigneeFilter')}
@@ -299,6 +382,7 @@ export default function LeadsPage() {
             filtered={
               debouncedQ.trim() !== '' ||
               stage !== '' ||
+              tag !== null ||
               openOnly ||
               (assignee !== null && assignee !== 'all')
             }

@@ -63,7 +63,7 @@ export const partnersApi = {
 
 // ── Leads ──
 export const leadsApi = {
-  list: (search: QueryOf<'leads_search'> = {}): Promise<S['Items_LeadSummary']> =>
+  list: (search: QueryOf<'leads_search'> = {}): Promise<S['Items_LeadRow']> =>
     request('/leads', s.zLeadsSearchResponse, { search }),
   get: (id: number): Promise<S['LeadDetail']> => request(`/leads/${id}`, s.zLeadsDetailResponse),
   create: (body: S['LeadBody']): Promise<S['Lead']> =>
@@ -78,6 +78,20 @@ export const leadsApi = {
     request(`/leads/${id}/convert`, s.zLeadsConvertResponse, { method: 'POST', body }),
   quotation: (id: number, body: S['QuotationRequest']): Promise<S['QuotationSent']> =>
     request(`/leads/${id}/quotation`, s.zLeadsQuotationResponse, { method: 'POST', body }),
+  setTags: (id: number, tag_ids: number[]): Promise<S['Items_LeadTagRef']> =>
+    request(`/leads/${id}/tags`, s.zLeadsSetLeadTagsResponse, { method: 'PUT', body: { tag_ids } }),
+};
+
+// ── Lead tags (per-market lists; domains tag website leads on arrival) ──
+export const leadTagsApi = {
+  list: (archived = false): Promise<S['Items_LeadTag']> =>
+    request('/lead-tags', s.zLeadsListTagsResponse, { search: { archived: archived || undefined } }),
+  create: (body: S['CreateTag']): Promise<S['LeadTag']> =>
+    request('/lead-tags', s.zLeadsCreateTagResponse, { method: 'POST', body }),
+  update: (id: number, body: S['UpdateTag']): Promise<S['LeadTag']> =>
+    request(`/lead-tags/${id}`, s.zLeadsUpdateTagResponse, { method: 'PATCH', body }),
+  reorder: (market: string, ids: number[]): Promise<void> =>
+    requestNoContent('/lead-tags/order', { method: 'PUT', body: { market, ids } }),
 };
 
 // ── Orders ──
@@ -142,6 +156,33 @@ export const invoicesApi = {
       method: 'POST',
       body,
     }),
+  // The lists worked out from the data (Kiállítandó ... Sztornó), and the paid mark.
+  buckets: (): Promise<S['Items_BucketCount']> =>
+    request('/invoices/buckets', s.zInvoicesBucketCountsResponse),
+  setPaid: (id: number, paid: boolean): Promise<void> =>
+    requestNoContent(`/invoices/${id}/paid`, { method: 'POST', body: { paid } }),
+};
+
+// ── Incoming (supplier) invoices ──
+export const incomingApi = {
+  list: (search: QueryOf<'incoming_invoices_list'> = {}): Promise<S['Items_IncomingInvoice']> =>
+    request('/incoming-invoices', s.zIncomingInvoicesListResponse, { search }),
+  buckets: (): Promise<S['Items_IncomingBucketCount']> =>
+    request('/incoming-invoices/buckets', s.zIncomingInvoicesCountsResponse),
+  suppliers: (): Promise<S['Items_KnownSupplier']> =>
+    request('/incoming-invoices/suppliers', s.zIncomingInvoicesSuppliersResponse),
+  upload: (file: File): Promise<S['IncomingInvoice']> =>
+    request('/incoming-invoices/upload', s.zIncomingInvoicesUploadResponse, {
+      method: 'POST',
+      rawBody: file,
+      search: { filename: file.name },
+    }),
+  update: (id: number, body: S['IncomingBody']): Promise<S['IncomingInvoice']> =>
+    request(`/incoming-invoices/${id}`, s.zIncomingInvoicesUpdateResponse, { method: 'PATCH', body }),
+  remove: (id: number): Promise<void> =>
+    requestNoContent(`/incoming-invoices/${id}`, { method: 'DELETE' }),
+  fileUrl: (id: number): Promise<S['FileUrl']> =>
+    request(`/incoming-invoices/${id}/file`, s.zIncomingInvoicesFileUrlResponse),
 };
 
 // ── Blockers ──
@@ -208,6 +249,8 @@ export const emailApi = {
     request('/email-templates', s.zEmailCreateTemplateResponse, { method: 'POST', body }),
   updateTemplate: (id: number, body: S['PatchTemplate']): Promise<S['EmailTemplate']> =>
     request(`/email-templates/${id}`, s.zEmailUpdateTemplateResponse, { method: 'PATCH', body }),
+  copyTemplate: (id: number): Promise<S['EmailTemplate']> =>
+    request(`/email-templates/${id}/copy`, s.zEmailCopyTemplateResponse, { method: 'POST' }),
   variables: (): Promise<S['Items_TemplateVariable']> =>
     request('/email-templates/variables', s.zEmailVariablesResponse),
   suppressions: (): Promise<S['Items_Suppression']> =>
@@ -225,7 +268,7 @@ export const emailApi = {
 export const newsletterApi = {
   subscriptions: (): Promise<S['Items_Subscription']> =>
     request('/newsletter/subscriptions', s.zNewsletterSubscriptionsResponse),
-  addSubscription: (body: S['SubscriptionBody']): Promise<S['Subscription']> =>
+  addSubscription: (body: S['AddSubscriptionBody']): Promise<S['Subscription']> =>
     request('/newsletter/subscriptions', s.zNewsletterAddSubscriptionResponse, { method: 'POST', body }),
   removeSubscription: (id: number): Promise<void> =>
     requestNoContent(`/newsletter/subscriptions/${id}`, { method: 'DELETE' }),
@@ -235,6 +278,27 @@ export const newsletterApi = {
     request('/newsletter/confirm', s.zNewsletterConfirmResponse, { search: { token } }),
   unsubscribe: (search: { token?: string; email?: string }): Promise<S['Unsubscribed']> =>
     request('/newsletter/unsubscribe', s.zNewsletterUnsubscribeResponse, { search }),
+  // Marketing: tags, the paged list, tagging, pasting in a list, the audience of a blast.
+  tags: (archived = false): Promise<S['Items_NewsletterTag']> =>
+    request('/newsletter/tags', s.zNewsletterListTagsResponse, { search: { archived: archived || undefined } }),
+  createTag: (body: S['CreateNewsletterTag']): Promise<S['NewsletterTag']> =>
+    request('/newsletter/tags', s.zNewsletterCreateTagResponse, { method: 'POST', body }),
+  updateTag: (id: number, body: S['UpdateNewsletterTag']): Promise<S['NewsletterTag']> =>
+    request(`/newsletter/tags/${id}`, s.zNewsletterUpdateTagResponse, { method: 'PATCH', body }),
+  reorderTags: (section: string, ids: number[]): Promise<void> =>
+    requestNoContent('/newsletter/tags/order', { method: 'PUT', body: { section, ids } }),
+  subscribers: (search: QueryOf<'newsletter_search_subscribers'> = {}): Promise<S['Items_SubscriberRow']> =>
+    request('/newsletter/subscribers', s.zNewsletterSearchSubscribersResponse, { search }),
+  counts: (): Promise<S['SubscriberCounts']> =>
+    request('/newsletter/subscribers/counts', s.zNewsletterSubscriberCountsResponse),
+  setTags: (id: number, tag_ids: number[]): Promise<number[]> =>
+    request(`/newsletter/subscriptions/${id}/tags`, s.zNewsletterSetSubscriptionTagsResponse, { method: 'PUT', body: { tag_ids } }),
+  bulkTags: (body: S['BulkTagsBody']): Promise<S['BulkTagsResult']> =>
+    request('/newsletter/subscriptions/tags', s.zNewsletterBulkTagsResponse, { method: 'POST', body }),
+  import: (body: S['ImportBody']): Promise<S['ImportResult']> =>
+    request('/newsletter/import', s.zNewsletterImportResponse, { method: 'POST', body }),
+  audience: (tagIds: number[]): Promise<S['Audience']> =>
+    request('/newsletter/audience', s.zNewsletterAudienceResponse, { search: { tags: tagIds.join(',') || undefined } }),
 };
 
 // ── Configuration ──
@@ -355,8 +419,19 @@ export const adminApi = {
 
 // ── HR (admins and users with HR access) ──
 export const hrApi = {
-  list: (search: { q?: string; include_archived?: boolean } = {}): Promise<S['Items_Employee']> =>
+  list: (search: { q?: string; include_archived?: boolean; status?: number } = {}): Promise<S['Items_Employee']> =>
     request('/hr/employees', s.zHrListResponse, { search }),
+  // Where each employee stands (MiniCRM's HR lists), and moving them between lists.
+  statuses: (archived = false): Promise<S['Items_EmployeeStatus']> =>
+    request('/hr/statuses', s.zHrListStatusesResponse, { search: { archived: archived || undefined } }),
+  createStatus: (body: S['CreateStatus']): Promise<S['EmployeeStatus']> =>
+    request('/hr/statuses', s.zHrCreateStatusResponse, { method: 'POST', body }),
+  updateStatus: (id: number, body: S['UpdateStatus']): Promise<S['EmployeeStatus']> =>
+    request(`/hr/statuses/${id}`, s.zHrUpdateStatusResponse, { method: 'PATCH', body }),
+  reorderStatuses: (section: string, ids: number[]): Promise<void> =>
+    requestNoContent('/hr/statuses/order', { method: 'PUT', body: { section, ids } }),
+  setStatus: (id: number, status_id: number): Promise<S['Employee']> =>
+    request(`/hr/employees/${id}/status`, s.zHrSetEmployeeStatusResponse, { method: 'PUT', body: { status_id } }),
   create: (body: S['EmployeeBody']): Promise<S['Employee']> =>
     request('/hr/employees', s.zHrCreateResponse, { method: 'POST', body }),
   update: (id: number, body: S['EmployeeBody']): Promise<S['Employee']> =>
@@ -377,6 +452,22 @@ export const hrApi = {
     requestNoContent(`/hr/absences/${id}`, { method: 'DELETE' }),
   leaveSummary: (year: number): Promise<S['Items_LeaveBalance']> =>
     request('/hr/leave-summary', s.zHrLeaveSummaryResponse, { search: { year } }),
+  jobs: (): Promise<S['Items_JobPosting']> => request('/hr/jobs', s.zHrListJobsResponse),
+  createJob: (body: S['JobBody']): Promise<S['JobPosting']> =>
+    request('/hr/jobs', s.zHrCreateJobResponse, { method: 'POST', body }),
+  updateJob: (id: number, body: S['JobBody']): Promise<S['JobPosting']> =>
+    request(`/hr/jobs/${id}`, s.zHrUpdateJobResponse, { method: 'PATCH', body }),
+  publishJob: (id: number): Promise<S['JobPosting']> =>
+    request(`/hr/jobs/${id}/publish`, s.zHrPublishJobResponse, { method: 'POST' }),
+  closeJob: (id: number): Promise<S['JobPosting']> =>
+    request(`/hr/jobs/${id}/close`, s.zHrCloseJobResponse, { method: 'POST' }),
+  deleteJob: (id: number): Promise<void> => requestNoContent(`/hr/jobs/${id}`, { method: 'DELETE' }),
+  applications: (jobId: number): Promise<S['Items_Application']> =>
+    request(`/hr/jobs/${jobId}/applications`, s.zHrJobApplicationsResponse),
+  saveApplicationNotes: (id: number, notes: string | null): Promise<S['Application']> =>
+    request(`/hr/applications/${id}`, s.zHrUpdateApplicationResponse, { method: 'PATCH', body: { notes } }),
+  deleteApplication: (id: number): Promise<void> =>
+    requestNoContent(`/hr/applications/${id}`, { method: 'DELETE' }),
 };
 
 // ── Notifications (the signed-in user's own) ──
@@ -386,4 +477,43 @@ export const notificationsApi = {
   markRead: (ids: number[]): Promise<void> =>
     requestNoContent('/notifications/read', { method: 'POST', body: { ids } }),
   markAllRead: (): Promise<void> => requestNoContent('/notifications/read-all', { method: 'POST' }),
+};
+
+// ── Public job application page (no login) ──
+export const recruitmentApi = {
+  job: (slug: string): Promise<S['PublicJob']> =>
+    request(`/public/jobs/${encodeURIComponent(slug)}`, s.zRecruitmentPublicJobResponse),
+  apply: (slug: string, formBody: FormData): Promise<void> =>
+    requestNoContent(`/public/jobs/${encodeURIComponent(slug)}/applications`, { method: 'POST', formBody }),
+};
+
+// ── Timeline: a record's whole history (changes, stages, files, tasks, emails, notes) ──
+export type TimelineEntity = 'lead' | 'order' | 'partner' | 'employee' | 'incoming_invoice';
+export const timelineApi = {
+  get: (entity: TimelineEntity, id: number): Promise<S['Items_TimelineEvent']> =>
+    request(`/timeline/${entity}/${id}`, s.zTimelineHistoryResponse),
+};
+
+// ── Assistant: a local language model with read-only tools that also builds list filters ──
+export const assistantApi = {
+  status: (): Promise<S['AssistantStatus']> => request('/assistant', s.zAssistantStatusResponse),
+  chat: (messages: S['ChatMessage'][]): Promise<S['AssistantReply']> =>
+    request('/assistant/chat', s.zAssistantChatResponse, { method: 'POST', body: { messages } }),
+};
+
+// ── Quote follow-ups: the default sequence and each lead's scheduled letters ──
+export const followupsApi = {
+  steps: (): Promise<S['Items_FollowupStep']> => request('/followup-steps', s.zFollowupsListStepsResponse),
+  createStep: (body: S['StepBody']): Promise<S['FollowupStep']> =>
+    request('/followup-steps', s.zFollowupsCreateStepResponse, { method: 'POST', body }),
+  updateStep: (id: number, body: S['StepPatch']): Promise<S['FollowupStep']> =>
+    request(`/followup-steps/${id}`, s.zFollowupsUpdateStepResponse, { method: 'PATCH', body }),
+  forLead: (leadId: number): Promise<S['Items_Followup']> =>
+    request(`/leads/${leadId}/followups`, s.zFollowupsListForLeadResponse),
+  schedule: (leadId: number, body: S['ScheduleBody']): Promise<S['Followup']> =>
+    request(`/leads/${leadId}/followups`, s.zFollowupsScheduleResponse, { method: 'POST', body }),
+  cancelAll: (leadId: number): Promise<S['Cancelled']> =>
+    request(`/leads/${leadId}/followups/cancel`, s.zFollowupsCancelAllResponse, { method: 'POST' }),
+  cancel: (id: number): Promise<S['Followup']> =>
+    request(`/followups/${id}/cancel`, s.zFollowupsCancelOneResponse, { method: 'POST' }),
 };

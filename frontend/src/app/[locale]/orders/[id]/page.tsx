@@ -36,7 +36,7 @@ import { canAdmin, canChangeStage, canEditOrders, canSendEmail, useAuth } from '
 import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
-import { DayLabel, groupByDay } from '@/components/ui/DayGroups';
+import { Timeline } from '@/components/timeline/Timeline';
 import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
 import { useRecentRecords } from '@/hooks/useRecent';
 import type { PatchOrder } from '@/lib/api/types';
@@ -98,18 +98,6 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const history = useQuery({
     queryKey: qk.orderStages(id),
     queryFn: () => ordersApi.stages(id),
-  });
-  const audit = useQuery({
-    queryKey: qk.orderAudit(id),
-    queryFn: () => ordersApi.audit(id, { limit: 100 }),
-    enabled: tab === 'audit',
-  });
-  // Imported MiniCRM to-do history (V1.3): for a migrated order this is usually the only
-  // record of what actually happened, since MiniCRM exposes no stage history.
-  const notes = useQuery({
-    queryKey: qk.orderNotes(id),
-    queryFn: () => ordersApi.notes(id),
-    enabled: tab === 'audit',
   });
   const projectTypes = useQuery({
     queryKey: qk.projectTypes,
@@ -173,8 +161,6 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       `#${order.assigned_to}`)
     : '—';
   const defs = stagesQuery.data?.items ?? [];
-  const auditItems = audit.data?.items ?? [];
-  const noteItems = notes.data?.items ?? [];
   const openBlockers = blockers.filter(isBlockerOpen);
   const tabs: { key: Tab; label: string }[] = [
     { key: 'data', label: t('tabsData') },
@@ -549,73 +535,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
           </Tabs.Content>
 
           <Tabs.Content value="audit">
+            {/* Everything that happened to the job: changes, stages, photos and files, tasks,
+                emails, and MiniCRM's imported notes. */}
             <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
-              <h2 className="text-section font-semibold">{t('notesSection')}</h2>
-              <div className="mt-3">
-                {notes.isLoading ? (
-                  <p className="text-metadata text-steel-500">{tc('loading')}</p>
-                ) : notes.isError ? (
-                  <ErrorState error={notes.error} onRetry={() => void notes.refetch()} />
-                ) : noteItems.length === 0 ? (
-                  <p className="text-metadata text-steel-500">{t('notesEmpty')}</p>
-                ) : (
-                  <div className="space-y-4">
-                    {groupByDay(noteItems, (n) => n.occurred_at).map((g) => (
-                      <div key={g.day}>
-                        <DayLabel day={g.day} />
-                        <ul className="mt-1.5 space-y-3">
-                          {g.items.map((n) => (
-                            <li key={n.id} className="border-l-2 border-steel-200 pl-3 text-body">
-                              <p className="text-metadata text-steel-500">
-                                {n.author_name ?? '—'} ·{' '}
-                                <DateDisplay withTime value={n.occurred_at} className="text-metadata" />
-                              </p>
-                              <p className="whitespace-pre-wrap">{n.body}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
-              <h2 className="text-section font-semibold">{t('auditSection')}</h2>
-              <div className="mt-3">
-                {audit.isLoading ? (
-                  <p className="text-metadata text-steel-500">{tc('loading')}</p>
-                ) : audit.isError ? (
-                  <ErrorState error={audit.error} onRetry={() => void audit.refetch()} />
-                ) : auditItems.length === 0 ? (
-                  <p className="text-metadata text-steel-500">{t('auditEmpty')}</p>
-                ) : (
-                  <div className="space-y-4">
-                    {groupByDay(auditItems, (a) => a.at).map((g) => (
-                      <div key={g.day}>
-                        <DayLabel day={g.day} />
-                        <ul className="mt-1.5 space-y-3">
-                          {g.items.map((a) => (
-                            <li key={a.id} className="text-body">
-                              <p>
-                                <span className="font-medium">{a.action}</span>{' '}
-                                <span className="text-steel-500">
-                                  · {a.user_name ?? (a.user_id ? `#${a.user_id}` : t('systemUser'))} ·{' '}
-                                  <DateDisplay withTime value={a.at} className="text-metadata" />
-                                </span>
-                              </p>
-                              <pre className="mt-1 overflow-x-auto rounded-lg bg-panel p-2 font-mono text-metadata text-steel-900">
-                                {JSON.stringify(a.changes, null, 1)}
-                              </pre>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Timeline entity="order" id={id} />
             </section>
           </Tabs.Content>
           </Tabs.Root>

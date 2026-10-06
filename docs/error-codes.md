@@ -41,6 +41,10 @@ Status mapping on Android: 400/409/422 → `ApiException.Rule` (rendered from th
 | `too_many_requests` | 429 | yes | Túl sok próbálkozás. Próbálja újra később. |
 | `duplicate` | 409 | no | Ilyen adat már létezik. |
 | `overlap` | 409 | no | A munkatársnak ebben az időszakban már van rögzített távolléte. |
+| `domain_taken` | 409 | no | Ez a domain már egy másik címkéhez tartozik. |
+| `status_required` | 422 | no | Erre az állapotra kerülnek az új vagy a távozó munkatársak, ezért nem archiválható; nevezze át inkább. |
+| `template_in_use` | 422 | no | Ezt a sablont automatikus levél vagy utánkövetés használja, ezért nem tehető a lomtárba. |
+| `assistant_unavailable` | 422 | yes | Az asszisztens most nem érhető el (a nyelvi modell nem fut vagy nincs beállítva). |
 | `invalid_reference` | 422 | no | Érvénytelen hivatkozás, vagy a hivatkozott adat még használatban van. |
 | `constraint_violation` | 422 | no | Az adat sérti az adatbázis szabályait. |
 | `immutable` | 409 | no | Ez bizonyítási célból védett adat, nem módosítható és nem törölhető. |

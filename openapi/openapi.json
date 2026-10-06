@@ -1772,6 +1772,276 @@
         }
       }
     },
+    "/lead-tags": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_list_tags",
+        "parameters": [
+          {
+            "name": "archived",
+            "in": "query",
+            "description": "The archived tags instead of the live ones.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_LeadTag"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_create_tag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTag"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadTag"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A domain belongs to another tag, or the label is taken in that market"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lead-tags/{id}": {
+      "patch": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_update_tag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTag"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadTag"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A domain belongs to another tag, or the label is taken in that market"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lead-tags/order": {
+      "put": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_reorder_tags",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderTags"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Reordered"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/tags": {
+      "put": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_set_lead_tags",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadTagsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_LeadTagRef"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/leads": {
       "get": {
         "tags": [
@@ -1799,6 +2069,16 @@
           {
             "name": "assigned_to",
             "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "Only leads carrying this tag.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -1848,7 +2128,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Items_LeadSummary"
+                  "$ref": "#/components/schemas/Items_LeadRow"
                 }
               }
             }
@@ -5252,7 +5532,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SubscriptionBody"
+                "$ref": "#/components/schemas/AddSubscriptionBody"
               }
             }
           },
@@ -5524,6 +5804,575 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Confirmed"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/tags": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_list_tags",
+        "parameters": [
+          {
+            "name": "archived",
+            "in": "query",
+            "description": "The archived tags instead of the live ones.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_NewsletterTag"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_create_tag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNewsletterTag"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterTag"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The label is taken in that section"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/tags/{id}": {
+      "patch": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_update_tag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNewsletterTag"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsletterTag"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The label is taken in that section"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/tags/order": {
+      "put": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_reorder_tags",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderNewsletterTags"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Reordered"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/subscribers": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "The subscriber list, a page at a time, newest first, each row with its tag ids.",
+        "operationId": "newsletter_search_subscribers",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Part of the address or the name.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "Only subscribers with this tag.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "untagged",
+            "in": "query",
+            "description": "Only subscribers with no tag at all.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "pending",
+                "unsubscribed"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_SubscriberRow"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/subscribers/counts": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_subscriber_counts",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriberCounts"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/subscriptions/{id}/tags": {
+      "put": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_set_subscription_tags",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionTagsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The subscriber's tag ids",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/subscriptions/tags": {
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Tag or untag many subscribers at once (the ticked rows of the list).",
+        "operationId": "newsletter_bulk_tags",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkTagsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkTagsResult"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/import": {
+      "post": {
+        "tags": [
+          "newsletter"
+        ],
+        "summary": "Paste a list of addresses. New ones join as confirmed subscribers: importing says the\noffice holds their consent, as a hand-add does. Opted-out addresses are skipped.",
+        "operationId": "newsletter_import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/newsletter/audience": {
+      "get": {
+        "tags": [
+          "newsletter"
+        ],
+        "operationId": "newsletter_audience",
+        "parameters": [
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Comma-separated tag ids; none means everyone.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Audience"
                 }
               }
             }
@@ -6237,6 +7086,58 @@
         }
       }
     },
+    "/email-templates/{id}/copy": {
+      "post": {
+        "tags": [
+          "email"
+        ],
+        "summary": "A copy to edit: \"<name> (másolat)\", same area and folder, a fresh key. How the design\nsamples are meant to be used, and how a customer letter gets a German twin.",
+        "operationId": "email_copy_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTemplate"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/email-suppressions": {
       "get": {
         "tags": [
@@ -6361,6 +7262,372 @@
         }
       }
     },
+    "/followup-steps": {
+      "get": {
+        "tags": [
+          "followups"
+        ],
+        "operationId": "followups_list_steps",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_FollowupStep"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "followups"
+        ],
+        "operationId": "followups_create_step",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowupStep"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/followup-steps/{id}": {
+      "patch": {
+        "tags": [
+          "followups"
+        ],
+        "operationId": "followups_update_step",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowupStep"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/followups": {
+      "get": {
+        "tags": [
+          "followups"
+        ],
+        "operationId": "followups_list_for_lead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Followup"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "followups"
+        ],
+        "summary": "One more follow-up for this lead, counted from now.",
+        "operationId": "followups_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Followup"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/followups/cancel": {
+      "post": {
+        "tags": [
+          "followups"
+        ],
+        "summary": "Stops every follow-up still waiting for this lead.",
+        "operationId": "followups_cancel_all",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cancelled"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/followups/{id}/cancel": {
+      "post": {
+        "tags": [
+          "followups"
+        ],
+        "operationId": "followups_cancel_one",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Followup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not scheduled any more"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/hr/employees": {
       "get": {
         "tags": [
@@ -6384,6 +7651,16 @@
             "required": false,
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Only employees on this status (archived ones included when it is theirs).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
             }
           }
         ],
@@ -6797,6 +8074,273 @@
         }
       }
     },
+    "/hr/statuses": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_list_statuses",
+        "parameters": [
+          {
+            "name": "archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_EmployeeStatus"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_create_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeStatus"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/statuses/{id}": {
+      "patch": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_update_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The default or the ended status cannot be archived"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/statuses/order": {
+      "put": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_reorder_statuses",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderStatuses"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Reordered"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/employees/{id}/status": {
+      "put": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "Moves the employee to a status. Megszűnt jogviszony (a status that ends employment)\narchives them; any other brings an archived employee back.",
+        "operationId": "hr_set_employee_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmployeeStatusBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employee"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/hr/absences": {
       "get": {
         "tags": [
@@ -7028,6 +8572,627 @@
             }
           }
         }
+      }
+    },
+    "/hr/jobs": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_list_jobs",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_JobPosting"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "Creates a draft and returns it with its link. Nothing is public until it is published.",
+        "operationId": "hr_create_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPosting"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/jobs/{id}": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_job_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPosting"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "A listing nobody applied to can go. One with applicants cannot: close it instead, so a\nprofile is only ever deleted on purpose.",
+        "operationId": "hr_delete_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_update_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPosting"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/jobs/{id}/publish": {
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "Opens the form: the link starts accepting applications (also reopens a closed listing).",
+        "operationId": "hr_publish_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPosting"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/jobs/{id}/close": {
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "Stops accepting applications; the link then says the position is closed.",
+        "operationId": "hr_close_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPosting"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/jobs/{id}/applications": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_job_applications",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Application"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/applications/{id}": {
+      "delete": {
+        "tags": [
+          "hr"
+        ],
+        "summary": "Deletes the profile and its resume file: the applicant is not getting the job. The\naudit log keeps only that it happened, not who they were.",
+        "operationId": "hr_delete_application",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_update_application",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/jobs/{slug}": {
+      "get": {
+        "tags": [
+          "recruitment"
+        ],
+        "summary": "What the application page shows for a listing's link. Drafts do not exist publicly.",
+        "operationId": "recruitment_public_job",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicJob"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such listing, or not yet published"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/public/jobs/{slug}/applications": {
+      "post": {
+        "tags": [
+          "recruitment"
+        ],
+        "summary": "Apply to a listing: `multipart/form-data` with the details and the resume file. The\nresume is stored and a profile is created for HR in one go; there is no login. Only a\npublished listing takes applications.",
+        "operationId": "recruitment_apply",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Application received"
+          },
+          "400": {
+            "description": "Invalid form or unusable resume"
+          },
+          "404": {
+            "description": "No such listing, or not yet published"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/reports/volume": {
@@ -7839,6 +10004,76 @@
         }
       }
     },
+    "/timeline/{entity}/{id}": {
+      "get": {
+        "tags": [
+          "timeline"
+        ],
+        "operationId": "timeline_history",
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "path",
+            "description": "lead | order | partner | employee | incoming_invoice",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Newest N events. Defaults to 300, at most 1000.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_TimelineEvent"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/status": {
       "get": {
         "tags": [
@@ -8112,6 +10347,100 @@
                 }
               }
             }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assistant": {
+      "get": {
+        "tags": [
+          "assistant"
+        ],
+        "operationId": "assistant_status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantStatus"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/assistant/chat": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "One turn of the conversation. Read-only: the assistant looks things up and builds\nfilters, it never changes data.",
+        "operationId": "assistant_chat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReply"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No model configured, or the model is not reachable"
           },
           "4XX": {
             "description": "Client error; see `error.code`",
@@ -8546,6 +10875,15 @@
             }
           },
           {
+            "name": "bucket",
+            "in": "query",
+            "description": "The list: `to_issue` | `issued` | `paid` | `archived` | `stornoed` | `storno`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "description": "Newest N rows. Defaults to 100, at most 500.",
@@ -8566,6 +10904,105 @@
                 }
               }
             }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/buckets": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "How many invoices are on each list, for the Számlázó sidebar.",
+        "operationId": "invoices_bucket_counts",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_BucketCount"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/{id}/paid": {
+      "post": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Marks an issued invoice paid (Fizetve) or back to unpaid (Kiállítva). Cash invoices\nare paid on issue without this.",
+        "operationId": "invoices_mark_paid",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaidBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Updated"
+          },
+          "422": {
+            "description": "Not an issued invoice"
           },
           "4XX": {
             "description": "Client error; see `error.code`",
@@ -9159,6 +11596,441 @@
           }
         }
       }
+    },
+    "/incoming-invoices": {
+      "get": {
+        "tags": [
+          "incoming_invoices"
+        ],
+        "operationId": "incoming_invoices_list",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Supplier, invoice number, tax number or file name.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "in": "query",
+            "description": "open_invoice | open_proforma | transferred | cash | partial | cash_receipt | booking_only",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_IncomingInvoice"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incoming-invoices/buckets": {
+      "get": {
+        "tags": [
+          "incoming_invoices"
+        ],
+        "operationId": "incoming_invoices_counts",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_IncomingBucketCount"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incoming-invoices/suppliers": {
+      "get": {
+        "tags": [
+          "incoming_invoices"
+        ],
+        "summary": "Suppliers seen before, for filling in the next invoice from the same one.",
+        "operationId": "incoming_invoices_suppliers",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_KnownSupplier"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incoming-invoices/{id}": {
+      "get": {
+        "tags": [
+          "incoming_invoices"
+        ],
+        "operationId": "incoming_invoices_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomingInvoice"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "incoming_invoices"
+        ],
+        "operationId": "incoming_invoices_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed from the lists; the record and file are kept"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "incoming_invoices"
+        ],
+        "operationId": "incoming_invoices_update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncomingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomingInvoice"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That supplier's invoice number is already recorded"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incoming-invoices/{id}/file": {
+      "get": {
+        "tags": [
+          "incoming_invoices"
+        ],
+        "operationId": "incoming_invoices_file_url",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUrl"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incoming-invoices/upload": {
+      "post": {
+        "tags": [
+          "incoming_invoices"
+        ],
+        "summary": "One supplier invoice: the raw file as the body (PDF, JPEG, PNG, WebP or XML, up to\n25 MB), its name in `?filename=`. It lands on Nyitott számla with nothing filled in.\nThe same file twice is refused, naming the invoice that already holds it.",
+        "operationId": "incoming_invoices_upload",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "query",
+            "description": "The file's own name, shown in the list and used for the download.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomingInvoice"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This file is already uploaded"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9272,6 +12144,29 @@
           }
         }
       },
+      "AddSubscriptionBody": {
+        "type": "object",
+        "description": "The office hand-add: confirmed on insert, because the office holds the consent.",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Newsletter tags to file the subscriber under."
+          }
+        }
+      },
       "AddSuppression": {
         "type": "object",
         "required": [
@@ -9363,6 +12258,184 @@
           "reason": {
             "type": "string",
             "description": "Why. NAV stores it and shows it in the Online Számla portal."
+          }
+        }
+      },
+      "Application": {
+        "type": "object",
+        "required": [
+          "id",
+          "job_id",
+          "full_name",
+          "email",
+          "phone",
+          "age",
+          "resume_filename",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "job_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resume_filename": {
+            "type": "string"
+          },
+          "resume_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A short-lived download link to the resume (about 15 minutes); None if it cannot be\nsigned."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "HR's own notes, e.g. from the phone interview."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApplicationPatch": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` or blank clears the notes."
+          }
+        }
+      },
+      "ApplyForm": {
+        "type": "object",
+        "description": "The application form as multipart/form-data. Documented as a schema, parsed by hand.",
+        "required": [
+          "full_name",
+          "email",
+          "phone",
+          "age",
+          "resume"
+        ],
+        "properties": {
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resume": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "binary",
+              "minimum": 0
+            },
+            "description": "A PDF, DOC, DOCX, ODT or RTF file, up to 10 MB."
+          },
+          "company": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Honeypot: real visitors leave it empty; a filled one is silently dropped."
+          }
+        }
+      },
+      "AssistantReply": {
+        "type": "object",
+        "required": [
+          "reply",
+          "filters",
+          "steps"
+        ],
+        "properties": {
+          "reply": {
+            "type": "string"
+          },
+          "filters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilterSuggestion"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolStep"
+            }
+          }
+        }
+      },
+      "AssistantStatus": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "False when no model is configured (AI_URL unset): the UI hides the assistant."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -9507,6 +12580,19 @@
           }
         }
       },
+      "Audience": {
+        "type": "object",
+        "required": [
+          "recipients"
+        ],
+        "properties": {
+          "recipients": {
+            "type": "integer",
+            "description": "Active, not suppressed, deduplicated: exactly who a blast would go to now.",
+            "minimum": 0
+          }
+        }
+      },
       "AuditEntry": {
         "type": "object",
         "required": [
@@ -9573,7 +12659,8 @@
           "vat_amount",
           "gross_amount",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "bucket"
         ],
         "properties": {
           "id": {
@@ -9723,6 +12810,18 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "bucket": {
+            "type": "string",
+            "description": "The list it is on, worked out from the data: to_issue, issued, paid, archived,\nstornoed, storno."
+          },
+          "paid_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the customer paid. Set on issue for cash; marked by the office for transfer."
           }
         }
       },
@@ -10050,6 +13149,71 @@
           }
         }
       },
+      "BucketCount": {
+        "type": "object",
+        "description": "How many invoices are on each list.",
+        "required": [
+          "bucket",
+          "count"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BulkTagsBody": {
+        "type": "object",
+        "required": [
+          "subscription_ids"
+        ],
+        "properties": {
+          "subscription_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "add": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "remove": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "BulkTagsResult": {
+        "type": "object",
+        "required": [
+          "added",
+          "removed"
+        ],
+        "properties": {
+          "added": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "removed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "CampaignRow": {
         "type": "object",
         "required": [
@@ -10086,6 +13250,19 @@
           "won": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "Cancelled": {
+        "type": "object",
+        "required": [
+          "cancelled"
+        ],
+        "properties": {
+          "cancelled": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -10152,6 +13329,37 @@
             "type": "integer",
             "format": "int64",
             "description": "Leads now in the `won` stage."
+          }
+        }
+      },
+      "ChatBody": {
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "description": "The conversation so far, oldest first; the last one is the user's question."
+          }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "`user` or `assistant`."
+          },
+          "content": {
+            "type": "string"
           }
         }
       },
@@ -10545,6 +13753,29 @@
           }
         }
       },
+      "CreateNewsletterTag": {
+        "type": "object",
+        "required": [
+          "section",
+          "label"
+        ],
+        "properties": {
+          "section": {
+            "type": "string",
+            "description": "The heading to list it under; a new heading starts a new section at the end."
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`#rrggbb`; light blue when omitted."
+          }
+        }
+      },
       "CreatePartner": {
         "type": "object",
         "required": [
@@ -10719,17 +13950,71 @@
           }
         }
       },
+      "CreateStatus": {
+        "type": "object",
+        "required": [
+          "section",
+          "label"
+        ],
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateTag": {
+        "type": "object",
+        "required": [
+          "market",
+          "label"
+        ],
+        "properties": {
+          "market": {
+            "type": "string",
+            "description": "Two-letter market code: hu, ro, de, it..."
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`#rrggbb`; a neutral grey when omitted."
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Website domains or URLs; stored as bare hosts."
+          }
+        }
+      },
       "CreateTemplate": {
         "type": "object",
         "required": [
-          "key",
           "name",
           "subject",
           "body"
         ],
         "properties": {
           "key": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Permanent, for code to refer to. Omitted: made up from the time (custom_...)."
           },
           "name": {
             "type": "string"
@@ -10739,6 +14024,20 @@
           },
           "body": {
             "type": "string"
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "sales | projects | billing | marketing | hr | general. Default general."
+          },
+          "folder": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "customer | workflow | design. Default customer."
           }
         }
       },
@@ -11356,7 +14655,9 @@
           "body",
           "locale",
           "is_automatic",
-          "updated_at"
+          "updated_at",
+          "category",
+          "folder"
         ],
         "properties": {
           "id": {
@@ -11391,6 +14692,22 @@
               "null"
             ],
             "format": "int64"
+          },
+          "category": {
+            "type": "string",
+            "description": "The area it belongs to (the tabs): sales, projects, billing, marketing, hr, general."
+          },
+          "folder": {
+            "type": "string",
+            "description": "customer (to customers), workflow (for the office), design (samples to copy)."
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Set when moved to the bin."
           }
         }
       },
@@ -11629,6 +14946,14 @@
             "format": "int32",
             "description": "Paid annual leave per calendar year."
           },
+          "status_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Where the employee stands (/hr/statuses)."
+          },
           "archived_at": {
             "type": [
               "string",
@@ -11717,6 +15042,72 @@
           }
         }
       },
+      "EmployeeStatus": {
+        "type": "object",
+        "required": [
+          "id",
+          "section",
+          "label",
+          "color",
+          "position",
+          "ends_employment",
+          "is_default",
+          "employees"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "section": {
+            "type": "string",
+            "description": "The heading it is listed under: Távollévő munkavállaló, Aktív munkavállaló..."
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "description": "`#rrggbb`."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ends_employment": {
+            "type": "boolean",
+            "description": "Choosing it archives the employee; archiving puts them on it."
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "Where new and returning employees start."
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "employees": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Employees on it now."
+          }
+        }
+      },
+      "EmployeeStatusBody": {
+        "type": "object",
+        "required": [
+          "status_id"
+        ],
+        "properties": {
+          "status_id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "The body of every non-2xx response.",
@@ -11740,6 +15131,10 @@
           "too_many_requests",
           "duplicate",
           "overlap",
+          "domain_taken",
+          "assistant_unavailable",
+          "template_in_use",
+          "status_required",
           "invalid_reference",
           "constraint_violation",
           "immutable",
@@ -11831,6 +15226,34 @@
             "hu": "A munkatársnak ebben az időszakban már van rögzített távolléte.",
             "retryable": false,
             "status": 409
+          },
+          {
+            "code": "domain_taken",
+            "en": "That domain already belongs to another tag.",
+            "hu": "Ez a domain már egy másik címkéhez tartozik.",
+            "retryable": false,
+            "status": 409
+          },
+          {
+            "code": "assistant_unavailable",
+            "en": "The assistant is not available (the language model is not running or not configured).",
+            "hu": "Az asszisztens most nem érhető el (a nyelvi modell nem fut vagy nincs beállítva).",
+            "retryable": true,
+            "status": 422
+          },
+          {
+            "code": "template_in_use",
+            "en": "An automatic email or a follow-up uses this template, so it cannot go to the bin.",
+            "hu": "Ezt a sablont automatikus levél vagy utánkövetés használja, ezért nem tehető a lomtárba.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "status_required",
+            "en": "New or leaving employees land on this status, so it cannot be archived; rename it instead.",
+            "hu": "Erre az állapotra kerülnek az új vagy a távozó munkatársak, ezért nem archiválható; nevezze át inkább.",
+            "retryable": false,
+            "status": 422
           },
           {
             "code": "invalid_reference",
@@ -12154,6 +15577,153 @@
           }
         }
       },
+      "FileUrl": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Presigned, expires after one hour; opens in the browser."
+          }
+        }
+      },
+      "FilterSuggestion": {
+        "type": "object",
+        "description": "A list filter the model built: open it, or save it as a view of that list.",
+        "required": [
+          "list",
+          "params",
+          "path",
+          "label"
+        ],
+        "properties": {
+          "list": {
+            "type": "string",
+            "description": "leads | orders | partners | incoming_invoices | subscribers"
+          },
+          "params": {
+            "type": "object",
+            "description": "The list's own URL parameters (what a saved view stores).",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "path": {
+            "type": "string",
+            "description": "Where it opens, without the locale: `/leads?stage=quoted&open=1`."
+          },
+          "label": {
+            "type": "string",
+            "description": "A short human description."
+          }
+        }
+      },
+      "Followup": {
+        "type": "object",
+        "required": [
+          "id",
+          "lead_id",
+          "label",
+          "template_key",
+          "template_name",
+          "due_at",
+          "status",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lead_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "label": {
+            "type": "string"
+          },
+          "template_key": {
+            "type": "string"
+          },
+          "template_name": {
+            "type": "string"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "description": "scheduled | sent | cancelled | skipped"
+          },
+          "email_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it was cancelled or skipped."
+          },
+          "created_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FollowupStep": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "delay_days",
+          "template_key",
+          "template_name",
+          "is_active"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "label": {
+            "type": "string",
+            "description": "What the office calls it: \"1 hét\", \"1 hónap\"."
+          },
+          "delay_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Days after the quotation was sent."
+          },
+          "template_key": {
+            "type": "string",
+            "description": "The email template it sends."
+          },
+          "template_name": {
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Inactive steps are not scheduled for new quotations."
+          }
+        }
+      },
       "FxFetch": {
         "type": "object",
         "required": [
@@ -12411,6 +15981,332 @@
             }
           }
         ]
+      },
+      "ImportBody": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "One subscriber per line: `email`, or `email;name` / `email,name` / tab-separated,\nas pasted from a spreadsheet. A header line or blank lines are skipped."
+          },
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Tags to put on every imported address, new or already on the list."
+          }
+        }
+      },
+      "ImportResult": {
+        "type": "object",
+        "required": [
+          "added",
+          "existing",
+          "opted_out",
+          "invalid"
+        ],
+        "properties": {
+          "added": {
+            "type": "integer",
+            "description": "New addresses, subscribed and confirmed.",
+            "minimum": 0
+          },
+          "existing": {
+            "type": "integer",
+            "description": "Already on the list: kept as they were, tags added.",
+            "minimum": 0
+          },
+          "opted_out": {
+            "type": "integer",
+            "description": "Unsubscribed earlier: left out, only they can come back.",
+            "minimum": 0
+          },
+          "invalid": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Lines that held no valid address, as written (at most 50)."
+          }
+        }
+      },
+      "IncomingBody": {
+        "type": "object",
+        "description": "Every field optional: absent keeps, `null` clears.",
+        "properties": {
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`invoice` | `proforma` | `receipt`."
+          },
+          "supplier_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier_tax_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "partner_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "invoice_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issue_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`HUF` | `EUR`."
+          },
+          "net_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Minor units (fillér / eurocent)."
+          },
+          "vat_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "gross_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "payment_method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`TRANSFER` | `CASH` | `CARD`."
+          },
+          "paid_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How much of the gross has been paid, minor units."
+          },
+          "paid_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "booking_only": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "IncomingBucketCount": {
+        "type": "object",
+        "required": [
+          "bucket",
+          "count"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "IncomingInvoice": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "supplier_name",
+          "currency",
+          "payment_method",
+          "paid_amount",
+          "booking_only",
+          "bucket",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`invoice` | `proforma` (díjbekérő) | `receipt` (pénztárbizonylat)."
+          },
+          "supplier_name": {
+            "type": "string"
+          },
+          "supplier_tax_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "partner_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "invoice_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issue_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "net_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Minor units; null until read off the document."
+          },
+          "vat_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "gross_amount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "payment_method": {
+            "type": "string",
+            "description": "`TRANSFER` | `CASH` | `CARD`."
+          },
+          "paid_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "paid_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "booking_only": {
+            "type": "boolean",
+            "description": "Exists only in the books (Csak könyvelésben létező)."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "bucket": {
+            "type": "string",
+            "description": "The list it is on, from the figures."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "Inspection": {
         "type": "object",
@@ -13273,6 +17169,87 @@
           }
         }
       },
+      "Items_Application": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "job_id",
+                "full_name",
+                "email",
+                "phone",
+                "age",
+                "resume_filename",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "job_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "full_name": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                },
+                "age": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "city": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "resume_filename": {
+                  "type": "string"
+                },
+                "resume_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A short-lived download link to the resume (about 15 minutes); None if it cannot be\nsigned."
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "HR's own notes, e.g. from the phone interview."
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_AuditEntry": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -13360,7 +17337,8 @@
                 "vat_amount",
                 "gross_amount",
                 "created_at",
-                "updated_at"
+                "updated_at",
+                "bucket"
               ],
               "properties": {
                 "id": {
@@ -13510,6 +17488,18 @@
                 "updated_at": {
                   "type": "string",
                   "format": "date-time"
+                },
+                "bucket": {
+                  "type": "string",
+                  "description": "The list it is on, worked out from the data: to_issue, issued, paid, archived,\nstornoed, storno."
+                },
+                "paid_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time",
+                  "description": "When the customer paid. Set on issue for cash; marked by the office for transfer."
                 }
               }
             }
@@ -13727,6 +17717,35 @@
                 "is_overdue": {
                   "type": "boolean",
                   "description": "Past due date and still open, measured against the caller's business day\n(not UTC midnight — the whole point of this flag)."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_BucketCount": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "How many invoices are on each list.",
+              "required": [
+                "bucket",
+                "count"
+              ],
+              "properties": {
+                "bucket": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "format": "int64"
                 }
               }
             }
@@ -14091,7 +18110,9 @@
                 "body",
                 "locale",
                 "is_automatic",
-                "updated_at"
+                "updated_at",
+                "category",
+                "folder"
               ],
               "properties": {
                 "id": {
@@ -14126,6 +18147,22 @@
                     "null"
                   ],
                   "format": "int64"
+                },
+                "category": {
+                  "type": "string",
+                  "description": "The area it belongs to (the tabs): sales, projects, billing, marketing, hr, general."
+                },
+                "folder": {
+                  "type": "string",
+                  "description": "customer (to customers), workflow (for the office), design (samples to copy)."
+                },
+                "archived_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time",
+                  "description": "Set when moved to the bin."
                 }
               }
             }
@@ -14189,6 +18226,14 @@
                   "format": "int32",
                   "description": "Paid annual leave per calendar year."
                 },
+                "status_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Where the employee stands (/hr/statuses)."
+                },
                 "archived_at": {
                   "type": [
                     "string",
@@ -14203,6 +18248,197 @@
                 "updated_at": {
                   "type": "string",
                   "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_EmployeeStatus": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "section",
+                "label",
+                "color",
+                "position",
+                "ends_employment",
+                "is_default",
+                "employees"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "section": {
+                  "type": "string",
+                  "description": "The heading it is listed under: Távollévő munkavállaló, Aktív munkavállaló..."
+                },
+                "label": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string",
+                  "description": "`#rrggbb`."
+                },
+                "position": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "ends_employment": {
+                  "type": "boolean",
+                  "description": "Choosing it archives the employee; archiving puts them on it."
+                },
+                "is_default": {
+                  "type": "boolean",
+                  "description": "Where new and returning employees start."
+                },
+                "archived_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "employees": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Employees on it now."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_Followup": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "lead_id",
+                "label",
+                "template_key",
+                "template_name",
+                "due_at",
+                "status",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "lead_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "template_key": {
+                  "type": "string"
+                },
+                "template_name": {
+                  "type": "string"
+                },
+                "due_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "scheduled | sent | cancelled | skipped"
+                },
+                "email_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Why it was cancelled or skipped."
+                },
+                "created_by_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_FollowupStep": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "label",
+                "delay_days",
+                "template_key",
+                "template_name",
+                "is_active"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "What the office calls it: \"1 hét\", \"1 hónap\"."
+                },
+                "delay_days": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Days after the quotation was sent."
+                },
+                "template_key": {
+                  "type": "string",
+                  "description": "The email template it sends."
+                },
+                "template_name": {
+                  "type": "string"
+                },
+                "is_active": {
+                  "type": "boolean",
+                  "description": "Inactive steps are not scheduled for new quotations."
                 }
               }
             }
@@ -14288,6 +18524,188 @@
                   }
                 }
               ]
+            }
+          }
+        }
+      },
+      "Items_IncomingBucketCount": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "bucket",
+                "count"
+              ],
+              "properties": {
+                "bucket": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_IncomingInvoice": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "kind",
+                "supplier_name",
+                "currency",
+                "payment_method",
+                "paid_amount",
+                "booking_only",
+                "bucket",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "`invoice` | `proforma` (díjbekérő) | `receipt` (pénztárbizonylat)."
+                },
+                "supplier_name": {
+                  "type": "string"
+                },
+                "supplier_tax_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "partner_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "invoice_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "issue_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "due_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "net_amount": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Minor units; null until read off the document."
+                },
+                "vat_amount": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "gross_amount": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "payment_method": {
+                  "type": "string",
+                  "description": "`TRANSFER` | `CASH` | `CARD`."
+                },
+                "paid_amount": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "paid_on": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "booking_only": {
+                  "type": "boolean",
+                  "description": "Exists only in the books (Csak könyvelésben létező)."
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_size": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "bucket": {
+                  "type": "string",
+                  "description": "The list it is on, from the figures."
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
             }
           }
         }
@@ -14730,7 +19148,7 @@
           }
         }
       },
-      "Items_LeadSummary": {
+      "Items_JobPosting": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
         "required": [
@@ -14744,10 +19162,11 @@
               "required": [
                 "id",
                 "title",
-                "stage_key",
-                "stage_label",
-                "stage_entered_at",
-                "created_at"
+                "status",
+                "public_url",
+                "application_count",
+                "created_at",
+                "updated_at"
               ],
               "properties": {
                 "id": {
@@ -14757,96 +19176,230 @@
                 "title": {
                   "type": "string"
                 },
-                "partner_id": {
-                  "type": [
-                    "integer",
-                    "null"
-                  ],
-                  "format": "int64"
-                },
-                "partner_name": {
+                "description": {
                   "type": [
                     "string",
                     "null"
                   ]
                 },
-                "contact_name": {
+                "location": {
                   "type": [
                     "string",
                     "null"
                   ]
                 },
-                "contact_email": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "source": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "assigned_to": {
-                  "type": [
-                    "integer",
-                    "null"
-                  ],
-                  "format": "int64"
-                },
-                "assigned_name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "quoted_value_minor": {
-                  "type": [
-                    "integer",
-                    "null"
-                  ],
-                  "format": "int64"
-                },
-                "currency": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "quote_valid_until": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "date"
-                },
-                "stage_key": {
-                  "type": "string"
-                },
-                "stage_label": {
-                  "type": "string"
-                },
-                "stage_entered_at": {
+                "status": {
                   "type": "string",
-                  "format": "date-time"
+                  "description": "`draft` (link exists, form refuses applications), `published` (form open) or\n`closed` (form says the position is filled)."
                 },
-                "order_id": {
-                  "type": [
-                    "integer",
-                    "null"
-                  ],
+                "public_url": {
+                  "type": "string",
+                  "description": "The link to share: the public application form of this listing."
+                },
+                "application_count": {
+                  "type": "integer",
                   "format": "int64"
                 },
-                "order_number": {
+                "published_at": {
                   "type": [
                     "string",
                     "null"
-                  ]
+                  ],
+                  "format": "date-time"
                 },
                 "created_at": {
                   "type": "string",
                   "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_KnownSupplier": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Each supplier used before, with the tax number, payment method and currency of their\nlatest invoice: picking the name fills in the rest on the next one.",
+              "required": [
+                "supplier_name",
+                "payment_method",
+                "currency"
+              ],
+              "properties": {
+                "supplier_name": {
+                  "type": "string"
+                },
+                "supplier_tax_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "payment_method": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_LeadRow": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/LeadSummary"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "tags"
+                  ],
+                  "properties": {
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LeadTagRef"
+                      }
+                    }
+                  }
+                }
+              ],
+              "description": "A lead in the list, with its tags."
+            }
+          }
+        }
+      },
+      "Items_LeadTag": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A tag as the settings list shows it, with how many leads carry it.",
+              "required": [
+                "id",
+                "market",
+                "label",
+                "color",
+                "domains",
+                "position",
+                "open_leads",
+                "total_leads"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "market": {
+                  "type": "string",
+                  "description": "Two-letter market code: hu, ro, de, it..."
+                },
+                "label": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string",
+                  "description": "`#rrggbb`."
+                },
+                "domains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Website domains whose leads get this tag on arrival."
+                },
+                "position": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "archived_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "open_leads": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Leads with this tag that are not in a terminal stage."
+                },
+                "total_leads": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_LeadTagRef": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A tag on one lead.",
+              "required": [
+                "id",
+                "market",
+                "label",
+                "color"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "market": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string"
+                },
+                "matched_domain": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The domain the server recognised when it tagged the lead itself; null when a\nperson added the tag."
                 }
               }
             }
@@ -14913,6 +19466,67 @@
                 "other_days": {
                   "type": "integer",
                   "format": "int32"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_NewsletterTag": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "section",
+                "label",
+                "color",
+                "position",
+                "active_subscribers",
+                "total_subscribers"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "section": {
+                  "type": "string",
+                  "description": "The heading it is listed under: Listák, Értékesítés, Vevők, Nem vevők..."
+                },
+                "label": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string",
+                  "description": "`#rrggbb`."
+                },
+                "position": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "archived_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "active_subscribers": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Confirmed, not unsubscribed: who a blast to this tag would reach (before the\nsuppression list)."
+                },
+                "total_subscribers": {
+                  "type": "integer",
+                  "format": "int64"
                 }
               }
             }
@@ -15648,6 +20262,41 @@
           }
         }
       },
+      "Items_SubscriberRow": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Subscription"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "tag_ids"
+                  ],
+                  "properties": {
+                    "tag_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "format": "int64"
+                      }
+                    }
+                  }
+                }
+              ],
+              "description": "A subscriber with the ids of their tags."
+            }
+          }
+        }
+      },
       "Items_Subscription": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -15840,6 +20489,126 @@
                 },
                 "description": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_TimelineEvent": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "at",
+                "kind",
+                "action",
+                "changes"
+              ],
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "create | change | stage | file | task | email | note | event"
+                },
+                "action": {
+                  "type": "string",
+                  "description": "The finer action: the audit action, the stage key, the task's created/done,\nthe email status, the image category or document kind."
+                },
+                "user_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Who did it; null for the system, the website, or an import."
+                },
+                "changes": {
+                  "type": "object",
+                  "description": "For `change` (and some events): `{field: [old, new]}`, references already turned\ninto names (partner, contact, user)."
+                },
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The headline: stage label, task title, email subject, note body, order number."
+                },
+                "detail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A second line: stage note, email recipient, task due date."
+                },
+                "file_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_size": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "document_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Open with `/documents/{id}/download`."
+                },
+                "image_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Open with `/images/{id}/original`."
+                },
+                "incoming_invoice_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Open with `/incoming-invoices/{id}/file`."
+                },
+                "email_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "The email at `/emails/{id}`."
+                },
+                "order_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "An order this event links to (a partner's new order, a lead's conversion)."
+                },
+                "lead_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
                 }
               }
             }
@@ -16180,6 +20949,89 @@
           }
         }
       },
+      "JobBody": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "JobPosting": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "public_url",
+          "application_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`draft` (link exists, form refuses applications), `published` (form open) or\n`closed` (form says the position is filled)."
+          },
+          "public_url": {
+            "type": "string",
+            "description": "The link to share: the public application form of this listing."
+          },
+          "application_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "JobQueued": {
         "type": "object",
         "properties": {
@@ -16190,6 +21042,32 @@
             ],
             "format": "int64",
             "description": "Null when an identical job was already queued."
+          }
+        }
+      },
+      "KnownSupplier": {
+        "type": "object",
+        "description": "Each supplier used before, with the tax number, payment method and currency of their\nlatest invoice: picking the name fills in the rest on the next one.",
+        "required": [
+          "supplier_name",
+          "payment_method",
+          "currency"
+        ],
+        "properties": {
+          "supplier_name": {
+            "type": "string"
+          },
+          "supplier_tax_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_method": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
           }
         }
       },
@@ -16394,6 +21272,14 @@
               "null"
             ],
             "format": "date"
+          },
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Create only: the tags to file the lead under. Tags whose domain the source names\nare added on their own. Change them later with `PUT /leads/{id}/tags`."
           }
         }
       },
@@ -16403,7 +21289,8 @@
           "lead",
           "history",
           "orders",
-          "documents"
+          "documents",
+          "tags"
         ],
         "properties": {
           "lead": {
@@ -16449,6 +21336,13 @@
                 "description": "Where the lead came from, for leads the website filed."
               }
             ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeadTagRef"
+            },
+            "description": "The lead tags, each with the domain that put it there when the server did."
           }
         }
       },
@@ -16477,6 +21371,28 @@
             "type": "string"
           }
         }
+      },
+      "LeadRow": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LeadSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "tags"
+            ],
+            "properties": {
+              "tags": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LeadTagRef"
+                }
+              }
+            }
+          }
+        ],
+        "description": "A lead in the list, with its tags."
       },
       "LeadSources": {
         "type": "object",
@@ -16632,6 +21548,112 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "LeadTag": {
+        "type": "object",
+        "description": "A tag as the settings list shows it, with how many leads carry it.",
+        "required": [
+          "id",
+          "market",
+          "label",
+          "color",
+          "domains",
+          "position",
+          "open_leads",
+          "total_leads"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "market": {
+            "type": "string",
+            "description": "Two-letter market code: hu, ro, de, it..."
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "description": "`#rrggbb`."
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Website domains whose leads get this tag on arrival."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "open_leads": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Leads with this tag that are not in a terminal stage."
+          },
+          "total_leads": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "LeadTagRef": {
+        "type": "object",
+        "description": "A tag on one lead.",
+        "required": [
+          "id",
+          "market",
+          "label",
+          "color"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "market": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "matched_domain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The domain the server recognised when it tagged the lead itself; null when a\nperson added the tag."
+          }
+        }
+      },
+      "LeadTagsBody": {
+        "type": "object",
+        "required": [
+          "tag_ids"
+        ],
+        "properties": {
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The lead's tags after the change; every other tag is removed."
           }
         }
       },
@@ -16978,6 +22000,14 @@
               "format": "int64"
             },
             "description": "Documents shown inline via `![alt](doc:ID)`, sent as `cid:doc-ID` parts."
+          },
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Only subscribers with any of these newsletter tags; empty sends to everyone."
           }
         }
       },
@@ -16996,6 +22026,55 @@
           "recipients": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "NewsletterTag": {
+        "type": "object",
+        "required": [
+          "id",
+          "section",
+          "label",
+          "color",
+          "position",
+          "active_subscribers",
+          "total_subscribers"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "section": {
+            "type": "string",
+            "description": "The heading it is listed under: Listák, Értékesítés, Vevők, Nem vevők..."
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "description": "`#rrggbb`."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "active_subscribers": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Confirmed, not unsubscribed: who a blast to this tag would reach (before the\nsuppression list)."
+          },
+          "total_subscribers": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -17957,6 +23036,17 @@
           }
         }
       },
+      "PaidBody": {
+        "type": "object",
+        "required": [
+          "paid"
+        ],
+        "properties": {
+          "paid": {
+            "type": "boolean"
+          }
+        }
+      },
       "Partner": {
         "type": "object",
         "required": [
@@ -18581,6 +23671,25 @@
               "string",
               "null"
             ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "folder": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archived": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "true moves it to the bin (Lomtár), false brings it back. A template that code or\na follow-up sends cannot go to the bin."
           }
         }
       },
@@ -18901,6 +24010,34 @@
           }
         }
       },
+      "PublicJob": {
+        "type": "object",
+        "required": [
+          "title",
+          "status"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`published` or `closed`. A draft is not found."
+          }
+        }
+      },
       "QuotationRequest": {
         "type": "object",
         "description": "A quotation letter for a lead: the one letter that shouts. Hero band on top, the\nlead's quotation PDF attached, sent by the staff member as themselves.\n\nThe price and validity lines appear when the lead carries them; the PDF is\nauthoritative either way, so a lead without a quoted price still sends. Anything the\noffice writes by hand goes through `{{variable}}` rendering first, then Markdown when\nasked — the same pipeline as a manual letter.",
@@ -18933,6 +24070,17 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          "followup_step_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Follow-up letters to schedule (ids of `/followup-steps`), counted from this send.\nOmitted: every active default step. `[]`: none. Any still waiting from an earlier\nquotation of the lead are cancelled either way."
           }
         }
       },
@@ -18991,6 +24139,65 @@
           "relation": {
             "type": "string",
             "description": "'warranty' | 'rework' | 'repeat'."
+          }
+        }
+      },
+      "ReorderNewsletterTags": {
+        "type": "object",
+        "required": [
+          "section",
+          "ids"
+        ],
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The section's tags, top first."
+          }
+        }
+      },
+      "ReorderStatuses": {
+        "type": "object",
+        "required": [
+          "section",
+          "ids"
+        ],
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "ReorderTags": {
+        "type": "object",
+        "required": [
+          "market",
+          "ids"
+        ],
+        "properties": {
+          "market": {
+            "type": "string"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The market's tags, top first."
           }
         }
       },
@@ -19064,6 +24271,30 @@
           "designer",
           "viewer"
         ]
+      },
+      "ScheduleBody": {
+        "type": "object",
+        "required": [
+          "delay_days",
+          "template_key"
+        ],
+        "properties": {
+          "delay_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Days from now."
+          },
+          "template_key": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Defaults to \"N nap\"."
+          }
+        }
       },
       "SessionInfo": {
         "type": "object",
@@ -19765,6 +24996,59 @@
           }
         }
       },
+      "StepBody": {
+        "type": "object",
+        "required": [
+          "label",
+          "delay_days",
+          "template_key"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "delay_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Days after the quotation is sent, 1 to 365."
+          },
+          "template_key": {
+            "type": "string",
+            "description": "An email template key (see /email-templates)."
+          }
+        }
+      },
+      "StepPatch": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delay_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "template_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Off: new quotations do not schedule it; letters already scheduled stay."
+          }
+        }
+      },
       "StornoRequest": {
         "type": "object",
         "properties": {
@@ -19780,6 +25064,62 @@
             "type": "boolean"
           }
         }
+      },
+      "SubscriberCounts": {
+        "type": "object",
+        "description": "Counts for the list's header: everyone, the active ones, and those with no tag.",
+        "required": [
+          "total",
+          "active",
+          "pending",
+          "unsubscribed",
+          "untagged"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "active": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pending": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unsubscribed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "untagged": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubscriberRow": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Subscription"
+          },
+          {
+            "type": "object",
+            "required": [
+              "tag_ids"
+            ],
+            "properties": {
+              "tag_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          }
+        ],
+        "description": "A subscriber with the ids of their tags."
       },
       "Subscription": {
         "type": "object",
@@ -19836,6 +25176,22 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "SubscriptionTagsBody": {
+        "type": "object",
+        "required": [
+          "tag_ids"
+        ],
+        "properties": {
+          "tag_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The subscriber's tags after the change; every other tag is removed."
           }
         }
       },
@@ -20052,6 +25408,135 @@
           }
         }
       },
+      "TimelineEvent": {
+        "type": "object",
+        "required": [
+          "at",
+          "kind",
+          "action",
+          "changes"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "description": "create | change | stage | file | task | email | note | event"
+          },
+          "action": {
+            "type": "string",
+            "description": "The finer action: the audit action, the stage key, the task's created/done,\nthe email status, the image category or document kind."
+          },
+          "user_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who did it; null for the system, the website, or an import."
+          },
+          "changes": {
+            "type": "object",
+            "description": "For `change` (and some events): `{field: [old, new]}`, references already turned\ninto names (partner, contact, user)."
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The headline: stage label, task title, email subject, note body, order number."
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A second line: stage note, email recipient, task due date."
+          },
+          "file_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "document_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Open with `/documents/{id}/download`."
+          },
+          "image_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Open with `/images/{id}/original`."
+          },
+          "incoming_invoice_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Open with `/incoming-invoices/{id}/file`."
+          },
+          "email_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The email at `/emails/{id}`."
+          },
+          "order_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "An order this event links to (a partner's new order, a lead's conversion)."
+          },
+          "lead_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "ToolStep": {
+        "type": "object",
+        "description": "One tool the model used, for showing its work.",
+        "required": [
+          "tool",
+          "arguments",
+          "ok"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "object"
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "False when the call was refused (bad arguments); the model was told why."
+          }
+        }
+      },
       "TransitionKind": {
         "type": "string",
         "enum": [
@@ -20102,6 +25587,105 @@
           "unsubscribed": {
             "type": "boolean",
             "description": "For a token link: whether this click changed anything (a link clicked twice is\nnot an error). For a typed address: always true — \"if it was on the list, it is\noff now\" — so typing addresses cannot reveal who is subscribed."
+          }
+        }
+      },
+      "UpdateNewsletterTag": {
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archived": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "true archives: subscribers keep it, but it leaves the lists and cannot be picked."
+          }
+        }
+      },
+      "UpdateStatus": {
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archived": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateTag": {
+        "type": "object",
+        "description": "Every field optional; absent keeps the current value.",
+        "properties": {
+          "market": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "domains": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "archived": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "true archives: the tag leaves the lists and stops matching, leads keep it."
           }
         }
       },
@@ -20694,6 +26278,13 @@
               "null"
             ],
             "description": "The first page of the visit, which is not always the page the form is on."
+          },
+          "site": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The website the form is on (`hutoautok.hu` or its URL), when several sites post\nhere. Lead tags claiming that domain are put on the lead."
           }
         }
       },
@@ -20918,6 +26509,18 @@
     },
     {
       "name": "invoices"
+    },
+    {
+      "name": "incoming_invoices"
+    },
+    {
+      "name": "timeline"
+    },
+    {
+      "name": "assistant"
+    },
+    {
+      "name": "followups"
     }
   ]
 }

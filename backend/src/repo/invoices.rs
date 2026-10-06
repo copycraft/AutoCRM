@@ -525,6 +525,11 @@ pub struct BilledInvoice {
     pub created_by: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The list it is on, worked out from the data: to_issue, issued, paid, archived,
+    /// stornoed, storno.
+    pub bucket: String,
+    /// When the customer paid. Set on issue for cash; marked by the office for transfer.
+    pub paid_at: Option<DateTime<Utc>>,
 }
 
 /// Every invoice and storno, newest first. Stornos are rows like any other
@@ -534,6 +539,7 @@ pub async fn list_invoices(
     db: impl PgExecutor<'_>,
     status: Option<&str>,
     kind: Option<&str>,
+    bucket: Option<&str>,
     limit: i64,
 ) -> sqlx::Result<Vec<BilledInvoice>> {
     sqlx::query_as!(
@@ -545,16 +551,20 @@ pub async fn list_invoices(
                   i.nav_transaction_id, i.nav_status, i.nav_error_code, i.nav_message,
                   i.annulment_transaction_id, i.annulment_code, i.annulment_reason,
                   i.annulled_at, i.document_id, i.submitted_at, i.issued_at,
-                  i.created_by, i.created_at, i.updated_at
+                  i.created_by, i.created_at, i.updated_at,
+                  b.bucket AS "bucket!", i.paid_at
              FROM invoices i
+             JOIN invoice_buckets b ON b.id = i.id
              JOIN orders o ON o.id = i.order_id
              JOIN partners p ON p.id = o.partner_id
             WHERE ($1::text IS NULL OR i.status::text = $1)
               AND ($2::text IS NULL OR i.kind::text = $2)
+              AND ($4::text IS NULL OR b.bucket = $4)
             ORDER BY i.id DESC LIMIT $3"#,
         status,
         kind,
-        limit
+        limit,
+        bucket
     )
     .fetch_all(db)
     .await
@@ -597,4 +607,30 @@ pub async fn list_proformas(
     )
     .fetch_all(db)
     .await
+}
+
+/// How many invoices are on each list.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema, sqlx::FromRow)]
+pub struct BucketCount {
+    pub bucket: String,
+    pub count: i64,
+}
+
+pub async fn bucket_counts(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<BucketCount>> {
+    sqlx::query_as("SELECT bucket, count(*) AS count FROM invoice_buckets GROUP BY bucket")
+        .fetch_all(db)
+        .await
+}
+
+/// Marks an issued invoice paid (now) or unpaid. False when it is not an issued invoice.
+pub async fn set_paid(db: impl PgExecutor<'_>, id: i64, paid: bool) -> sqlx::Result<bool> {
+    let done = sqlx::query(
+        "UPDATE invoices SET paid_at = CASE WHEN $2 THEN coalesce(paid_at, now()) END
+         WHERE id = $1 AND kind = 'invoice' AND status = 'issued'",
+    )
+    .bind(id)
+    .bind(paid)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected() == 1)
 }

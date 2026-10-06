@@ -183,6 +183,7 @@ pub async fn search(
     phone: Option<&str>,
     stage_key: Option<&str>,
     assigned_to: Option<i64>,
+    tag_id: Option<i64>,
     open_only: bool,
     sort_key: &str,
     limit: i64,
@@ -210,6 +211,7 @@ pub async fn search(
              AND ($3::text IS NULL OR cs.stage_key = $3)
              AND ($4::bigint IS NULL OR l.assigned_to = $4)
              AND (NOT $5 OR NOT sd.is_terminal)
+             AND ($9::bigint IS NULL OR EXISTS (SELECT 1 FROM lead_tag_links k WHERE k.lead_id = l.id AND k.tag_id = $9))
            ORDER BY
                CASE WHEN $8 = 'created_at' THEN l.created_at END ASC,
                CASE WHEN $8 = '-created_at' THEN l.created_at END DESC,
@@ -224,7 +226,8 @@ pub async fn search(
         open_only,
         limit,
         offset,
-        sort_key
+        sort_key,
+        tag_id
     )
     .fetch_all(db)
     .await

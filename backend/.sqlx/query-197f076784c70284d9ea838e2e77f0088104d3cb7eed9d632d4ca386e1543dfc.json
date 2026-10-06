@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT i.id, i.order_id, o.number AS order_number, p.name AS partner_name,\n                  i.number, i.kind AS \"kind: InvoiceKind\", i.status AS \"status: InvoiceStatus\",\n                  i.original_invoice_id, i.currency, i.issue_date, i.delivery_date, i.payment_date,\n                  i.payment_method, i.net_amount, i.vat_amount, i.gross_amount,\n                  i.nav_transaction_id, i.nav_status, i.nav_error_code, i.nav_message,\n                  i.annulment_transaction_id, i.annulment_code, i.annulment_reason,\n                  i.annulled_at, i.document_id, i.submitted_at, i.issued_at,\n                  i.created_by, i.created_at, i.updated_at\n             FROM invoices i\n             JOIN orders o ON o.id = i.order_id\n             JOIN partners p ON p.id = o.partner_id\n            WHERE ($1::text IS NULL OR i.status::text = $1)\n              AND ($2::text IS NULL OR i.kind::text = $2)\n            ORDER BY i.id DESC LIMIT $3",
+  "query": "SELECT i.id, i.order_id, o.number AS order_number, p.name AS partner_name,\n                  i.number, i.kind AS \"kind: InvoiceKind\", i.status AS \"status: InvoiceStatus\",\n                  i.original_invoice_id, i.currency, i.issue_date, i.delivery_date, i.payment_date,\n                  i.payment_method, i.net_amount, i.vat_amount, i.gross_amount,\n                  i.nav_transaction_id, i.nav_status, i.nav_error_code, i.nav_message,\n                  i.annulment_transaction_id, i.annulment_code, i.annulment_reason,\n                  i.annulled_at, i.document_id, i.submitted_at, i.issued_at,\n                  i.created_by, i.created_at, i.updated_at,\n                  b.bucket AS \"bucket!\", i.paid_at\n             FROM invoices i\n             JOIN invoice_buckets b ON b.id = i.id\n             JOIN orders o ON o.id = i.order_id\n             JOIN partners p ON p.id = o.partner_id\n            WHERE ($1::text IS NULL OR i.status::text = $1)\n              AND ($2::text IS NULL OR i.kind::text = $2)\n              AND ($4::text IS NULL OR b.bucket = $4)\n            ORDER BY i.id DESC LIMIT $3",
   "describe": {
     "columns": [
       {
@@ -175,13 +175,24 @@
         "ordinal": 29,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 30,
+        "name": "bucket!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 31,
+        "name": "paid_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
         "Text",
         "Text",
-        "Int8"
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
@@ -214,8 +225,10 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "3e5dee9ff2f06ffa0a73d09dee030cb9f6765c940691de48e0153a4ff835ebd5"
+  "hash": "197f076784c70284d9ea838e2e77f0088104d3cb7eed9d632d4ca386e1543dfc"
 }

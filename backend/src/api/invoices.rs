@@ -28,6 +28,8 @@ use crate::service::invoicing::{
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(list_all))
+        .routes(routes!(bucket_counts))
+        .routes(routes!(mark_paid))
         .routes(routes!(list_all_proformas))
         .routes(routes!(list_for_order, create))
         .routes(routes!(detail))
@@ -88,6 +90,8 @@ struct BillingQuery {
     status: Option<String>,
     /// `invoice` | `storno`. Omitted: both.
     kind: Option<String>,
+    /// The list: `to_issue` | `issued` | `paid` | `archived` | `stornoed` | `storno`.
+    bucket: Option<String>,
     /// Newest N rows. Defaults to 100, at most 500.
     limit: Option<i64>,
 }
@@ -116,6 +120,14 @@ async fn list_all(
             STATUSES.join(", ")
         )));
     }
+    if let Some(bucket) = &q.bucket
+        && !BUCKETS.contains(&bucket.as_str())
+    {
+        return Err(AppError::validation(format!(
+            "bucket must be one of {}",
+            BUCKETS.join(", ")
+        )));
+    }
     if let Some(kind) = &q.kind
         && !KINDS.contains(&kind.as_str())
     {
@@ -129,6 +141,7 @@ async fn list_all(
             &state.db,
             q.status.as_deref(),
             q.kind.as_deref(),
+            q.bucket.as_deref(),
             billing_limit(q.limit),
         )
         .await?,
@@ -345,4 +358,58 @@ async fn create_proforma(
         .ok_or(AppError::NotFound("order"))?;
     let created = invoicing::create_proforma(&state, &me, id, &body).await?;
     Ok((StatusCode::CREATED, Json(created)))
+}
+
+const BUCKETS: &[&str] = &["to_issue", "issued", "paid", "archived", "stornoed", "storno"];
+
+/// How many invoices are on each list, for the Számlázó sidebar.
+#[utoipa::path(
+    get, path = "/invoices/buckets", tag = "invoices",
+    responses((status = 200, body = Items<invoices::BucketCount>))
+)]
+async fn bucket_counts(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+) -> AppResult<Json<Items<invoices::BucketCount>>> {
+    Ok(Items::new(invoices::bucket_counts(&state.db).await?))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct PaidBody {
+    paid: bool,
+}
+
+/// Marks an issued invoice paid (Fizetve) or back to unpaid (Kiállítva). Cash invoices
+/// are paid on issue without this.
+#[utoipa::path(
+    post, path = "/invoices/{id}/paid", tag = "invoices",
+    params(("id" = i64, Path)),
+    request_body = PaidBody,
+    responses((status = 204, description = "Updated"), (status = 422, description = "Not an issued invoice"))
+)]
+async fn mark_paid(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<PaidBody>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::IssueInvoices)?;
+    let mut tx = state.db.begin().await?;
+    if !invoices::set_paid(&mut *tx, id, b.paid).await? {
+        return Err(AppError::rule(
+            "not_issued",
+            "only an issued invoice can be marked paid",
+        ));
+    }
+    crate::repo::audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "invoice",
+        id,
+        if b.paid { "paid" } else { "unpaid" },
+        serde_json::json!({}),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }

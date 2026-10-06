@@ -20,7 +20,11 @@ export function QueryProvider({ children }: { children: ReactNode }) {
     };
     const qc: QueryClient = new QueryClient({
         queryCache: new QueryCache({ onError: signOutOn401 }),
-        mutationCache: new MutationCache({ onError: signOutOn401 }),
+        mutationCache: new MutationCache({
+          onError: signOutOn401,
+          // Any change writes history: every open timeline catches up.
+          onSuccess: () => void qc.invalidateQueries({ queryKey: ['timeline'] }),
+        }),
         defaultOptions: {
           queries: {
             staleTime: 30_000,
@@ -49,6 +53,8 @@ export const qk = {
   preferences: ['preferences'],
   users: ['users'],
   employees: (params?: unknown) => ['employees', params],
+  jobs: ['jobs'],
+  jobApplications: (jobId: number) => ['jobs', jobId, 'applications'],
   absences: (params?: unknown) => ['absences', params],
   leaveSummary: (year: number) => ['leave-summary', year],
   notifications: ['notifications'],
@@ -56,6 +62,7 @@ export const qk = {
   partner: (id: number) => ['partner', id],
   leads: (params?: unknown) => ['leads', params],
   lead: (id: number) => ['lead', id],
+  leadTags: (archived = false) => ['lead-tags', archived],
   orders: (params?: unknown) => ['orders', params],
   order: (id: number) => ['order', id],
   orderStages: (id: number) => ['order', id, 'stages'],

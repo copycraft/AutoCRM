@@ -20,7 +20,7 @@ import { useRememberList } from '@/hooks/useListMemory';
 import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
 import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
 import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
-import { ExportCsvButton } from '@/components/tables/ExportCsvButton';
+import { ExportCsvButton, collectAll } from '@/components/tables/ExportCsvButton';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditPartners, useAuth } from '@/lib/auth/context';
@@ -113,15 +113,17 @@ export function PartnerList({
 
   /** Current filters, first 200 rows (the API max page). */
   const exportPartners = async () => {
-    const data = await partnersApi.list({
+    const all = await collectAll((offset, limit) =>
+      partnersApi.list({
       q: debouncedQ || undefined,
       kind,
       include_archived: includeArchived || undefined,
       sort: sort ? (sort.dir === 'desc' ? `-${sort.key}` : sort.key) : undefined,
-      limit: 200,
-      offset: 0,
-    });
-    const items = data.items ?? [];
+        limit,
+        offset,
+      }),
+    );
+    const items = all;
     return {
       header: [tc('name'), t('taxNumber'), tc('email'), tc('phone'), t('city')],
       rows: items.map((p) => [p.name, p.tax_number, p.email, p.phone, p.city]),

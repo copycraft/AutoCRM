@@ -46,6 +46,25 @@ pub async fn lead_arrived(db: &PgPool, lead: &Lead) -> AppResult<u64> {
     Ok(n)
 }
 
+/// Someone applied through a job listing's form: tell the people who work in HR.
+pub async fn application_arrived(
+    db: &PgPool,
+    posting_id: i64,
+    job_title: &str,
+    applicant: &str,
+) -> AppResult<u64> {
+    let n = notifications::broadcast_hr(
+        db,
+        "application",
+        "Új jelentkezés",
+        Some(&format!("{applicant}: {}", short(job_title, 120))),
+        Some(&format!("/hr?tab=recruitment&job={posting_id}")),
+    )
+    .await?;
+    notifications::purge_older_than_days(db, KEEP_DAYS).await?;
+    Ok(n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

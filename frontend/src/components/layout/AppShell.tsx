@@ -1,5 +1,6 @@
 'use client';
 
+import { AssistantPanel } from '@/components/assistant/AssistantPanel';
 import { useEffect, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -106,6 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
       <ShortcutHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       <CommandPalette />
+      <AssistantPanel />
     </div>
   );
 }

@@ -8,6 +8,7 @@ pub mod attribution;
 pub mod blocker;
 pub mod email;
 pub mod invoice;
+pub mod lead_tag;
 pub mod leave;
 pub mod lookups;
 pub mod media;

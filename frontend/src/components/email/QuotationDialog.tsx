@@ -9,7 +9,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { emailApi, leadsApi } from '@/lib/api/endpoints';
+import { emailApi, followupsApi, leadsApi } from '@/lib/api/endpoints';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { errorMessage } from '@/lib/api/errors';
 import { useToast } from '@/components/ui/Toasts';
@@ -25,6 +25,7 @@ export function QuotationDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('leads');
+  const tf = useTranslations('followups');
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
   const locale = useLocale();
@@ -41,6 +42,12 @@ export function QuotationDialog({
     documents.filter((d) => d.filename.toLowerCase().endsWith('.pdf')).map((d) => d.id),
   );
   const [error, setError] = useState<string | null>(null);
+  // Follow-up letters after this quotation: the active default steps, ticked; null until
+  // the steps load, so an untouched dialog sends "the defaults".
+  const steps = useQuery({ queryKey: ['followup-steps'], queryFn: () => followupsApi.steps() });
+  const [followups, setFollowups] = useState<number[] | null>(null);
+  const activeSteps = (steps.data?.items ?? []).filter((s) => s.is_active);
+  const chosenSteps = followups ?? activeSteps.map((s) => s.id);
 
   const toggle = (id: number) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -72,6 +79,7 @@ export function QuotationDialog({
         body: body.trim() || null,
         body_markdown: markdown,
         attachment_document_ids: selected,
+        followup_step_ids: followups ?? undefined,
       }),
     onSuccess: (sent) => {
       void qc.invalidateQueries({ queryKey: ['leads'] });
@@ -155,6 +163,30 @@ export function QuotationDialog({
                 </ul>
               )}
             </div>
+            {activeSteps.length > 0 && (
+              <div>
+                <span className="label">{tf('quotationFollowups')}</span>
+                <p className="text-metadata text-steel-500">{tf('quotationFollowupsHint')}</p>
+                <ul className="mt-1 flex flex-wrap gap-3">
+                  {activeSteps.map((s) => (
+                    <li key={s.id}>
+                      <label className="inline-flex items-center gap-2 text-body" title={s.template_name}>
+                        <input
+                          type="checkbox"
+                          checked={chosenSteps.includes(s.id)}
+                          onChange={() =>
+                            setFollowups(
+                              chosenSteps.includes(s.id) ? chosenSteps.filter((x) => x !== s.id) : [...chosenSteps, s.id],
+                            )
+                          }
+                        />
+                        {s.label}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {error && (
               <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">
                 {error}

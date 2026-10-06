@@ -191,6 +191,20 @@ pub struct Config {
     pub worker_id: String,
     pub log_format: LogFormat,
     pub log_dir: Option<PathBuf>,
+    /// The local language model behind the assistant. None when AI_URL is unset: the
+    /// assistant is simply off.
+    pub ai: Option<AiConfig>,
+}
+
+/// An OpenAI-compatible chat endpoint with tool calling (llama.cpp `llama-server --jinja`,
+/// Ollama, vLLM...). Runs next to the app: CRM data never leaves the building.
+#[derive(Debug, Clone)]
+pub struct AiConfig {
+    /// Base URL without `/v1`, e.g. `http://127.0.0.1:8081`.
+    pub url: String,
+    /// Sent as `model`; llama.cpp ignores it, Ollama needs it.
+    pub model: String,
+    pub timeout_secs: u64,
 }
 
 const DEFAULT_LEADS_NOTIFY_TO: &str = "vastag.peter@autotherm.hu";
@@ -483,6 +497,19 @@ impl Config {
             .unwrap_or_else(|| format!("worker-{}", std::process::id()));
         let log_format = r.parsed("LOG_FORMAT", LogFormat::Pretty);
         let log_dir = r.optional("LOG_DIR").map(PathBuf::from);
+        let ai = r.optional("AI_URL").map(|url| AiConfig {
+            url: url.trim_end_matches('/').trim_end_matches("/v1").to_string(),
+            model: r
+                .optional("AI_MODEL")
+                .unwrap_or_else(|| "qwen2.5-0.5b-instruct".into()),
+            timeout_secs: 60,
+        });
+        if let Some(ai) = &ai
+            && !ai.url.starts_with("http://")
+            && !ai.url.starts_with("https://")
+        {
+            r.errors.push(format!("AI_URL must be an http(s) URL, got '{}'", ai.url));
+        }
         let newsletter_api_key = r.optional("NEWSLETTER_API_KEY");
         let leads_api_key = r.optional("LEADS_API_KEY");
         let leads_notify_to = match std::env::var("LEADS_NOTIFY_TO") {
@@ -537,6 +564,7 @@ impl Config {
             worker_id,
             log_format,
             log_dir,
+            ai,
         })
     }
 

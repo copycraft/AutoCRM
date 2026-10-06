@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE email_templates SET name = $2, subject = $3, body = $4, updated_by = $5 WHERE id = $1\n         RETURNING id, key, name, subject, body, locale, is_automatic, updated_at, updated_by",
+  "query": "SELECT id, key, name, subject, body, locale, is_automatic, updated_at, updated_by, category, folder, archived_at FROM email_templates WHERE key = $1",
   "describe": {
     "columns": [
       {
@@ -47,15 +47,26 @@
         "ordinal": 8,
         "name": "updated_by",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "category",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "folder",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "archived_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Text",
-        "Text",
-        "Text",
-        "Int8"
+        "Text"
       ]
     },
     "nullable": [
@@ -67,8 +78,11 @@
       false,
       false,
       false,
+      true,
+      false,
+      false,
       true
     ]
   },
-  "hash": "fcf4685cf7343ee103c422b184bdd40d51177b6d6b7cdcf5f44eed797517fc04"
+  "hash": "68b3ef5d344e5f894bf863ce945988386d4d1a820fe31add9d3e67239a7b10b9"
 }

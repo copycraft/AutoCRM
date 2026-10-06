@@ -31,6 +31,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(list_templates, create_template))
         .routes(routes!(variables))
         .routes(routes!(update_template))
+        .routes(routes!(copy_template))
         .routes(routes!(list_suppressions, add_suppression))
         .routes(routes!(remove_suppression))
 }
@@ -223,12 +224,30 @@ fn check_variables(subject: &str, body: &str) -> AppResult<()> {
     }
 }
 
+const CATEGORIES: &[&str] = &["sales", "projects", "billing", "marketing", "hr", "general"];
+const FOLDERS: &[&str] = &["customer", "workflow", "design"];
+
+fn check_place(category: &str, folder: &str) -> AppResult<()> {
+    if !CATEGORIES.contains(&category) {
+        return Err(AppError::validation(format!("category must be one of {}", CATEGORIES.join(", "))));
+    }
+    if !FOLDERS.contains(&folder) {
+        return Err(AppError::validation(format!("folder must be one of {}", FOLDERS.join(", "))));
+    }
+    Ok(())
+}
+
 #[derive(Deserialize, ToSchema)]
 struct CreateTemplate {
-    key: String,
+    /// Permanent, for code to refer to. Omitted: made up from the time (custom_...).
+    key: Option<String>,
     name: String,
     subject: String,
     body: String,
+    /// sales | projects | billing | marketing | hr | general. Default general.
+    category: Option<String>,
+    /// customer | workflow | design. Default customer.
+    folder: Option<String>,
 }
 
 #[utoipa::path(
@@ -242,7 +261,11 @@ async fn create_template(
     ApiJson(b): ApiJson<CreateTemplate>,
 ) -> AppResult<(StatusCode, Json<EmailTemplate>)> {
     me.require(Capability::ManageConfiguration)?;
-    let key = b.key.trim();
+    let generated = format!("custom_{}", chrono::Utc::now().format("%Y%m%d%H%M%S%3f"));
+    let key = b.key.as_deref().map(str::trim).filter(|k| !k.is_empty()).unwrap_or(&generated);
+    let category = b.category.as_deref().unwrap_or("general");
+    let folder = b.folder.as_deref().unwrap_or("customer");
+    check_place(category, folder)?;
     let valid_key = key.chars().next().is_some_and(|c| c.is_ascii_lowercase())
         && key
             .chars()
@@ -259,7 +282,7 @@ async fn create_template(
     );
     check_variables(&subject, &body)?;
     let mut tx = state.db.begin().await?;
-    let template = templates::insert(&mut *tx, key, &name, &subject, &body, me.user_id).await?;
+    let template = templates::insert(&mut *tx, key, &name, &subject, &body, category, folder, me.user_id).await?;
     audit::record(
         &mut *tx,
         Some(me.user_id),
@@ -278,6 +301,11 @@ struct PatchTemplate {
     name: Option<String>,
     subject: Option<String>,
     body: Option<String>,
+    category: Option<String>,
+    folder: Option<String>,
+    /// true moves it to the bin (Lomtár), false brings it back. A template that code or
+    /// a follow-up sends cannot go to the bin.
+    archived: Option<bool>,
 }
 
 #[utoipa::path(
@@ -304,7 +332,16 @@ async fn update_template(
     )?;
     let body = required("body", &p.body.unwrap_or_else(|| current.body.clone()))?;
     check_variables(&subject, &body)?;
-    let updated = templates::update(&mut *tx, id, &name, &subject, &body, me.user_id)
+    let category = p.category.unwrap_or_else(|| current.category.clone());
+    let folder = p.folder.unwrap_or_else(|| current.folder.clone());
+    check_place(&category, &folder)?;
+    let archived = p.archived.unwrap_or(current.archived_at.is_some());
+    if archived && current.archived_at.is_none()
+        && let Some(why) = templates::in_use(&mut *tx, &current.key, current.is_automatic).await?
+    {
+        return Err(AppError::rule("template_in_use", format!("this template cannot go to the bin: {why}")));
+    }
+    let updated = templates::update(&mut *tx, id, &name, &subject, &body, &category, &folder, archived, me.user_id)
         .await?
         .ok_or(AppError::NotFound("email template"))?;
     audit::record(
@@ -317,6 +354,9 @@ async fn update_template(
             ("name", json!(current.name), json!(updated.name)),
             ("subject", json!(current.subject), json!(updated.subject)),
             ("body", json!(current.body), json!(updated.body)),
+            ("category", json!(current.category), json!(updated.category)),
+            ("folder", json!(current.folder), json!(updated.folder)),
+            ("archived", json!(current.archived_at.is_some()), json!(updated.archived_at.is_some())),
         ]),
     )
     .await?;
@@ -380,4 +420,41 @@ async fn remove_suppression(
         "address removed from suppression list"
     );
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// A copy to edit: "<name> (másolat)", same area and folder, a fresh key. How the design
+/// samples are meant to be used, and how a customer letter gets a German twin.
+#[utoipa::path(
+    post, path = "/email-templates/{id}/copy", tag = "email",
+    params(("id" = i64, Path)),
+    responses((status = 201, body = EmailTemplate))
+)]
+async fn copy_template(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<(StatusCode, Json<EmailTemplate>)> {
+    me.require(Capability::ManageConfiguration)?;
+    let mut tx = state.db.begin().await?;
+    let source = templates::find(&mut *tx, id)
+        .await?
+        .ok_or(AppError::NotFound("email template"))?;
+    let key = format!("custom_{}", chrono::Utc::now().format("%Y%m%d%H%M%S%3f"));
+    // A design sample's copy is a real letter for customers; anything else keeps its folder.
+    let folder = if source.folder == "design" { "customer" } else { source.folder.as_str() };
+    let copy = templates::insert(
+        &mut *tx,
+        &key,
+        &format!("{} (másolat)", source.name),
+        &source.subject,
+        &source.body,
+        &source.category,
+        folder,
+        me.user_id,
+    )
+    .await?;
+    audit::record(&mut *tx, Some(me.user_id), "email_template", copy.id, "create",
+        json!({ "key": key, "copied_from": source.key })).await?;
+    tx.commit().await?;
+    Ok((StatusCode::CREATED, Json(copy)))
 }

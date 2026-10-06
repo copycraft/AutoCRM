@@ -170,6 +170,12 @@ snippet). The server sorts them into a channel (paid, organic, social, email, re
 direct). The lead shows where it came from, and Reports shows leads and wins per channel,
 campaign and landing page. Only leads the website filed have a source.
 
+**Lead tags.** Per-market lists (Magyar, Román, Német, Olasz…), like the per-language
+sales lists in MiniCRM, edited at Leadek → Címkék kezelése. A tag can claim website
+domains: a lead whose `site`, page, landing page, referrer, UTM source or typed source
+falls under one (subdomains included) gets the tag on arrival, and the lead shows which
+domain did it. A domain belongs to at most one live tag.
+
 **Search.** The header box (`/` to focus, or the command palette) and the phone's Keresés
 screen search orders, partners, leads, contacts, emails and, for users with HR access, the
 staff directory. Every word must match, in any order; accents and punctuation are ignored

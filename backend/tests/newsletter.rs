@@ -99,6 +99,7 @@ async fn a_blast_is_one_row_with_everyone_in_bcc(pool: sqlx::PgPool) {
             hero: None,
             attachment_document_ids: vec![],
             embed_document_ids: vec![],
+            tag_ids: vec![],
         },
     )
     .await
@@ -134,6 +135,7 @@ async fn a_blast_to_nobody_is_refused(pool: sqlx::PgPool) {
             hero: None,
             attachment_document_ids: vec![],
             embed_document_ids: vec![],
+            tag_ids: vec![],
         },
     )
     .await
@@ -158,6 +160,7 @@ async fn a_blast_with_variables_is_refused(pool: sqlx::PgPool) {
             hero: None,
             attachment_document_ids: vec![],
             embed_document_ids: vec![],
+            tag_ids: vec![],
         },
     )
     .await
@@ -183,6 +186,7 @@ async fn a_quotation_shouts_and_quotes_the_lead(pool: sqlx::PgPool) {
             hero: None,
             body_markdown: false,
             attachment_document_ids: vec![],
+            followup_step_ids: None,
         },
     )
     .await
@@ -222,6 +226,7 @@ async fn a_quotation_without_an_address_names_the_lead(pool: sqlx::PgPool) {
             hero: None,
             body_markdown: false,
             attachment_document_ids: vec![],
+            followup_step_ids: None,
         },
     )
     .await
@@ -304,6 +309,7 @@ async fn a_blast_carries_attachments_hero_and_inline_images(pool: sqlx::PgPool) 
             hero: Some("Arajánlatok mindenkinek!".into()),
             attachment_document_ids: vec![pdf],
             embed_document_ids: vec![img],
+            tag_ids: vec![],
         },
     )
     .await
@@ -362,6 +368,7 @@ async fn a_dangling_embed_reference_refuses_the_blast(pool: sqlx::PgPool) {
             hero: None,
             attachment_document_ids: vec![],
             embed_document_ids: vec![],
+            tag_ids: vec![],
         },
     )
     .await

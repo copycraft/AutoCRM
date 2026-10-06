@@ -36,6 +36,9 @@ import PasswordPage from '@/app/[locale]/password/page';
 import PreferencesPage from '@/app/[locale]/preferences/page';
 import ReportsPage from '@/app/[locale]/reports/page';
 import SettingsPage from '@/app/[locale]/settings/page';
+import MarketingPage from '@/app/[locale]/marketing/page';
+import IncomingInvoicesPage from '@/app/[locale]/incoming-invoices/page';
+import TemplatesPage from '@/app/[locale]/templates/page';
 
 const locale = { locale: 'hu' };
 
@@ -98,6 +101,9 @@ const routes: Route[] = [
   },
   { path: '/hu/reports', element: () => ReportsPage({ params: locale }), expect: /Jelentések/ },
   { path: '/hu/settings', element: () => <SettingsPage />, expect: /smtp\.example\.com|Beállítások/ },
+  { path: '/hu/marketing', element: () => <MarketingPage />, expect: /info@pekseg.hu/ },
+  { path: '/hu/incoming-invoices', element: () => <IncomingInvoicesPage />, expect: /Hűtőgép Kft/ },
+  { path: '/hu/templates', element: () => <TemplatesPage />, expect: /Árajánlat utánkövetés/ },
   { path: '/hu/admin', element: () => AdminPage({ params: locale }), expect: /Adminisztráció/i },
 ];
 

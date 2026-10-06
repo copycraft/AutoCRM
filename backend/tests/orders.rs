@@ -417,6 +417,7 @@ async fn a_lead_converts_as_many_times_as_it_has_vehicles(pool: PgPool) {
             currency: Some("EUR".into()),
             quote_valid_until: NaiveDate::from_ymd_opt(2026, 12, 31),
         },
+        &[],
     )
     .await
     .unwrap();
@@ -518,6 +519,7 @@ async fn a_document_can_belong_to_a_lead(pool: PgPool) {
             currency: None,
             quote_valid_until: None,
         },
+        &[],
     )
     .await
     .unwrap();

@@ -18,7 +18,7 @@ use crate::domain::email::normalize_address;
 /// How long a confirmation link stays valid.
 pub const CONFIRM_TTL_DAYS: i32 = 7;
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema, sqlx::FromRow)]
 pub struct Subscription {
     pub id: i64,
     pub email: String,
@@ -48,18 +48,6 @@ pub async fn count_active(db: impl PgExecutor<'_>) -> sqlx::Result<i64> {
     .fetch_one(db)
     .await
     .map(|c: Option<i64>| c.unwrap_or(0))
-}
-
-/// Active subscriber addresses, lowercased and deduplicated. The blast filters these
-/// against the global suppression list before sending.
-pub async fn active_emails(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<String>> {
-    sqlx::query_scalar!(
-        "SELECT DISTINCT lower(email) FROM newsletter_subscriptions
-          WHERE confirmed_at IS NOT NULL AND unsubscribed_at IS NULL"
-    )
-    .fetch_all(db)
-    .await
-    .map(|rows| rows.into_iter().flatten().collect())
 }
 
 /// Subscribe an address, confirmed. For the office hand-add, where the office holds the

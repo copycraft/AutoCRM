@@ -113,3 +113,8 @@ export function canAdmin(user: SessionUser | null): boolean {
 export function canAccessHr(user: SessionUser | null): boolean {
   return !!user && user.hr_access;
 }
+
+/// Issuing invoices, marking them paid, and recording incoming ones: office work.
+export function canIssueInvoices(user: SessionUser | null): boolean {
+  return canEdit(user);
+}

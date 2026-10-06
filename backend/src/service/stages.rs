@@ -244,6 +244,10 @@ pub async fn change_lead_stage(
         json!({ "from": current.stage_key, "to": to, "kind": kind, "note": note }),
     )
     .await?;
+    // A decided enquiry gets no more "did you get our offer?" letters.
+    if find(&definitions, to).is_some_and(|s| s.is_terminal) {
+        crate::repo::followups::cancel_for_lead(&mut *tx, lead_id, "a lead lezárult").await?;
+    }
     tx.commit().await?;
     Ok(StageChange {
         from: current.stage_key,

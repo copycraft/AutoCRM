@@ -105,3 +105,23 @@ export function applyParams(params: Record<string, string>) {
     /* best-effort */
   }
 }
+
+/**
+ * Save a view of a list from anywhere (the assistant builds filters off the list page).
+ * The list's bar reads it the next time the list opens.
+ */
+export function saveViewTo(listKey: string, name: string, params: Record<string, string>): void {
+  const clean = name.trim();
+  if (!clean) return;
+  try {
+    const raw = window.localStorage.getItem(storageKey(listKey));
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    const existing = Array.isArray(parsed) ? (parsed as SavedView[]).filter((v) => v?.name !== clean) : [];
+    window.localStorage.setItem(
+      storageKey(listKey),
+      JSON.stringify([{ name: clean, params, at: Date.now() }, ...existing].slice(0, 20)),
+    );
+  } catch {
+    /* best-effort: storage may be off */
+  }
+}
