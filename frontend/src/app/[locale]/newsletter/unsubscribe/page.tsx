@@ -4,7 +4,7 @@
 // unsubscribes in one click; without one, the address can be typed in.
 
 import { useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { newsletterApi } from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
@@ -15,6 +15,8 @@ export default function UnsubscribePage({
   searchParams: { token?: string };
 }) {
   const t = useTranslations('emails');
+  const tp = useTranslations('privacy');
+  const locale = useLocale();
   const ter = useTranslations('errors');
   const [email, setEmail] = useState('');
   const [done, setDone] = useState<boolean | null>(null);
@@ -76,6 +78,11 @@ export default function UnsubscribePage({
               {error}
             </p>
           )}
+        </div>
+        <div className="card-footer">
+          <a className="text-metadata text-steel-500 underline" href={`/${locale}/adatkezeles`}>
+            {tp('link')}
+          </a>
         </div>
       </div>
     </div>

@@ -120,6 +120,22 @@ Tag the links of your ads and newsletters, for example:
 `https://autotherm.hu/?utm_source=google&utm_medium=cpc&utm_campaign=tavasz-hutokamra`.
 Use lower-case, consistent names: `Google` and `google` are different campaigns.
 
+## Privacy: what the form page must show
+
+The person typing their name and phone number into your form has to be told who keeps it and
+why, at the point they enter it. Two things on the website's side:
+
+- **Next to the submit button**, a line with a link to the data-protection page, for example:
+  "Az űrlap elküldésével elfogadod az [Adatkezelési tájékoztatót]." linking to
+  `https://<crm-host>/hu/adatkezeles` (the CRM's public page, no login) and/or the full
+  Adatkezelési tájékoztató once it is published.
+- **Newsletter signup** is a separate choice: its checkbox must **not** be pre-ticked, and it
+  must not be bundled into sending the enquiry. Call `POST /api/newsletter/subscribe` only
+  when it is ticked.
+
+The source-tracking values above are read from the browser's session storage, which the
+website's cookie/consent notice should also cover. Ask the company's adviser how.
+
 ## Responses
 
 | Status | Meaning | What to do |

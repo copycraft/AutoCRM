@@ -195,3 +195,14 @@ browser needs internet); `/api/docs/openapi.json` is the live contract it reads.
 `staging` both are open and "Try it out" works with your session cookie. In `production` they
 need an admin session and the page is read-only. The same pages are reachable through the web
 app at `/api/docs`. The checked-in copy is `openapi/openapi.json`.
+
+## Data protection
+
+`/hu/adatkezeles` is a public page (no login) explaining, in plain Hungarian, who keeps a
+person's data, what is stored and why, their rights and how to unsubscribe. Link to it from
+emails, website forms and the full notice. Its company details (name, address, registration
+number, contact, link to the full notice) come from the `PRIVACY_*` variables on the web
+server (`frontend/.env.example`); a line that is not set is simply not shown. The
+`newsletter` confirm and unsubscribe pages link to it. A draft of the full *Adatkezelési
+tájékoztató*, built from what the system actually stores, is in
+`docs/adatkezelesi-tajekoztato-vazlat.md`: it needs a lawyer's review before publication.
