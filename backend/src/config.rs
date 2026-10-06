@@ -194,6 +194,8 @@ pub struct Config {
     /// The local language model behind the assistant. None when AI_URL is unset: the
     /// assistant is simply off.
     pub ai: Option<AiConfig>,
+    /// The sales mailbox replies are read from.
+    pub imap: Option<ImapConfig>,
 }
 
 /// An OpenAI-compatible chat endpoint with tool calling (llama.cpp `llama-server --jinja`,
@@ -208,6 +210,18 @@ pub struct AiConfig {
 }
 
 const DEFAULT_LEADS_NOTIFY_TO: &str = "vastag.peter@autotherm.hu";
+
+/// The sales mailbox, read for customer replies (IMAP over TLS). None when IMAP_HOST is
+/// unset: replies are simply not read.
+#[derive(Debug, Clone)]
+pub struct ImapConfig {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+    /// Usually INBOX.
+    pub folder: String,
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error("invalid configuration:\n  - {}", .0.join("\n  - "))]
@@ -511,6 +525,21 @@ impl Config {
             r.errors.push(format!("AI_URL must be an http(s) URL, got '{}'", ai.url));
         }
         let newsletter_api_key = r.optional("NEWSLETTER_API_KEY");
+        let imap = match (r.optional("IMAP_HOST"), r.optional("IMAP_USER"), r.optional("IMAP_PASSWORD")) {
+            (Some(host), Some(user), Some(password)) => Some(ImapConfig {
+                host,
+                port: r.parsed("IMAP_PORT", 993u16),
+                user,
+                password,
+                folder: r.optional("IMAP_FOLDER").unwrap_or_else(|| "INBOX".into()),
+            }),
+            (None, _, _) => None,
+            _ => {
+                r.errors
+                    .push("IMAP_HOST needs IMAP_USER and IMAP_PASSWORD too".into());
+                None
+            }
+        };
         let leads_api_key = r.optional("LEADS_API_KEY");
         let leads_notify_to = match std::env::var("LEADS_NOTIFY_TO") {
             Err(_) => Some(DEFAULT_LEADS_NOTIFY_TO.to_string()),
@@ -565,6 +594,7 @@ impl Config {
             log_format,
             log_dir,
             ai,
+            imap,
         })
     }
 

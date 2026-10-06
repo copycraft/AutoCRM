@@ -9,6 +9,7 @@ default-run = "autocrm"
 [dependencies]
 anyhow = "1"
 argon2 = { version = "0.5", features = ["std"] }
+async-imap = { version = "0.10", default-features = false, features = ["runtime-tokio"] }
 aws-sdk-s3 = "1"
 axum = { version = "0.8", features = ["macros", "multipart"] }
 axum-extra = { version = "0.10", features = ["cookie"] }
@@ -24,6 +25,7 @@ hmac = "0.12"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 kamadak-exif = "0.6"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls", "hostname"] }
+mail-parser = "0.11"
 pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
 quick-xml = "0.37"
 rand = "0.9"
@@ -39,6 +41,7 @@ sha2 = "0.10"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "macros", "migrate", "chrono", "rust_decimal", "json"] }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "limit", "catch-panic", "compression-gzip"] }
 tracing = "0.1"
 tracing-appender = "0.2"
@@ -46,6 +49,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 utoipa = { version = "5.5", features = ["chrono", "decimal", "preserve_order", "preserve_path_order"] }
 utoipa-axum = "0.2"
 uuid = { version = "1", features = ["v4"] }
+webpki-roots = "0.26"
 
 [dev-dependencies]
 http-body-util = "0.1"

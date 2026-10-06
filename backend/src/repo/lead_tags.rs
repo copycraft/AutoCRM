@@ -222,10 +222,62 @@ pub async fn unlink_others(
     Ok(())
 }
 
+/// Detaches one tag from the lead.
+pub async fn remove_tag(
+    db: impl PgExecutor<'_>,
+    lead_id: i64,
+    tag_id: i64,
+) -> sqlx::Result<()> {
+    sqlx::query("DELETE FROM lead_tag_links WHERE lead_id = $1 AND tag_id = $2")
+        .bind(lead_id)
+        .bind(tag_id)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 /// How many of `ids` are live tags.
 pub async fn count_live(db: impl PgExecutor<'_>, ids: &[i64]) -> sqlx::Result<i64> {
     sqlx::query_scalar("SELECT count(*) FROM lead_tags WHERE id = ANY($1) AND archived_at IS NULL")
         .bind(ids)
         .fetch_one(db)
         .await
+}
+
+/// One website's funnel in a period: of its leads, how many got a quote, were won, or
+/// became orders. Only leads the server tagged (matched_domain set) are attributed.
+#[derive(Debug, Serialize, ToSchema, sqlx::FromRow)]
+pub struct SiteFunnel {
+    pub site: String,
+    pub leads: i64,
+    pub quoted: i64,
+    pub won: i64,
+    pub orders: i64,
+    pub lost: i64,
+}
+
+pub async fn by_site(
+    db: impl PgExecutor<'_>,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> sqlx::Result<Vec<SiteFunnel>> {
+    sqlx::query_as(
+        "SELECT k.matched_domain AS site,
+                count(DISTINCT l.id) AS leads,
+                count(DISTINCT l.id) FILTER (WHERE l.quoted_value_minor IS NOT NULL) AS quoted,
+                count(DISTINCT l.id) FILTER (WHERE cs.stage_key = 'won') AS won,
+                count(DISTINCT o.id) AS orders,
+                count(DISTINCT l.id) FILTER (WHERE cs.stage_key = 'lost') AS lost
+           FROM lead_tag_links k
+           JOIN leads l ON l.id = k.lead_id
+           JOIN lead_current_stage cs ON cs.lead_id = l.id
+           LEFT JOIN orders o ON o.lead_id = l.id
+          WHERE l.created_at >= $1 AND l.created_at < $2 AND k.matched_domain IS NOT NULL
+          GROUP BY k.matched_domain
+          ORDER BY leads DESC, k.matched_domain",
+    )
+    .bind(from)
+    .bind(to)
+    .fetch_all(db)
+    .await
 }

@@ -2,5 +2,6 @@
 //! sidecar.
 
 pub mod email;
+pub mod imap;
 pub mod mnb;
 pub mod nav;

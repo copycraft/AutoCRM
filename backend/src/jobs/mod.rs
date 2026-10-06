@@ -26,6 +26,14 @@ pub mod kinds {
     pub const STALLED_ORDERS: &str = "stalled_orders";
     /// Hourly: quote follow-up letters that are due.
     pub const QUOTE_FOLLOWUPS: &str = "quote_followups";
+    /// Daily: payment reminders for overdue transfer invoices.
+    pub const PAYMENT_REMINDERS: &str = "payment_reminders";
+    /// Daily: tell salespeople about quotes about to expire, and HR about documents.
+    pub const EXPIRY_ALERTS: &str = "expiry_alerts";
+    /// Every few minutes: read customer replies from the sales mailbox.
+    pub const READ_MAILBOX: &str = "read_mailbox";
+    /// At a newsletter's send time: write one letter per reader.
+    pub const NEWSLETTER_DISPATCH: &str = "newsletter_dispatch";
     pub const FETCH_FX_RATES: &str = "fetch_fx_rates";
     /// Report an invoice or storno to NAV through the sidecar, then store its PDF and
     /// queue the letter. Reporting is asynchronous at NAV, so it is asynchronous here.
@@ -164,6 +172,11 @@ struct FxPayload {
     to: NaiveDate,
 }
 
+#[derive(Deserialize)]
+struct NewsletterPayload {
+    send_id: i64,
+}
+
 fn payload<T: for<'de> Deserialize<'de>>(job: &Job) -> anyhow::Result<T> {
     serde_json::from_value(job.payload.clone())
         .map_err(|e| anyhow!("bad payload for {}: {e}", job.kind))
@@ -193,6 +206,24 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
         }
         kinds::QUOTE_FOLLOWUPS => {
             crate::service::followups::send_due(state).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::PAYMENT_REMINDERS => {
+            crate::service::reminders::send_payment_reminders(state).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::EXPIRY_ALERTS => {
+            crate::service::reminders::quote_expiry_alerts(state).await?;
+            crate::service::reminders::document_expiry_alerts(state).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::READ_MAILBOX => {
+            crate::service::mailbox::read_mailbox(state).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::NEWSLETTER_DISPATCH => {
+            let p: NewsletterPayload = payload(job)?;
+            crate::service::newsletter::dispatch(state, p.send_id).await?;
             Ok(Outcome::Done)
         }
         kinds::NAV_SUBMIT_INVOICE => {
@@ -259,6 +290,39 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
             state,
             &format!("{}:{today}", kinds::STALLED_ORDERS),
             kinds::STALLED_ORDERS,
+            json!({}),
+        )
+        .await?;
+        once(
+            state,
+            &format!("{}:{today}", kinds::EXPIRY_ALERTS),
+            kinds::EXPIRY_ALERTS,
+            json!({}),
+        )
+        .await?;
+    }
+    // Payment reminders go out in office hours, after the morning's bank statements.
+    if time >= NaiveTime::from_hms_opt(9, 0, 0).expect("valid time") {
+        once(
+            state,
+            &format!("{}:{today}", kinds::PAYMENT_REMINDERS),
+            kinds::PAYMENT_REMINDERS,
+            json!({}),
+        )
+        .await?;
+    }
+    // The sales mailbox is read every ten minutes, when one is configured.
+    if state.config.imap.is_some() {
+        let minute = local_now.format("%M").to_string().parse::<u32>().unwrap_or(0);
+        once(
+            state,
+            &format!(
+                "{}:{}:{}",
+                kinds::READ_MAILBOX,
+                local_now.format("%Y-%m-%dT%H"),
+                minute / 10
+            ),
+            kinds::READ_MAILBOX,
             json!({}),
         )
         .await?;

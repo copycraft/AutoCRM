@@ -1456,12 +1456,12 @@ pub async fn create_proforma(
 
 // ── Letters ─────────────────────────────────────────────────────────────────
 
-fn money_text(minor: i64, currency: &str) -> String {
+pub(crate) fn money_text(minor: i64, currency: &str) -> String {
     let parsed: Currency = currency.parse().unwrap_or(Currency::HUF);
     format!("{}", Money::new(minor, parsed))
 }
 
-fn hu_date(day: NaiveDate) -> String {
+pub(crate) fn hu_date(day: NaiveDate) -> String {
     day.format("%Y.%m.%d.").to_string()
 }
 
@@ -1539,6 +1539,7 @@ async fn queue_invoice_email(
             idempotency_key: format!("{trigger}:{}", invoice.id),
             attachments,
             extra_values: values,
+            sender: None,
         },
     )
     .await?;
@@ -1590,6 +1591,7 @@ async fn queue_proforma_email(
                 content_id: None,
             }],
             extra_values: values,
+            sender: None,
         },
     )
     .await

@@ -85,6 +85,7 @@ pub async fn nudge_blockers(state: &AppState) -> anyhow::Result<usize> {
                 idempotency_key: nudge_idempotency_key(candidate.id, count + 1),
                 attachments: Vec::new(),
                 extra_values: Default::default(),
+                sender: None,
             },
         )
         .await;
@@ -148,6 +149,7 @@ pub async fn stalled_order_alerts(state: &AppState) -> anyhow::Result<usize> {
                     idempotency_key: key,
                     attachments: Vec::new(),
                     extra_values: Default::default(),
+                    sender: None,
                 },
             )
             .await;
@@ -216,6 +218,7 @@ pub async fn notify_stage_changed(
             idempotency_key: format!("stage:{stage_row_id}"),
             attachments: Vec::new(),
             extra_values: Default::default(),
+            sender: None,
         },
     )
     .await?;
@@ -255,6 +258,7 @@ pub async fn notify_ready_for_pickup(
             idempotency_key: format!("pickup:{stage_row_id}"),
             attachments: Vec::new(),
             extra_values: Default::default(),
+            sender: None,
         },
     )
     .await?;

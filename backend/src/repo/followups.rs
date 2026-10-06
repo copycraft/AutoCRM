@@ -18,6 +18,8 @@ pub struct FollowupStep {
     pub template_name: String,
     /// Inactive steps are not scheduled for new quotations.
     pub is_active: bool,
+    /// quote (days after a quotation) or invoice (days after the payment deadline).
+    pub kind: String,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema, sqlx::FromRow)]
@@ -37,11 +39,12 @@ pub struct Followup {
     pub updated_at: DateTime<Utc>,
 }
 
-const STEP: &str = "SELECT s.id, s.label, s.delay_days, s.template_key, t.name AS template_name, s.is_active
+const STEP: &str = "SELECT s.id, s.label, s.delay_days, s.template_key, t.name AS template_name, s.is_active, s.kind
     FROM followup_steps s JOIN email_templates t ON t.key = s.template_key";
 
-pub async fn steps(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<FollowupStep>> {
-    sqlx::query_as(&format!("{STEP} ORDER BY s.delay_days, s.id"))
+pub async fn steps(db: impl PgExecutor<'_>, kind: &str) -> sqlx::Result<Vec<FollowupStep>> {
+    sqlx::query_as(&format!("{STEP} WHERE s.kind = $1 ORDER BY s.delay_days, s.id"))
+        .bind(kind)
         .fetch_all(db)
         .await
 }
@@ -58,13 +61,15 @@ pub async fn insert_step(
     label: &str,
     delay_days: i32,
     template_key: &str,
+    kind: &str,
 ) -> sqlx::Result<i64> {
     sqlx::query_scalar(
-        "INSERT INTO followup_steps (label, delay_days, template_key) VALUES ($1, $2, $3) RETURNING id",
+        "INSERT INTO followup_steps (label, delay_days, template_key, kind) VALUES ($1, $2, $3, $4) RETURNING id",
     )
     .bind(label)
     .bind(delay_days)
     .bind(template_key)
+    .bind(kind)
     .fetch_one(db)
     .await
 }
@@ -178,6 +183,9 @@ pub struct Due {
     pub converted: bool,
     pub contact_email: Option<String>,
     pub partner_email: Option<String>,
+    /// Who scheduled it (sent the quotation): the letter goes out in their name.
+    pub sender_name: Option<String>,
+    pub sender_email: Option<String>,
 }
 
 pub async fn lock_due(
@@ -189,9 +197,11 @@ pub async fn lock_due(
         "SELECT f.id, f.lead_id, f.template_key,
                 coalesce(sd.is_terminal, false) AS lead_closed,
                 EXISTS (SELECT 1 FROM orders o WHERE o.lead_id = f.lead_id) AS converted,
-                l.contact_email, p.email AS partner_email
+                l.contact_email, p.email AS partner_email,
+                u.display_name AS sender_name, u.email AS sender_email
          FROM lead_followups f
          JOIN leads l ON l.id = f.lead_id
+         LEFT JOIN users u ON u.id = f.created_by AND u.is_active
          LEFT JOIN partners p ON p.id = l.partner_id
          LEFT JOIN lead_current_stage cs ON cs.lead_id = f.lead_id
          LEFT JOIN stage_definitions sd ON sd.entity = 'lead' AND sd.key = cs.stage_key

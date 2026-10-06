@@ -61,6 +61,29 @@ pub async fn broadcast_hr(
     Ok(result.rows_affected())
 }
 
+/// One notification for one user, if still active. Returns how many (0 or 1).
+pub async fn notify_user(
+    db: impl PgExecutor<'_>,
+    user_id: i64,
+    kind: &str,
+    title: &str,
+    body: Option<&str>,
+    link: Option<&str>,
+) -> sqlx::Result<u64> {
+    let result = sqlx::query(
+        "INSERT INTO notifications (user_id, kind, title, body, link)
+         SELECT id, $2, $3, $4, $5 FROM users WHERE id = $1 AND is_active",
+    )
+    .bind(user_id)
+    .bind(kind)
+    .bind(title)
+    .bind(body)
+    .bind(link)
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// The user's newest notifications, optionally only those after `after_id` and/or unread.
 pub async fn list(
     db: impl PgExecutor<'_>,

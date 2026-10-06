@@ -7,9 +7,12 @@ pub mod email;
 pub mod followups;
 pub mod invoicing;
 pub mod leads;
+pub mod newsletter;
+pub mod mailbox;
 pub mod media;
 pub mod notifications;
 pub mod orders;
+pub mod reminders;
 pub mod stages;
 
 use chrono::{NaiveDate, Utc};

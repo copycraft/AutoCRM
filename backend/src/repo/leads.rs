@@ -157,6 +157,19 @@ pub async fn update(db: impl PgExecutor<'_>, id: i64, l: &LeadInput) -> sqlx::Re
     .await
 }
 
+pub async fn set_assigned(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    assigned_to: Option<i64>,
+) -> sqlx::Result<()> {
+    sqlx::query("UPDATE leads SET assigned_to = $2, updated_at = now() WHERE id = $1")
+        .bind(id)
+        .bind(assigned_to)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 pub async fn set_partner(db: impl PgExecutor<'_>, id: i64, partner_id: i64) -> sqlx::Result<()> {
     sqlx::query!(
         "UPDATE leads SET partner_id = $2 WHERE id = $1",

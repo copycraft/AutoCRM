@@ -23,8 +23,14 @@ use crate::error::{AppError, AppResult};
 use crate::repo::orders::OrderFilter;
 use crate::repo::{
     config, incoming_invoices, invoices, lead_tags, leads, like_pattern, newsletter_tags, orders,
-    partners, search,
+    partners, search, timeline,
 };
+use crate::repo::timeline::TimelineEntity;
+
+/// Today in Budapest, where the office works.
+fn local_today() -> chrono::NaiveDate {
+    chrono::Utc::now().with_timezone(&chrono_tz::Europe::Budapest).date_naive()
+}
 
 /// Tries at a tool call: the first, and one more with the reason the first was refused.
 const MAX_ROUNDS: usize = 2;
@@ -117,6 +123,15 @@ fn tools() -> Value {
               "query": { "type": "string", "description": "beszállító vagy számlaszám" },
               "bucket": { "type": "string", "description": "open_invoice, open_proforma, transferred, cash, partial, cash_receipt, booking_only" }
           }), &[]),
+        f("expiring_quotes", "Hamarosan lejáró (vagy nemrég lejárt) árajánlatok nyitott leadeken.",
+          json!({ "days": { "type": "integer", "description": "hány napon belül (alapból 7)" } }), &[]),
+        f("overdue_invoices", "Lejárt fizetési határidejű, ki nem fizetett számlák, opcionálisan egy ügyfélé.",
+          json!({ "customer": { "type": "string", "description": "a partner neve vagy része" } }), &[]),
+        f("recent_history", "Mi történt / mi változott egy rekordon mostanában (előzmények).",
+          json!({
+              "kind": { "type": "string", "enum": ["lead", "order", "partner"] },
+              "id": { "type": "integer" }
+          }), &["kind", "id"]),
         f("reply", "Csak köszönésre vagy nem a CRM adataira vonatkozó kérdésre: rövid válasz.",
           json!({ "text": { "type": "string" } }), &["text"]),
     ])
@@ -590,6 +605,55 @@ async fn run_tool(db: &PgPool, name: &str, args: &Value, filters: &mut Vec<Filte
             })).collect::<Vec<_>>()))
         }
         "reply" => Ok(json!({ "text": s(args, "text").unwrap_or("") })),
+        "expiring_quotes" => {
+            let days = args.get("days").and_then(Value::as_i64).unwrap_or(7).clamp(1, 90);
+            let rows = crate::service::reminders::expiring_quotes(db, local_today(), days, None)
+                .await
+                .map_err(err)?;
+            Ok(json!(rows.iter().map(|q| json!({
+                "id": q.lead_id, "title": q.title,
+                "partner": q.partner_name.as_deref().or(q.contact_name.as_deref()),
+                "assigned": q.assigned_name, "valid_until": q.valid_until, "days_left": q.days_left,
+            })).collect::<Vec<_>>()))
+        }
+        "overdue_invoices" => {
+            let partner_id = match s(args, "customer").and_then(like_pattern) {
+                Some(pattern) => Some(
+                    sqlx::query_scalar::<_, i64>(
+                        "SELECT id FROM partners WHERE name ILIKE $1 ORDER BY length(name) LIMIT 1",
+                    )
+                    .bind(pattern)
+                    .fetch_optional(db)
+                    .await
+                    .map_err(err)?
+                    .ok_or("nincs ilyen nevű partner")?,
+                ),
+                None => None,
+            };
+            let rows = invoices::overdue(db, local_today(), partner_id, 50).await.map_err(err)?;
+            Ok(json!(rows.iter().map(|i| json!({
+                "id": i.id, "number": i.number, "partner": i.partner_name,
+                "gross": format!("{} {}", i.gross_amount / 100, i.currency),
+                "due": i.payment_date, "days_overdue": i.days_overdue, "reminders": i.reminders_sent,
+            })).collect::<Vec<_>>()))
+        }
+        "recent_history" => {
+            let id = args.get("id").and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()))
+                .ok_or("az id kötelező szám")?;
+            let entity = match s(args, "kind") {
+                Some("lead") => TimelineEntity::Lead,
+                Some("order") => TimelineEntity::Order,
+                Some("partner") => TimelineEntity::Partner,
+                _ => return Err("a kind lead, order vagy partner".into()),
+            };
+            let rows = timeline::list(db, entity, id, ROWS).await.map_err(err)?;
+            Ok(json!(rows.iter().map(|e| json!({
+                "at": e.at.with_timezone(&chrono_tz::Europe::Budapest).format("%Y.%m.%d. %H:%M").to_string(),
+                "kind": e.kind, "action": e.action, "who": e.user_name,
+                "text": e.text.as_deref().or(e.file_name.as_deref()),
+                "changes": e.changes.as_object().map(|m| m.keys().cloned().collect::<Vec<_>>()),
+            })).collect::<Vec<_>>()))
+        }
         other => Err(format!("ismeretlen eszköz: {other}")),
     }
 }
@@ -675,7 +739,8 @@ fn number_in(question: &str) -> Option<i64> {
 }
 
 const HELP: &str = "Szia! Kérdezz a leadekről, megrendelésekről, bejövő számlákról, vagy kérj szűrt listát, \
-    pl. „Mutasd a JEGELVE címkés leadeket” vagy „Szűrő: nyitott megrendelések gyártásban”.";
+    pl. „Mutasd a JEGELVE címkés leadeket”, „Mely ajánlatok járnak le?”, „Ki tartozik?”, „Mi változott a 8-as leaden?” \
+    vagy „Szűrő: nyitott megrendelések gyártásban”.";
 
 /// The stage whose label (or key) the question names, longest match first.
 async fn stage_in(db: &PgPool, entity: StageEntity, q: &str) -> Option<String> {
@@ -779,6 +844,30 @@ async fn route(db: &PgPool, question: &str) -> Option<(String, Value)> {
     let greetings = ["szia", "hello", "hallo", "jonapot", "udv", "hey", "hi", "koszonom", "koszi"];
     if q.len() <= 12 && greetings.iter().any(|g| q.starts_with(g)) || q.contains("mittudsz") || q.contains("segits") {
         return Some(("reply".to_string(), json!({ "text": HELP })));
+    }
+    let record_kind = |l: Option<&str>| match l {
+        Some("leads") => Some("lead"),
+        Some("orders") => Some("order"),
+        Some("partners") => Some("partner"),
+        _ => None,
+    };
+    // "Mi változott a 8-as leaden?": the record's recent history.
+    if ["valtoz", "elozmeny", "tortent", "modosit"].iter().any(|w| q.contains(w))
+        && let (Some(id), Some(kind)) = (number_in(question), record_kind(list))
+    {
+        return Some(("recent_history".to_string(), json!({ "kind": kind, "id": id })));
+    }
+    // "Mely ajánlatok járnak le?"
+    if q.contains("ajanlat") && (q.contains("lejar") || q.contains("ervenyes")) {
+        return Some(("expiring_quotes".to_string(), json!({})));
+    }
+    // "Ki tartozik?", "lejárt számlák", "ki nem fizetett számlák".
+    if ["tartoz", "kintlev", "fizetetlen", "nemfizet", "kifizetetlen", "kesedelm"]
+        .iter()
+        .any(|w| q.contains(w))
+        || (q.contains("szaml") && (q.contains("lejart") || q.contains("kesik")))
+    {
+        return Some(("overdue_invoices".to_string(), json!({})));
     }
     // "Mi van a 8-as leaddel?", "#12 megrendelés": one record, by its number.
     if let (Some(id), Some(kind)) = (number_in(question), list) {
@@ -921,6 +1010,62 @@ fn render(tool: &str, result: &Value) -> String {
                 }))
                 .collect();
             if lines.is_empty() { "Nincs adat.".into() } else { lines.join("\n") }
+        }
+        "expiring_quotes" => {
+            let rows = rows_of(result);
+            if rows.is_empty() {
+                return "A következő napokban nem jár le árajánlat.".into();
+            }
+            let mut out = vec![format!("{} árajánlat jár le hamarosan:", rows.len())];
+            for r in rows {
+                let left = r["days_left"].as_i64().unwrap_or(0);
+                let when = match left {
+                    0 => "ma lejár".to_string(),
+                    d if d < 0 => format!("{} napja lejárt", -d),
+                    d => format!("{d} nap múlva"),
+                };
+                out.push(format!("• #{} {} — {} ({}, felelős: {})", txt(&r["id"]), txt(&r["title"]), when,
+                    r["partner"].as_str().unwrap_or("—"), r["assigned"].as_str().unwrap_or("nincs")));
+            }
+            out.join("\n")
+        }
+        "overdue_invoices" => {
+            let rows = rows_of(result);
+            if rows.is_empty() {
+                return "Nincs lejárt, kifizetetlen számla.".into();
+            }
+            let mut out = vec![format!("{} lejárt, kifizetetlen számla:", rows.len())];
+            for r in rows {
+                out.push(format!("• {} — {}, {} ({} napja lejárt, {} emlékeztető)", txt(&r["number"]),
+                    txt(&r["partner"]), txt(&r["gross"]), txt(&r["days_overdue"]), txt(&r["reminders"])));
+            }
+            out.join("\n")
+        }
+        "recent_history" => {
+            let rows = rows_of(result);
+            if rows.is_empty() {
+                return "Nincs még előzmény ezen a rekordon.".into();
+            }
+            let mut out = vec!["Legutóbbi események:".to_string()];
+            for r in rows {
+                let what = match (r["kind"].as_str(), r["action"].as_str()) {
+                    (Some("change"), _) => {
+                        let fields = r["changes"].as_array().map(|a| a.iter().map(txt).collect::<Vec<_>>().join(", "));
+                        format!("módosítás: {}", fields.unwrap_or_default())
+                    }
+                    (Some("stage"), _) => format!("fázis: {}", txt(&r["text"])),
+                    (Some("email"), Some("received")) => format!("beérkező levél: {}", txt(&r["text"])),
+                    (Some("email"), _) => format!("e-mail: {}", txt(&r["text"])),
+                    (Some("file"), _) => format!("fájl: {}", txt(&r["text"])),
+                    (Some("task"), _) => format!("feladat: {}", txt(&r["text"])),
+                    (Some("create"), _) => "létrehozva".to_string(),
+                    (_, Some(action)) => r["text"].as_str().map(|t| format!("{action}: {t}")).unwrap_or_else(|| action.to_string()),
+                    _ => "esemény".to_string(),
+                };
+                let who = r["who"].as_str().map(|w| format!(" ({w})")).unwrap_or_default();
+                out.push(format!("• {} — {what}{who}", txt(&r["at"])));
+            }
+            out.join("\n")
         }
         "create_filter" => format!("Elkészítettem a szűrőt: {}.", txt(&result["created"])),
         _ => "Kész.".into(),

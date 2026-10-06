@@ -125,6 +125,16 @@ fn emails(owner_col: &str) -> String {
     ))
 }
 
+/// Replies read back from the sales mailbox.
+fn inbound(owner_col: &str) -> String {
+    row(&format!(
+        "m.received_at, 'email', 'received', coalesce(m.from_name, m.from_address),
+         jsonb_build_object('inbound', true, 'from', m.from_address),
+         m.subject, left(m.body_text, 400), NULL, NULL, NULL, NULL, NULL, m.reply_to_email_id, NULL, NULL
+         FROM inbound_emails m WHERE m.{owner_col} = $2"
+    ))
+}
+
 fn stages(table: &str, entity: &str, owner_col: &str) -> String {
     row(&format!(
         "s.entered_at, 'stage', s.stage_key, u.display_name, '{{}}'::jsonb,
@@ -143,6 +153,7 @@ fn sources(entity: TimelineEntity) -> Vec<String> {
             documents("lead_id"),
             tasks("lead"),
             emails("lead_id"),
+            inbound("lead_id"),
             // Every order this enquiry became.
             row("o.created_at, 'event', 'order_created', NULL, '{}'::jsonb,
                  o.number, NULL, NULL, NULL, NULL, NULL, NULL, NULL, o.id, NULL
@@ -157,6 +168,7 @@ fn sources(entity: TimelineEntity) -> Vec<String> {
                  WHERE i.order_id = $2 AND i.deleted_at IS NULL"),
             tasks("order"),
             emails("order_id"),
+            inbound("order_id"),
             // MiniCRM's own history of the job, imported as notes.
             row("n.occurred_at, 'note', 'note', n.author_name, '{}'::jsonb,
                  n.body, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
@@ -165,6 +177,7 @@ fn sources(entity: TimelineEntity) -> Vec<String> {
         TimelineEntity::Partner => vec![
             tasks("partner"),
             emails("partner_id"),
+            inbound("partner_id"),
             row("o.created_at, 'event', 'order_created', NULL, '{}'::jsonb,
                  o.number || ' · ' || o.title, NULL, NULL, NULL, NULL, NULL, NULL, NULL, o.id, NULL
                  FROM orders o WHERE o.partner_id = $2"),
@@ -172,7 +185,12 @@ fn sources(entity: TimelineEntity) -> Vec<String> {
                  l.title, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, l.id
                  FROM leads l WHERE l.partner_id = $2"),
         ],
-        TimelineEntity::Employee => vec![],
+        TimelineEntity::Employee => vec![row(
+            "d.created_at, 'file', d.kind, u.display_name, '{}'::jsonb,
+             d.title, d.valid_until::text, d.file_name, d.file_size, NULL, NULL, NULL, NULL, NULL, NULL
+             FROM employee_documents d LEFT JOIN users u ON u.id = d.created_by
+             WHERE d.employee_id = $2 AND d.deleted_at IS NULL",
+        )],
         TimelineEntity::IncomingInvoice => vec![row(
             "i.created_at, 'file', 'upload', u.display_name, '{}'::jsonb,
              NULL, NULL, i.file_name, i.file_size, NULL, NULL, i.id, NULL, NULL, NULL

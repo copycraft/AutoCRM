@@ -40,6 +40,108 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(transitions))
         .routes(routes!(convert))
         .routes(routes!(quotation))
+        .routes(routes!(expiring_quotes))
+        .routes(routes!(bulk_action))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct BulkActionBody {
+    ids: Vec<i64>,
+    #[serde(flatten)]
+    action: BulkAction,
+}
+
+/// One bulk operation over a ticked set of leads. Stage changes run the same per-lead
+/// rules as one-by-one changes, so an invalid transition skips that lead rather than
+/// failing the whole batch.
+#[derive(Deserialize, ToSchema)]
+#[serde(tag = "action", rename_all = "snake_case")]
+enum BulkAction {
+    Assign { assigned_to: i64 },
+    AddTag { tag_id: i64 },
+    RemoveTag { tag_id: i64 },
+    Stage { stage: String },
+}
+
+#[derive(Serialize, ToSchema)]
+struct BulkResult {
+    applied: i64,
+    skipped: Vec<BulkSkip>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct BulkSkip {
+    id: i64,
+    error: String,
+}
+
+#[utoipa::path(
+    post, path = "/leads/bulk-actions", tag = "leads",
+    request_body = BulkActionBody,
+    responses((status = 200, body = BulkResult))
+)]
+async fn bulk_action(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<BulkActionBody>,
+) -> AppResult<Json<BulkResult>> {
+    me.require(Capability::EditLeads)?;
+    let mut applied = 0;
+    let mut skipped = Vec::new();
+    for id in b.ids.iter().copied().take(500) {
+        let outcome: AppResult<()> = match &b.action {
+            BulkAction::Assign { assigned_to } => {
+                leads::set_assigned(&state.db, id, Some(*assigned_to))
+                    .await
+                    .map_err(|e| e.into())
+            }
+            BulkAction::AddTag { tag_id } => {
+                crate::repo::lead_tags::link(&state.db, id, *tag_id, None, Some(me.user_id))
+                    .await
+                    .map_err(|e| e.into())
+            }
+            BulkAction::RemoveTag { tag_id } => {
+                crate::repo::lead_tags::remove_tag(&state.db, id, *tag_id)
+                    .await
+                    .map_err(|e| e.into())
+            }
+            BulkAction::Stage { stage } => {
+                service::stages::change_lead_stage(&state.db, &me, id, stage.trim(), None)
+                    .await
+                    .map(|_| ())
+            }
+        };
+        match outcome {
+            Ok(()) => applied += 1,
+            Err(e) => skipped.push(BulkSkip { id, error: format!("{e:?}") }),
+        }
+    }
+    Ok(Json(BulkResult { applied, skipped }))
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct ExpiringQuery {
+    /// How many days around today to cover; defaults to 7.
+    days: Option<i64>,
+    assigned_to: Option<i64>,
+}
+
+#[utoipa::path(
+    get, path = "/leads/quotes/expiring", tag = "leads",
+    params(ExpiringQuery),
+    responses((status = 200, body = Items<service::reminders::ExpiringQuote>))
+)]
+async fn expiring_quotes(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<ExpiringQuery>,
+) -> AppResult<Json<Items<service::reminders::ExpiringQuote>>> {
+    let today = service::business_today(state.config.business_tz);
+    let days = q.days.unwrap_or(7).clamp(1, 90);
+    Ok(Items::new(
+        service::reminders::expiring_quotes(&state.db, today, days, q.assigned_to).await?,
+    ))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -399,6 +501,8 @@ struct LeadDetail {
     attribution: Option<Attribution>,
     /// The lead tags, each with the domain that put it there when the server did.
     tags: Vec<LeadTagRef>,
+    /// Why it was lost, when it was.
+    lost_reason: Option<crate::repo::lost_reasons::LostReason>,
 }
 
 #[utoipa::path(
@@ -432,6 +536,7 @@ async fn detail(
         documents,
         attribution,
         tags,
+        lost_reason: crate::repo::lost_reasons::for_lead(&state.db, id).await?,
     }))
 }
 
@@ -523,6 +628,8 @@ pub struct StageBody {
     pub stage: String,
     /// Required for backward moves and reopening a terminal stage.
     pub note: Option<String>,
+    /// Why it was lost, when moving to `lost`: an id from `/lost-reasons`.
+    pub lost_reason_id: Option<i64>,
 }
 
 #[utoipa::path(
@@ -539,9 +646,18 @@ async fn change_stage(
 ) -> AppResult<Json<StageChange>> {
     me.require(Capability::EditLeads)?;
     let note = optional(b.note);
+    if let Some(reason) = b.lost_reason_id
+        && b.stage.trim() == "lost"
+        && crate::repo::lost_reasons::find(&state.db, reason).await?.is_none()
+    {
+        return Err(AppError::validation("lost_reason_id does not exist"));
+    }
     let change =
         service::stages::change_lead_stage(&state.db, &me, id, b.stage.trim(), note.as_deref())
             .await?;
+    // The reason belongs to the lost stage: set on the way in, cleared on the way out.
+    let reason = if b.stage.trim() == "lost" { b.lost_reason_id } else { None };
+    crate::repo::lost_reasons::set_for_lead(&state.db, id, reason).await?;
     Ok(Json(change))
 }
 

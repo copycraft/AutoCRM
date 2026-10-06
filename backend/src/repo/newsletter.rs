@@ -178,3 +178,258 @@ pub async fn remove(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<bool> {
     .await
     .map(|r: Option<i64>| r.is_some())
 }
+
+// ── Per-recipient sends (#10/#11) and signup-form tags (#12) ────────────────
+// All runtime-checked queries: the `newsletter_sends` / tracking tables are new in
+// migration 0046 and have no `.sqlx` cache entries yet.
+
+/// One confirmed reader a send goes to, with the token their unsubscribe link uses.
+#[derive(Debug, Clone, Serialize, ToSchema, sqlx::FromRow)]
+pub struct AudienceSubscriber {
+    pub id: i64,
+    pub email: String,
+    pub name: String,
+    pub unsubscribe_token: String,
+}
+
+/// Active addresses a send reaches: confirmed, not unsubscribed, with any of the tags
+/// (all active when `tag_ids` is empty), minus the global suppression list.
+pub async fn audience_subscribers(
+    db: impl PgExecutor<'_>,
+    tag_ids: &[i64],
+) -> sqlx::Result<Vec<AudienceSubscriber>> {
+    sqlx::query_as(
+        "SELECT DISTINCT s.id, s.email, s.name, s.unsubscribe_token
+           FROM newsletter_subscriptions s
+          WHERE s.confirmed_at IS NOT NULL AND s.unsubscribed_at IS NULL
+            AND (cardinality($1::bigint[]) = 0 OR EXISTS (
+                 SELECT 1 FROM newsletter_subscription_tags k
+                 WHERE k.subscription_id = s.id AND k.tag_id = ANY($1)))
+            AND NOT EXISTS (SELECT 1 FROM email_suppressions x WHERE x.email = lower(s.email))
+          ORDER BY lower(s.email)",
+    )
+    .bind(tag_ids)
+    .fetch_all(db)
+    .await
+}
+
+/// A website signup's lists, applied when the reader confirms.
+pub async fn set_pending_tags(
+    db: impl PgExecutor<'_>,
+    subscription_id: i64,
+    tag_ids: &[i64],
+) -> sqlx::Result<()> {
+    sqlx::query("UPDATE newsletter_subscriptions SET pending_tag_ids = $2 WHERE id = $1")
+        .bind(subscription_id)
+        .bind(tag_ids)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+/// Moves a confirmed subscriber's pending tags onto the subscription and clears them.
+/// Called after [`confirm`]; returns how many pairs were new.
+pub async fn apply_pending_tags(
+    db: impl PgExecutor<'_>,
+    subscription_id: i64,
+) -> sqlx::Result<u64> {
+    let tags: Option<Vec<i64>> = sqlx::query_scalar(
+        "SELECT pending_tag_ids FROM newsletter_subscriptions WHERE id = $1",
+    )
+    .bind(subscription_id)
+    .fetch_optional(db)
+    .await?
+    .flatten();
+    let tags = tags.unwrap_or_default();
+    if tags.is_empty() {
+        return Ok(0);
+    }
+    let done = sqlx::query(
+        "INSERT INTO newsletter_subscription_tags (subscription_id, tag_id)
+         SELECT $1, t FROM unnest($2::bigint[]) t
+         WHERE EXISTS (SELECT 1 FROM newsletter_tags WHERE id = t AND archived_at IS NULL)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(subscription_id)
+    .bind(&tags)
+    .execute(db)
+    .await?;
+    sqlx::query("UPDATE newsletter_subscriptions SET pending_tag_ids = '{}' WHERE id = $1")
+        .bind(subscription_id)
+        .execute(db)
+        .await?;
+    Ok(done.rows_affected())
+}
+
+/// One newsletter send: the letter plus when it goes out.
+#[derive(Debug, Clone, Serialize, ToSchema, sqlx::FromRow)]
+pub struct NewsletterSend {
+    pub id: i64,
+    pub subject: String,
+    pub body: String,
+    pub body_markdown: bool,
+    pub hero: Option<String>,
+    pub tag_ids: Vec<i64>,
+    pub attachment_document_ids: Vec<i64>,
+    pub embed_document_ids: Vec<i64>,
+    pub send_at: chrono::DateTime<chrono::Utc>,
+    pub recipients: i32,
+    pub created_by: Option<i64>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub cancelled_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn create_send(
+    db: impl PgExecutor<'_>,
+    subject: &str,
+    body: &str,
+    body_markdown: bool,
+    hero: Option<&str>,
+    tag_ids: &[i64],
+    attachment_ids: &[i64],
+    embed_ids: &[i64],
+    send_at: chrono::DateTime<chrono::Utc>,
+    created_by: i64,
+) -> sqlx::Result<i64> {
+    sqlx::query_scalar(
+        "INSERT INTO newsletter_sends
+            (subject, body, body_markdown, hero, tag_ids,
+             attachment_document_ids, embed_document_ids, send_at, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
+    )
+    .bind(subject)
+    .bind(body)
+    .bind(body_markdown)
+    .bind(hero)
+    .bind(tag_ids)
+    .bind(attachment_ids)
+    .bind(embed_ids)
+    .bind(send_at)
+    .bind(created_by)
+    .fetch_one(db)
+    .await
+}
+
+pub async fn find_send(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<NewsletterSend>> {
+    sqlx::query_as(
+        "SELECT id, subject, body, body_markdown, hero, tag_ids,
+                attachment_document_ids, embed_document_ids,
+                send_at, recipients, created_by, created_at, cancelled_at
+           FROM newsletter_sends WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(db)
+    .await
+}
+
+pub async fn list_sends(db: impl PgExecutor<'_>, limit: i64) -> sqlx::Result<Vec<NewsletterSend>> {
+    sqlx::query_as(
+        "SELECT id, subject, body, body_markdown, hero, tag_ids,
+                attachment_document_ids, embed_document_ids,
+                send_at, recipients, created_by, created_at, cancelled_at
+           FROM newsletter_sends ORDER BY created_at DESC, id DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(db)
+    .await
+}
+
+pub async fn cancel_send(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<bool> {
+    let done = sqlx::query(
+        "UPDATE newsletter_sends SET cancelled_at = coalesce(cancelled_at, now())
+          WHERE id = $1 AND cancelled_at IS NULL",
+    )
+    .bind(id)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected() == 1)
+}
+
+pub async fn set_send_recipients(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    recipients: i32,
+) -> sqlx::Result<()> {
+    sqlx::query("UPDATE newsletter_sends SET recipients = $2 WHERE id = $1")
+        .bind(id)
+        .bind(recipients)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+/// Per-send results: how many letters, how many opened, how many clicks.
+#[derive(Debug, Clone, Serialize, ToSchema, sqlx::FromRow)]
+pub struct SendStats {
+    pub send_id: i64,
+    pub recipients: i64,
+    pub queued: i64,
+    pub sent: i64,
+    pub opened: i64,
+    pub opens: i64,
+    pub clicks: i64,
+    pub clicked: i64,
+    pub unsubscribed: i64,
+}
+
+pub async fn send_stats(db: impl PgExecutor<'_>, send_id: i64) -> sqlx::Result<SendStats> {
+    sqlx::query_as(
+        "SELECT $1 AS send_id,
+           (SELECT recipients FROM newsletter_sends WHERE id = $1) AS recipients,
+           (SELECT count(*) FROM email_messages WHERE newsletter_send_id = $1) AS queued,
+           (SELECT count(*) FROM email_messages
+             WHERE newsletter_send_id = $1 AND status = 'sent') AS sent,
+           (SELECT count(*) FROM email_messages
+             WHERE newsletter_send_id = $1 AND opened_at IS NOT NULL) AS opened,
+           (SELECT coalesce(sum(open_count), 0) FROM email_messages
+             WHERE newsletter_send_id = $1) AS opens,
+           (SELECT count(*) FROM email_clicks c
+             JOIN email_messages m ON m.id = c.email_id
+             WHERE m.newsletter_send_id = $1) AS clicks,
+           (SELECT count(DISTINCT c.email_id) FROM email_clicks c
+             JOIN email_messages m ON m.id = c.email_id
+             WHERE m.newsletter_send_id = $1) AS clicked,
+           (SELECT count(*) FROM newsletter_subscriptions s
+             WHERE s.unsubscribed_at IS NOT NULL
+               AND s.unsubscribed_at >= (SELECT created_at FROM newsletter_sends WHERE id = $1)) AS unsubscribed",
+    )
+    .bind(send_id)
+    .fetch_one(db)
+    .await
+}
+
+/// An open pixel hit: first open stamps `opened_at`, every hit bumps `open_count`.
+/// Returns false for an unknown token.
+pub async fn record_open(db: impl PgExecutor<'_>, token: &str) -> sqlx::Result<bool> {
+    let done = sqlx::query(
+        "UPDATE email_messages
+            SET opened_at = coalesce(opened_at, now()), open_count = open_count + 1
+          WHERE tracking_token = $1",
+    )
+    .bind(token)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected() == 1)
+}
+
+/// A tracked-link hit: stores the click and returns where to send the reader.
+/// Returns None for an unknown token.
+pub async fn record_click(
+    db: impl PgExecutor<'_>,
+    token: &str,
+    url: &str,
+) -> sqlx::Result<Option<String>> {
+    let id: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM email_messages WHERE tracking_token = $1")
+            .bind(token)
+            .fetch_optional(db)
+            .await?;
+    let Some(id) = id else { return Ok(None) };
+    sqlx::query("INSERT INTO email_clicks (email_id, url) VALUES ($1, $2)")
+        .bind(id)
+        .bind(url)
+        .execute(db)
+        .await?;
+    Ok(Some(url.to_string()))
+}

@@ -17,7 +17,7 @@ use crate::domain::lead_tag;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::repo::lead_tags::{self, LeadTag, LeadTagRef, TagInput};
-use crate::repo::{audit, leads};
+use crate::repo::{audit, leads, lost_reasons};
 use crate::service;
 
 pub fn routes() -> OpenApiRouter<AppState> {
@@ -26,6 +26,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(update_tag))
         .routes(routes!(reorder_tags))
         .routes(routes!(set_lead_tags))
+        .routes(routes!(list_lost_reasons, create_lost_reason))
+        .routes(routes!(update_lost_reason))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -253,4 +255,92 @@ async fn set_lead_tags(
     Ok(Items::new(
         service::leads::set_tags(&state.db, &me, id, &b.tag_ids).await?,
     ))
+}
+
+// ── Lost reasons ────────────────────────────────────────────────────────────
+
+/// Why leads are lost: the choices offered when a lead moves to "Elveszett".
+#[utoipa::path(
+    get, path = "/lost-reasons", tag = "leads",
+    params(ListQuery),
+    responses((status = 200, body = Items<lost_reasons::LostReason>))
+)]
+async fn list_lost_reasons(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<ListQuery>,
+) -> AppResult<Json<Items<lost_reasons::LostReason>>> {
+    Ok(Items::new(lost_reasons::list(&state.db, q.archived).await?))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct LostReasonBody {
+    label: String,
+    /// true archives: it leaves the choices, lost leads keep it.
+    #[serde(default)]
+    archived: bool,
+}
+
+fn reason_label(label: &str) -> AppResult<String> {
+    let label = super::required("label", label)?;
+    if label.chars().count() > 100 {
+        return Err(AppError::validation("label is too long (at most 100 characters)"));
+    }
+    Ok(label)
+}
+
+fn unique_label(e: sqlx::Error) -> AppError {
+    match &e {
+        sqlx::Error::Database(d) if d.is_unique_violation() => {
+            AppError::conflict("duplicate", "there is already a reason with this name")
+        }
+        _ => e.into(),
+    }
+}
+
+#[utoipa::path(
+    post, path = "/lost-reasons", tag = "leads",
+    request_body = LostReasonBody,
+    responses((status = 201, body = lost_reasons::LostReason))
+)]
+async fn create_lost_reason(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<LostReasonBody>,
+) -> AppResult<(StatusCode, Json<lost_reasons::LostReason>)> {
+    me.require(Capability::EditLeads)?;
+    let label = reason_label(&b.label)?;
+    let id = lost_reasons::insert(&state.db, &label)
+        .await
+        .map_err(unique_label)?;
+    let reason = lost_reasons::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("lost reason"))?;
+    Ok((StatusCode::CREATED, Json(reason)))
+}
+
+#[utoipa::path(
+    put, path = "/lost-reasons/{id}", tag = "leads",
+    params(("id" = i64, Path)),
+    request_body = LostReasonBody,
+    responses((status = 200, body = lost_reasons::LostReason))
+)]
+async fn update_lost_reason(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<LostReasonBody>,
+) -> AppResult<Json<lost_reasons::LostReason>> {
+    me.require(Capability::EditLeads)?;
+    let label = reason_label(&b.label)?;
+    if !lost_reasons::update(&state.db, id, &label, b.archived)
+        .await
+        .map_err(unique_label)?
+    {
+        return Err(AppError::NotFound("lost reason"));
+    }
+    let reason = lost_reasons::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("lost reason"))?;
+    Ok(Json(reason))
 }

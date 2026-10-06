@@ -46,6 +46,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(detail, update))
         .routes(routes!(change_stage))
         .routes(routes!(transitions))
+        .routes(routes!(bulk_action))
         .routes(routes!(stage_history))
         .routes(routes!(audit_trail))
         .routes(routes!(notes))
@@ -763,6 +764,51 @@ async fn change_stage(
         service::stages::change_order_stage(&state, &me, id, b.stage.trim(), note.as_deref())
             .await?;
     Ok(Json(change))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct OrderBulkBody {
+    ids: Vec<i64>,
+    /// All orders move to this stage; orders whose rules refuse are skipped and reported.
+    stage: String,
+    note: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct OrderBulkResult {
+    moved: i64,
+    skipped: Vec<OrderBulkSkip>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct OrderBulkSkip {
+    id: i64,
+    error: String,
+}
+
+#[utoipa::path(
+    post, path = "/orders/bulk-actions", tag = "orders",
+    request_body = OrderBulkBody,
+    responses((status = 200, body = OrderBulkResult))
+)]
+async fn bulk_action(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<OrderBulkBody>,
+) -> AppResult<Json<OrderBulkResult>> {
+    me.require(Capability::ChangeStages)?;
+    let mut moved = 0;
+    let mut skipped = Vec::new();
+    let note = optional(b.note);
+    for id in b.ids.iter().copied().take(500) {
+        match service::stages::change_order_stage(&state, &me, id, b.stage.trim(), note.as_deref())
+            .await
+        {
+            Ok(_) => moved += 1,
+            Err(e) => skipped.push(OrderBulkSkip { id, error: format!("{e:?}") }),
+        }
+    }
+    Ok(Json(OrderBulkResult { moved, skipped }))
 }
 
 #[utoipa::path(

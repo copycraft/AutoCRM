@@ -22,7 +22,7 @@ use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::media::pipeline;
 use crate::repo::employees::{self, EmployeeInput, EmployeeRow};
-use crate::repo::{audit, like_pattern};
+use crate::repo::{audit, employee_details, employee_documents, like_pattern};
 
 const PHOTO_URL_TTL: Duration = Duration::from_secs(3600);
 /// The picture is re-encoded to 512 px, so a phone original is far more than enough.
@@ -42,6 +42,127 @@ pub fn routes() -> OpenApiRouter<AppState> {
                 .routes(routes!(set_photo, remove_photo))
                 .layer(DefaultBodyLimit::max(MAX_PHOTO_BYTES)),
         )
+        .routes(routes!(get_details, put_details))
+        .routes(routes!(list_documents, create_document, delete_document))
+}
+
+#[utoipa::path(
+    get, path = "/hr/employees/{id}/details", tag = "hr",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = employee_details::EmployeeDetails))
+)]
+async fn get_details(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<employee_details::EmployeeDetails>> {
+    me.require(Capability::AccessHr)?;
+    let mut row = employee_details::get(&state.db, id)
+        .await?
+        .unwrap_or_else(|| employee_details::EmployeeDetails {
+            employee_id: id,
+            ..Default::default()
+        });
+    row.employee_id = id;
+    Ok(Json(row))
+}
+
+#[utoipa::path(
+    put, path = "/hr/employees/{id}/details", tag = "hr",
+    params(("id" = i64, Path)),
+    request_body = employee_details::EmployeeDetails,
+    responses((status = 200, body = employee_details::EmployeeDetails))
+)]
+async fn put_details(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<employee_details::EmployeeDetails>,
+) -> AppResult<Json<employee_details::EmployeeDetails>> {
+    me.require(Capability::AccessHr)?;
+    employees::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("employee"))?;
+    let mut tx = state.db.begin().await?;
+    let saved = employee_details::upsert(&mut *tx, id, &b).await?;
+    // Data drives the status: the employee's status follows the data only while it is
+    // one of the four data-driven ones; HR's manual choices (absent, left, …) stay.
+    if let Some(current) = employee_details::current_auto_key(&mut *tx, id).await? {
+        if let Some(status_id) =
+            employee_details::status_id_for_auto_key(&mut *tx, saved.auto_key()).await?
+        {
+            if current != saved.auto_key() {
+                employees::set_status(&mut *tx, id, status_id).await?;
+            }
+        }
+    }
+    tx.commit().await?;
+    Ok(Json(saved))
+}
+
+#[utoipa::path(
+    get, path = "/hr/employees/{id}/documents", tag = "hr",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Items<employee_documents::EmployeeDocument>))
+)]
+async fn list_documents(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<Items<employee_documents::EmployeeDocument>>> {
+    me.require(Capability::AccessHr)?;
+    employees::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("employee"))?;
+    Ok(Items::new(employee_documents::list(&state.db, id).await?))
+}
+
+#[utoipa::path(
+    post, path = "/hr/employees/{id}/documents", tag = "hr",
+    params(("id" = i64, Path)),
+    request_body = employee_documents::NewDocument,
+    responses((status = 201, body = employee_documents::EmployeeDocument))
+)]
+async fn create_document(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<employee_documents::NewDocument>,
+) -> AppResult<(StatusCode, Json<employee_documents::EmployeeDocument>)> {
+    me.require(Capability::AccessHr)?;
+    employees::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("employee"))?;
+    let title = b.title.trim();
+    if title.is_empty() {
+        return Err(AppError::validation("title is required"));
+    }
+    if !employee_documents::kind_ok(&b.kind) {
+        return Err(AppError::validation(
+            "kind must be medical, contract, licence, training or other",
+        ));
+    }
+    let mut clean = b;
+    clean.title = title.to_string();
+    let doc = employee_documents::insert(&state.db, id, &clean, me.user_id).await?;
+    Ok((StatusCode::CREATED, Json(doc)))
+}
+
+#[utoipa::path(
+    delete, path = "/hr/employees/{id}/documents/{doc_id}", tag = "hr",
+    params(("id" = i64, Path), ("doc_id" = i64, Path)),
+    responses((status = 204, description = "Removed"), (status = 404, description = "No such document"))
+)]
+async fn delete_document(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath((id, doc_id)): ApiPath<(i64, i64)>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::AccessHr)?;
+    if !employee_documents::soft_delete(&state.db, doc_id, id).await? {
+        return Err(AppError::NotFound("document"));
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Serialize, ToSchema)]

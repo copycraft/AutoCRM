@@ -30,6 +30,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(list_all))
         .routes(routes!(bucket_counts))
         .routes(routes!(mark_paid))
+        .routes(routes!(set_reminders))
+        .routes(routes!(overdue))
         .routes(routes!(list_all_proformas))
         .routes(routes!(list_for_order, create))
         .routes(routes!(detail))
@@ -412,4 +414,63 @@ async fn mark_paid(
     .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize, ToSchema)]
+struct RemindersBody {
+    /// True stops the automatic payment reminders for this invoice.
+    off: bool,
+}
+
+/// Stops (or restarts) the automatic payment reminders of one invoice: a customer who pays
+/// late by agreement should not be chased.
+#[utoipa::path(
+    post, path = "/invoices/{id}/reminders", tag = "invoices",
+    params(("id" = i64, Path)),
+    request_body = RemindersBody,
+    responses((status = 204, description = "Updated"), (status = 404, description = "No such invoice"))
+)]
+async fn set_reminders(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<RemindersBody>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::IssueInvoices)?;
+    let mut tx = state.db.begin().await?;
+    if !invoices::set_reminders_off(&mut *tx, id, b.off).await? {
+        return Err(AppError::NotFound("invoice"));
+    }
+    crate::repo::audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "invoice",
+        id,
+        if b.off { "reminders_off" } else { "reminders_on" },
+        serde_json::json!({}),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize, IntoParams)]
+struct OverdueQuery {
+    /// Only this customer's.
+    partner_id: Option<i64>,
+}
+
+/// Unpaid invoices past their deadline, oldest first.
+#[utoipa::path(
+    get, path = "/invoices/overdue", tag = "invoices",
+    params(OverdueQuery),
+    responses((status = 200, body = Items<invoices::OverdueInvoice>))
+)]
+async fn overdue(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<OverdueQuery>,
+) -> AppResult<Json<Items<invoices::OverdueInvoice>>> {
+    let today = crate::service::business_today(state.config.business_tz);
+    Ok(Items::new(invoices::overdue(&state.db, today, q.partner_id, 500).await?))
 }

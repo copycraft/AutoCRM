@@ -530,6 +530,10 @@ pub struct BilledInvoice {
     pub bucket: String,
     /// When the customer paid. Set on issue for cash; marked by the office for transfer.
     pub paid_at: Option<DateTime<Utc>>,
+    /// The office stopped the automatic payment reminders for this invoice.
+    pub reminders_off: bool,
+    /// How many payment reminders went out.
+    pub reminders_sent: i64,
 }
 
 /// Every invoice and storno, newest first. Stornos are rows like any other
@@ -552,7 +556,9 @@ pub async fn list_invoices(
                   i.annulment_transaction_id, i.annulment_code, i.annulment_reason,
                   i.annulled_at, i.document_id, i.submitted_at, i.issued_at,
                   i.created_by, i.created_at, i.updated_at,
-                  b.bucket AS "bucket!", i.paid_at
+                  b.bucket AS "bucket!", i.paid_at, i.reminders_off,
+                  (SELECT count(*) FROM invoice_reminders r
+                    WHERE r.invoice_id = i.id AND r.status = 'sent') AS "reminders_sent!"
              FROM invoices i
              JOIN invoice_buckets b ON b.id = i.id
              JOIN orders o ON o.id = i.order_id
@@ -633,4 +639,118 @@ pub async fn set_paid(db: impl PgExecutor<'_>, id: i64, paid: bool) -> sqlx::Res
     .execute(db)
     .await?;
     Ok(done.rows_affected() == 1)
+}
+
+/// Turns the automatic payment reminders of one invoice off or back on.
+pub async fn set_reminders_off(db: impl PgExecutor<'_>, id: i64, off: bool) -> sqlx::Result<bool> {
+    let done = sqlx::query("UPDATE invoices SET reminders_off = $2 WHERE id = $1 AND kind = 'invoice'")
+        .bind(id)
+        .bind(off)
+        .execute(db)
+        .await?;
+    Ok(done.rows_affected() == 1)
+}
+
+/// An unpaid transfer invoice whose deadline passed long enough ago for a reminder step
+/// that has not gone out for it yet. Row-locked so two workers never send the same one.
+#[derive(Debug, sqlx::FromRow)]
+pub struct DueReminder {
+    pub invoice_id: i64,
+    pub step_id: i64,
+    pub template_key: String,
+}
+
+pub async fn lock_due_reminders(
+    db: impl PgExecutor<'_>,
+    today: NaiveDate,
+    limit: i64,
+) -> sqlx::Result<Vec<DueReminder>> {
+    sqlx::query_as(
+        "SELECT i.id AS invoice_id, s.id AS step_id, s.template_key
+           FROM invoices i
+           JOIN followup_steps s ON s.kind = 'invoice' AND s.is_active
+          WHERE i.kind = 'invoice' AND i.status = 'issued' AND i.paid_at IS NULL
+            AND NOT i.reminders_off AND i.payment_method = 'TRANSFER'
+            AND i.payment_date IS NOT NULL
+            AND i.payment_date + s.delay_days <= $1
+            AND NOT EXISTS (SELECT 1 FROM invoice_reminders r
+                             WHERE r.invoice_id = i.id AND r.step_id = s.id)
+            -- A later step already went out: an earlier one is not sent after it.
+            AND NOT EXISTS (SELECT 1 FROM invoice_reminders r
+                              JOIN followup_steps s2 ON s2.id = r.step_id
+                             WHERE r.invoice_id = i.id AND s2.delay_days > s.delay_days)
+          ORDER BY i.id, s.delay_days DESC
+          LIMIT $2
+          FOR UPDATE OF i SKIP LOCKED",
+    )
+    .bind(today)
+    .bind(limit)
+    .fetch_all(db)
+    .await
+}
+
+pub async fn record_reminder(
+    db: impl PgExecutor<'_>,
+    invoice_id: i64,
+    step_id: i64,
+    email_id: Option<i64>,
+    status: &str,
+    note: Option<&str>,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "INSERT INTO invoice_reminders (invoice_id, step_id, email_id, status, note)
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (invoice_id, step_id) DO NOTHING",
+    )
+    .bind(invoice_id)
+    .bind(step_id)
+    .bind(email_id)
+    .bind(status)
+    .bind(note)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// An unpaid invoice past its deadline: for the assistant and the dashboard.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema, sqlx::FromRow)]
+pub struct OverdueInvoice {
+    pub id: i64,
+    pub number: String,
+    pub order_id: i64,
+    pub partner_id: i64,
+    pub partner_name: String,
+    pub currency: String,
+    pub gross_amount: i64,
+    pub payment_date: NaiveDate,
+    pub days_overdue: i32,
+    pub reminders_sent: i64,
+}
+
+/// Oldest deadline first; `partner` narrows to one customer (id).
+pub async fn overdue(
+    db: impl PgExecutor<'_>,
+    today: NaiveDate,
+    partner_id: Option<i64>,
+    limit: i64,
+) -> sqlx::Result<Vec<OverdueInvoice>> {
+    sqlx::query_as(
+        "SELECT i.id, i.number, i.order_id, p.id AS partner_id, p.name AS partner_name,
+                i.currency, i.gross_amount, i.payment_date,
+                ($1::date - i.payment_date)::int AS days_overdue,
+                (SELECT count(*) FROM invoice_reminders r
+                  WHERE r.invoice_id = i.id AND r.status = 'sent') AS reminders_sent
+           FROM invoices i
+           JOIN orders o ON o.id = i.order_id
+           JOIN partners p ON p.id = o.partner_id
+          WHERE i.kind = 'invoice' AND i.status = 'issued' AND i.paid_at IS NULL
+            AND i.payment_date < $1
+            AND ($2::bigint IS NULL OR p.id = $2)
+          ORDER BY i.payment_date, i.id
+          LIMIT $3",
+    )
+    .bind(today)
+    .bind(partner_id)
+    .bind(limit)
+    .fetch_all(db)
+    .await
 }

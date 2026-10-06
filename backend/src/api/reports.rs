@@ -15,6 +15,7 @@ use crate::AppState;
 use crate::error::{AppError, AppResult};
 use crate::repo::attribution::{self, CampaignRow, ChannelRow, PageRow};
 use crate::repo::fx::{self, FxRate};
+use crate::repo::lead_tags::{self, SiteFunnel};
 use crate::repo::reports::{
     self, BlockerLoadRow, StageDurationRow, StalledOrder, ThroughputRow, VolumeRow,
 };
@@ -30,6 +31,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(blocker_load))
         .routes(routes!(fx_rates))
         .routes(routes!(lead_sources))
+        .routes(routes!(website_conversion))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -407,5 +409,33 @@ async fn lead_sources(
         by_channel,
         by_campaign,
         by_page,
+    }))
+}
+
+#[derive(Serialize, ToSchema)]
+struct WebsiteConversion {
+    period: Period,
+    rows: Vec<SiteFunnel>,
+    /// Why the period's lost leads were lost.
+    lost_reasons: Vec<crate::repo::lost_reasons::ReasonCount>,
+}
+
+/// Leads → quotes → orders per source website (the domain the lead was tagged from).
+#[utoipa::path(
+    get, path = "/reports/website-conversion", tag = "reports",
+    params(Range),
+    responses((status = 200, body = WebsiteConversion))
+)]
+async fn website_conversion(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<Range>,
+) -> AppResult<Json<WebsiteConversion>> {
+    let p = period(&state, q.from, q.to)?;
+    let (from, to) = utc_bounds(state.config.business_tz, &p);
+    Ok(Json(WebsiteConversion {
+        rows: lead_tags::by_site(&state.db, from, to).await?,
+        lost_reasons: crate::repo::lost_reasons::breakdown(&state.db, from, to).await?,
+        period: p,
     }))
 }

@@ -6,9 +6,11 @@
 //! `NEWSLETTER_API_KEY`, and double opt-in — plus confirming and unsubscribing, which
 //! must work from a bare link.
 
+use axum::body::Body;
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
 use axum::extract::State;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -19,9 +21,10 @@ use crate::AppState;
 use crate::domain::email::normalize_address;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
-use crate::repo::newsletter::{self, Subscription};
+use crate::repo::newsletter::{self, NewsletterSend, SendStats, Subscription};
 use crate::repo::newsletter_tags;
 use crate::service::email::{self, NewsletterRequest};
+use crate::service::newsletter;
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
@@ -30,6 +33,9 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(send))
         .routes(routes!(subscribe, unsubscribe))
         .routes(routes!(confirm))
+        .routes(routes!(schedule_send, list_sends))
+        .routes(routes!(send_stats, cancel_send))
+        .routes(routes!(track_open, track_click))
 }
 
 /// Everyone on the list, unsubscribed included: the office sees who opted out, because a
@@ -50,6 +56,9 @@ pub struct SubscriptionBody {
     pub email: String,
     #[serde(default)]
     pub name: String,
+    /// Lists the website form signs the reader up to; applied on confirm.
+    #[serde(default)]
+    pub tag_ids: Vec<i64>,
 }
 
 /// The office hand-add: confirmed on insert, because the office holds the consent.
@@ -179,7 +188,15 @@ async fn subscribe(
     check_website_key(&state, &headers)?;
     normalize_address(&body.email)
         .ok_or_else(|| AppError::validation("email address is invalid"))?;
-    email::newsletter_signup(&state, &body.email, &body.name).await?;
+    let mut tag_ids = body.tag_ids.clone();
+    tag_ids.sort_unstable();
+    tag_ids.dedup();
+    if !tag_ids.is_empty()
+        && newsletter_tags::count_live(&state.db, &tag_ids).await? != tag_ids.len() as i64
+    {
+        return Err(AppError::validation("a tag does not exist or is archived"));
+    }
+    email::newsletter_signup_with_tags(&state, &body.email, &body.name, &tag_ids).await?;
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -267,6 +284,169 @@ fn check_website_key(state: &AppState, headers: &HeaderMap) -> AppResult<()> {
         headers,
         "x-newsletter-key",
     )
+}
+
+/// One tracked newsletter send: the same letter as the BCC blast, but split into one
+/// message per reader so each can carry its own links, pixel and unsubscribe.
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct ScheduleSendBody {
+    pub subject: String,
+    pub body: String,
+    #[serde(default)]
+    pub body_markdown: bool,
+    pub hero: Option<String>,
+    #[serde(default)]
+    pub tag_ids: Vec<i64>,
+    #[serde(default)]
+    pub attachment_document_ids: Vec<i64>,
+    #[serde(default)]
+    pub embed_document_ids: Vec<i64>,
+    /// When it goes out; omitted sends as soon as the dispatch job runs.
+    pub send_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct ScheduledSend {
+    pub id: i64,
+    pub recipients: usize,
+}
+
+#[utoipa::path(
+    post, path = "/newsletter/sends", tag = "newsletter",
+    request_body = ScheduleSendBody,
+    responses((status = 201, body = ScheduledSend))
+)]
+async fn schedule_send(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<ScheduleSendBody>,
+) -> AppResult<(StatusCode, Json<ScheduledSend>)> {
+    me.require(Capability::SendEmail)?;
+    let c = newsletter::Compose {
+        subject: b.subject,
+        body: b.body,
+        body_markdown: b.body_markdown,
+        hero: b.hero,
+        tag_ids: b.tag_ids,
+        attachment_document_ids: b.attachment_document_ids,
+        embed_document_ids: b.embed_document_ids,
+        send_at: b.send_at.unwrap_or_else(chrono::Utc::now),
+    };
+    let (id, recipients) = newsletter::schedule(&state, &me, &c).await?;
+    Ok((StatusCode::CREATED, Json(ScheduledSend { id, recipients })))
+}
+
+#[derive(Debug, serde::Deserialize, IntoParams)]
+struct SendListQuery {
+    limit: Option<i64>,
+}
+
+#[utoipa::path(
+    get, path = "/newsletter/sends", tag = "newsletter",
+    params(SendListQuery),
+    responses((status = 200, body = Items<NewsletterSend>))
+)]
+async fn list_sends(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<SendListQuery>,
+) -> AppResult<Json<Items<NewsletterSend>>> {
+    let limit = super::page_limit(q.limit);
+    Ok(Items::new(newsletter::list_sends(&state.db, limit).await?))
+}
+
+#[utoipa::path(
+    get, path = "/newsletter/sends/{id}/stats", tag = "newsletter",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = SendStats), (status = 404, description = "No such send"))
+)]
+async fn send_stats(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<SendStats>> {
+    if newsletter::find_send(&state.db, id).await?.is_none() {
+        return Err(AppError::NotFound("newsletter send"));
+    }
+    Ok(Json(newsletter::send_stats(&state.db, id).await?))
+}
+
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct Cancelled {
+    pub cancelled: bool,
+}
+
+#[utoipa::path(
+    post, path = "/newsletter/sends/{id}/cancel", tag = "newsletter",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Cancelled), (status = 404, description = "No such send"))
+)]
+async fn cancel_send(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<Cancelled>> {
+    me.require(Capability::SendEmail)?;
+    if !newsletter::cancel_send(&state.db, id).await? {
+        return Err(AppError::NotFound("newsletter send"));
+    }
+    Ok(Json(Cancelled { cancelled: true }))
+}
+
+/// A 1x1 transparent GIF: opening it stamps `opened_at` and bumps `open_count`.
+const PIXEL: &[u8] = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00!\xf9\x04\x01\x0a\x00\x01\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;";
+
+#[derive(Debug, serde::Deserialize, IntoParams)]
+struct TrackOpenQuery {
+    token: String,
+}
+
+#[utoipa::path(
+    get, path = "/newsletter/track/open", tag = "newsletter",
+    params(TrackOpenQuery),
+    responses((status = 200, description = "The pixel", content((status = 200, content_type = "image/gif"))))
+)]
+async fn track_open(
+    State(state): State<AppState>,
+    ApiQuery(q): ApiQuery<TrackOpenQuery>,
+) -> Response {
+    let _ = newsletter::record_open(&state.db, &q.token).await;
+    let mut res = Response::new(Body::from(PIXEL));
+    res.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        HeaderValue::from_static("image/gif"),
+    );
+    res.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store"),
+    );
+    res
+}
+
+#[derive(Debug, serde::Deserialize, IntoParams)]
+struct TrackClickQuery {
+    token: String,
+    url: String,
+}
+
+#[utoipa::path(
+    get, path = "/newsletter/track/click", tag = "newsletter",
+    params(TrackClickQuery),
+    responses((status = 307, description = "Redirect to the target"))
+)]
+async fn track_click(
+    State(state): State<AppState>,
+    ApiQuery(q): ApiQuery<TrackClickQuery>,
+) -> Response {
+    let target = match newsletter::record_click(&state.db, &q.token, &q.url).await {
+        Ok(Some(url)) => url,
+        _ => q.url.clone(),
+    };
+    Redirect::temporary(&newsletter::safe_redirect(
+        &state.config.public_base_url,
+        &target,
+    ))
+    .into_response()
 }
 
 #[cfg(test)]

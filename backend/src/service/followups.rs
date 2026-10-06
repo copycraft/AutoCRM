@@ -23,7 +23,7 @@ pub async fn schedule_for_quotation(
     user_id: i64,
 ) -> AppResult<usize> {
     followups::cancel_for_lead(&mut *conn, lead_id, "új árajánlat ment ki").await?;
-    let steps = followups::steps(&mut *conn).await?;
+    let steps = followups::steps(&mut *conn, "quote").await?;
     let chosen: Vec<_> = match step_ids {
         None => steps.into_iter().filter(|s| s.is_active).collect(),
         Some(ids) => {
@@ -103,6 +103,7 @@ pub async fn send_due(state: &AppState) -> anyhow::Result<usize> {
                     idempotency_key: format!("followup:{}", d.id),
                     attachments: Vec::new(),
                     extra_values: Default::default(),
+                    sender: d.sender_name.clone().zip(d.sender_email.clone()),
                 },
             )
             .await;

@@ -187,6 +187,7 @@ async fn automatic_mail_is_idempotent_and_respects_kill_switch(pool: PgPool) {
         idempotency_key: key.to_string(),
         attachments: Vec::new(),
         extra_values: Default::default(),
+        sender: None,
     };
     let first = queue_automatic(&mut conn, &state.config, email("stage:1"))
         .await
@@ -236,6 +237,7 @@ async fn suppressed_recipients_never_get_automatic_mail(pool: PgPool) {
             idempotency_key: "stage:x".into(),
             attachments: Vec::new(),
             extra_values: Default::default(),
+            sender: None,
         },
     )
     .await

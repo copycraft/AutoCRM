@@ -7,11 +7,11 @@ use axum::http::StatusCode;
 use chrono::{TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-use super::extract::{ApiJson, ApiPath, Auth};
+use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::{Items, required};
 use crate::AppState;
 use crate::domain::role::Capability;
@@ -28,21 +28,43 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(cancel_one))
 }
 
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct StepsQuery {
+    /// quote (default): letters after a quotation; invoice: payment reminders.
+    kind: Option<String>,
+}
+
+fn kind_of(kind: Option<&str>) -> AppResult<&str> {
+    match kind.unwrap_or("quote") {
+        "quote" => Ok("quote"),
+        "invoice" => Ok("invoice"),
+        _ => Err(AppError::validation("kind must be quote or invoice")),
+    }
+}
+
 #[utoipa::path(
     get, path = "/followup-steps", tag = "followups",
+    params(StepsQuery),
     responses((status = 200, body = Items<FollowupStep>))
 )]
-async fn list_steps(State(state): State<AppState>, Auth(_): Auth) -> AppResult<Json<Items<FollowupStep>>> {
-    Ok(Items::new(followups::steps(&state.db).await?))
+async fn list_steps(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<StepsQuery>,
+) -> AppResult<Json<Items<FollowupStep>>> {
+    Ok(Items::new(followups::steps(&state.db, kind_of(q.kind.as_deref())?).await?))
 }
 
 #[derive(Deserialize, ToSchema)]
 struct StepBody {
     label: String,
-    /// Days after the quotation is sent, 1 to 365.
+    /// Days after the quotation is sent (quote) or after the payment deadline (invoice).
     delay_days: i32,
     /// An email template key (see /email-templates).
     template_key: String,
+    /// quote (default) or invoice.
+    kind: Option<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -77,7 +99,8 @@ async fn create_step(
 ) -> AppResult<(StatusCode, Json<FollowupStep>)> {
     me.require(Capability::SendEmail)?;
     let label = checked(&state, &b.label, b.delay_days, &b.template_key).await?;
-    let id = followups::insert_step(&state.db, &label, b.delay_days, &b.template_key).await?;
+    let kind = kind_of(b.kind.as_deref())?;
+    let id = followups::insert_step(&state.db, &label, b.delay_days, &b.template_key, kind).await?;
     audit::record(&state.db, Some(me.user_id), "followup_step", id, "create",
         json!({ "label": label, "delay_days": b.delay_days, "template_key": b.template_key })).await?;
     let step = followups::step(&state.db, id).await?.ok_or(AppError::NotFound("follow-up step"))?;

@@ -78,6 +78,7 @@ pub fn config() -> Config {
         log_format: LogFormat::Pretty,
         log_dir: None,
         ai: None,
+        imap: None,
     }
 }
 

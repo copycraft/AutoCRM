@@ -45,6 +45,10 @@ pub mod triggers {
     pub const STALLED_ORDER: &str = "stalled_order";
     /// A "did you get our offer?" letter after a quotation (service::followups).
     pub const QUOTE_FOLLOWUP: &str = "quote_followup";
+    /// A payment reminder for an overdue invoice (service::reminders).
+    pub const INVOICE_REMINDER: &str = "invoice_reminder";
+    /// One newsletter letter to one reader, tracked.
+    pub const NEWSLETTER_SEND: &str = "newsletter_send";
 }
 
 const MAX_ATTACHMENT_BYTES: i64 = 10 * 1024 * 1024;
@@ -219,16 +223,19 @@ pub fn format_from(display_name: &str, address: &str) -> AppResult<String> {
 /// domain, they send as themselves and replies land straight in their Gmail. Otherwise it
 /// goes out from the automatic mailbox under their name, with replies routed back to them.
 pub fn manual_sender(cfg: &EmailConfig, user: &AuthUser) -> AppResult<(String, Option<String>)> {
-    let own_domain = domain_of(&user.email).is_some_and(|d| cfg.sender_domains.contains(&d));
+    user_sender(cfg, &user.display_name, &user.email)
+}
+
+/// From a person: as themselves when their address is on one of our sending domains,
+/// otherwise "Name – Autotherm" from the automatic address with replies going to them.
+pub fn user_sender(cfg: &EmailConfig, name: &str, email: &str) -> AppResult<(String, Option<String>)> {
+    let own_domain = domain_of(email).is_some_and(|d| cfg.sender_domains.contains(&d));
     if own_domain {
-        Ok((format_from(&user.display_name, &user.email)?, None))
+        Ok((format_from(name, email)?, None))
     } else {
         Ok((
-            format_from(
-                &format!("{} – {}", user.display_name, cfg.from_name),
-                &cfg.from_automatic,
-            )?,
-            Some(user.email.clone()),
+            format_from(&format!("{name} – {}", cfg.from_name), &cfg.from_automatic)?,
+            Some(email.to_string()),
         ))
     }
 }
@@ -377,6 +384,17 @@ pub struct Preview {
     /// Manual mail may still go to a suppressed address; the UI should warn.
     pub recipient_suppressed: bool,
     pub attachments: Vec<AttachmentRef>,
+}
+
+/// Tracked newsletter sends reuse the blast's embed rule: any company document.
+/// Crate-visible for `service::newsletter`; the blast itself goes through [`apply_embeds`].
+pub(crate) async fn apply_embeds_for_newsletter(
+    conn: &mut PgConnection,
+    embed_ids: &[i64],
+    body_html: String,
+    body_text: String,
+) -> AppResult<(String, String, Vec<AttachmentRef>)> {
+    apply_embeds(conn, None, embed_ids, body_html, body_text).await
 }
 
 /// Embedded images: validates the picked documents, rewrites `doc:ID` references to
@@ -991,8 +1009,25 @@ pub async fn send_newsletter(
 /// suppression list all apply to it; at most one is queued per address per day however
 /// often the form is sent, so the endpoint cannot be used to flood someone's inbox.
 pub async fn newsletter_signup(state: &AppState, address: &str, name: &str) -> AppResult<()> {
+    newsletter_signup_with_tags(state, address, name, &[]).await
+}
+
+/// A website signup from a list-specific form (#12): the lists are stored as pending
+/// tags and applied when the reader confirms.
+pub async fn newsletter_signup_with_tags(
+    state: &AppState,
+    address: &str,
+    name: &str,
+    tag_ids: &[i64],
+) -> AppResult<()> {
     let mut tx = state.db.begin().await?;
     if let Some(pending) = newsletter::request_confirmation(&mut *tx, address, name).await? {
+        if !tag_ids.is_empty() {
+            let mut tags = tag_ids.to_vec();
+            tags.sort_unstable();
+            tags.dedup();
+            newsletter::set_pending_tags(&mut *tx, pending.id, &tags).await?;
+        }
         let confirm_url = format!(
             "{}/hu/newsletter/confirm?token={}",
             state.config.public_base_url.trim_end_matches('/'),
@@ -1081,6 +1116,9 @@ pub struct AutomaticEmail<'a> {
     /// order id alone — several invoices can belong to one order — and the letter is about
     /// one of them in particular.
     pub extra_values: TemplateValues,
+    /// Send as this person (name, address) rather than the automatic sender: a quote
+    /// follow-up comes from whoever sent the quote, so the answer reaches them.
+    pub sender: Option<(String, String)>,
 }
 
 impl<'a> AutomaticEmail<'a> {
@@ -1100,6 +1138,7 @@ impl<'a> AutomaticEmail<'a> {
             idempotency_key,
             attachments: Vec::new(),
             extra_values: TemplateValues::new(),
+            sender: None,
         }
     }
 }
@@ -1124,7 +1163,13 @@ pub async fn queue_automatic(
     let subject = template::single_line(&template::render(&tpl.subject, &values).output);
     let body = template::render(&tpl.body, &values).output;
     let html = template::text_to_html(&body);
-    let from = format_from(&cfg.email.from_name, &cfg.email.from_automatic)?;
+    let (from, reply_to) = match &e.sender {
+        Some((name, address)) => user_sender(&cfg.email, name, address)?,
+        None => (
+            format_from(&cfg.email.from_name, &cfg.email.from_automatic)?,
+            Some(cfg.email.reply_to_default.clone()),
+        ),
+    };
 
     // Satisfy the log's "about at most one thing" rule: an order wins over lead/partner.
     let (lead_id, partner_id) = if e.about.order_id.is_some() {
@@ -1147,7 +1192,7 @@ pub async fn queue_automatic(
             cc: &[],
             bcc: &[],
             from_address: &from,
-            reply_to: Some(&cfg.email.reply_to_default),
+            reply_to: reply_to.as_deref(),
             subject: &subject,
             body_html: &html,
             body_text: &body,
