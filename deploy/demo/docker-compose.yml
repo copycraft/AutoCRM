@@ -1,5 +1,6 @@
-# AutoCRM showcase on one Ubuntu box. Nothing listens on the network: the Cloudflare
-# Tunnel connects out and brings the two public hostnames in. See README.md.
+# AutoCRM showcase on one Ubuntu box. Point your tunnel at the two host ports below
+# (web app and file storage), or use the bundled cloudflared (--profile cloudflared).
+# See README.md.
 name: autocrm-demo
 
 services:
@@ -25,6 +26,8 @@ services:
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
     volumes:
       - miniodata:/data
+    ports:
+      - "${BIND_IP:-127.0.0.1}:${FILES_PORT:-9000}:9000"
 
   # No object lock: demo photos must be deletable on reset (S3_INTAKE_LOCK_YEARS=0).
   minio-init:
@@ -68,13 +71,17 @@ services:
       dockerfile: deploy/demo/frontend.Dockerfile
       args:
         AUTOCRM_S3_URL: https://${FILES_HOST}
+    ports:
+      - "${BIND_IP:-127.0.0.1}:${APP_PORT:-3000}:3000"
     depends_on: [backend]
 
-  # Public hostnames are set in the Cloudflare dashboard (README.md):
+  # Optional: only with --profile cloudflared (TUNNEL_TOKEN set). Public hostnames are
+  # set in the Cloudflare dashboard (README.md):
   #   APP_HOST   -> http://frontend:3000
   #   FILES_HOST -> http://minio:9000
   cloudflared:
     image: cloudflare/cloudflared:latest
+    profiles: [cloudflared]
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN}

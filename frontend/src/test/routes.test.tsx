@@ -91,12 +91,12 @@ const routes: Route[] = [
   },
   {
     path: '/hu/newsletter/unsubscribe',
-    element: () => <UnsubscribePage searchParams={Promise.resolve({})} />,
+    element: () => <UnsubscribePage />,
     expect: /Leiratkozás/,
   },
   {
     path: '/hu/newsletter/confirm',
-    element: () => <ConfirmPage searchParams={Promise.resolve({})} />,
+    element: () => <ConfirmPage />,
     expect: /megerősítése/,
   },
   { path: '/hu/reports', element: () => ReportsPage({ params: Promise.resolve(locale) }), expect: /Jelentések/ },
@@ -104,7 +104,7 @@ const routes: Route[] = [
   { path: '/hu/marketing', element: () => <MarketingPage />, expect: /info@pekseg.hu/ },
   { path: '/hu/incoming-invoices', element: () => <IncomingInvoicesPage />, expect: /Hűtőgép Kft/ },
   { path: '/hu/templates', element: () => <TemplatesPage />, expect: /Árajánlat utánkövetés/ },
-  { path: '/hu/admin', element: () => AdminPage({ params: Promise.resolve(locale) }), expect: /Adminisztráció/i },
+  { path: '/hu/admin', element: () => AdminPage({ params: Promise.resolve(locale) }), expect: /Felhasználók/ },
 ];
 
 describe.each(routes)('$path', (route) => {

@@ -82,6 +82,8 @@ describe('Sidebar HR entry', () => {
 
     asUser({ ...f.sessionUser, role: 'office', hr_access: true });
     renderPage(<Sidebar />);
+    // HR lives in the collapsed "Rendszer" section.
+    fireEvent.click(await screen.findByRole('button', { name: /Rendszer/ }));
     expect(await screen.findByRole('link', { name: 'HR' })).toBeInTheDocument();
   });
 });

@@ -4,18 +4,24 @@
 // in the confirmation letter. Opening the link confirms; the address joins the list only
 // here, never at signup.
 
-import React, { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { newsletterApi } from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
 
-export default function ConfirmPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>;
-}) {
-  const { token: rawToken } = React.use(searchParams);
+// useSearchParams needs a Suspense boundary, or the page cannot be prerendered.
+export default function ConfirmPage() {
+  return (
+    <Suspense>
+      <ConfirmPageInner />
+    </Suspense>
+  );
+}
+
+function ConfirmPageInner() {
+  const rawToken = useSearchParams().get('token');
   const t = useTranslations('emails');
   const tp = useTranslations('privacy');
   const locale = useLocale();

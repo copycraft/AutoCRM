@@ -1,10 +1,11 @@
 'use client';
 
+import { Suspense } from 'react';
+
 // New email: a direct letter or a newsletter blast, written in text or Markdown with a
 // live preview of exactly what will be stored and sent.
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
@@ -14,24 +15,21 @@ import { ComposeForm } from '@/components/email/ComposeForm';
 import { useToast } from '@/components/ui/Toasts';
 import { useAuth, canSendEmail } from '@/lib/auth/context';
 
-export default function NewEmailPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{
-    order_id?: string;
-    lead_id?: string;
-    partner_id?: string;
-    to?: string;
-    // `newsletter` opens the blast; `tags` (comma-separated ids) aims it, from Marketing.
-    audience?: string;
-    tags?: string;
-    // Answering a received letter (0049): its id threads the reply; subject and quote prefill.
-    reply_to?: string;
-    subject?: string;
-    quote?: string;
-  }>;
-}) {
-  type SP = {
+// useSearchParams needs a Suspense boundary, or the page cannot be prerendered.
+export default function NewEmailPage() {
+  return (
+    <Suspense>
+      <NewEmailPageInner />
+    </Suspense>
+  );
+}
+
+function NewEmailPageInner() {
+  // order_id, lead_id, partner_id, to; `audience=newsletter` opens the blast and `tags`
+  // (comma-separated ids) aims it, from Marketing; answering a received letter (0049):
+  // reply_to threads the reply, subject and quote prefill.
+  const sp = useSearchParams();
+  const resolvedParams = Object.fromEntries(sp.entries()) as {
     order_id?: string;
     lead_id?: string;
     partner_id?: string;
@@ -42,7 +40,6 @@ export default function NewEmailPage({
     subject?: string;
     quote?: string;
   };
-  const resolvedParams = React.use(searchParams ?? Promise.resolve({} as SP));
   const t = useTranslations('emails');
   const tn = useTranslations('navigation');
   const tq = useTranslations('qol');

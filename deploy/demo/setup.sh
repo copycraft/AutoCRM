@@ -13,8 +13,8 @@ set -a; . ./.env; set +a
 
 if [ "${1:-}" = "--build" ]; then docker compose build; fi
 
-docker compose down --volumes --remove-orphans
-docker compose up -d
+docker compose --profile cloudflared down --volumes --remove-orphans
+if [ -n "${TUNNEL_TOKEN:-}" ]; then docker compose --profile cloudflared up -d; else docker compose up -d; fi
 
 echo "waiting for migrations..."
 docker compose wait migrate
