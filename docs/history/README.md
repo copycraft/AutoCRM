@@ -14,4 +14,4 @@ out of date.
 | [AUDIT.md](AUDIT.md) | Frontend audit against that brief, before remediation. | The BLOCKERs and MAJORs were closed; a few MINORs were deferred. See REMEDIATION.md. |
 | [REMEDIATION.md](REMEDIATION.md) | Work-through of the audit findings, R0–R9. | Complete. |
 | [FOLLOWUP.md](FOLLOWUP.md) | Issues noticed during remediation and left for later. | Partly picked up by `docs/integration-audit/` and `docs/logic-audit/`. |
-| [VIABILITY.md](VIABILITY.md) | Can Autotherm run on this? Reviewed against migrations `0001`–`0008`. | Migrations `0009`–`0030` came later: tasks, intake slip, inspections, invoicing, newsletter. |
+| [VIABILITY.md](VIABILITY.md) | Can Autotherm run on this? Reviewed against migrations `0001`–`0008`. | Everything from migration `0009` on came later: tasks, intake slip, inspections, invoicing, newsletter, HR, tags, follow-ups, reminders. |

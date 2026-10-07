@@ -117,7 +117,11 @@ pub async fn update(
 }
 
 /// Why a template must stay usable: code sends it, or a follow-up step does.
-pub async fn in_use(db: impl PgExecutor<'_>, key: &str, is_automatic: bool) -> sqlx::Result<Option<String>> {
+pub async fn in_use(
+    db: impl PgExecutor<'_>,
+    key: &str,
+    is_automatic: bool,
+) -> sqlx::Result<Option<String>> {
     if is_automatic {
         return Ok(Some("automatikus levél használja".into()));
     }

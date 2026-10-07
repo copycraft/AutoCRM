@@ -34,6 +34,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(update_project_type))
         .routes(routes!(get_settings, put_settings))
         .routes(routes!(lookups))
+        .routes(routes!(stage_photo_categories))
+        .routes(routes!(set_stage_photo_category))
 }
 
 fn valid_key(key: &str) -> bool {
@@ -618,7 +620,11 @@ async fn put_settings(
             smtp_port: email.port,
             smtp_security: email.security,
             smtp_username: email.username,
-            smtp_password: b.email.smtp_password.clone(),
+            // Sealed at rest (0049); blank is "keep", like every other field here.
+            smtp_password: match b.email.smtp_password.clone() {
+                Some(Some(p)) if p.trim().is_empty() => None,
+                other => other.map(|v| v.map(|p| crate::service::secrets::seal(&state.config, &p))),
+            },
             smtp_helo_name: email.helo_name,
             smtp_force_ipv4: email.force_ipv4,
             redirect_to: email.redirect_to,
@@ -726,4 +732,65 @@ mod tests {
         m.mode = Some("carrier_pigeon".into());
         assert!(validate_transport(&m, env).is_err());
     }
+}
+
+// ── Default photo category per stage (0048) ──────────────────────────────────
+
+/// Which category a new photo takes while an order is in each stage. Clients preselect it
+/// and offer it next to the categories anyone may file by hand.
+#[utoipa::path(
+    get, path = "/stage-photo-categories", tag = "configuration",
+    responses((status = 200, body = Items<crate::repo::config::StagePhotoCategory>))
+)]
+async fn stage_photo_categories(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+) -> AppResult<Json<Items<crate::repo::config::StagePhotoCategory>>> {
+    Ok(Items::new(
+        crate::repo::config::stage_photo_categories(&state.db).await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct PhotoCategoryBody {
+    /// Null: no default (production is preselected).
+    category: Option<ImageCategory>,
+}
+
+#[utoipa::path(
+    put, path = "/stage-photo-categories/{key}", tag = "configuration",
+    params(("key" = String, Path, description = "An order stage key")),
+    request_body = PhotoCategoryBody,
+    responses((status = 204, description = "Saved"))
+)]
+async fn set_stage_photo_category(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(key): ApiPath<String>,
+    ApiJson(b): ApiJson<PhotoCategoryBody>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::ManageConfiguration)?;
+    // Evidence has its own flows: intake photos and walkaround shots are never filed by
+    // default from an ordinary photo button.
+    if matches!(
+        b.category,
+        Some(ImageCategory::Intake) | Some(ImageCategory::Inspection)
+    ) {
+        return Err(AppError::validation(
+            "intake and inspection photos come from their own flows, not a stage default",
+        ));
+    }
+    if !crate::repo::config::set_stage_photo_category(&state.db, &key, b.category).await? {
+        return Err(AppError::NotFound("stage"));
+    }
+    audit::record(
+        &state.db,
+        Some(me.user_id),
+        "stage_definition",
+        0,
+        "photo_category",
+        json!({ "stage": key, "category": b.category }),
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }

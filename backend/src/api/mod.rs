@@ -5,19 +5,23 @@
 //! document therefore cannot be served: the published contract covers the whole API.
 
 pub mod admin;
+pub mod ads;
 pub mod assistant;
 pub mod auth;
 pub mod blockers;
+pub mod comments;
 pub mod configuration;
 pub mod docs;
 pub mod email;
-pub mod followups;
 pub mod extract;
+pub mod followups;
 pub mod hr;
 pub mod hr_statuses;
+pub mod incidents;
 pub mod incoming_invoices;
 pub mod inspections;
 pub mod invoices;
+pub mod lead_sources;
 pub mod lead_tags;
 pub mod leads;
 pub mod leave;
@@ -37,6 +41,7 @@ pub mod tasks;
 pub mod timeline;
 pub mod users;
 pub mod vehicles;
+pub mod yard;
 
 use std::time::Duration;
 
@@ -91,6 +96,13 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         // Last, so adding it appends to the generated document instead of reshuffling it.
         .merge(invoices::routes())
         .merge(incoming_invoices::routes())
+        // 0048: appended, like invoicing, so the existing document keeps its order.
+        .merge(lead_sources::routes())
+        .merge(comments::routes())
+        .merge(yard::routes())
+        .merge(incidents::routes())
+        // 0049
+        .merge(ads::routes())
 }
 
 pub fn router(state: AppState) -> Router {

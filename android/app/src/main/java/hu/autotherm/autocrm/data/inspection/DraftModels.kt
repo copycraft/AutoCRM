@@ -59,6 +59,28 @@ data class DraftVerdict(
     @SerialName("note") val note: String? = null,
 )
 
+/** One tyre's reading (0048). Recorded only for the positions the inspector touched. */
+@Serializable
+data class DraftTyre(
+    @SerialName("position") val position: String,
+    /** Millimetres as typed; parsed at sync. */
+    @SerialName("tread_mm") val treadMm: String = "",
+    @SerialName("condition") val condition: String = "ok",
+    @SerialName("note") val note: String = "",
+)
+
+/** A walkaround clip (0048): bytes in the draft directory, uploaded at sync as a video document. */
+@Serializable
+data class DraftVideo(
+    @SerialName("local_id") val localId: String = UUID.randomUUID().toString(),
+    @SerialName("file_name") val fileName: String,
+    @SerialName("zone_key") val zoneKey: String? = null,
+    @SerialName("duration_ms") val durationMs: Long? = null,
+    @SerialName("taken_at") val takenAt: String,
+    @SerialName("server_document_id") val serverDocumentId: Long? = null,
+    @SerialName("attached") val attached: Boolean = false,
+)
+
 @Serializable
 data class DraftPayload(
     @SerialName("vehicle_plate") val vehiclePlate: String,
@@ -83,6 +105,9 @@ data class DraftPayload(
     ),
     @SerialName("verdicts") val verdicts: List<DraftVerdict> = emptyList(),
     @SerialName("signed") val signed: Boolean = false,
+    @SerialName("tyres") val tyres: List<DraftTyre> = emptyList(),
+    @SerialName("tyres_synced") val tyresSynced: Boolean = false,
+    @SerialName("videos") val videos: List<DraftVideo> = emptyList(),
 )
 
 /**

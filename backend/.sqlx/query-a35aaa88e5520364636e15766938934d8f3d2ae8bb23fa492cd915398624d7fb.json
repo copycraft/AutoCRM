@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT key FROM lead_sources\n          WHERE archived_at IS NULL AND (key = lower(btrim($1)) OR lower(label) = lower(btrim($1)))\n          ORDER BY position LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a35aaa88e5520364636e15766938934d8f3d2ae8bb23fa492cd915398624d7fb"
+}

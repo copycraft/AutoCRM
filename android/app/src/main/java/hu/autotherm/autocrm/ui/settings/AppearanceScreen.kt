@@ -100,6 +100,7 @@ fun AppearanceScreen(
                     )
                 }
             }
+            hu.autotherm.autocrm.ui.common.AppLockSetting()
             Card {
                 Text("Névjegy", style = MaterialTheme.typography.titleLarge)
                 Text(

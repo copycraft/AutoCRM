@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.image_id, a.shapes, a.updated_by, u.display_name AS \"updated_by_name?\", a.updated_at\n           FROM image_annotations a LEFT JOIN users u ON u.id = a.updated_by\n           WHERE a.image_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "image_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "shapes",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 2,
+        "name": "updated_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "45d87abf507ca8f57046f14f2ea4a9462c229127cac54231ed935eea3566dd29"
+}

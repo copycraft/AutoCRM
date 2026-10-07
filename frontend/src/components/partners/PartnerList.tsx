@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -21,6 +21,7 @@ import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
 import { ActiveFilterChips, type FilterChip } from '@/components/tables/ActiveFilterChips';
 import { DensityToggle, useDensityWithOverride } from '@/components/tables/DensityToggle';
 import { ExportCsvButton, collectAll } from '@/components/tables/ExportCsvButton';
+import { PartnerBulkBar, selectColumn } from '@/components/tables/BulkBar';
 import { partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canEditPartners, useAuth } from '@/lib/auth/context';
@@ -103,6 +104,15 @@ export function PartnerList({
     ],
     [t, tc, locale],
   );
+
+  // Ticked rows for the bulk bar (0049); survives paging.
+  const tb = useTranslations('bulk');
+  const [ticked, setTicked] = useState<number[]>([]);
+  const bulkable = canEditPartners(user);
+  const pageRows = query.data?.items ?? [];
+  const tableColumns = bulkable
+    ? [selectColumn(pageRows, ticked, setTicked, tb('tick')) as ColumnDef<Partner>, ...columns]
+    : columns;
 
   const clear = () => {
     setQ('');
@@ -189,8 +199,9 @@ export function PartnerList({
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
         <>
+          {bulkable && ticked.length > 0 && <PartnerBulkBar ids={ticked} onClear={() => setTicked([])} />}
           <DataTable
-            columns={columns}
+            columns={tableColumns}
             data={query.data?.items ?? []}
             isLoading={query.isPending}
             isFetching={query.isFetching && !query.isPending}

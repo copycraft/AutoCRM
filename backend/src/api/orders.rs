@@ -47,6 +47,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(change_stage))
         .routes(routes!(transitions))
         .routes(routes!(bulk_action))
+        .routes(routes!(set_cooling_serial))
         .routes(routes!(stage_history))
         .routes(routes!(audit_trail))
         .routes(routes!(notes))
@@ -436,6 +437,15 @@ struct OrderDetail {
     /// Image count per category; categories without images are absent.
     #[schema(value_type = HashMap<String, i64>)]
     image_counts: HashMap<ImageCategory, i64>,
+    /// The category a new photo takes in the current stage (0048); null: production.
+    photo_category: Option<ImageCategory>,
+    /// Where each of the order's vehicles stands on the yard; a vehicle never placed has
+    /// no entry.
+    vehicle_locations: Vec<crate::repo::yard::CurrentLocation>,
+    /// Staff comments on the order.
+    comment_count: i64,
+    /// Internal incidents still open on it.
+    open_incidents: i64,
 }
 
 fn item_view(item: OrderItem) -> AppResult<ItemView> {
@@ -488,6 +498,9 @@ async fn detail(
         );
     }
 
+    let current_key = current.stage_key.clone();
+    let order_vehicles = vehicles::list_for_order(&state.db, id).await?;
+    let vehicle_ids: Vec<i64> = order_vehicles.iter().map(|v| v.id).collect();
     Ok(Json(OrderDetail {
         partner: PartnerRef {
             id: partner.id,
@@ -524,7 +537,22 @@ async fn detail(
             }
             _ => None,
         },
-        vehicles: vehicles::list_for_order(&state.db, id).await?,
+        photo_category: config::photo_category_for_stage(&state.db, &current_key).await?,
+        vehicle_locations: crate::repo::yard::current_of(&state.db, &vehicle_ids).await?,
+        comment_count: crate::repo::comments::count(&state.db, "order", id).await?,
+        open_incidents: crate::repo::incidents::list(
+            &state.db,
+            Some("open"),
+            Some(id),
+            None,
+            200,
+            0,
+        )
+        .await?
+        .iter()
+        .filter(|i| i.order_id == id)
+        .count() as i64,
+        vehicles: order_vehicles,
         spec: order_specs::find(&state.db, id).await?,
         order,
     }))
@@ -805,7 +833,10 @@ async fn bulk_action(
             .await
         {
             Ok(_) => moved += 1,
-            Err(e) => skipped.push(OrderBulkSkip { id, error: e.to_string() }),
+            Err(e) => skipped.push(OrderBulkSkip {
+                id,
+                error: e.to_string(),
+            }),
         }
     }
     Ok(Json(OrderBulkResult { moved, skipped }))
@@ -1128,4 +1159,58 @@ async fn delete_item(
     .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize, ToSchema)]
+struct CoolingSerialBody {
+    /// As printed on the unit's plate (or read from its barcode); null clears it.
+    serial: Option<String>,
+}
+
+/// The cooling unit's serial number, typically scanned off its plate on the phone. Only on
+/// an order whose project type takes a cooling spec.
+#[utoipa::path(
+    put, path = "/orders/{id}/cooling-serial", tag = "orders",
+    params(("id" = i64, Path)),
+    request_body = CoolingSerialBody,
+    responses((status = 200, body = OrderSpec))
+)]
+async fn set_cooling_serial(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<CoolingSerialBody>,
+) -> AppResult<Json<OrderSpec>> {
+    // The shop floor reads the plate, so the right that lets them add photos lets them
+    // file it.
+    me.require(Capability::UploadMedia)?;
+    let serial =
+        optional(b.serial).map(|s| s.chars().filter(|c| !c.is_control()).collect::<String>());
+    if serial.as_deref().is_some_and(|s| s.chars().count() > 100) {
+        return Err(AppError::validation("serial: at most 100 characters"));
+    }
+    let mut tx = state.db.begin().await?;
+    let order = orders::lock(&mut *tx, id)
+        .await?
+        .ok_or(AppError::NotFound("order"))?;
+    let form = required_form(&mut tx, order.project_type_id).await?;
+    if form.as_deref() != Some("cooling") {
+        return Err(AppError::validation(
+            "this order has no cooling unit (its project type takes no cooling spec)",
+        ));
+    }
+    let spec = order_specs::set_cooling_serial(&mut *tx, id, serial.as_deref())
+        .await?
+        .ok_or_else(|| AppError::validation("this order's build spec is a heating one"))?;
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "order",
+        id,
+        "cooling_serial",
+        json!({ "serial": serial }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Json(spec))
 }

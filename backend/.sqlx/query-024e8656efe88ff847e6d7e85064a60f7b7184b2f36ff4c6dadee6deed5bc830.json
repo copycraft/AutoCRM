@@ -1,0 +1,149 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO leads (title, partner_id, contact_id, contact_name, contact_email, contact_phone, source,\n                            description, assigned_to, quoted_value_minor, currency, quote_valid_until, created_by,\n                            source_detail)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\n         RETURNING id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, source_detail, description,\n                   assigned_to, quoted_value_minor, currency, quote_valid_until, quote_fx_rate, quote_fx_day,\n                   created_by, minicrm_id, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "partner_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "contact_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "contact_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "contact_email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "contact_phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "source",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "source_detail",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "assigned_to",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "quoted_value_minor",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 13,
+        "name": "quote_valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 14,
+        "name": "quote_fx_rate",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 15,
+        "name": "quote_fx_day",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "minicrm_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Bpchar",
+        "Date",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "024e8656efe88ff847e6d7e85064a60f7b7184b2f36ff4c6dadee6deed5bc830"
+}

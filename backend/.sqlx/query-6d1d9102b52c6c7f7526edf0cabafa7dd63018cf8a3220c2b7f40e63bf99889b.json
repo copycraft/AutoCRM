@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE settings SET weekly_report_recipients = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6d1d9102b52c6c7f7526edf0cabafa7dd63018cf8a3220c2b7f40e63bf99889b"
+}

@@ -1,0 +1,104 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH open_jobs AS (\n               SELECT DISTINCT ON (ov.vehicle_id) ov.vehicle_id, o.id, o.number, o.title, o.due_date,\n                      p.name AS partner_name, cs.stage_key, sd.label_hu\n               FROM order_vehicles ov\n               JOIN orders o ON o.id = ov.order_id\n               JOIN partners p ON p.id = o.partner_id\n               JOIN order_current_stage cs ON cs.order_id = o.id\n               JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = cs.stage_key\n               WHERE NOT sd.is_terminal\n               ORDER BY ov.vehicle_id, o.created_at DESC, o.id DESC\n           ), last_jobs AS (\n               SELECT DISTINCT ON (ov.vehicle_id) ov.vehicle_id, o.id, o.number, o.title, o.due_date,\n                      p.name AS partner_name, cs.stage_key, sd.label_hu\n               FROM order_vehicles ov\n               JOIN orders o ON o.id = ov.order_id\n               JOIN partners p ON p.id = o.partner_id\n               JOIN order_current_stage cs ON cs.order_id = o.id\n               JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = cs.stage_key\n               ORDER BY ov.vehicle_id, o.created_at DESC, o.id DESC\n           )\n           SELECT v.id AS vehicle_id, v.plate, v.vin, v.make, v.model,\n                  coalesce(oj.id, lj.id) AS \"order_id?\",\n                  coalesce(oj.number, lj.number) AS \"order_number?\",\n                  coalesce(oj.title, lj.title) AS \"order_title?\",\n                  coalesce(oj.partner_name, lj.partner_name) AS \"partner_name?\",\n                  coalesce(oj.stage_key, lj.stage_key) AS \"stage_key?\",\n                  coalesce(oj.label_hu, lj.label_hu) AS \"stage_label?\",\n                  coalesce(oj.due_date, lj.due_date) AS \"due_date?\",\n                  cl.location_id AS \"location_id?\",\n                  cl.moved_at AS \"moved_at?\",\n                  u.display_name AS \"moved_by_name?\"\n           FROM vehicles v\n           LEFT JOIN open_jobs oj ON oj.vehicle_id = v.id\n           LEFT JOIN last_jobs lj ON lj.vehicle_id = v.id\n           LEFT JOIN vehicle_current_location cl ON cl.vehicle_id = v.id\n           LEFT JOIN users u ON u.id = cl.moved_by\n           WHERE oj.vehicle_id IS NOT NULL OR cl.location_id IS NOT NULL\n           ORDER BY coalesce(oj.due_date, lj.due_date) NULLS LAST, v.plate NULLS LAST, v.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "vehicle_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "plate",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "vin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "make",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "order_id?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "order_number?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "order_title?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "partner_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "stage_key?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "stage_label?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "due_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "location_id?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "moved_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "moved_by_name?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "8968cc1d6483b3c6e69b612307736f8352ee40965f529a0c369a6d3356d4fe73"
+}

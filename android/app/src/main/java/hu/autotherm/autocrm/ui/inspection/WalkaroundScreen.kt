@@ -2,6 +2,7 @@
 
 package hu.autotherm.autocrm.ui.inspection
 
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.foundation.background
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -83,6 +84,14 @@ fun WalkaroundScreen(
             file = review.second,
             onRetake = viewModel::retakePhoto,
             onKeep = viewModel::keepPhoto,
+        )
+        return
+    }
+    state.videoCapture?.let { request ->
+        VideoCaptureScreen(
+            request = request,
+            onRecorded = { durationMs -> viewModel.onVideoRecorded(request, durationMs) },
+            onCancel = viewModel::cancelVideo,
         )
         return
     }
@@ -211,7 +220,30 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
                     },
                     label = "Óraállás (km)",
                     modifier = Modifier.fillMaxWidth(),
+                    trailing = {
+                        androidx.compose.material3.IconButton(onClick = viewModel::requestOdometerPhoto) {
+                            androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.Filled.PhotoCamera,
+                                contentDescription = "Óraállás fotóról",
+                            )
+                        }
+                    },
                 )
+                if (state.readingOdometer) {
+                    Text("Számok felismerése a fotón…", style = MaterialTheme.typography.labelMedium, color = Steel500)
+                }
+                if (state.odometerCandidates.isNotEmpty()) {
+                    Text("Felismert értékek – koppintson a helyesre:", style = MaterialTheme.typography.labelMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.odometerCandidates.forEach { value ->
+                            FilterChip(
+                                selected = payload.odometer == value,
+                                onClick = { viewModel.useOdometer(value) },
+                                label = { Text("$value km") },
+                            )
+                        }
+                    }
+                }
                 Text("Üzemanyagszint", style = MaterialTheme.typography.labelMedium)
                 // FlowRow, not LazyRow: lazy rows measure infinite inside lazy items
                 // and crash on the device. The marks come from the server's lookups.
@@ -248,6 +280,7 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
                 )
             }
         }
+        item { TyresCard(viewModel) }
         item {
             state.error?.let {
                 Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
@@ -315,6 +348,18 @@ private fun ZoneStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifi
                             },
                             modifier = Modifier.weight(1f),
                         ) { Text("Újrafotózás") }
+                        OutlinedButton(
+                            onClick = { viewModel.requestVideo(zone.zoneKey, zone.displayTitle()) },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Videó") }
+                    }
+                    val clips = payload.videos.filter { it.zoneKey == zone.zoneKey }
+                    if (clips.isNotEmpty()) {
+                        Text(
+                            "${clips.size} videó ehhez a zónához",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Steel500,
+                        )
                     }
                 }
             }
@@ -504,6 +549,14 @@ private fun DamageStep(
                             },
                             label = "Megjegyzés (opcionális)",
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            singleLine = false,
+                            trailing = {
+                                hu.autotherm.autocrm.ui.common.DictationButton(onText = { spoken ->
+                                    viewModel.updateDamage(damageLocalId) {
+                                        it.copy(note = hu.autotherm.autocrm.ui.common.appendDictated(it.note.orEmpty(), spoken))
+                                    }
+                                })
+                            },
                         )
                     }
                 }
@@ -614,6 +667,60 @@ private fun PhotoReview(
             }
             Button(onClick = onKeep, modifier = Modifier.weight(1f)) {
                 Text("Megtartom")
+            }
+        }
+    }
+}
+
+/** Tread and condition per tyre (0048). Only the tyres touched are recorded. */
+@Composable
+private fun TyresCard(viewModel: WalkaroundViewModel) {
+    val state by viewModel.state.collectAsState()
+    val payload = state.payload ?: return
+    val positions = state.lookups?.tyrePositions.orEmpty()
+    val conditions = state.lookups?.tyreConditions.orEmpty()
+    if (positions.isEmpty()) return
+    Card {
+        Text("Gumik", style = MaterialTheme.typography.titleLarge)
+        Text(
+            "Profilm\u00e9lys\u00e9g mm-ben \u00e9s \u00e1llapot. Ami nincs kit\u00f6ltve, nem ker\u00fcl r\u00f6gz\u00edt\u00e9sre.",
+            style = MaterialTheme.typography.labelMedium,
+            color = Steel500,
+        )
+        positions.forEach { pos ->
+            val tyre = payload.tyres.firstOrNull { it.position == pos.key }
+            Text(pos.labelHu.ifBlank { pos.key }, style = MaterialTheme.typography.titleMedium)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                conditions.forEach { c ->
+                    FilterChip(
+                        selected = tyre?.condition == c.key,
+                        onClick = {
+                            viewModel.setTyre(pos.key) { cur ->
+                                if (cur?.condition == c.key) null
+                                else (cur ?: hu.autotherm.autocrm.data.inspection.DraftTyre(position = pos.key)).copy(condition = c.key)
+                            }
+                        },
+                        label = { Text(c.labelHu.ifBlank { c.key }) },
+                    )
+                }
+            }
+            if (tyre != null) {
+                AutoCrmTextField(
+                    value = tyre.treadMm,
+                    onValueChange = { v ->
+                        viewModel.setTyre(pos.key) { cur ->
+                            cur?.copy(treadMm = v.filter { ch -> ch.isDigit() || ch == ',' || ch == '.' }.take(4))
+                        }
+                    },
+                    label = "Profilm\u00e9lys\u00e9g (mm)",
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

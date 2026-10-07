@@ -39,6 +39,9 @@ pub struct EmailMessage {
     pub sent_at: Option<DateTime<Utc>>,
     pub cancelled_at: Option<DateTime<Utc>>,
     pub cancelled_by: Option<i64>,
+    /// The received message this answers (0049).
+    pub in_reply_to: Option<String>,
+    pub reference_ids: Option<String>,
 }
 
 /// List view: everything except the bodies.
@@ -122,7 +125,8 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Email
         EmailMessage,
         r#"SELECT id, order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by, to_address, cc, bcc,
                   from_address, reply_to, subject, body_html, body_text, attachments, status AS "status: EmailStatus",
-                  provider_id, error, attempts, queued_at, send_after, sending_started_at, sent_at, cancelled_at, cancelled_by
+                  provider_id, error, attempts, queued_at, send_after, sending_started_at, sent_at, cancelled_at, cancelled_by,
+                  in_reply_to, reference_ids
            FROM email_messages WHERE id = $1"#,
         id
     )
@@ -135,7 +139,8 @@ pub async fn lock(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Email
         EmailMessage,
         r#"SELECT id, order_id, lead_id, partner_id, blocker_id, template_key, trigger, is_automatic, sent_by, to_address, cc, bcc,
                   from_address, reply_to, subject, body_html, body_text, attachments, status AS "status: EmailStatus",
-                  provider_id, error, attempts, queued_at, send_after, sending_started_at, sent_at, cancelled_at, cancelled_by
+                  provider_id, error, attempts, queued_at, send_after, sending_started_at, sent_at, cancelled_at, cancelled_by,
+                  in_reply_to, reference_ids
            FROM email_messages WHERE id = $1 FOR UPDATE"#,
         id
     )
@@ -360,4 +365,73 @@ pub async fn remove_suppression(db: impl PgExecutor<'_>, email: &str) -> sqlx::R
     .execute(db)
     .await?;
     Ok(r.rows_affected() == 1)
+}
+
+/// Threading headers of a reply (0049); set right after the insert, before the send job.
+pub async fn set_threading(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    in_reply_to: Option<&str>,
+    reference_ids: Option<&str>,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE email_messages SET in_reply_to = $2, reference_ids = $3 WHERE id = $1",
+        id,
+        in_reply_to,
+        reference_ids
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// One letter in a conversation: ours (out) or the customer's (in), oldest first.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema, sqlx::FromRow)]
+pub struct ConversationItem {
+    /// out or in.
+    pub direction: String,
+    /// email_messages.id (out) or inbound_emails.id (in).
+    pub id: i64,
+    pub at: DateTime<Utc>,
+    pub from_address: String,
+    pub from_name: Option<String>,
+    pub to_address: Option<String>,
+    pub subject: String,
+    pub body_text: String,
+    /// Out only: queued, sent, failed, …
+    pub status: Option<String>,
+    /// Out only: who wrote it; None for automatic mail.
+    pub sent_by_name: Option<String>,
+    /// In only: the letter of ours it answers.
+    pub reply_to_email_id: Option<i64>,
+}
+
+/// Everything written with a lead's customer: our letters about the lead (and its order,
+/// once won) and what came back. Newsletters are left out.
+pub async fn lead_conversation(
+    db: impl PgExecutor<'_>,
+    lead_id: i64,
+) -> sqlx::Result<Vec<ConversationItem>> {
+    sqlx::query_as(
+        "SELECT * FROM (
+             SELECT 'out' AS direction, m.id, coalesce(m.sent_at, m.queued_at) AS at,
+                    m.from_address, NULL::text AS from_name, m.to_address, m.subject, m.body_text,
+                    m.status::text AS status, u.display_name AS sent_by_name,
+                    NULL::bigint AS reply_to_email_id
+               FROM email_messages m
+               LEFT JOIN users u ON u.id = m.sent_by
+              WHERE (m.lead_id = $1 OR m.order_id = (SELECT o.id FROM orders o WHERE o.lead_id = $1))
+                AND m.trigger NOT IN ('newsletter', 'newsletter_send', 'website_lead_alert')
+                AND m.status::text <> 'cancelled'
+             UNION ALL
+             SELECT 'in', i.id, i.received_at, i.from_address, i.from_name, NULL, i.subject, i.body_text,
+                    NULL, NULL, i.reply_to_email_id
+               FROM inbound_emails i
+              WHERE i.lead_id = $1 OR i.order_id = (SELECT o.id FROM orders o WHERE o.lead_id = $1)
+         ) t
+         ORDER BY at, direction DESC, id",
+    )
+    .bind(lead_id)
+    .fetch_all(db)
+    .await
 }

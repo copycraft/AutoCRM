@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.image_id AS \"id!\" FROM image_annotations a JOIN images i ON i.id = a.image_id\n           WHERE i.order_id = $1 AND jsonb_array_length(a.shapes) > 0",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0545d5aee246b1163e4e066f7028f48fb765ac30a5cb20da98b30fbe402eeb34"
+}

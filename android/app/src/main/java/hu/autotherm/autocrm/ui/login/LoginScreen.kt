@@ -55,20 +55,23 @@ class LoginViewModel(
     data class State(
         val busy: Boolean = false,
         val error: String? = null,
+        /** The password was right; the account also wants the authenticator app's code. */
+        val needsCode: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
-    fun signIn(email: String, password: String, onSuccess: () -> Unit) {
+    fun signIn(email: String, password: String, code: String?, onSuccess: () -> Unit) {
         if (_state.value.busy) return
-        _state.value = State(busy = true)
+        val needsCode = _state.value.needsCode
+        _state.value = State(busy = true, needsCode = needsCode)
         viewModelScope.launch {
             try {
                 // The device label lands in the session list, so an admin revoking a lost
                 // phone from the web app can tell which one it is.
                 val label = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
-                val response = api.login(email.trim(), password, label)
+                val response = api.login(email.trim(), password, label, code?.trim()?.takeIf { it.isNotEmpty() })
                 val token = response.token
                 if (token == null) {
                     _state.value = State(error = "a szerver nem adott munkamenet-jegyet")
@@ -80,7 +83,11 @@ class LoginViewModel(
                 sessionStore.save(token, response.expiresAt, response.user)
                 onSuccess()
             } catch (e: ApiException) {
-                _state.value = State(error = message(e))
+                if (e is ApiException.Rule && e.code == "totp_required") {
+                    _state.value = State(needsCode = true)
+                    return@launch
+                }
+                _state.value = State(error = message(e), needsCode = needsCode)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -95,6 +102,7 @@ class LoginViewModel(
         is ApiException.Unauthenticated -> "Hibás e-mail vagy jelszó."
         is ApiException.Rule -> when (e.code) {
             "account_locked" -> "A fiók zárolva. Szólj az irodának."
+            "totp_invalid" -> "Hibás vagy már felhasznált kód."
             else -> e.detail ?: "Nem sikerült bejelentkezni."
         }
         is ApiException.Network -> "Nincs kapcsolat a szerverrel."
@@ -113,6 +121,7 @@ fun LoginScreen(
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
+    var code by rememberSaveable { mutableStateOf("") }
 
     Column(
         Modifier
@@ -155,9 +164,30 @@ fun LoginScreen(
                 keyboardType = KeyboardType.Password,
                 imeAction = ImeAction.Done,
             ),
-            keyboardActions = KeyboardActions(onDone = { viewModel.signIn(email, password, onSignedIn) }),
+            keyboardActions = KeyboardActions(onDone = { viewModel.signIn(email, password, code, onSignedIn) }),
             modifier = Modifier.fillMaxWidth(),
         )
+
+        if (state.needsCode) {
+            Spacer(Modifier.height(12.dp))
+            AutoCrmTextField(
+                value = code,
+                onValueChange = { v -> code = v.filter { it.isDigit() }.take(6) },
+                label = "Hitelesítő kód (6 számjegy)",
+                enabled = !state.busy,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.NumberPassword,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { viewModel.signIn(email, password, code, onSignedIn) }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "Írd be a hitelesítő alkalmazás hatjegyű kódját.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Steel500,
+            )
+        }
 
         state.error?.let {
             Spacer(Modifier.height(12.dp))
@@ -167,8 +197,9 @@ fun LoginScreen(
         Spacer(Modifier.height(24.dp))
         PrimaryButton(
             text = if (state.busy) "Bejelentkezés…" else "Bejelentkezés",
-            onClick = { viewModel.signIn(email, password, onSignedIn) },
-            enabled = !state.busy && email.isNotBlank() && password.isNotBlank(),
+            onClick = { viewModel.signIn(email, password, code, onSignedIn) },
+            enabled = !state.busy && email.isNotBlank() && password.isNotBlank() &&
+                (!state.needsCode || code.length == 6),
             modifier = Modifier.fillMaxWidth(),
         )
 

@@ -1,0 +1,184 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO documents (order_id, lead_id, vehicle_id, kind, filename, content_type,\n                                          storage_key, content_hash, byte_size, uploaded_by, source_ref,\n                                          previous_version_id, version)\n                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n                   ON CONFLICT (lead_id, content_hash) WHERE deleted_at IS NULL AND lead_id IS NOT NULL DO NOTHING\n                   RETURNING id, order_id, lead_id, vehicle_id, kind AS \"kind: DocumentKind\", filename, content_type,\n                             storage_key, content_hash, byte_size, issuer, valid_from, valid_until,\n                             uploaded_at, uploaded_by, deleted_at, previous_version_id, version, superseded_at, thumb_key, thumb_error",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "lead_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "vehicle_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "kind: DocumentKind",
+        "type_info": {
+          "Custom": {
+            "name": "document_kind",
+            "kind": {
+              "Enum": [
+                "design",
+                "cad",
+                "other",
+                "certificate",
+                "invoice",
+                "proforma",
+                "video"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "filename",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "content_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "storage_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "content_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 9,
+        "name": "byte_size",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "issuer",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "uploaded_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "uploaded_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "deleted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "previous_version_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 18,
+        "name": "superseded_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "thumb_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "thumb_error",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        {
+          "Custom": {
+            "name": "document_kind",
+            "kind": {
+              "Enum": [
+                "design",
+                "cad",
+                "other",
+                "certificate",
+                "invoice",
+                "proforma",
+                "video"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Text",
+        "Bytea",
+        "Int8",
+        "Int8",
+        "Text",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "3cd62f6c049e55b09f8c9509f8dd6f4112188c1ee1b7866c524181bf72d62ab4"
+}

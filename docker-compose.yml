@@ -85,7 +85,7 @@ services:
   # The assistant's language model: Qwen2.5-0.5B-Instruct (494M parameters, 4-bit, ~400 MB)
   # on llama.cpp's OpenAI-compatible server, CPU only. `--jinja` turns on tool calling.
   # The model is fetched from Hugging Face on first start and kept in the `models` volume.
-  # Point the backend at it with AI_URL=http://127.0.0.1:8081.
+  # Point the backend at it with AI_URL=http://127.0.0.1:8082.
   ai:
     image: ghcr.io/ggml-org/llama.cpp:server
     command: >
@@ -95,7 +95,9 @@ services:
     environment:
       LLAMA_CACHE: /models
     ports:
-      - "8081:8080"
+      # 8082 on the host: 8080 is the backend, 8081 the NAV sidecar, and both profiles
+      # may run at once. Loopback only: the model server has no authentication.
+      - "127.0.0.1:8082:8080"
     volumes:
       - models:/models
     profiles: ["ai"]

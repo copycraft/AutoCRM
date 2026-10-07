@@ -42,6 +42,12 @@ okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 camera-camera2 = { module = "androidx.camera:camera-camera2", version = "1.4.1" }
 camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version = "1.4.1" }
 camera-view = { module = "androidx.camera:camera-view", version = "1.4.1" }
+camera-video = { module = "androidx.camera:camera-video", version = "1.4.1" }
+# On-device recognition, bundled models: nothing leaves the phone, works offline.
+mlkit-text = { module = "com.google.mlkit:text-recognition", version = "16.0.1" }
+mlkit-barcode = { module = "com.google.mlkit:barcode-scanning", version = "17.3.0" }
+biometric = { module = "androidx.biometric:biometric", version = "1.1.0" }
+glance-appwidget = { module = "androidx.glance:glance-appwidget", version = "1.1.1" }
 okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

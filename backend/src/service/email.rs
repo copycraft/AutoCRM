@@ -49,6 +49,10 @@ pub mod triggers {
     pub const INVOICE_REMINDER: &str = "invoice_reminder";
     /// One newsletter letter to one reader, tracked.
     pub const NEWSLETTER_SEND: &str = "newsletter_send";
+    /// "Your account was signed in to from a new device" (0049).
+    pub const NEW_DEVICE_LOGIN: &str = "new_device_login";
+    /// The Monday report to the managers (0049).
+    pub const WEEKLY_REPORT: &str = "weekly_report";
 }
 
 const MAX_ATTACHMENT_BYTES: i64 = 10 * 1024 * 1024;
@@ -132,8 +136,9 @@ fn resolve_transport(
 /// or an unreadable table falls back to the environment with an error log.
 pub async fn effective_email_config(
     db: &PgPool,
-    env: &EmailConfig,
+    config: &Config,
 ) -> (EmailConfig, TransportSource) {
+    let env = &config.email;
     let row = match config::settings(db).await {
         Ok(s) => s,
         Err(e) => {
@@ -142,7 +147,10 @@ pub async fn effective_email_config(
         }
     };
     // Same executor borrow discipline as everywhere: one query at a time.
-    let password = config::email_secret(db).await.unwrap_or(None);
+    let password = config::email_secret(db)
+        .await
+        .unwrap_or(None)
+        .and_then(|stored| crate::service::secrets::open(config, &stored));
     match resolve_transport(&row, password, env) {
         Some(transport) => (
             EmailConfig {
@@ -228,7 +236,11 @@ pub fn manual_sender(cfg: &EmailConfig, user: &AuthUser) -> AppResult<(String, O
 
 /// From a person: as themselves when their address is on one of our sending domains,
 /// otherwise "Name – Autotherm" from the automatic address with replies going to them.
-pub fn user_sender(cfg: &EmailConfig, name: &str, email: &str) -> AppResult<(String, Option<String>)> {
+pub fn user_sender(
+    cfg: &EmailConfig,
+    name: &str,
+    email: &str,
+) -> AppResult<(String, Option<String>)> {
     let own_domain = domain_of(email).is_some_and(|d| cfg.sender_domains.contains(&d));
     if own_domain {
         Ok((format_from(name, email)?, None))
@@ -371,6 +383,63 @@ pub struct ComposeRequest {
     /// Sent as inline parts under `cid:doc-ID`, never as download links.
     #[serde(default)]
     pub embed_document_ids: Vec<i64>,
+    /// Answer to this received message (an inbound email's id): the letter carries
+    /// In-Reply-To and References, so it lands in the customer's thread (0049).
+    pub reply_to_inbound_id: Option<i64>,
+}
+
+/// `id@host` → `<id@host>`; already bracketed stays as it is.
+fn angle(id: &str) -> String {
+    let id = id.trim();
+    if id.starts_with('<') {
+        id.to_string()
+    } else {
+        format!("<{id}>")
+    }
+}
+
+/// The threading headers for an answer to an inbound message: In-Reply-To is its id;
+/// References is its own chain (what it answered, if that was ours) plus its id.
+async fn reply_headers(
+    conn: &mut PgConnection,
+    inbound_id: i64,
+) -> AppResult<(Option<String>, Option<String>)> {
+    let row: Option<(String, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT i.message_id, i.in_reply_to, m.reference_ids
+           FROM inbound_emails i
+           LEFT JOIN email_messages m ON m.id = i.reply_to_email_id
+          WHERE i.id = $1",
+    )
+    .bind(inbound_id)
+    .fetch_optional(&mut *conn)
+    .await?;
+    let Some((message_id, parent, parent_refs)) = row else {
+        return Err(AppError::validation(
+            "reply_to_inbound_id: no such received message",
+        ));
+    };
+    let mut refs: Vec<String> = parent_refs
+        .as_deref()
+        .unwrap_or("")
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    if let Some(parent) = parent.as_deref().map(angle)
+        && !refs.contains(&parent)
+    {
+        refs.push(parent);
+    }
+    let own = angle(&message_id);
+    if !refs.contains(&own) {
+        refs.push(own.clone());
+    }
+    // Long threads: keep the first and the latest few, as mail clients do.
+    if refs.len() > 10 {
+        let first = refs[0].clone();
+        let tail: Vec<String> = refs[refs.len() - 9..].to_vec();
+        refs = std::iter::once(first).chain(tail).collect();
+    }
+    Ok((Some(own), Some(refs.join(" "))))
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -630,6 +699,10 @@ pub async fn send_manual(
         )));
     }
     let (from, reply_to) = manual_sender(&state.config.email, user)?;
+    let threading = match req.reply_to_inbound_id {
+        Some(inbound) => Some(reply_headers(&mut tx, inbound).await?),
+        None => None,
+    };
     let id = emails::insert(
         &mut *tx,
         &NewEmail {
@@ -656,6 +729,9 @@ pub async fn send_manual(
     )
     .await?
     .ok_or_else(|| AppError::internal("email insert returned no id"))?;
+    if let Some((in_reply_to, references)) = threading {
+        emails::set_threading(&mut *tx, id, in_reply_to.as_deref(), references.as_deref()).await?;
+    }
     jobs::enqueue(
         &mut *tx,
         "send_email",
@@ -1095,8 +1171,16 @@ pub async fn website_lead_alert(state: &AppState, lead: &Lead) -> AppResult<()> 
         .insert("lead.contact_email", plain(lead.contact_email.as_deref()));
     mail.extra_values
         .insert("lead.contact_phone", plain(lead.contact_phone.as_deref()));
+    // The source's name, not its key: the letter is read by people.
+    let source_label = match lead.source.as_deref() {
+        Some(key) => crate::repo::lead_sources::find(&state.db, key)
+            .await?
+            .map(|s| s.label)
+            .or_else(|| Some(key.to_string())),
+        None => None,
+    };
     mail.extra_values
-        .insert("lead.source", plain(lead.source.as_deref()));
+        .insert("lead.source", plain(source_label.as_deref()));
     mail.extra_values
         .insert("lead.description", plain(lead.description.as_deref()));
     mail.extra_values.insert(
@@ -1106,6 +1190,40 @@ pub async fn website_lead_alert(state: &AppState, lead: &Lead) -> AppResult<()> 
             state.config.public_base_url.trim_end_matches('/'),
             lead.id
         ),
+    );
+    let mut tx = state.db.begin().await?;
+    queue_automatic(&mut tx, &state.config, mail).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Tells a person their account was signed in to from a device it had never used. One
+/// letter per session.
+pub async fn new_device_alert(
+    state: &AppState,
+    user: &crate::repo::users::User,
+    session_id: i64,
+    device: &str,
+    ip: Option<&str>,
+) -> AppResult<()> {
+    let mut mail = AutomaticEmail::new(
+        "new_device_login",
+        About::default(),
+        &user.email,
+        triggers::NEW_DEVICE_LOGIN,
+        format!("new_device_login:{session_id}"),
+    );
+    mail.extra_values
+        .insert("user.name", user.display_name.clone());
+    mail.extra_values.insert("login.device", device.to_string());
+    mail.extra_values
+        .insert("login.ip", ip.unwrap_or("ismeretlen").to_string());
+    mail.extra_values.insert(
+        "login.time",
+        Utc::now()
+            .with_timezone(&state.config.business_tz)
+            .format("%Y.%m.%d. %H:%M")
+            .to_string(),
     );
     let mut tx = state.db.begin().await?;
     queue_automatic(&mut tx, &state.config, mail).await?;
@@ -1445,6 +1563,8 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
             body_html,
             attachments: outgoing,
             automatic: email.is_automatic,
+            in_reply_to: email.in_reply_to.as_deref().map(angle),
+            references: email.reference_ids.clone(),
         })
         .await;
 
@@ -1635,6 +1755,7 @@ mod tests {
             role: crate::domain::role::Role::Office,
             must_change_password: false,
             hr_access: false,
+            permissions: vec![],
         }
     }
 

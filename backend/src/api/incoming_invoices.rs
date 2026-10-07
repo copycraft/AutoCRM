@@ -39,6 +39,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(suppliers))
         .routes(routes!(detail, update, remove))
         .routes(routes!(file_url))
+        .routes(routes!(bulk_action))
         .merge(
             OpenApiRouter::new()
                 .routes(routes!(upload))
@@ -97,7 +98,9 @@ async fn counts(
     State(state): State<AppState>,
     Auth(_): Auth,
 ) -> AppResult<Json<Items<IncomingBucketCount>>> {
-    Ok(Items::new(incoming_invoices::bucket_counts(&state.db).await?))
+    Ok(Items::new(
+        incoming_invoices::bucket_counts(&state.db).await?,
+    ))
 }
 
 /// Suppliers seen before, for filling in the next invoice from the same one.
@@ -109,7 +112,9 @@ async fn suppliers(
     State(state): State<AppState>,
     Auth(_): Auth,
 ) -> AppResult<Json<Items<KnownSupplier>>> {
-    Ok(Items::new(incoming_invoices::known_suppliers(&state.db).await?))
+    Ok(Items::new(
+        incoming_invoices::known_suppliers(&state.db).await?,
+    ))
 }
 
 #[utoipa::path(
@@ -265,7 +270,9 @@ fn merged(current: &IncomingInvoice, b: IncomingBody) -> AppResult<Fields> {
     let mut f = Fields::from(current);
     if let Some(kind) = b.kind {
         if !["invoice", "proforma", "receipt"].contains(&kind.as_str()) {
-            return Err(AppError::validation("kind must be invoice, proforma or receipt"));
+            return Err(AppError::validation(
+                "kind must be invoice, proforma or receipt",
+            ));
         }
         f.kind = kind;
     }
@@ -303,7 +310,9 @@ fn merged(current: &IncomingInvoice, b: IncomingBody) -> AppResult<Fields> {
     }
     if let Some(m) = b.payment_method {
         if !["TRANSFER", "CASH", "CARD"].contains(&m.as_str()) {
-            return Err(AppError::validation("payment_method must be TRANSFER, CASH or CARD"));
+            return Err(AppError::validation(
+                "payment_method must be TRANSFER, CASH or CARD",
+            ));
         }
         f.payment_method = m;
     }
@@ -344,14 +353,46 @@ async fn update(
     incoming_invoices::update(&mut *tx, id, &fields).await?;
     let changes = audit::diff(&[
         ("kind", json!(current.kind), json!(fields.kind)),
-        ("supplier_name", json!(current.supplier_name), json!(fields.supplier_name)),
-        ("invoice_number", json!(current.invoice_number), json!(fields.invoice_number)),
-        ("gross_amount", json!(current.gross_amount), json!(fields.gross_amount)),
-        ("paid_amount", json!(current.paid_amount), json!(fields.paid_amount)),
-        ("payment_method", json!(current.payment_method), json!(fields.payment_method)),
-        ("booking_only", json!(current.booking_only), json!(fields.booking_only)),
+        (
+            "supplier_name",
+            json!(current.supplier_name),
+            json!(fields.supplier_name),
+        ),
+        (
+            "invoice_number",
+            json!(current.invoice_number),
+            json!(fields.invoice_number),
+        ),
+        (
+            "gross_amount",
+            json!(current.gross_amount),
+            json!(fields.gross_amount),
+        ),
+        (
+            "paid_amount",
+            json!(current.paid_amount),
+            json!(fields.paid_amount),
+        ),
+        (
+            "payment_method",
+            json!(current.payment_method),
+            json!(fields.payment_method),
+        ),
+        (
+            "booking_only",
+            json!(current.booking_only),
+            json!(fields.booking_only),
+        ),
     ]);
-    audit::record(&mut *tx, Some(me.user_id), "incoming_invoice", id, "update", changes).await?;
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "incoming_invoice",
+        id,
+        "update",
+        changes,
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(
         incoming_invoices::find(&state.db, id)
@@ -375,7 +416,15 @@ async fn remove(
     if !incoming_invoices::soft_delete(&mut *tx, id).await? {
         return Err(AppError::NotFound("incoming invoice"));
     }
-    audit::record(&mut *tx, Some(me.user_id), "incoming_invoice", id, "delete", json!({})).await?;
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "incoming_invoice",
+        id,
+        "delete",
+        json!({}),
+    )
+    .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -415,7 +464,77 @@ mod tests {
         assert_eq!(sniff(b"%PDF-1.7 ...").map(|s| s.1), Some("pdf"));
         assert_eq!(sniff(&[0xFF, 0xD8, 0xFF, 0xE0]).map(|s| s.1), Some("jpg"));
         assert_eq!(sniff(b"\x89PNG\r\n").map(|s| s.1), Some("png"));
-        assert_eq!(sniff(b"  <?xml version=\"1.0\"?>").map(|s| s.1), Some("xml"));
+        assert_eq!(
+            sniff(b"  <?xml version=\"1.0\"?>").map(|s| s.1),
+            Some("xml")
+        );
         assert_eq!(sniff(b"MZ\x90\x00"), None);
     }
+}
+
+#[derive(Deserialize, ToSchema)]
+struct IncomingBulkBody {
+    ids: Vec<i64>,
+    #[serde(flatten)]
+    action: IncomingBulkAction,
+}
+
+/// One operation over the ticked supplier invoices (0049).
+#[derive(Deserialize, ToSchema)]
+#[serde(tag = "action", rename_all = "snake_case")]
+enum IncomingBulkAction {
+    /// Paid in full; `paid_on` defaults to today and only fills rows without a date.
+    MarkPaid { paid_on: Option<NaiveDate> },
+    /// Exists only in the books (or back to a normal invoice with `on: false`).
+    BookingOnly { on: bool },
+    /// Off the lists; records and files are kept.
+    Delete,
+}
+
+#[derive(Serialize, ToSchema)]
+struct IncomingBulkResult {
+    changed: u64,
+}
+
+#[utoipa::path(
+    post, path = "/incoming-invoices/bulk-actions", tag = "incoming_invoices",
+    request_body = IncomingBulkBody,
+    responses((status = 200, body = IncomingBulkResult))
+)]
+async fn bulk_action(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<IncomingBulkBody>,
+) -> AppResult<Json<IncomingBulkResult>> {
+    me.require(Capability::IssueInvoices)?;
+    if b.ids.len() > 1000 {
+        return Err(AppError::validation("at most 1000 invoices at once"));
+    }
+    let today = crate::service::business_today(state.config.business_tz);
+    let mut tx = state.db.begin().await?;
+    let (changed, what) = match &b.action {
+        IncomingBulkAction::MarkPaid { paid_on } => (
+            incoming_invoices::mark_paid_many(&mut *tx, &b.ids, paid_on.unwrap_or(today)).await?,
+            "bulk_paid",
+        ),
+        IncomingBulkAction::BookingOnly { on } => (
+            incoming_invoices::set_booking_only_many(&mut *tx, &b.ids, *on).await?,
+            "bulk_booking_only",
+        ),
+        IncomingBulkAction::Delete => (
+            incoming_invoices::soft_delete_many(&mut *tx, &b.ids).await?,
+            "bulk_delete",
+        ),
+    };
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "incoming_invoice",
+        0,
+        what,
+        json!({ "ids": b.ids, "changed": changed }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Json(IncomingBulkResult { changed }))
 }

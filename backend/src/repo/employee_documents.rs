@@ -35,7 +35,10 @@ pub struct NewDocument {
 
 const COLS: &str = "id, employee_id, kind, title, valid_until, file_key, file_name, file_type, file_size, notes, created_by, created_at";
 
-pub async fn list(db: impl PgExecutor<'_>, employee_id: i64) -> sqlx::Result<Vec<EmployeeDocument>> {
+pub async fn list(
+    db: impl PgExecutor<'_>,
+    employee_id: i64,
+) -> sqlx::Result<Vec<EmployeeDocument>> {
     sqlx::query_as(&format!(
         "SELECT {COLS} FROM employee_documents
           WHERE employee_id = $1 AND deleted_at IS NULL
@@ -84,7 +87,10 @@ pub async fn soft_delete(db: impl PgExecutor<'_>, id: i64, employee_id: i64) -> 
 
 /// Case-insensitive exact match against the allowed kinds, for request validation.
 pub fn kind_ok(kind: &str) -> bool {
-    matches!(kind, "medical" | "contract" | "licence" | "training" | "other")
+    matches!(
+        kind,
+        "medical" | "contract" | "licence" | "training" | "other"
+    )
 }
 
 /// Stores the uploaded file's location on the document. False when there is no such live

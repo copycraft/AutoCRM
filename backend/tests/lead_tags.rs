@@ -93,13 +93,25 @@ async fn website_lead(pool: &PgPool, extra: Value) -> i64 {
 }
 
 async fn tag_labels(pool: &PgPool, bearer: &str, lead_id: i64) -> Vec<(String, Value)> {
-    let (status, detail) = call(pool, "GET", &format!("/api/leads/{lead_id}"), Some(bearer), None).await;
+    let (status, detail) = call(
+        pool,
+        "GET",
+        &format!("/api/leads/{lead_id}"),
+        Some(bearer),
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     detail["tags"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|t| (t["label"].as_str().unwrap().to_string(), t["matched_domain"].clone()))
+        .map(|t| {
+            (
+                t["label"].as_str().unwrap().to_string(),
+                t["matched_domain"].clone(),
+            )
+        })
         .collect()
 }
 
@@ -110,9 +122,15 @@ async fn the_market_lists_come_seeded(pool: PgPool) {
     assert_eq!(status, StatusCode::OK);
     let items = list["items"].as_array().unwrap();
     for market in ["hu", "ro", "de", "it"] {
-        assert!(items.iter().any(|t| t["market"] == market), "no {market} tags");
+        assert!(
+            items.iter().any(|t| t["market"] == market),
+            "no {market} tags"
+        );
     }
-    let it = items.iter().find(|t| t["label"] == "furgonifunebri.it").unwrap();
+    let it = items
+        .iter()
+        .find(|t| t["label"] == "furgonifunebri.it")
+        .unwrap();
     assert_eq!(it["domains"], json!(["furgonifunebri.it"]));
 }
 
@@ -144,7 +162,11 @@ async fn a_lead_from_a_claimed_domain_is_tagged_on_arrival(pool: PgPool) {
         vec![("Hűtőautók weboldal".to_string(), json!("hutoautok.hu"))]
     );
     // A full landing URL works as well as the site field.
-    let b = website_lead(&pool, json!({ "landing_page": "https://hutoautok.hu/hutokamra" })).await;
+    let b = website_lead(
+        &pool,
+        json!({ "landing_page": "https://hutoautok.hu/hutokamra" }),
+    )
+    .await;
     assert_eq!(tag_labels(&pool, &office, b).await.len(), 1);
     // A lookalike domain and a bare path do not.
     let c = website_lead(
@@ -156,12 +178,22 @@ async fn a_lead_from_a_claimed_domain_is_tagged_on_arrival(pool: PgPool) {
 
     // The list shows the tags and filters on one.
     let id = tag["id"].as_i64().unwrap();
-    let (status, list) = call(&pool, "GET", &format!("/api/leads?tag={id}"), Some(&office), None).await;
+    let (status, list) = call(
+        &pool,
+        "GET",
+        &format!("/api/leads?tag={id}"),
+        Some(&office),
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let rows = list["items"].as_array().unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0]["tags"][0]["label"], "Hűtőautók weboldal");
-    assert!(rows[0]["title"].is_string(), "the summary fields are flattened into the row");
+    assert!(
+        rows[0]["title"].is_string(),
+        "the summary fields are flattened into the row"
+    );
 
     // A typed source names the domain too.
     let (status, lead) = call(
@@ -178,7 +210,13 @@ async fn a_lead_from_a_claimed_domain_is_tagged_on_arrival(pool: PgPool) {
 
     // The counts on the settings list.
     let (_, list) = call(&pool, "GET", "/api/lead-tags", Some(&office), None).await;
-    let counted = list["items"].as_array().unwrap().iter().find(|t| t["id"] == id).unwrap().clone();
+    let counted = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == id)
+        .unwrap()
+        .clone();
     assert_eq!(counted["total_leads"], 3);
     assert_eq!(counted["open_leads"], 3);
 }
@@ -200,8 +238,14 @@ async fn one_domain_belongs_to_one_live_tag(pool: PgPool) {
     for (bad, why) in [
         (json!({ "market": "hun", "label": "x" }), "market"),
         (json!({ "market": "hu", "label": " " }), "label"),
-        (json!({ "market": "hu", "label": "x", "color": "red" }), "color"),
-        (json!({ "market": "hu", "label": "x", "domains": ["nem domain"] }), "domain"),
+        (
+            json!({ "market": "hu", "label": "x", "color": "red" }),
+            "color",
+        ),
+        (
+            json!({ "market": "hu", "label": "x", "domains": ["nem domain"] }),
+            "domain",
+        ),
     ] {
         let (status, _) = call(&pool, "POST", "/api/lead-tags", Some(&office), Some(bad)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{why}");
@@ -219,10 +263,11 @@ async fn one_domain_belongs_to_one_live_tag(pool: PgPool) {
     assert_eq!(status, StatusCode::CONFLICT);
 
     // Archiving frees the domain for another tag.
-    let owner: i64 = sqlx::query_scalar("SELECT id FROM lead_tags WHERE label = 'furgonifunebri.it'")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let owner: i64 =
+        sqlx::query_scalar("SELECT id FROM lead_tags WHERE label = 'furgonifunebri.it'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     let (status, archived) = call(
         &pool,
         "PATCH",
@@ -247,7 +292,11 @@ async fn one_domain_belongs_to_one_live_tag(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn the_office_sets_a_leads_tags(pool: PgPool) {
     let office = token(&pool, Role::Office).await;
-    let lead = website_lead(&pool, json!({ "site": "https://www.bestattungswagen.at/kontakt" })).await;
+    let lead = website_lead(
+        &pool,
+        json!({ "site": "https://www.bestattungswagen.at/kontakt" }),
+    )
+    .await;
     let ids: Vec<(i64, String)> = sqlx::query_as(
         "SELECT id, label FROM lead_tags WHERE market = 'de' AND label IN ('bestattungswagen.at', 'Viszonteladók')",
     )

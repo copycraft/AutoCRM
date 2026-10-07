@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO comment_mentions (comment_id, user_id)\n           SELECT $1, u.id FROM users u WHERE u.id = ANY($2) AND u.is_active\n           ON CONFLICT DO NOTHING\n           RETURNING user_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "12a19b7f736b1e5719b0f13e822df9ffce7fc0f360578f88890f453c8608d5d6"
+}

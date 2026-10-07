@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Plus } from 'lucide-react';
-import { usersApi } from '@/lib/api/endpoints';
+import { accountApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import { canAdmin, useAuth } from '@/lib/auth/context';
@@ -15,9 +15,48 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/Toasts';
-import type { Role, User } from '@/lib/api/types';
+import type { Capability, Role, User } from '@/lib/api/types';
 
 const ROLES: Role[] = ['admin', 'office', 'designer', 'viewer'];
+
+/** What an admin can grant one user on top of the role, mirroring Capability::grantable. */
+const GRANTABLE: Capability[] = [
+  'edit_partners',
+  'edit_leads',
+  'edit_orders',
+  'change_stages',
+  'manage_blockers',
+  'upload_media',
+  'delete_media',
+  'view_original_images',
+  'comment',
+  'send_email',
+  'issue_invoices',
+  'annul_invoices',
+  'manage_configuration',
+  'manage_settings',
+  'operate_system',
+];
+
+/** The role's defaults, mirroring Role::can in domain/role.rs. */
+const ROLE_DEFAULTS: Record<Role, Capability[]> = {
+  admin: GRANTABLE,
+  office: [
+    'edit_partners',
+    'edit_leads',
+    'edit_orders',
+    'delete_media',
+    'view_original_images',
+    'send_email',
+    'issue_invoices',
+    'change_stages',
+    'manage_blockers',
+    'upload_media',
+    'comment',
+  ],
+  designer: ['change_stages', 'manage_blockers', 'upload_media', 'comment'],
+  viewer: [],
+};
 
 /** Gate: the backend refuses everyone else too, this only spares them a request and a 403. */
 export function UsersAdmin() {
@@ -35,6 +74,7 @@ function UserTable({ meId }: { meId: number }) {
   const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState<User | null>(null);
+  const [granting, setGranting] = useState<User | null>(null);
 
   const query = useQuery({ queryKey: qk.users, queryFn: () => usersApi.list() });
 
@@ -46,7 +86,7 @@ function UserTable({ meId }: { meId: number }) {
     onSuccess: () => {
       toast.success(t('saved'));
       void qc.invalidateQueries({ queryKey: qk.users });
-      // Granting or taking away your own HR access changes the menu.
+      // Granting or taking away your own access changes the menu.
       void qc.invalidateQueries({ queryKey: qk.me });
     },
     onError: (e) => toast.error(errorMessage(e, ter, ter('unknownError'))),
@@ -55,6 +95,16 @@ function UserTable({ meId }: { meId: number }) {
   const revoke = useMutation({
     mutationFn: (id: number) => usersApi.revokeSessions(id),
     onSuccess: () => toast.success(t('sessionsRevoked')),
+    onError: (e) => toast.error(errorMessage(e, ter, ter('unknownError'))),
+  });
+
+  const ta = useTranslations('account');
+  const resetTwoFactor = useMutation({
+    mutationFn: (id: number) => accountApi.resetUserTwoFactor(id),
+    onSuccess: () => {
+      toast.success(t('saved'));
+      void qc.invalidateQueries({ queryKey: qk.users });
+    },
     onError: (e) => toast.error(errorMessage(e, ter, ter('unknownError'))),
   });
 
@@ -100,6 +150,7 @@ function UserTable({ meId }: { meId: number }) {
                         <span className="font-medium">{u.display_name}</span>
                         {self && <StatusBadge tone="cold">{t('you')}</StatusBadge>}
                         {!u.is_active && <StatusBadge tone="steel">{t('inactive')}</StatusBadge>}
+                        {u.two_factor && <StatusBadge tone="cold">{ta('twoFactorBadge')}</StatusBadge>}
                       </div>
                       <div className="text-metadata text-steel-500">{u.email}</div>
                     </td>
@@ -142,6 +193,12 @@ function UserTable({ meId }: { meId: number }) {
                       )}
                     </td>
                     <td className="px-4 py-2 text-right">
+                      {u.role !== 'admin' && (
+                        <button className="btn-ghost btn-sm" onClick={() => setGranting(u)}>
+                          {t('permissions')}
+                          {u.permissions.length > 0 && ' ' + t('permissionsExtra', { count: u.permissions.length })}
+                        </button>
+                      )}
                       <button className="btn-ghost btn-sm" onClick={() => setResetting(u)}>
                         {t('resetPassword')}
                       </button>
@@ -152,6 +209,17 @@ function UserTable({ meId }: { meId: number }) {
                       >
                         {t('revokeSessions')}
                       </button>
+                      {u.two_factor && !self && (
+                        <button
+                          className="btn-ghost btn-sm"
+                          disabled={resetTwoFactor.isPending}
+                          onClick={() => {
+                            if (window.confirm(ta('resetTwoFactorConfirm', { name: u.display_name }))) resetTwoFactor.mutate(u.id);
+                          }}
+                        >
+                          {ta('resetTwoFactor')}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -163,6 +231,7 @@ function UserTable({ meId }: { meId: number }) {
 
       {creating && <CreateUserDialog onClose={() => setCreating(false)} />}
       {resetting && <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />}
+      {granting && <PermissionsDialog user={granting} onClose={() => setGranting(null)} />}
     </div>
   );
 }
@@ -245,6 +314,69 @@ function FormDialog({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/** Per-user grants on top of the role: the role's own capabilities show as fixed. */
+function PermissionsDialog({ user, onClose }: { user: User; onClose: () => void }) {
+  const t = useTranslations('users');
+  const tc = useTranslations('common');
+  const ter = useTranslations('errors');
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [granted, setGranted] = useState<Set<string>>(new Set(user.permissions));
+  const fromRole = new Set<Capability>(ROLE_DEFAULTS[user.role]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      usersApi.update(user.id, {
+        // Only what the role does not already give; the role's set is implied.
+        permissions: GRANTABLE.filter((c) => granted.has(c) && !fromRole.has(c)),
+      }),
+    onSuccess: () => {
+      toast.success(t('saved'));
+      void qc.invalidateQueries({ queryKey: qk.users });
+      void qc.invalidateQueries({ queryKey: qk.me });
+      onClose();
+    },
+  });
+
+  return (
+    <FormDialog
+      title={t('permissionsTitle', { name: user.display_name })}
+      description={t('permissionsHint')}
+      error={save.error ? errorMessage(save.error, ter, ter('unknownError')) : null}
+      busy={save.isPending}
+      canSubmit
+      submitLabel={tc('save')}
+      onSubmit={() => save.mutate()}
+      onClose={onClose}
+    >
+      <ul className="space-y-2">
+        {GRANTABLE.map((c) => {
+          const inherited = fromRole.has(c);
+          return (
+            <li key={c}>
+              <label className="flex items-center gap-2 text-body">
+                <input
+                  type="checkbox"
+                  checked={inherited || granted.has(c)}
+                  disabled={inherited || save.isPending}
+                  onChange={(e) => {
+                    const next = new Set(granted);
+                    if (e.target.checked) next.add(c);
+                    else next.delete(c);
+                    setGranted(next);
+                  }}
+                />
+                <span>{t(`capabilities.${c}`)}</span>
+                {inherited && <span className="text-metadata text-steel-500">({t('permissionFromRole')})</span>}
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </FormDialog>
   );
 }
 

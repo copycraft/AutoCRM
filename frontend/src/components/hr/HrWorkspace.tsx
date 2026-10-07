@@ -11,8 +11,9 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Directory } from '@/components/hr/EmployeeDirectory';
 import { LeaveSection } from '@/components/hr/LeaveSection';
 import { RecruitmentSection } from '@/components/hr/RecruitmentSection';
+import { ChecklistSettings } from '@/components/hr/HrChecklists';
 
-type Tab = 'people' | 'leave' | 'recruitment';
+type Tab = 'people' | 'leave' | 'recruitment' | 'checklists';
 
 /** The HR module: the staff directory, leave and recruitment. Gated here once for all tabs. */
 export function HrWorkspace() {
@@ -29,6 +30,7 @@ export function HrWorkspace() {
     { key: 'people', label: t('tabPeople') },
     { key: 'leave', label: t('tabLeave') },
     { key: 'recruitment', label: t('tabRecruitment') },
+    { key: 'checklists', label: t('tabChecklists') },
   ];
   return (
     <div>
@@ -51,6 +53,7 @@ export function HrWorkspace() {
       {tab === 'people' && <Directory />}
       {tab === 'leave' && <LeaveSection />}
       {tab === 'recruitment' && <RecruitmentSection />}
+      {tab === 'checklists' && <ChecklistSettings />}
     </div>
   );
 }

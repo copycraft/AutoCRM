@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_settings (user_id, calendar_token) VALUES ($1, $2)\n         ON CONFLICT (user_id) DO UPDATE SET calendar_token = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9cf87cf8eba2d0206383742a6d06931dd1d81fc58b0213197c4428bcadf4cbf0"
+}

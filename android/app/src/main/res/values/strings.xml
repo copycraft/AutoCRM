@@ -3,4 +3,6 @@
      one complete one (frontend/src/routing.ts). -->
 <resources>
     <string name="app_name">AutoCRM</string>
+    <string name="tasks_widget_description">Mai feladataim</string>
+    <string name="share_label">Megosztás az AutoCRM-be</string>
 </resources>

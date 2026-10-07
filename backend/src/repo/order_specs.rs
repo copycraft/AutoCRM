@@ -30,6 +30,9 @@ pub struct OrderSpec {
     /// `automatic` | `manual` | `hot_gas`.
     pub defrost: Option<String>,
     pub electric_standby: Option<bool>,
+    /// The serial number off the cooling unit's plate, scanned on the phone (0049). Kept
+    /// when the rest of the spec is saved; cleared if the order turns into a heating job.
+    pub cooling_unit_serial: Option<String>,
 
     // Heating.
     pub heater_make: Option<String>,
@@ -95,7 +98,7 @@ pub async fn find(db: impl PgExecutor<'_>, order_id: i64) -> sqlx::Result<Option
     sqlx::query_as!(
         OrderSpec,
         r#"SELECT order_id, form, target_temp_c, insulation_mm, cooling_unit_make, cooling_unit_model,
-                  atp_class, compartments, defrost, electric_standby, heater_make, heater_model,
+                  atp_class, compartments, defrost, electric_standby, cooling_unit_serial, heater_make, heater_model,
                   heat_output_kw, fuel, thermostat, notes, created_at, updated_at
              FROM order_specs WHERE order_id = $1"#,
         order_id
@@ -122,9 +125,10 @@ pub async fn upsert(
                compartments = EXCLUDED.compartments, defrost = EXCLUDED.defrost,
                electric_standby = EXCLUDED.electric_standby, heater_make = EXCLUDED.heater_make,
                heater_model = EXCLUDED.heater_model, heat_output_kw = EXCLUDED.heat_output_kw,
-               fuel = EXCLUDED.fuel, thermostat = EXCLUDED.thermostat, notes = EXCLUDED.notes
+               fuel = EXCLUDED.fuel, thermostat = EXCLUDED.thermostat, notes = EXCLUDED.notes,
+               cooling_unit_serial = CASE WHEN EXCLUDED.form = 'cooling' THEN order_specs.cooling_unit_serial END
            RETURNING order_id, form, target_temp_c, insulation_mm, cooling_unit_make, cooling_unit_model,
-                     atp_class, compartments, defrost, electric_standby, heater_make, heater_model,
+                     atp_class, compartments, defrost, electric_standby, cooling_unit_serial, heater_make, heater_model,
                      heat_output_kw, fuel, thermostat, notes, created_at, updated_at"#,
         order_id,
         f.form,
@@ -166,4 +170,27 @@ pub async fn form_for_project_type(
     .fetch_optional(db)
     .await
     .map(Option::flatten)
+}
+
+/// Records the cooling unit's serial number, creating a bare cooling spec when the order
+/// has none yet. None when the order's spec is a heating one.
+pub async fn set_cooling_serial(
+    db: impl PgExecutor<'_>,
+    order_id: i64,
+    serial: Option<&str>,
+) -> sqlx::Result<Option<OrderSpec>> {
+    sqlx::query_as!(
+        OrderSpec,
+        r#"INSERT INTO order_specs (order_id, form, cooling_unit_serial)
+           VALUES ($1, 'cooling', $2)
+           ON CONFLICT (order_id) DO UPDATE SET cooling_unit_serial = EXCLUDED.cooling_unit_serial
+           WHERE order_specs.form = 'cooling'
+           RETURNING order_id, form, target_temp_c, insulation_mm, cooling_unit_make, cooling_unit_model,
+                     atp_class, compartments, defrost, electric_standby, cooling_unit_serial, heater_make, heater_model,
+                     heat_output_kw, fuel, thermostat, notes, created_at, updated_at"#,
+        order_id,
+        serial
+    )
+    .fetch_optional(db)
+    .await
 }

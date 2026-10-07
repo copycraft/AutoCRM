@@ -431,6 +431,22 @@ fun ServerInspectionDetail(
                 }
             }
         }
+        // Where the inspection was done: the first geotagged photo (0049).
+        detail.photos.firstOrNull { it.lat != null && it.lon != null }?.let { located ->
+            item {
+                val ctx = LocalContext.current
+                TextButton(
+                    onClick = {
+                        hu.autotherm.autocrm.util.openMapAt(
+                            ctx,
+                            located.lat!!,
+                            located.lon!!,
+                            detail.inspection.vehiclePlate,
+                        )
+                    },
+                ) { Text("Helyszín a térképen") }
+            }
+        }
         val byZone = detail.photos.filter { it.purpose == "overview" }.groupBy { it.zoneKey }
         items(byZone.entries.toList(), key = { it.key }) { (zone, photos) ->
             Card {

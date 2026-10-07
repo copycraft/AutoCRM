@@ -43,10 +43,12 @@ const STEP: &str = "SELECT s.id, s.label, s.delay_days, s.template_key, t.name A
     FROM followup_steps s JOIN email_templates t ON t.key = s.template_key";
 
 pub async fn steps(db: impl PgExecutor<'_>, kind: &str) -> sqlx::Result<Vec<FollowupStep>> {
-    sqlx::query_as(&format!("{STEP} WHERE s.kind = $1 ORDER BY s.delay_days, s.id"))
-        .bind(kind)
-        .fetch_all(db)
-        .await
+    sqlx::query_as(&format!(
+        "{STEP} WHERE s.kind = $1 ORDER BY s.delay_days, s.id"
+    ))
+    .bind(kind)
+    .fetch_all(db)
+    .await
 }
 
 pub async fn step(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<FollowupStep>> {
@@ -104,17 +106,20 @@ pub async fn template_exists(db: impl PgExecutor<'_>, key: &str) -> sqlx::Result
         .await
 }
 
-const FOLLOWUP: &str = "SELECT f.id, f.lead_id, f.label, f.template_key, t.name AS template_name, f.due_at,
+const FOLLOWUP: &str =
+    "SELECT f.id, f.lead_id, f.label, f.template_key, t.name AS template_name, f.due_at,
         f.status, f.email_id, f.note, u.display_name AS created_by_name, f.updated_at
     FROM lead_followups f
     JOIN email_templates t ON t.key = f.template_key
     LEFT JOIN users u ON u.id = f.created_by";
 
 pub async fn for_lead(db: impl PgExecutor<'_>, lead_id: i64) -> sqlx::Result<Vec<Followup>> {
-    sqlx::query_as(&format!("{FOLLOWUP} WHERE f.lead_id = $1 ORDER BY f.due_at, f.id"))
-        .bind(lead_id)
-        .fetch_all(db)
-        .await
+    sqlx::query_as(&format!(
+        "{FOLLOWUP} WHERE f.lead_id = $1 ORDER BY f.due_at, f.id"
+    ))
+    .bind(lead_id)
+    .fetch_all(db)
+    .await
 }
 
 pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Followup>> {
@@ -158,7 +163,11 @@ pub async fn cancel(db: impl PgExecutor<'_>, id: i64, note: &str) -> sqlx::Resul
 }
 
 /// Cancels every scheduled follow-up of a lead; returns how many.
-pub async fn cancel_for_lead(db: impl PgExecutor<'_>, lead_id: i64, note: &str) -> sqlx::Result<u64> {
+pub async fn cancel_for_lead(
+    db: impl PgExecutor<'_>,
+    lead_id: i64,
+    note: &str,
+) -> sqlx::Result<u64> {
     let done = sqlx::query(
         "UPDATE lead_followups SET status = 'cancelled', note = $2
          WHERE lead_id = $1 AND status = 'scheduled'",

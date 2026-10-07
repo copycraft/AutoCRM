@@ -19,8 +19,16 @@ const CONTEXT: &[u8] = b"autocrm-upload-ticket-v1.";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum UploadTarget {
-    Image { category: ImageCategory },
-    Document { kind: DocumentKind },
+    Image {
+        category: ImageCategory,
+    },
+    Document {
+        kind: DocumentKind,
+        /// A new version of this document (0048): same owner, the old one is kept as
+        /// superseded. Omitted for a new file.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        replaces: Option<i64>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

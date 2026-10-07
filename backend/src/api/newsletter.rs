@@ -6,11 +6,11 @@
 //! `NEWSLETTER_API_KEY`, and double opt-in — plus confirming and unsubscribing, which
 //! must work from a bare link.
 
-use axum::body::Body;
-use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
+use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Redirect, Response};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -62,6 +62,9 @@ pub struct SubscriptionBody {
     /// Lists the website form signs the reader up to; applied on confirm.
     #[serde(default)]
     pub tag_ids: Vec<i64>,
+    /// The language of the page the form was on (two letters): later letters come in it
+    /// when a send has that variant.
+    pub language: Option<String>,
 }
 
 /// The office hand-add: confirmed on insert, because the office holds the consent.
@@ -200,6 +203,13 @@ async fn subscribe(
         return Err(AppError::validation("a tag does not exist or is archived"));
     }
     email::newsletter_signup_with_tags(&state, &body.email, &body.name, &tag_ids).await?;
+    if let Some(language) = body
+        .language
+        .as_deref()
+        .and_then(crate::repo::newsletter::normalize_language)
+    {
+        crate::repo::newsletter::default_language(&state.db, &body.email, &language).await?;
+    }
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -315,6 +325,9 @@ pub struct ScheduleSendBody {
     pub embed_document_ids: Vec<i64>,
     /// When it goes out; omitted sends as soon as the dispatch job runs.
     pub send_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// The letter in other languages; readers with that language get it (0049).
+    #[serde(default)]
+    pub variants: Vec<crate::repo::newsletter::SendVariant>,
 }
 
 #[derive(Debug, serde::Serialize, ToSchema)]
@@ -343,6 +356,7 @@ async fn schedule_send(
         attachment_document_ids: b.attachment_document_ids,
         embed_document_ids: b.embed_document_ids,
         send_at: b.send_at.unwrap_or_else(chrono::Utc::now),
+        variants: b.variants,
     };
     let (id, recipients) = sends::schedule(&state, &me, &c).await?;
     Ok((StatusCode::CREATED, Json(ScheduledSend { id, recipients })))

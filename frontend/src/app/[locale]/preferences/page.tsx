@@ -12,6 +12,7 @@ import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
 import { usePreferences } from '@/hooks/usePreferences';
 import type { UserSettings } from '@/lib/api/types';
+import { CalendarCard, SignatureCard, TwoFactorCard } from '@/components/account/AccountSecurity';
 
 export default function PreferencesPage() {
   const t = useTranslations('preferences');
@@ -45,6 +46,7 @@ export default function PreferencesPage() {
       ) : query.isError || !query.data ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
+        <div className="space-y-4">
         <PreferencesForm
           initial={query.data}
           savedTick={savedTick}
@@ -52,6 +54,10 @@ export default function PreferencesPage() {
           pending={save.isPending}
           onSave={(density, pageSize) => save.mutate({ density, page_size: pageSize })}
         />
+        <SignatureCard initial={query.data} />
+        <CalendarCard />
+        <TwoFactorCard />
+        </div>
       )}
     </AppShell>
   );

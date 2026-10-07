@@ -54,6 +54,11 @@ pub fn routes() -> OpenApiRouter<AppState> {
                 .routes(routes!(upload_document_file))
                 .layer(DefaultBodyLimit::max(MAX_DOCUMENT_BYTES)),
         )
+        // 0049
+        .routes(routes!(set_user))
+        .routes(routes!(list_checklist_items, create_checklist_item))
+        .routes(routes!(update_checklist_item, archive_checklist_item))
+        .routes(routes!(start_checklist))
 }
 
 #[utoipa::path(
@@ -206,12 +211,18 @@ async fn upload_document_file(
     if body.is_empty() {
         return Err(AppError::validation("the request body must be the file"));
     }
-    let name: String = required("filename", &q.filename)?.chars().take(200).collect();
+    let name: String = required("filename", &q.filename)?
+        .chars()
+        .take(200)
+        .collect();
     let (content_type, ext) = super::incoming_invoices::sniff(&body)
         .filter(|(_, ext)| *ext != "xml")
         .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
     let random: [u8; 12] = rand::random();
-    let key = format!("employee-documents/{id}/{doc_id}-{}.{ext}", hex::encode(random));
+    let key = format!(
+        "employee-documents/{id}/{doc_id}-{}.{ext}",
+        hex::encode(random)
+    );
     let size = body.len() as i64;
     state
         .storage
@@ -278,7 +289,9 @@ async fn expiring_documents(
     me.require(Capability::AccessHr)?;
     let until = crate::service::business_today(state.config.business_tz)
         + chrono::TimeDelta::days(crate::service::reminders::DOCUMENT_EXPIRY_DAYS);
-    Ok(Items::new(employee_documents::expiring(&state.db, until).await?))
+    Ok(Items::new(
+        employee_documents::expiring(&state.db, until).await?,
+    ))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -298,6 +311,8 @@ pub struct Employee {
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The CRM account this person signs in with, if linked (0049).
+    pub user_id: Option<i64>,
 }
 
 pub(super) async fn present(state: &AppState, row: EmployeeRow) -> Employee {
@@ -323,6 +338,7 @@ pub(super) async fn present(state: &AppState, row: EmployeeRow) -> Employee {
         archived_at: row.archived_at,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        user_id: row.user_id,
     }
 }
 
@@ -718,6 +734,7 @@ mod tests {
             archived_at: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            user_id: None,
         };
         let mut b = body(None);
         b.personal_phone = Some(None); // explicit null clears
@@ -747,4 +764,280 @@ mod tests {
         b.company_phone = Some(Some("   ".into()));
         assert_eq!(merge(None, b).unwrap().company_phone, None);
     }
+}
+
+// --- The CRM account, and joining/leaving checklists (0049) ---
+
+use crate::repo::hr_checklists::{self, ChecklistItem};
+
+#[derive(Deserialize, ToSchema)]
+struct EmployeeUserBody {
+    /// The user account; null unlinks.
+    user_id: Option<i64>,
+}
+
+#[utoipa::path(
+    put, path = "/hr/employees/{id}/user", tag = "hr",
+    params(("id" = i64, Path)),
+    request_body = EmployeeUserBody,
+    responses((status = 200, body = Employee), (status = 409, description = "That account belongs to another employee (`duplicate`)"))
+)]
+async fn set_user(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<EmployeeUserBody>,
+) -> AppResult<Json<Employee>> {
+    me.require(Capability::AccessHr)?;
+    if let Some(user_id) = b.user_id
+        && crate::repo::users::find(&state.db, user_id)
+            .await?
+            .is_none()
+    {
+        return Err(AppError::validation("user_id is not a user"));
+    }
+    let mut tx = state.db.begin().await?;
+    match employees::set_user(&mut *tx, id, b.user_id).await {
+        Ok(true) => {}
+        Ok(false) => return Err(AppError::NotFound("employee")),
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            return Err(AppError::conflict(
+                "duplicate",
+                "that account is linked to another employee",
+            ));
+        }
+        Err(e) => return Err(e.into()),
+    }
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "employee",
+        id,
+        "user_link",
+        json!({ "user_id": b.user_id }),
+    )
+    .await?;
+    let row = employees::find(&mut *tx, id)
+        .await?
+        .ok_or(AppError::NotFound("employee"))?;
+    tx.commit().await?;
+    Ok(Json(present(&state, row).await))
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct ChecklistQuery {
+    /// onboarding or offboarding; both when absent.
+    kind: Option<String>,
+}
+
+#[utoipa::path(
+    get, path = "/hr/checklist-items", tag = "hr",
+    params(ChecklistQuery),
+    responses((status = 200, body = Items<ChecklistItem>))
+)]
+async fn list_checklist_items(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiQuery(q): ApiQuery<ChecklistQuery>,
+) -> AppResult<Json<Items<ChecklistItem>>> {
+    me.require(Capability::AccessHr)?;
+    Ok(Items::new(
+        hr_checklists::list(&state.db, q.kind.as_deref()).await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct ChecklistItemBody {
+    /// onboarding or offboarding (ignored on update).
+    kind: Option<String>,
+    title: String,
+    /// Due this many days after the checklist is started (0–365).
+    #[serde(default)]
+    due_days: i32,
+    /// Order within the list (update only).
+    position: Option<i32>,
+}
+
+fn checked_item(b: &ChecklistItemBody) -> AppResult<String> {
+    let title = required("title", &b.title)?;
+    if title.chars().count() > 200 {
+        return Err(AppError::validation("title is at most 200 characters"));
+    }
+    if !(0..=365).contains(&b.due_days) {
+        return Err(AppError::validation("due_days must be 0-365"));
+    }
+    Ok(title)
+}
+
+#[utoipa::path(
+    post, path = "/hr/checklist-items", tag = "hr",
+    request_body = ChecklistItemBody,
+    responses((status = 201, body = ChecklistItem))
+)]
+async fn create_checklist_item(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<ChecklistItemBody>,
+) -> AppResult<(StatusCode, Json<ChecklistItem>)> {
+    me.require(Capability::AccessHr)?;
+    let title = checked_item(&b)?;
+    let kind = b.kind.as_deref().unwrap_or("");
+    if !hr_checklists::KINDS.contains(&kind) {
+        return Err(AppError::validation(
+            "kind: expected onboarding or offboarding",
+        ));
+    }
+    let item = hr_checklists::insert(&state.db, kind, &title, b.due_days).await?;
+    Ok((StatusCode::CREATED, Json(item)))
+}
+
+#[utoipa::path(
+    put, path = "/hr/checklist-items/{id}", tag = "hr",
+    params(("id" = i64, Path)),
+    request_body = ChecklistItemBody,
+    responses((status = 200, body = ChecklistItem))
+)]
+async fn update_checklist_item(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<ChecklistItemBody>,
+) -> AppResult<Json<ChecklistItem>> {
+    me.require(Capability::AccessHr)?;
+    let title = checked_item(&b)?;
+    let current = hr_checklists::list(&state.db, None)
+        .await?
+        .into_iter()
+        .find(|i| i.id == id)
+        .ok_or(AppError::NotFound("checklist item"))?;
+    hr_checklists::update(
+        &state.db,
+        id,
+        &title,
+        b.due_days,
+        b.position.unwrap_or(current.position),
+    )
+    .await?
+    .map(Json)
+    .ok_or(AppError::NotFound("checklist item"))
+}
+
+#[utoipa::path(
+    delete, path = "/hr/checklist-items/{id}", tag = "hr",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Removed from the list; tasks already made stay"))
+)]
+async fn archive_checklist_item(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::AccessHr)?;
+    if !hr_checklists::archive(&state.db, id).await? {
+        return Err(AppError::NotFound("checklist item"));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize, ToSchema)]
+struct StartChecklistBody {
+    /// onboarding or offboarding.
+    kind: String,
+    /// First day (joining) or last day (leaving); tasks fall due from it. Defaults to today.
+    start_date: Option<chrono::NaiveDate>,
+    /// Who does the steps; defaults to the person starting the checklist.
+    assigned_to: Option<i64>,
+    /// Leaving only: switch off the linked CRM account and sign it out everywhere now.
+    /// Needs the user-management right.
+    #[serde(default)]
+    deactivate_user: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+struct ChecklistStarted {
+    tasks_created: usize,
+    /// The linked account was switched off.
+    user_deactivated: bool,
+}
+
+#[utoipa::path(
+    post, path = "/hr/employees/{id}/checklists", tag = "hr",
+    params(("id" = i64, Path)),
+    request_body = StartChecklistBody,
+    responses((status = 201, body = ChecklistStarted))
+)]
+async fn start_checklist(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<StartChecklistBody>,
+) -> AppResult<(StatusCode, Json<ChecklistStarted>)> {
+    me.require(Capability::AccessHr)?;
+    if !hr_checklists::KINDS.contains(&b.kind.as_str()) {
+        return Err(AppError::validation(
+            "kind: expected onboarding or offboarding",
+        ));
+    }
+    let deactivate = b.deactivate_user && b.kind == "offboarding";
+    if deactivate {
+        me.require(Capability::ManageUsers)?;
+    }
+    let assigned_to = b.assigned_to.unwrap_or(me.user_id);
+    if crate::repo::users::find(&state.db, assigned_to)
+        .await?
+        .is_none()
+    {
+        return Err(AppError::validation("assigned_to is not a user"));
+    }
+    let start = b
+        .start_date
+        .unwrap_or_else(|| crate::service::business_today(state.config.business_tz));
+    let mut tx = state.db.begin().await?;
+    let employee = employees::lock(&mut *tx, id)
+        .await?
+        .ok_or(AppError::NotFound("employee"))?;
+    let created =
+        hr_checklists::start(&mut tx, id, &b.kind, start, Some(assigned_to), me.user_id).await?;
+    let mut user_deactivated = false;
+    if deactivate && let Some(user_id) = employee.user_id {
+        if user_id == me.user_id {
+            return Err(AppError::validation(
+                "you cannot switch off your own account",
+            ));
+        }
+        let user = crate::repo::users::find(&mut *tx, user_id)
+            .await?
+            .ok_or(AppError::NotFound("user"))?;
+        if user.is_active {
+            if user.role == crate::domain::role::Role::Admin
+                && crate::repo::users::count_active_admins(&mut *tx).await? <= 1
+            {
+                return Err(AppError::rule(
+                    "last_admin",
+                    "the last active admin cannot be switched off",
+                ));
+            }
+            crate::repo::users::update(&mut *tx, user_id, None, None, Some(false), None, None).await?;
+            crate::repo::sessions::revoke_all(&mut *tx, user_id, None).await?;
+            user_deactivated = true;
+        }
+    }
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "employee",
+        id,
+        "checklist_start",
+        json!({ "kind": b.kind, "tasks": created, "start": start, "user_deactivated": user_deactivated }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(ChecklistStarted {
+            tasks_created: created,
+            user_deactivated,
+        }),
+    ))
 }

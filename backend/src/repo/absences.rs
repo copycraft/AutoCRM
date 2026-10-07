@@ -13,10 +13,12 @@ pub struct AbsenceRow {
     pub end_date: NaiveDate,
     pub note: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// The sick note (or other paper), when one was filed (0049).
+    pub file_name: Option<String>,
 }
 
 const SELECT: &str = "SELECT a.id, a.employee_id, e.full_name AS employee_name, a.kind,
-                             a.start_date, a.end_date, a.note, a.created_at
+                             a.start_date, a.end_date, a.note, a.created_at, a.file_name
                       FROM absences a JOIN employees e ON e.id = a.employee_id";
 
 /// Absences that touch `from..=to`, optionally for one employee, soonest first.
@@ -92,4 +94,37 @@ pub async fn delete(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<bool> {
         .execute(db)
         .await?;
     Ok(result.rows_affected() == 1)
+}
+
+/// Files the paper behind an absence (a doctor's certificate). False when there is no such
+/// absence.
+pub async fn set_file(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    key: &str,
+    name: &str,
+    content_type: &str,
+    size: i64,
+) -> sqlx::Result<bool> {
+    let done = sqlx::query(
+        "UPDATE absences SET file_key = $2, file_name = $3, file_type = $4, file_size = $5 WHERE id = $1",
+    )
+    .bind(id)
+    .bind(key)
+    .bind(name)
+    .bind(content_type)
+    .bind(size)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected() == 1)
+}
+
+/// (storage key, file name) of an absence's paper.
+pub async fn file_of(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<(String, String)>> {
+    sqlx::query_as(
+        "SELECT file_key, coalesce(file_name, 'igazolas') FROM absences WHERE id = $1 AND file_key IS NOT NULL",
+    )
+    .bind(id)
+    .fetch_optional(db)
+    .await
 }

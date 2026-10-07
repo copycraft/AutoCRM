@@ -51,6 +51,7 @@ pub struct ActiveSession {
     pub role: Role,
     pub must_change_password: bool,
     pub hr_access: bool,
+    pub permissions: Vec<String>,
 }
 
 pub async fn find_active(
@@ -60,7 +61,7 @@ pub async fn find_active(
     sqlx::query_as!(
         ActiveSession,
         r#"SELECT s.id AS session_id, s.user_id, s.kind AS "kind: SessionKind", s.created_at, s.last_seen_at,
-                  u.email, u.display_name, u.role AS "role: Role", u.must_change_password, u.hr_access
+                  u.email, u.display_name, u.role AS "role: Role", u.must_change_password, u.hr_access, u.permissions
            FROM sessions s
            JOIN users u ON u.id = s.user_id
            WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.is_active"#,
@@ -136,4 +137,27 @@ pub async fn list_active(db: impl PgExecutor<'_>, user_id: i64) -> sqlx::Result<
     )
     .fetch_all(db)
     .await
+}
+
+/// Whether the user has signed in before, and whether from this device: the same app label
+/// (phone) or the same browser string. Revoked and expired sessions count — a device
+/// stays known after its session ends.
+pub async fn device_seen(
+    db: impl PgExecutor<'_>,
+    user_id: i64,
+    device_label: Option<&str>,
+    user_agent: Option<&str>,
+) -> sqlx::Result<(bool, bool)> {
+    let row = sqlx::query!(
+        r#"SELECT count(*) > 0 AS "any!",
+                  coalesce(bool_or(($2::text IS NOT NULL AND device_label = $2)
+                                   OR ($2::text IS NULL AND $3::text IS NOT NULL AND user_agent = $3)), false) AS "seen!"
+           FROM sessions WHERE user_id = $1"#,
+        user_id,
+        device_label,
+        user_agent
+    )
+    .fetch_one(db)
+    .await?;
+    Ok((row.any, row.seen))
 }

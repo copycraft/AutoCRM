@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.platform.LocalContext
 import hu.autotherm.autocrm.data.notifications.NotificationPollWorker
 import hu.autotherm.autocrm.ui.hr.LeaveScreen
@@ -21,7 +22,7 @@ import hu.autotherm.autocrm.ui.hr.LeaveViewModel
 import hu.autotherm.autocrm.ui.notifications.NotificationsScreen
 import hu.autotherm.autocrm.ui.notifications.NotificationsViewModel
 import kotlinx.coroutines.delay
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.tween
@@ -56,6 +57,14 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.LocalParking
+import hu.autotherm.autocrm.ui.common.AppLock
+import hu.autotherm.autocrm.ui.common.AppLockGate
+import hu.autotherm.autocrm.ui.share.SharedFile
+import hu.autotherm.autocrm.ui.share.ShareScreen
+import hu.autotherm.autocrm.ui.share.ShareViewModel
+import hu.autotherm.autocrm.ui.yard.YardScreen
+import hu.autotherm.autocrm.widget.TasksWidget
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -148,21 +157,63 @@ import hu.autotherm.autocrm.ui.theme.AutoCrmTheme
 import hu.autotherm.autocrm.ui.theme.Steel500
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+// A FragmentActivity (a ComponentActivity underneath) because the system's biometric
+// prompt hosts itself in a fragment (app lock, 0049).
+class MainActivity : FragmentActivity() {
 
     /** Set by a tapped system notification; the scaffold navigates to it once and clears it. */
     private var pendingRoute by mutableStateOf<String?>(null)
+
+    /** Files another app shared with us ("Megosztás → AutoCRM"), waiting for a target. */
+    private var pendingShare by mutableStateOf<List<SharedFile>?>(null)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingRoute = intent.getStringExtra(NotificationPollWorker.EXTRA_ROUTE)
+        sharedFiles(intent)?.let { pendingShare = it }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        AppLock.onForeground(this)
+        lifecycleScope.launch { TasksWidget.refresh(this@MainActivity) }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        AppLock.onBackground()
+    }
+
+    /** The files of a SEND / SEND_MULTIPLE intent, or null for anything else. */
+    @Suppress("DEPRECATION")
+    private fun sharedFiles(intent: Intent?): List<SharedFile>? {
+        intent ?: return null
+        val uris: List<android.net.Uri> = when (intent.action) {
+            Intent.ACTION_SEND -> listOfNotNull(
+                if (Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
+                } else {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                },
+            )
+            Intent.ACTION_SEND_MULTIPLE ->
+                if (Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java).orEmpty()
+                } else {
+                    intent.getParcelableArrayListExtra<android.net.Uri>(Intent.EXTRA_STREAM).orEmpty()
+                }
+            else -> return null
+        }
+        if (uris.isEmpty()) return null
+        return uris.take(20).map { SharedFile(it, contentResolver.getType(it) ?: intent.type) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         pendingRoute = intent?.getStringExtra(NotificationPollWorker.EXTRA_ROUTE)
+        pendingShare = sharedFiles(intent)
         val app = application as AutoCrmApp
         setContent {
             val themeMode by app.themePrefs.mode.collectAsState(initial = ThemePrefs.MODE_SYSTEM)
@@ -204,12 +255,28 @@ class MainActivity : ComponentActivity() {
                         onSignedOut = { /* session cleared; the flow falls back to login */ },
                     )
 
-                    else -> AppScaffold(
-                        app,
-                        account!!,
-                        pendingRoute = pendingRoute,
-                        onRouteHandled = { pendingRoute = null },
-                    )
+                    else -> AppLockGate {
+                        val share = pendingShare
+                        if (share != null) {
+                            ShareScreen(
+                                files = share,
+                                viewModel = viewModel(key = "share") { ShareViewModel(app) },
+                                onDone = { target ->
+                                    pendingShare = null
+                                    if (target != null) {
+                                        pendingRoute = if (target.kind == "lead") "lead/${target.id}" else "order/${target.id}"
+                                    }
+                                },
+                            )
+                        } else {
+                            AppScaffold(
+                                app,
+                                account!!,
+                                pendingRoute = pendingRoute,
+                                onRouteHandled = { pendingRoute = null },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -233,6 +300,8 @@ private sealed class Destination(val route: String, val label: String, val icon:
     data object Emails : Destination("emails", "E-mailek", Icons.Filled.Email)
     data object Tasks : Destination("tasks", "Feladatok", Icons.Filled.Checklist)
     data object Reports : Destination("reports", "Jelentések", Icons.Filled.BarChart)
+    /** Where each vehicle stands in the yard and the bays (0048). */
+    data object Yard : Destination("yard", "Udvar", Icons.Filled.LocalParking)
     /** Staff directory: only for admins and users an admin granted HR access. */
     data object Hr : Destination("hr", "HR", Icons.Filled.Badge)
     /** Every account and its rights: admins only. */
@@ -252,6 +321,7 @@ private val DESTINATIONS = listOf(
     Destination.Emails,
     Destination.Tasks,
     Destination.Reports,
+    Destination.Yard,
     Destination.Notifications,
     Destination.Hr,
     Destination.Users,
@@ -269,6 +339,7 @@ private fun parentOf(route: String?): Destination = when {
     route.startsWith("email") -> Destination.Emails
     route.startsWith("task") -> Destination.Tasks
     route.startsWith("report") -> Destination.Reports
+    route.startsWith("yard") -> Destination.Yard
     route.startsWith("search") -> Destination.Search
     route.startsWith("notifications") -> Destination.Notifications
     route.startsWith("hr") -> Destination.Hr
@@ -544,7 +615,7 @@ private fun AppScaffold(
                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
                 LeadDetailScreen(
                     leadId = id,
-                    viewModel = viewModel { LeadDetailViewModel(app.api, app.lookupsCache) },
+                    viewModel = viewModel { LeadDetailViewModel(app.api, app.lookupsCache, app.sessionStore) },
                     onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
                     onBack = { navController.popBackStack() },
                     canEdit = canEdit,
@@ -746,6 +817,13 @@ private fun AppScaffold(
                 if (account.isAdmin) UsersScreen(
                     viewModel = viewModel { UsersViewModel(app.api) },
                     myUserId = account.userId,
+                    onMenu = openDrawer,
+                )
+            }
+            composable(Destination.Yard.route) {
+                YardScreen(
+                    canMove = account.canChangeStage,
+                    onOpenOrder = { id -> navController.navigate("order/$id") },
                     onMenu = openDrawer,
                 )
             }

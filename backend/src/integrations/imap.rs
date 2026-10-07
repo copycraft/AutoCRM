@@ -26,11 +26,12 @@ const MAX_PER_READ: usize = 200;
 pub async fn fetch_new(cfg: &ImapConfig, after_uid: Option<u32>) -> anyhow::Result<Fetched> {
     let mut roots = RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    let tls = ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-        .with_safe_default_protocol_versions()
-        .context("TLS setup")?
-        .with_root_certificates(roots)
-        .with_no_client_auth();
+    let tls =
+        ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .context("TLS setup")?
+            .with_root_certificates(roots)
+            .with_no_client_auth();
     let tcp = TcpStream::connect((cfg.host.as_str(), cfg.port))
         .await
         .with_context(|| format!("connecting to {}:{}", cfg.host, cfg.port))?;
@@ -47,7 +48,10 @@ pub async fn fetch_new(cfg: &ImapConfig, after_uid: Option<u32>) -> anyhow::Resu
         .login(&cfg.user, &cfg.password)
         .await
         .map_err(|(e, _)| anyhow!("IMAP login failed: {e}"))?;
-    let mailbox = session.select(&cfg.folder).await.context("selecting the folder")?;
+    let mailbox = session
+        .select(&cfg.folder)
+        .await
+        .context("selecting the folder")?;
     let uid_validity = mailbox.uid_validity.unwrap_or(0);
 
     // First read: start from the newest few rather than the whole history.
@@ -71,7 +75,11 @@ pub async fn fetch_new(cfg: &ImapConfig, after_uid: Option<u32>) -> anyhow::Resu
 
     let mut messages = Vec::with_capacity(uids.len());
     if !uids.is_empty() {
-        let set = uids.iter().map(u32::to_string).collect::<Vec<_>>().join(",");
+        let set = uids
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
         let fetches: Vec<_> = session
             .uid_fetch(&set, "BODY.PEEK[]")
             .await

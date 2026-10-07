@@ -94,7 +94,9 @@ async fn validated(
     }
     let label = super::required("label", label)?;
     if label.chars().count() > 100 {
-        return Err(AppError::validation("label is too long (at most 100 characters)"));
+        return Err(AppError::validation(
+            "label is too long (at most 100 characters)",
+        ));
     }
     let color = lead_tag::normalize_color(color)
         .ok_or_else(|| AppError::validation("color must look like #a33122"))?;
@@ -201,7 +203,15 @@ async fn update_tag(
             json!(archived),
         ),
     ]);
-    audit::record(&state.db, Some(me.user_id), "lead_tag", id, "update", changes).await?;
+    audit::record(
+        &state.db,
+        Some(me.user_id),
+        "lead_tag",
+        id,
+        "update",
+        changes,
+    )
+    .await?;
     let tag = lead_tags::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("lead tag"))?;
@@ -284,7 +294,9 @@ struct LostReasonBody {
 fn reason_label(label: &str) -> AppResult<String> {
     let label = super::required("label", label)?;
     if label.chars().count() > 100 {
-        return Err(AppError::validation("label is too long (at most 100 characters)"));
+        return Err(AppError::validation(
+            "label is too long (at most 100 characters)",
+        ));
     }
     Ok(label)
 }

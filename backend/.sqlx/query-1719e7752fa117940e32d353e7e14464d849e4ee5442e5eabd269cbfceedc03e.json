@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.id FROM images i\n         WHERE i.category IN ('intake', 'inspection') AND i.deleted_at IS NULL\n           AND NOT EXISTS (SELECT 1 FROM image_timestamps t WHERE t.image_id = i.id)\n         ORDER BY i.id LIMIT $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1719e7752fa117940e32d353e7e14464d849e4ee5442e5eabd269cbfceedc03e"
+}

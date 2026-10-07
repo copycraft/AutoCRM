@@ -411,6 +411,7 @@ async fn a_lead_converts_as_many_times_as_it_has_vehicles(pool: PgPool) {
             contact_email: None,
             contact_phone: None,
             source: None,
+            source_detail: None,
             description: None,
             assigned_to: None,
             quoted_value_minor: Some(4_500_000),
@@ -418,6 +419,7 @@ async fn a_lead_converts_as_many_times_as_it_has_vehicles(pool: PgPool) {
             quote_valid_until: NaiveDate::from_ymd_opt(2026, 12, 31),
         },
         &[],
+        NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
     )
     .await
     .unwrap();
@@ -513,6 +515,7 @@ async fn a_document_can_belong_to_a_lead(pool: PgPool) {
             contact_email: None,
             contact_phone: None,
             source: None,
+            source_detail: None,
             description: None,
             assigned_to: None,
             quoted_value_minor: None,
@@ -520,6 +523,7 @@ async fn a_document_can_belong_to_a_lead(pool: PgPool) {
             quote_valid_until: None,
         },
         &[],
+        NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
     )
     .await
     .unwrap();
@@ -538,6 +542,8 @@ async fn a_document_can_belong_to_a_lead(pool: PgPool) {
             byte_size: 2048,
             uploaded_by: Some(user.user_id),
             source_ref: None,
+            previous_version_id: None,
+            version: 1,
         },
     )
     .await
@@ -585,6 +591,8 @@ async fn certificates_can_be_found_by_expiry_across_orders(pool: PgPool) {
             byte_size: 1024,
             uploaded_by: Some(user.user_id),
             source_ref: None,
+            previous_version_id: None,
+            version: 1,
         },
     )
     .await

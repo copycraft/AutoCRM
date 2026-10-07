@@ -250,7 +250,7 @@ function title(t: ReturnType<typeof useTranslations>, e: TimelineEvent): string 
     case 'file':
       return t('file');
     case 'note':
-      return t('note');
+      return e.action === 'comment' ? t('comment') : t('note');
     case 'task':
       return e.action === 'done' ? t('taskDone') : t('taskCreated');
     case 'email':
@@ -264,7 +264,8 @@ function title(t: ReturnType<typeof useTranslations>, e: TimelineEvent): string 
         'proforma_created', 'paid', 'unpaid', 'photo_set', 'photo_removed', 'delete', 'item_add',
         'item_update', 'item_remove', 'spec_set', 'blocker_nudge', 'import',
         'customer_replied', 'followup_sent', 'payment_reminder_sent', 'reminders_off', 'reminders_on',
-        'document_file',
+        'document_file', 'vehicle_moved', 'incident', 'incident_rework', 'incident_resolved',
+        'incident_reopened', 'image_annotated', 'document_version',
       ];
       return known.includes(e.action) ? t(`actions.${e.action}`) : e.action.replace(/_/g, ' ');
     }

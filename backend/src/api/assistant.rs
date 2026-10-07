@@ -58,18 +58,22 @@ async fn chat(
     Auth(_): Auth,
     ApiJson(b): ApiJson<ChatBody>,
 ) -> AppResult<Json<AssistantReply>> {
-    let ai = state
-        .config
-        .ai
-        .as_ref()
-        .ok_or_else(|| AppError::rule("assistant_unavailable", "no assistant model is configured"))?;
+    let ai = state.config.ai.as_ref().ok_or_else(|| {
+        AppError::rule("assistant_unavailable", "no assistant model is configured")
+    })?;
     match b.messages.last() {
         Some(m) if m.role == "user" && !m.content.trim().is_empty() => {}
-        _ => return Err(AppError::validation("the last message must be the user's question")),
+        _ => {
+            return Err(AppError::validation(
+                "the last message must be the user's question",
+            ));
+        }
     }
     if b.messages.len() > 50 {
         return Err(AppError::validation("at most 50 messages"));
     }
     let today = crate::service::business_today(state.config.business_tz).to_string();
-    Ok(Json(assistant::chat(&state.db, ai, &b.messages, &today).await?))
+    Ok(Json(
+        assistant::chat(&state.db, ai, &b.messages, &today).await?,
+    ))
 }

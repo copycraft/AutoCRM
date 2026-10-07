@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { MarketingTabs } from '@/components/layout/MarketingTabs';
 import { DataTable, columnMenuItems, nextSort, type TableSort } from '@/components/tables/DataTable';
 import { ColumnMenu } from '@/components/tables/ColumnMenu';
 import { useColumnVisibility } from '@/hooks/useColumnVisibility';
@@ -284,6 +285,7 @@ export default function LeadsPage() {
 
   return (
     <AppShell>
+      <MarketingTabs />
       <PageHeader
         title={tn('leads')}
         actions={

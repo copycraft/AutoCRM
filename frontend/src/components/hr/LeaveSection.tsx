@@ -18,6 +18,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/Toasts';
 import type { Absence, LeaveKind } from '@/lib/api/types';
+import { AbsencePaper } from './HrChecklists';
 
 const KINDS: LeaveKind[] = ['annual', 'sick', 'unpaid', 'other'];
 const ISO = 'yyyy-MM-dd';
@@ -182,8 +183,11 @@ export function LeaveSection() {
                   {a.working_days} {t('days').toLowerCase()}
                 </span>
                 {a.note && <span className="truncate text-metadata text-steel-500">{a.note}</span>}
+                <span className="ml-auto">
+                  <AbsencePaper absence={a} />
+                </span>
                 <button
-                  className="btn-ghost btn-sm ml-auto"
+                  className="btn-ghost btn-sm"
                   aria-label={`${t('delete')}: ${a.employee_name}`}
                   onClick={() => setRemoving(a)}
                 >

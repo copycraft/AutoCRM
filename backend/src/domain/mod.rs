@@ -7,6 +7,7 @@
 pub mod attribution;
 pub mod blocker;
 pub mod email;
+pub mod ics;
 pub mod invoice;
 pub mod lead_tag;
 pub mod leave;
@@ -19,3 +20,5 @@ pub mod role;
 pub mod search_terms;
 pub mod stage;
 pub mod template;
+pub mod totp;
+pub mod vin;

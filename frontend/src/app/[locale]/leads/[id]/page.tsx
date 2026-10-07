@@ -29,6 +29,11 @@ import { useRecentRecords } from '@/hooks/useRecent';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
 import { Money } from '@/components/ui/Money';
 import { LeadTagsField } from '@/components/leads/LeadTags';
+import { DocumentsPanel } from '@/components/media/DocumentsPanel';
+import { CommentThread } from '@/components/comments/CommentThread';
+import { leadSourcesApi } from '@/lib/api/endpoints';
+import { canComment, canSendEmail, canUploadMedia } from '@/lib/auth/context';
+import { Conversation } from '@/components/leads/Conversation';
 
 /** A quote whose validity has passed. Plain YYYY-MM-DD compared against the Budapest
  * calendar date — a UTC date would flip the badge around midnight for "today". */
@@ -55,6 +60,9 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const editable = canEditLeads(user);
 
   const detail = useQuery({ queryKey: qk.lead(id), queryFn: () => leadsApi.get(id) });
+  const sources = useQuery({ queryKey: qk.leadSources(true), queryFn: () => leadSourcesApi.list(true) });
+  const tm = useTranslations('media');
+  const tcv = useTranslations('conversation');
   useEffect(() => {
     if (detail.data) {
       pushRecent({
@@ -212,7 +220,19 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                 <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <Info label={t('partner')} value={partnerQuery.data?.partner.name ?? (lead.partner_id ? `#${lead.partner_id}` : '—')} />
-                    <Info label={t('source')} value={lead.source ?? '—'} />
+                    <Info
+                      label={t('source')}
+                      value={
+                        lead.source
+                          ? [
+                              sources.data?.items.find((x) => x.key === lead.source)?.label ?? lead.source,
+                              lead.source_detail,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          : (lead.source_detail ?? '—')
+                      }
+                    />
                     <Info label={t('assignedTo')} value={assigneeName} />
                     <Info label={t('contactName')} value={lead.contact_name ?? '—'} />
                     <Info label={t('contactEmail')} value={<EmailValue value={lead.contact_email} />} />
@@ -277,6 +297,16 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                         }
                       />
                     </div>
+                    {lead.quote_fx_rate && lead.quote_fx_day && lead.quoted_value_minor != null && (
+                      <p className="mt-2 font-mono text-metadata text-steel-500">
+                        ≈{' '}
+                        <Money
+                          minor={Math.round(lead.quoted_value_minor * Number(lead.quote_fx_rate))}
+                          currency="HUF"
+                        />{' '}
+                        · {t('quoteFx', { rate: Number(lead.quote_fx_rate).toFixed(2) })} <DateDisplay value={lead.quote_fx_day} />
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-5 border-t border-steel-200 pt-5">
@@ -289,22 +319,27 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     <h2 className="text-section font-semibold">
                       {t('documents')} ({documents.length})
                     </h2>
-                    <div className="mt-3 space-y-2">
-                      {documents.length === 0 && (
-                        <p className="text-metadata text-steel-500">{t('noDocuments')}</p>
-                      )}
-                      {documents.map((d) => (
-                        <p key={d.id} className="text-body">
-                          <span className="font-medium">{d.filename}</span>{' '}
-                          <span className="text-metadata text-steel-500">
-                            · <DateDisplay value={d.uploaded_at} />
-                          </span>
-                        </p>
-                      ))}
+                    <p className="mt-1 text-metadata text-steel-500">{tm('leadDocumentsHint')}</p>
+                    <div className="mt-3">
+                      <DocumentsPanel owner={{ lead: id }} canUpload={canUploadMedia(user)} canDelete={editable} />
                     </div>
                   </div>
                 </section>
               )}
+
+              <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                <h2 className="text-section font-semibold">{tcv('title')}</h2>
+                <div className="mt-3">
+                  <Conversation leadId={id} canReply={canSendEmail(user)} />
+                </div>
+              </section>
+
+              <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                <h2 className="text-section font-semibold">{tm('commentsTab')}</h2>
+                <div className="mt-3">
+                  <CommentThread entity="lead" id={id} canComment={canComment(user)} />
+                </div>
+              </section>
 
               <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
                 <h2 className="text-section font-semibold">{t('history')}</h2>

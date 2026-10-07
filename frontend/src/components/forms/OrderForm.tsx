@@ -16,6 +16,7 @@ import { lastAssignee, lastUsed } from '@/hooks/useLastUsed';
 import { useLookups } from '@/hooks/useLookups';
 import { useDirtyGuard } from '@/hooks/useDirtyGuard';
 import { useFormDraft } from '@/hooks/useFormDraft';
+import { VinDecodeButton } from '@/components/orders/VehicleExtras';
 import { BuildSpecSection, type SpecForm } from './BuildSpecSection';
 import { ReturningVehicleWarning } from '@/components/orders/ReturningVehicleWarning';
 import type {
@@ -556,6 +557,13 @@ export function OrderForm({
         <div>
           <label className="label" htmlFor="of-vin">{t('vehicleVin')}</label>
           <input id="of-vin" className="input font-mono" {...register('vehicle_vin')} />
+          <VinDecodeButton
+            vin={watch('vehicle_vin') ?? ''}
+            onFill={({ make, model }) => {
+              if (make && !watch('vehicle_make')) setValue('vehicle_make', make, { shouldDirty: true });
+              if (model && !watch('vehicle_model')) setValue('vehicle_model', model, { shouldDirty: true });
+            }}
+          />
         </div>
         <ReturningVehicleWarning
           plate={watch('vehicle_plate') ?? ''}

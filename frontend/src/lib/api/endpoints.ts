@@ -240,7 +240,7 @@ export const mediaApi = {
   original: (imageId: number): Promise<S['OriginalImageUrl']> =>
     request(`/images/${imageId}/original`, s.zMediaOriginalUrlResponse),
   deleteImage: (id: number): Promise<void> => requestNoContent(`/images/${id}`, { method: 'DELETE' }),
-  documents: (orderId: number): Promise<S['Items_Document']> =>
+  documents: (orderId: number): Promise<S['Items_DocumentView']> =>
     request(`/orders/${orderId}/documents`, s.zMediaListDocumentsResponse),
   searchDocuments: (search: QueryOf<'media_search_documents'> = {}): Promise<S['Items_Document']> =>
     request('/documents', s.zMediaSearchDocumentsResponse, { search }),
@@ -251,6 +251,25 @@ export const mediaApi = {
     request(`/orders/${orderId}/uploads`, s.zMediaRequestUploadResponse, { method: 'POST', body }),
   completeUpload: (body: S['CompleteBody']): Promise<S['Completed']> =>
     request('/uploads/complete', s.zMediaCompleteUploadResponse, { method: 'POST', body }),
+  requestLeadUpload: (leadId: number, body: S['UploadRequest']): Promise<S['UploadResponse']> =>
+    request(`/leads/${leadId}/uploads`, s.zMediaRequestLeadUploadResponse, { method: 'POST', body }),
+  leadDocuments: (leadId: number): Promise<S['Items_DocumentView']> =>
+    request(`/leads/${leadId}/documents`, s.zMediaListLeadDocumentsResponse),
+  // 0048: captions, drawings over a photo, previews, versions.
+  updateImage: (id: number, body: S['ImagePatch']): Promise<S['Image']> =>
+    request(`/images/${id}`, s.zMediaUpdateImageResponse, { method: 'PATCH', body }),
+  annotations: (id: number): Promise<S['Annotations'] | null> =>
+    request(`/images/${id}/annotations`, s.zMediaGetAnnotationsResponse),
+  saveAnnotations: (id: number, body: S['AnnotationsBody']): Promise<S['Annotations'] | null> =>
+    request(`/images/${id}/annotations`, s.zMediaPutAnnotationsResponse, { method: 'PUT', body }),
+  previewDocument: (id: number): Promise<S['PreviewUrl']> =>
+    request(`/documents/${id}/preview`, s.zMediaDocumentPreviewResponse),
+  documentVersions: (id: number): Promise<S['Items_DocumentView']> =>
+    request(`/documents/${id}/versions`, s.zMediaDocumentVersionsResponse),
+  /** Plain links (the browser downloads them with the session cookie). */
+  zipUrl: (orderId: number, variant: 'display' | 'original', category?: string): string =>
+    `/api/orders/${orderId}/images/zip?variant=${variant}${category ? `&category=${category}` : ''}`,
+  timestampUrl: (imageId: number): string => `/api/images/${imageId}/timestamp`,
 };
 
 // ── Email ──
@@ -352,6 +371,10 @@ export const configApi = {
   // this; nothing in it is duplicated in the clients.
   lookups: (): Promise<S['Lookups']> =>
     request('/config/lookups', s.zConfigurationLookupsResponse),
+  stagePhotoCategories: (): Promise<S['Items_StagePhotoCategory']> =>
+    request('/stage-photo-categories', s.zConfigurationStagePhotoCategoriesResponse),
+  setStagePhotoCategory: (key: string, body: S['PhotoCategoryBody']): Promise<void> =>
+    requestNoContent(`/stage-photo-categories/${encodeURIComponent(key)}`, { method: 'PUT', body }),
 };
 
 // ── Reports ──
@@ -570,4 +593,162 @@ export const followupsApi = {
     request(`/leads/${leadId}/followups/cancel`, s.zFollowupsCancelAllResponse, { method: 'POST' }),
   cancel: (id: number): Promise<S['Followup']> =>
     request(`/followups/${id}/cancel`, s.zFollowupsCancelOneResponse, { method: 'POST' }),
+};
+
+// ── Lead sources: the list the source select offers (0048) ──
+export const leadSourcesApi = {
+  list: (includeArchived = false): Promise<S['Items_LeadSource']> =>
+    request('/lead-sources', s.zLeadsListSourcesResponse, { search: { include_archived: includeArchived } }),
+  create: (body: S['SourceBody']): Promise<S['LeadSource']> =>
+    request('/lead-sources', s.zLeadsCreateSourceResponse, { method: 'POST', body }),
+  update: (key: string, body: S['SourceBody']): Promise<S['LeadSource']> =>
+    request(`/lead-sources/${encodeURIComponent(key)}`, s.zLeadsUpdateSourceResponse, { method: 'PATCH', body }),
+};
+
+// ── Comments with mentions on orders and leads (0048) ──
+export const commentsApi = {
+  list: (entityType: 'order' | 'lead', entityId: number): Promise<S['Items_Comment']> =>
+    request('/comments', s.zCommentsListResponse, { search: { entity_type: entityType, entity_id: entityId } }),
+  create: (body: S['CommentBody']): Promise<S['Comment']> =>
+    request('/comments', s.zCommentsCreateResponse, { method: 'POST', body }),
+  update: (id: number, body: S['EditBody']): Promise<S['Comment']> =>
+    request(`/comments/${id}`, s.zCommentsUpdateResponse, { method: 'PATCH', body }),
+  remove: (id: number): Promise<void> => requestNoContent(`/comments/${id}`, { method: 'DELETE' }),
+  mentionable: (): Promise<S['Items_Mentionable']> =>
+    request('/comments/mentionable', s.zCommentsMentionableResponse),
+};
+
+// ── The yard board (0048) ──
+export const yardApi = {
+  board: (): Promise<S['Board']> => request('/yard/board', s.zYardBoardResponse),
+  locations: (includeArchived = false): Promise<S['Items_YardLocation']> =>
+    request('/yard/locations', s.zYardLocationsResponse, { search: { include_archived: includeArchived } }),
+  createLocation: (body: S['LocationBody']): Promise<S['YardLocation']> =>
+    request('/yard/locations', s.zYardCreateLocationResponse, { method: 'POST', body }),
+  updateLocation: (id: number, body: S['LocationBody']): Promise<S['YardLocation']> =>
+    request(`/yard/locations/${id}`, s.zYardUpdateLocationResponse, { method: 'PATCH', body }),
+  move: (body: S['MoveBody']): Promise<S['MoveResult']> =>
+    request('/yard/moves', s.zYardMoveVehicleResponse, { method: 'POST', body }),
+  moves: (vehicleId: number): Promise<S['Items_VehicleMove']> =>
+    request(`/vehicles/${vehicleId}/moves`, s.zYardVehicleMovesResponse),
+};
+
+// ── Internal incidents (0048) ──
+export const incidentsApi = {
+  list: (search: QueryOf<'incidents_list'> = {}): Promise<S['Items_Incident']> =>
+    request('/incidents', s.zIncidentsListResponse, { search }),
+  get: (id: number): Promise<S['Incident']> => request(`/incidents/${id}`, s.zIncidentsDetailResponse),
+  create: (body: S['IncidentBody']): Promise<S['Incident']> =>
+    request('/incidents', s.zIncidentsCreateResponse, { method: 'POST', body }),
+  update: (id: number, body: S['IncidentPatch']): Promise<S['Incident']> =>
+    request(`/incidents/${id}`, s.zIncidentsUpdateResponse, { method: 'PATCH', body }),
+  openRework: (id: number): Promise<S['Incident']> =>
+    request(`/incidents/${id}/rework`, s.zIncidentsOpenReworkResponse, { method: 'POST' }),
+};
+
+// ── Batch 0049 ──────────────────────────────────────────────────────────────
+
+// Sign-in methods, two-factor sign-in and the calendar feed (own account).
+export const accountApi = {
+  providers: (): Promise<S['Providers']> => request('/auth/providers', s.zAuthProvidersResponse),
+  twoFactor: (): Promise<S['TwoFactorStatus']> => request('/auth/two-factor', s.zAuthTwoFactorStatusResponse),
+  setupTwoFactor: (password: string): Promise<S['TwoFactorSetup']> =>
+    request('/auth/two-factor/setup', s.zAuthTwoFactorSetupResponse, { method: 'POST', body: { password } }),
+  enableTwoFactor: (code: string): Promise<void> =>
+    requestNoContent('/auth/two-factor/enable', { method: 'POST', body: { code } }),
+  disableTwoFactor: (password: string): Promise<void> =>
+    requestNoContent('/auth/two-factor/disable', { method: 'POST', body: { password } }),
+  calendar: (): Promise<S['CalendarFeed']> => request('/auth/calendar', s.zAuthGetCalendarResponse),
+  createCalendar: (): Promise<S['CalendarFeed']> =>
+    request('/auth/calendar', s.zAuthCreateCalendarResponse, { method: 'POST' }),
+  deleteCalendar: (): Promise<void> => requestNoContent('/auth/calendar', { method: 'DELETE' }),
+  resetUserTwoFactor: (userId: number): Promise<void> =>
+    requestNoContent(`/users/${userId}/two-factor`, { method: 'DELETE' }),
+};
+
+// Partial payments and the statement of account.
+export const paymentsApi = {
+  list: (invoiceId: number): Promise<S['Items_InvoicePayment']> =>
+    request(`/invoices/${invoiceId}/payments`, s.zInvoicesListPaymentsResponse),
+  add: (invoiceId: number, body: S['PaymentBody']): Promise<S['Items_InvoicePayment']> =>
+    request(`/invoices/${invoiceId}/payments`, s.zInvoicesAddPaymentResponse, { method: 'POST', body }),
+  remove: (invoiceId: number, paymentId: number): Promise<void> =>
+    requestNoContent(`/invoices/${invoiceId}/payments/${paymentId}`, { method: 'DELETE' }),
+  statement: (partnerId: number, search: QueryOf<'invoices_statement'> = {}): Promise<S['Statement']> =>
+    request(`/partners/${partnerId}/statement`, s.zInvoicesStatementResponse, { search }),
+};
+
+export const partnerExtrasApi = {
+  setInvoiceLanguage: (id: number, language: string | null): Promise<void> =>
+    requestNoContent(`/partners/${id}/invoice-language`, { method: 'PUT', body: { language } }),
+  bulk: (body: S['PartnerBulkBody']): Promise<S['PartnerBulkResult']> =>
+    request('/partners/bulk-actions', s.zPartnersBulkActionResponse, { method: 'POST', body }),
+};
+
+export const conversationApi = {
+  forLead: (leadId: number): Promise<S['Items_ConversationItem']> =>
+    request(`/leads/${leadId}/conversation`, s.zLeadsConversationResponse),
+};
+
+export const templatePreviewApi = {
+  preview: (body: S['TemplatePreviewBody']): Promise<S['TemplatePreview']> =>
+    request('/email-templates/preview', s.zEmailPreviewTemplateResponse, { method: 'POST', body }),
+};
+
+export const subscribersApi = {
+  setLanguage: (id: number, language: string | null): Promise<void> =>
+    requestNoContent(`/newsletter/subscriptions/${id}/language`, { method: 'PUT', body: { language } }),
+  bulk: (body: S['SubscriberBulkBody']): Promise<S['SubscriberBulkResult']> =>
+    request('/newsletter/subscriptions/bulk-actions', s.zNewsletterBulkSubscribersResponse, { method: 'POST', body }),
+};
+
+export const hrExtrasApi = {
+  uploadAbsenceFile: (absenceId: number, file: File): Promise<void> =>
+    requestNoContent(`/hr/absences/${absenceId}/file`, { method: 'POST', rawBody: file, search: { filename: file.name } }),
+  absenceFileUrl: (absenceId: number): Promise<S['AbsenceFileUrl']> =>
+    request(`/hr/absences/${absenceId}/file-url`, s.zHrAbsenceFileUrlResponse),
+  setUser: (employeeId: number, userId: number | null): Promise<S['Employee']> =>
+    request(`/hr/employees/${employeeId}/user`, s.zHrSetUserResponse, { method: 'PUT', body: { user_id: userId } }),
+  checklistItems: (kind?: 'onboarding' | 'offboarding'): Promise<S['Items_ChecklistItem']> =>
+    request('/hr/checklist-items', s.zHrListChecklistItemsResponse, { search: { kind } }),
+  createChecklistItem: (body: S['ChecklistItemBody']): Promise<S['ChecklistItem']> =>
+    request('/hr/checklist-items', s.zHrCreateChecklistItemResponse, { method: 'POST', body }),
+  updateChecklistItem: (id: number, body: S['ChecklistItemBody']): Promise<S['ChecklistItem']> =>
+    request(`/hr/checklist-items/${id}`, s.zHrUpdateChecklistItemResponse, { method: 'PUT', body }),
+  archiveChecklistItem: (id: number): Promise<void> =>
+    requestNoContent(`/hr/checklist-items/${id}`, { method: 'DELETE' }),
+  startChecklist: (employeeId: number, body: S['StartChecklistBody']): Promise<S['ChecklistStarted']> =>
+    request(`/hr/employees/${employeeId}/checklists`, s.zHrStartChecklistResponse, { method: 'POST', body }),
+};
+
+export const orderExtrasApi = {
+  setCoolingSerial: (orderId: number, serial: string | null): Promise<S['OrderSpec']> =>
+    request(`/orders/${orderId}/cooling-serial`, s.zOrdersSetCoolingSerialResponse, { method: 'PUT', body: { serial } }),
+  decodeVin: (vin: string): Promise<S['VinInfo']> =>
+    request(`/vehicles/decode/${encodeURIComponent(vin)}`, s.zVehiclesDecodeVinResponse),
+};
+
+export const incomingExtrasApi = {
+  bulk: (body: S['IncomingBulkBody']): Promise<S['IncomingBulkResult']> =>
+    request('/incoming-invoices/bulk-actions', s.zIncomingInvoicesBulkActionResponse, { method: 'POST', body }),
+};
+
+type Range = { from?: string; to?: string };
+export const salesReportsApi = {
+  funnel: (search: Range = {}): Promise<S['SalesFunnel']> =>
+    request('/reports/sales-funnel', s.zReportsSalesFunnelResponse, { search }),
+  salespeople: (search: Range = {}): Promise<S['Salespeople']> =>
+    request('/reports/salespeople', s.zReportsSalespeopleResponse, { search }),
+  firstResponse: (search: Range = {}): Promise<S['FirstResponse']> =>
+    request('/reports/first-response', s.zReportsFirstResponseResponse, { search }),
+  revenueByCountry: (search: Range = {}): Promise<S['RevenueByCountry']> =>
+    request('/reports/revenue-by-country', s.zReportsRevenueByCountryResponse, { search }),
+  cumulativeFlow: (search: Range = {}): Promise<S['CumulativeFlow']> =>
+    request('/reports/cumulative-flow', s.zReportsCumulativeFlowResponse, { search }),
+  newsletterTrends: (search: Range = {}): Promise<S['NewsletterTrends']> =>
+    request('/reports/newsletter-trends', s.zReportsNewsletterTrendsResponse, { search }),
+  weeklyRecipients: (): Promise<S['WeeklyRecipients']> =>
+    request('/reports/weekly/recipients', s.zReportsGetWeeklyRecipientsResponse),
+  saveWeeklyRecipients: (recipients: string[]): Promise<S['WeeklyRecipients']> =>
+    request('/reports/weekly/recipients', s.zReportsPutWeeklyRecipientsResponse, { method: 'PUT', body: { recipients } }),
 };

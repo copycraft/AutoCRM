@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE lead_sources\n              SET label = $2, position = $3,\n                  archived_at = CASE WHEN $4 THEN coalesce(archived_at, now()) ELSE NULL END\n            WHERE key = $1\n        RETURNING key, label, position, is_system, archived_at,\n                  (SELECT count(*) FROM leads l WHERE l.source = lead_sources.key) AS \"leads!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_system",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "archived_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "leads!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "b341235453f990272d15a05f21751cf5de9735abf3ff1fb151b46268ae24709d"
+}

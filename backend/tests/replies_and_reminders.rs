@@ -21,9 +21,10 @@ fn lead(email: Option<&str>) -> LeadInput {
         contact_email: email.map(String::from),
         contact_phone: None,
         source: None,
+        source_detail: None,
         description: None,
         assigned_to: None,
-        quoted_value_minor: Some(500_000_00),
+        quoted_value_minor: Some(50_000_000),
         currency: Some("HUF".into()),
         quote_valid_until: None,
     }
@@ -54,9 +55,15 @@ fn raw(from: &str, in_reply_to: Option<&str>, message_id: &str) -> Vec<u8> {
 #[sqlx::test(migrations = "./migrations")]
 async fn a_reply_to_our_quotation_stops_its_follow_ups_and_lands_on_the_history(pool: PgPool) {
     let (state, user) = setup(&pool).await;
-    let lead = autocrm::service::leads::create(&state.db, &user, lead(Some("vevo@example.hu")), &[])
-        .await
-        .unwrap();
+    let lead = autocrm::service::leads::create(
+        &state.db,
+        &user,
+        lead(Some("vevo@example.hu")),
+        &[],
+        chrono::NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+    )
+    .await
+    .unwrap();
     email::send_quotation(
         &state,
         &user,
@@ -83,8 +90,14 @@ async fn a_reply_to_our_quotation_stops_its_follow_ups_and_lands_on_the_history(
     .unwrap();
     assert_eq!(followups::for_lead(&pool, lead.id).await.unwrap().len(), 3);
 
-    let raw = raw("vevo@example.hu", Some("email-77.abc@autotherm.hu"), "r1@example.hu");
-    let stored = mailbox::ingest(&pool, &raw, "sales@autotherm.hu").await.unwrap();
+    let raw = raw(
+        "vevo@example.hu",
+        Some("email-77.abc@autotherm.hu"),
+        "r1@example.hu",
+    );
+    let stored = mailbox::ingest(&pool, &raw, "sales@autotherm.hu")
+        .await
+        .unwrap();
     assert!(stored.is_some());
     let (lead_id, reply_to): (Option<i64>, Option<i64>) =
         sqlx::query_as("SELECT lead_id, reply_to_email_id FROM inbound_emails")
@@ -95,9 +108,14 @@ async fn a_reply_to_our_quotation_stops_its_follow_ups_and_lands_on_the_history(
 
     let rows = followups::for_lead(&pool, lead.id).await.unwrap();
     assert!(rows.iter().all(|f| f.status == "cancelled"), "{rows:?}");
-    assert!(rows.iter().all(|f| f.note.as_deref() == Some("az ügyfél válaszolt")));
+    assert!(
+        rows.iter()
+            .all(|f| f.note.as_deref() == Some("az ügyfél válaszolt"))
+    );
 
-    let history = timeline::list(&pool, TimelineEntity::Lead, lead.id, 50).await.unwrap();
+    let history = timeline::list(&pool, TimelineEntity::Lead, lead.id, 50)
+        .await
+        .unwrap();
     let received = history
         .iter()
         .find(|e| e.kind == "email" && e.action == "received")
@@ -106,17 +124,33 @@ async fn a_reply_to_our_quotation_stops_its_follow_ups_and_lands_on_the_history(
     assert!(received.detail.as_deref().unwrap().contains("megrendelném"));
 
     // The same message read again is stored once.
-    assert!(mailbox::ingest(&pool, &raw, "sales@autotherm.hu").await.unwrap().is_none());
+    assert!(
+        mailbox::ingest(&pool, &raw, "sales@autotherm.hu")
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
 async fn replies_match_by_address_and_strangers_or_our_own_mail_are_left_alone(pool: PgPool) {
     let (state, user) = setup(&pool).await;
-    let lead = autocrm::service::leads::create(&state.db, &user, lead(Some("Vevo@Example.hu")), &[])
-        .await
-        .unwrap();
+    let lead = autocrm::service::leads::create(
+        &state.db,
+        &user,
+        lead(Some("Vevo@Example.hu")),
+        &[],
+        chrono::NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+    )
+    .await
+    .unwrap();
     let by_address = raw("vevo@example.hu", None, "r2@example.hu");
-    assert!(mailbox::ingest(&pool, &by_address, "sales@autotherm.hu").await.unwrap().is_some());
+    assert!(
+        mailbox::ingest(&pool, &by_address, "sales@autotherm.hu")
+            .await
+            .unwrap()
+            .is_some()
+    );
     let matched: Option<i64> = sqlx::query_scalar("SELECT lead_id FROM inbound_emails")
         .fetch_one(&pool)
         .await
@@ -124,9 +158,19 @@ async fn replies_match_by_address_and_strangers_or_our_own_mail_are_left_alone(p
     assert_eq!(matched, Some(lead.id));
 
     let stranger = raw("spam@example.com", None, "r3@example.com");
-    assert!(mailbox::ingest(&pool, &stranger, "sales@autotherm.hu").await.unwrap().is_none());
+    assert!(
+        mailbox::ingest(&pool, &stranger, "sales@autotherm.hu")
+            .await
+            .unwrap()
+            .is_none()
+    );
     let own = raw("sales@autotherm.hu", None, "r4@autotherm.hu");
-    assert!(mailbox::ingest(&pool, &own, "sales@autotherm.hu").await.unwrap().is_none());
+    assert!(
+        mailbox::ingest(&pool, &own, "sales@autotherm.hu")
+            .await
+            .unwrap()
+            .is_none()
+    );
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM inbound_emails")
         .fetch_one(&pool)
         .await
@@ -157,7 +201,9 @@ async fn payment_reminders_go_once_per_step_and_only_the_latest_when_very_late(p
     let few_days_late = overdue_invoice(&pool, &user, 4).await;
     let not_yet = overdue_invoice(&pool, &user, 1).await;
     let switched_off = overdue_invoice(&pool, &user, 20).await;
-    invoices::set_reminders_off(&pool, switched_off, true).await.unwrap();
+    invoices::set_reminders_off(&pool, switched_off, true)
+        .await
+        .unwrap();
 
     let sent = reminders::send_payment_reminders(&state).await.unwrap();
     assert_eq!(sent, 2);
@@ -194,8 +240,14 @@ async fn payment_reminders_go_once_per_step_and_only_the_latest_when_very_late(p
         .unwrap();
     assert_eq!(reminders::send_payment_reminders(&state).await.unwrap(), 0);
 
-    let overdue = invoices::overdue(&pool, chrono::Utc::now().date_naive(), None, 50).await.unwrap();
-    assert!(overdue.iter().any(|i| i.id == two_weeks_late && i.reminders_sent == 1));
+    let overdue = invoices::overdue(&pool, chrono::Utc::now().date_naive(), None, 50)
+        .await
+        .unwrap();
+    assert!(
+        overdue
+            .iter()
+            .any(|i| i.id == two_weeks_late && i.reminders_sent == 1)
+    );
     assert!(!overdue.iter().any(|i| i.id == not_yet));
 }
 
@@ -204,8 +256,18 @@ async fn a_quote_about_to_expire_notifies_its_owner_once(pool: PgPool) {
     let (state, user) = setup(&pool).await;
     let mut input = lead(Some("vevo@example.hu"));
     input.assigned_to = Some(user.user_id);
-    input.quote_valid_until = Some(autocrm::service::business_today(state.config.business_tz) + chrono::TimeDelta::days(3));
-    let lead = autocrm::service::leads::create(&state.db, &user, input, &[]).await.unwrap();
+    input.quote_valid_until = Some(
+        autocrm::service::business_today(state.config.business_tz) + chrono::TimeDelta::days(3),
+    );
+    let lead = autocrm::service::leads::create(
+        &state.db,
+        &user,
+        input,
+        &[],
+        chrono::NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+    )
+    .await
+    .unwrap();
 
     assert_eq!(reminders::quote_expiry_alerts(&state).await.unwrap(), 1);
     assert_eq!(reminders::quote_expiry_alerts(&state).await.unwrap(), 0);
@@ -223,27 +285,53 @@ async fn a_quote_about_to_expire_notifies_its_owner_once(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn a_lost_reason_is_kept_on_the_lead_and_counted(pool: PgPool) {
     let (state, user) = setup(&pool).await;
-    let lead = autocrm::service::leads::create(&state.db, &user, lead(None), &[]).await.unwrap();
+    let lead = autocrm::service::leads::create(
+        &state.db,
+        &user,
+        lead(None),
+        &[],
+        chrono::NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+    )
+    .await
+    .unwrap();
     let reasons = lost_reasons::list(&pool, false).await.unwrap();
     let pricey = reasons.iter().find(|r| r.label == "Drága volt").unwrap();
     autocrm::service::stages::change_lead_stage(&state.db, &user, lead.id, "lost", None)
         .await
         .unwrap();
-    lost_reasons::set_for_lead(&pool, lead.id, Some(pricey.id)).await.unwrap();
-    assert_eq!(lost_reasons::for_lead(&pool, lead.id).await.unwrap().unwrap().id, pricey.id);
-    let now = chrono::Utc::now();
-    let breakdown = lost_reasons::breakdown(&pool, now - chrono::TimeDelta::days(1), now + chrono::TimeDelta::days(1))
+    lost_reasons::set_for_lead(&pool, lead.id, Some(pricey.id))
         .await
         .unwrap();
+    assert_eq!(
+        lost_reasons::for_lead(&pool, lead.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        pricey.id
+    );
+    let now = chrono::Utc::now();
+    let breakdown = lost_reasons::breakdown(
+        &pool,
+        now - chrono::TimeDelta::days(1),
+        now + chrono::TimeDelta::days(1),
+    )
+    .await
+    .unwrap();
     assert_eq!(breakdown.len(), 1);
-    assert_eq!((breakdown[0].reason.as_str(), breakdown[0].leads), ("Drága volt", 1));
+    assert_eq!(
+        (breakdown[0].reason.as_str(), breakdown[0].leads),
+        ("Drága volt", 1)
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
 async fn a_tracked_newsletter_is_one_letter_per_reader_with_its_own_links(pool: PgPool) {
     let (state, user) = setup(&pool).await;
     for addr in ["a@example.hu", "b@example.hu"] {
-        newsletter::subscribe(&pool, addr, "", "office").await.unwrap();
+        newsletter::subscribe(&pool, addr, "", "office")
+            .await
+            .unwrap();
     }
     let compose = sends::Compose {
         subject: "Őszi akció".into(),
@@ -254,6 +342,7 @@ async fn a_tracked_newsletter_is_one_letter_per_reader_with_its_own_links(pool: 
         attachment_document_ids: vec![],
         embed_document_ids: vec![],
         send_at: chrono::Utc::now() - chrono::TimeDelta::seconds(1),
+        variants: vec![],
     };
     let (send_id, recipients) = sends::schedule(&state, &user, &compose).await.unwrap();
     assert_eq!(recipients, 2);
@@ -282,7 +371,12 @@ async fn a_tracked_newsletter_is_one_letter_per_reader_with_its_own_links(pool: 
     let token = &rows[0].1;
     assert!(newsletter::record_open(&pool, token).await.unwrap());
     let url = "https://autotherm.hu/akcio?x=1&y=2";
-    assert!(sends::link_signature_ok(&state.config.upload_signing_key, token, url, &sends::link_signature(&state.config.upload_signing_key, token, url)));
+    assert!(sends::link_signature_ok(
+        &state.config.upload_signing_key,
+        token,
+        url,
+        &sends::link_signature(&state.config.upload_signing_key, token, url)
+    ));
     newsletter::record_click(&pool, token, url).await.unwrap();
     let stats = newsletter::send_stats(&pool, send_id).await.unwrap();
     assert_eq!((stats.opened, stats.clicked), (1, 1));
@@ -291,7 +385,9 @@ async fn a_tracked_newsletter_is_one_letter_per_reader_with_its_own_links(pool: 
 #[sqlx::test(migrations = "./migrations")]
 async fn a_scheduled_newsletter_waits_and_a_cancelled_one_never_goes(pool: PgPool) {
     let (state, user) = setup(&pool).await;
-    newsletter::subscribe(&pool, "a@example.hu", "", "office").await.unwrap();
+    newsletter::subscribe(&pool, "a@example.hu", "", "office")
+        .await
+        .unwrap();
     let mut compose = sends::Compose {
         subject: "Később".into(),
         body: "Szöveg".into(),
@@ -301,9 +397,14 @@ async fn a_scheduled_newsletter_waits_and_a_cancelled_one_never_goes(pool: PgPoo
         attachment_document_ids: vec![],
         embed_document_ids: vec![],
         send_at: chrono::Utc::now() + chrono::TimeDelta::hours(2),
+        variants: vec![],
     };
     let (later, _) = sends::schedule(&state, &user, &compose).await.unwrap();
-    assert_eq!(sends::dispatch(&state, later).await.unwrap(), 0, "not before its time");
+    assert_eq!(
+        sends::dispatch(&state, later).await.unwrap(),
+        0,
+        "not before its time"
+    );
 
     compose.send_at = chrono::Utc::now() - chrono::TimeDelta::seconds(1);
     let (cancelled, _) = sends::schedule(&state, &user, &compose).await.unwrap();

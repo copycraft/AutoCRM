@@ -18,11 +18,18 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 clap = { version = "4", features = ["derive", "env"] }
 cookie = "0.18"
+# ZIP downloads: the checksum each entry carries. Already in the tree through png.
+crc32fast = "1"
+# Two-factor codes (TOTP is HMAC-SHA1 by RFC 6238), and sealing stored secrets. All three are
+# already in the tree (aws-sdk, rustls).
+hkdf = "0.12"
+ring = "0.17"
+sha1 = "0.10"
 dotenvy = "0.15"
 futures = "0.3"
 hex = "0.4"
 hmac = "0.12"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+image = { version = "0.25", default-features = false, features = ["bmp", "jpeg", "png", "webp"] }
 kamadak-exif = "0.6"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls", "hostname"] }
 mail-parser = "0.11"

@@ -17,6 +17,8 @@ pub struct EmployeeRow {
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The CRM account this person signs in with (0049): leaving can switch it off.
+    pub user_id: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,7 +31,7 @@ pub struct EmployeeInput {
 }
 
 const COLUMNS: &str = "id, full_name, email, company_phone, personal_phone, photo_key,
-                       annual_leave_days, status_id, archived_at, created_at, updated_at";
+                       annual_leave_days, status_id, archived_at, created_at, updated_at, user_id";
 
 pub async fn list(
     db: impl PgExecutor<'_>,
@@ -174,4 +176,19 @@ pub async fn set_status(
     .bind(status_id)
     .fetch_optional(db)
     .await
+}
+
+/// Links (or unlinks) the CRM account. Fails on the unique index when another employee
+/// already has that account.
+pub async fn set_user(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    user_id: Option<i64>,
+) -> sqlx::Result<bool> {
+    let done = sqlx::query("UPDATE employees SET user_id = $2 WHERE id = $1")
+        .bind(id)
+        .bind(user_id)
+        .execute(db)
+        .await?;
+    Ok(done.rows_affected() == 1)
 }

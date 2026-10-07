@@ -55,6 +55,32 @@ pub enum DocumentKind {
     /// exactly why it has a kind of its own rather than hiding among the invoices.
     Proforma,
     Other,
+    /// A short clip recorded during a handover walkaround (0047). Never an email attachment.
+    Video,
+}
+
+/// What kind of thumbnail a document gets, from its file name. `None`: no thumbnail (PDFs
+/// preview in the browser instead).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThumbSource {
+    Dxf,
+    Dwg,
+    Image,
+}
+
+pub fn thumb_source(filename: &str) -> Option<ThumbSource> {
+    let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    match ext.as_str() {
+        "dxf" => Some(ThumbSource::Dxf),
+        "dwg" => Some(ThumbSource::Dwg),
+        "jpg" | "jpeg" | "png" | "webp" => Some(ThumbSource::Image),
+        _ => None,
+    }
+}
+
+/// Where a document's thumbnail is stored: next to the file, by its key.
+pub fn document_thumb_key(storage_key: &str) -> String {
+    format!("{storage_key}.thumb.png")
 }
 
 pub const MAX_IMAGE_BYTES: i64 = 50 * 1024 * 1024;
@@ -115,6 +141,19 @@ pub fn lead_document_storage_key(lead_id: i64, hash_hex: &str, ext: &str) -> Str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn drawings_and_pictures_get_thumbnails_other_files_do_not() {
+        assert_eq!(thumb_source("alváz.DXF"), Some(ThumbSource::Dxf));
+        assert_eq!(thumb_source("terv.v2.dwg"), Some(ThumbSource::Dwg));
+        assert_eq!(thumb_source("fotó.jpeg"), Some(ThumbSource::Image));
+        assert_eq!(thumb_source("ajánlat.pdf"), None);
+        assert_eq!(thumb_source("README"), None);
+        assert_eq!(
+            document_thumb_key("orders/1/documents/ab.dxf"),
+            "orders/1/documents/ab.dxf.thumb.png"
+        );
+    }
 
     #[test]
     fn only_intake_is_immutable() {

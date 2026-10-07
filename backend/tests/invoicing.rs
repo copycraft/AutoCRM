@@ -1030,6 +1030,8 @@ async fn refetching_a_pdf_needs_an_issued_invoice_missing_its_file(pool: PgPool)
             byte_size: 10,
             uploaded_by: Some(user.user_id),
             source_ref: None,
+            previous_version_id: None,
+            version: 1,
         },
     )
     .await

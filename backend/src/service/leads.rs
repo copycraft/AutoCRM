@@ -4,12 +4,12 @@ use chrono::NaiveDate;
 use serde_json::json;
 use sqlx::PgPool;
 
+use crate::domain::lead_tag;
 use crate::domain::stage::{StageEntity, initial_stage, keys};
 use crate::error::{AppError, AppResult};
 use crate::repo::leads::{Lead, LeadInput};
 use crate::repo::orders::{Order, OrderFields};
-use crate::domain::lead_tag;
-use crate::repo::{audit, config, contacts, lead_tags, leads, partners, stages};
+use crate::repo::{audit, config, contacts, lead_sources, lead_tags, leads, partners, stages};
 use crate::service::auth::AuthUser;
 use crate::service::orders::{NewItem, create_in_tx};
 use sqlx::PgConnection;
@@ -43,18 +43,95 @@ pub async fn check_relations(
     Ok(())
 }
 
+/// Checks the source against the list (0048). Unchanged on an update: an archived source
+/// may stay on the leads that have it. A system source (`website`, `minicrm`) is never
+/// picked by hand. Anything else that is not a key: a label typed by an older client
+/// becomes its key, and free text becomes `other` with the text kept as the detail.
+pub async fn normalize_source(
+    conn: &mut PgConnection,
+    current: Option<&str>,
+    input: &mut LeadInput,
+) -> AppResult<()> {
+    let Some(raw) = input.source.clone() else {
+        return Ok(());
+    };
+    if Some(raw.as_str()) == current {
+        return Ok(());
+    }
+    match lead_sources::find(&mut *conn, &raw).await? {
+        Some(s) if s.is_system => Err(AppError::validation(format!(
+            "source '{}' is set by the system and cannot be chosen",
+            s.key
+        ))),
+        Some(s) if s.archived_at.is_some() => Err(AppError::validation(format!(
+            "source '{}' is archived",
+            s.key
+        ))),
+        Some(_) => Ok(()),
+        None => {
+            let matched = lead_sources::matching(&mut *conn, &raw).await?;
+            let usable = match &matched {
+                Some(key) => lead_sources::find(&mut *conn, key)
+                    .await?
+                    .is_some_and(|s| !s.is_system),
+                None => false,
+            };
+            if usable {
+                input.source = matched;
+            } else {
+                if input.source_detail.is_none() {
+                    input.source_detail = Some(raw);
+                }
+                input.source = Some("other".into());
+            }
+            Ok(())
+        }
+    }
+}
+
+/// How far back a published MNB rate still counts for a quote (MNB skips weekends and
+/// holidays), the same window the order valuation uses.
+const QUOTE_FX_WINDOW_DAYS: i64 = 10;
+
+/// Freezes an EUR quote's MNB rate as of `today`, or clears it when the quote is not in
+/// EUR. Without a rate in the window the snapshot is cleared rather than guessed.
+pub async fn refresh_quote_fx(
+    conn: &mut PgConnection,
+    mut lead: Lead,
+    today: NaiveDate,
+) -> AppResult<Lead> {
+    let wanted = if lead.currency.as_deref() == Some("EUR") && lead.quoted_value_minor.is_some() {
+        crate::repo::fx::rate_on_or_before(&mut *conn, "EUR", today)
+            .await?
+            .filter(|r| (today - r.day).num_days() <= QUOTE_FX_WINDOW_DAYS)
+            .map(|r| (r.rate, r.day))
+    } else {
+        None
+    };
+    let current = lead.quote_fx_rate.zip(lead.quote_fx_day);
+    if wanted != current {
+        leads::set_quote_fx(&mut *conn, lead.id, wanted).await?;
+        lead.quote_fx_rate = wanted.map(|w| w.0);
+        lead.quote_fx_day = wanted.map(|w| w.1);
+    }
+    Ok(lead)
+}
+
 /// `tag_ids` are the tags the person picked; tags claiming a domain the source names are
 /// added on top.
 pub async fn create(
     db: &PgPool,
     user: &AuthUser,
-    input: LeadInput,
+    mut input: LeadInput,
     tag_ids: &[i64],
+    today: NaiveDate,
 ) -> AppResult<Lead> {
     let mut tx = db.begin().await?;
+    normalize_source(&mut tx, None, &mut input).await?;
     check_relations(&mut tx, input.partner_id, input.contact_id).await?;
     check_new_tags(&mut tx, tag_ids).await?;
     let lead = leads::insert(&mut *tx, &input, user.user_id).await?;
+    let lead = refresh_quote_fx(&mut tx, lead, today).await?;
     let definitions = config::stage_definitions(&mut *tx, StageEntity::Lead).await?;
     let initial = initial_stage(&definitions)
         .ok_or_else(|| AppError::internal("no active initial lead stage is configured"))?;
@@ -62,8 +139,13 @@ pub async fn create(
     for &tag_id in tag_ids {
         lead_tags::link(&mut *tx, lead.id, tag_id, None, Some(user.user_id)).await?;
     }
-    // A source typed as a domain (hutoautok.hu) is recognised like a website lead's.
-    auto_tag(&mut tx, lead.id, &lead_tag::hosts_of([input.source.as_deref()])).await?;
+    // A source detail typed as a domain (hutoautok.hu) is recognised like a website lead's.
+    auto_tag(
+        &mut tx,
+        lead.id,
+        &lead_tag::hosts_of([input.source_detail.as_deref(), input.source.as_deref()]),
+    )
+    .await?;
     audit::record(
         &mut *tx,
         Some(user.user_id),

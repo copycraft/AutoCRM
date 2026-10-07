@@ -12,13 +12,15 @@ the migrations, not to §2 of the plan. The full table list:
 
 | Area | Tables |
 |---|---|
-| Foundation | `users`, `sessions`, `audit_log`, `settings` (single row), `jobs`, `user_settings` |
-| Partners & leads | `partners`, `contacts`, `stage_definitions`, `leads`, `lead_stages` |
+| Foundation | `users`, `sessions`, `audit_log`, `settings` (single row), `jobs`, `user_settings`, `notifications` |
+| Partners & leads | `partners`, `contacts`, `stage_definitions`, `leads`, `lead_stages`, `lead_attribution`, `lead_tags`, `lead_tag_links`, `lost_reasons`, `followup_steps`, `lead_followups`, `quote_expiry_alerts` |
 | Orders | `project_types`, `orders`, `order_items`, `order_stages`, `blockers`, `order_notes`, `order_specs`, `tasks` |
 | Vehicles & inspections | `vehicles`, `order_vehicles`, `inspections`, `inspection_damages`, `inspection_photos`, `inspection_verdicts`, `inspection_signatures`, `inspection_notes`, `inspection_zone_templates` |
 | Media | `images`, `documents` |
-| Email | `email_templates`, `email_messages`, `email_suppressions`, `newsletter_subscriptions` |
-| Invoicing | `invoices`, `invoice_lines`, `proformas` |
+| Email | `email_templates`, `email_messages`, `email_suppressions`, `email_clicks`, `inbound_emails`, `mailbox_cursor` |
+| Newsletter | `newsletter_subscriptions`, `newsletter_tags`, `newsletter_subscription_tags`, `newsletter_sends` |
+| Invoicing | `invoices`, `invoice_lines`, `proformas`, `invoice_reminders`, `incoming_invoices` + view `invoice_buckets` |
+| HR | `employees`, `employee_statuses`, `employee_details`, `employee_documents`, `employee_document_alerts`, `absences`, `job_postings`, `job_applications` |
 | Reporting | `fx_rates` + views `order_current_stage`, `lead_current_stage`, `order_stage_intervals`, `order_values` |
 
 **No VAT on line items.** The plan both added `vat_rate` and said not to. It is not there.
@@ -27,9 +29,14 @@ to a job.
 
 **Scope grew past the original plan, on purpose.** The plan and `docs/history/FRONTEND_PLAN.md`
 listed invoicing as out of scope. It was built (migrations `0020`–`0022`, `0028`–`0030`),
-along with tasks, the intake slip, handover inspections and a newsletter list. The README's
-Scope section is the current list. Inventory, cost tracking, purchase orders, time
-tracking, inbound mail and a customer portal remain out.
+along with tasks, the intake slip, handover inspections and a newsletter list, and later
+HR and recruitment (`0034`, `0036`, `0039`, `0043`), website leads with source tracking and
+notifications (`0035`, `0037`, `0038`), lead and newsletter tags (`0040`, `0041`),
+incoming invoices (`0042`), quote follow-ups (`0044`) and payment reminders, customer
+replies and newsletter tracking (`0046`). The README's Scope section is the current list.
+Inventory, cost tracking, purchase orders, time tracking and a customer portal remain out.
+Inbound mail is in only as customer replies read from one mailbox and matched to records,
+not as a general inbox.
 
 **Orders carry `number`, `project_type_id` and `valuation_date`.** Reports group by project
 type (a configurable table, like stages) and normalise currency at the valuation date's
@@ -117,6 +124,16 @@ ones — a guaranteed schema divergence. The next migration is always max+1.
   before migration `0031` were kept active. The confirmation letter is automatic mail, so it
   is cancelled while the kill switch is off: switch automatic mail on before putting the
   signup form live.
+- **A newsletter is one letter per reader** (`0046`), not one row with everyone in BCC: each
+  reader needs their own unsubscribe link, and opens and clicks mean nothing without a
+  reader to count them against. Each letter is ordinary automatic mail, so the send window,
+  the per-recipient cap and the suppression list apply. Click links are HMAC-signed so the
+  redirect endpoint cannot be used to send people anywhere else. The BCC blast
+  (`POST /newsletter/send`) is still in the API; no screen uses it.
+- **Customer replies are read, never managed** (`0046`). The sales mailbox is read over IMAP
+  without moving, flagging or deleting anything. A reply is matched by its headers, else by
+  sender, and stored on the record's history; mail that matches nothing is not stored. A
+  reply stops the lead's waiting follow-ups.
 
 ## Reporting
 
@@ -266,4 +283,5 @@ The phone-only átvétel / kiadás walkarounds (`backend/migrations/0026`). Rule
 3. **Retention/GDPR stance** for write-once intake photos and the never-deleted email log.
 4. **Historical invoices** — read-only export vs. keeping MiniCRM accessible for a while.
 5. **Invoice numbering continuity** when billing leaves MiniCRM (accountant question).
-6. **Real stage names and project types** — the seeded ones are placeholders.
+6. **Real stage names and project types** — the seeded ones are placeholders. The API can
+   change them (`/stage-definitions`, `/project-types`), but no screen does yet.

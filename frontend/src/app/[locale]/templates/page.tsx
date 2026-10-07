@@ -17,6 +17,7 @@ import { errorMessage } from '@/lib/api/errors';
 import { canAdmin, useAuth } from '@/lib/auth/context';
 import { cn } from '@/lib/utils/format';
 import { FollowupSteps } from '@/components/followups/FollowupSteps';
+import { TemplatePreview } from '@/components/email/TemplatePreview';
 import type { EmailTemplate } from '@/lib/api/types';
 
 const CATEGORIES = ['sales', 'projects', 'billing', 'marketing', 'hr', 'general'] as const;
@@ -309,6 +310,7 @@ function TemplateEditor({
             </div>
           </div>
         )}
+        <TemplatePreview subject={subject} body={body} />
         {error && <p className="text-body text-signal" role="alert">{error}</p>}
       </form>
       {editable && (

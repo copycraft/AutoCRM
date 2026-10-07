@@ -42,6 +42,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(quotation))
         .routes(routes!(expiring_quotes))
         .routes(routes!(bulk_action))
+        // 0049
+        .routes(routes!(conversation))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -113,7 +115,10 @@ async fn bulk_action(
         };
         match outcome {
             Ok(()) => applied += 1,
-            Err(e) => skipped.push(BulkSkip { id, error: e.to_string() }),
+            Err(e) => skipped.push(BulkSkip {
+                id,
+                error: e.to_string(),
+            }),
         }
     }
     Ok(Json(BulkResult { applied, skipped }))
@@ -226,8 +231,13 @@ struct LeadBody {
     contact_email: Option<Option<String>>,
     #[serde(default, deserialize_with = "patch_field")]
     contact_phone: Option<Option<String>>,
+    /// A key of `GET /lead-sources`. Text that is not a key is filed as `other`, with the
+    /// text kept as `source_detail`: older clients typed sources freely.
     #[serde(default, deserialize_with = "patch_field")]
     source: Option<Option<String>>,
+    /// Which fair, who referred them, which domain: what the source alone does not say.
+    #[serde(default, deserialize_with = "patch_field")]
+    source_detail: Option<Option<String>>,
     #[serde(default, deserialize_with = "patch_field")]
     description: Option<Option<String>>,
     #[serde(default, deserialize_with = "patch_field")]
@@ -276,6 +286,10 @@ fn merge(current: Option<&Lead>, b: LeadBody) -> AppResult<LeadInput> {
             b.contact_phone,
         ),
         source: patch_text(&current.and_then(|l| l.source.clone()), b.source),
+        source_detail: patch_text(
+            &current.and_then(|l| l.source_detail.clone()),
+            b.source_detail,
+        ),
         description: patch_text(&current.and_then(|l| l.description.clone()), b.description),
         assigned_to: keep(current.and_then(|l| l.assigned_to), b.assigned_to),
         quoted_value_minor: keep(
@@ -306,7 +320,8 @@ async fn create(
     me.require(Capability::EditLeads)?;
     let tag_ids = std::mem::take(&mut b.tag_ids);
     let input = merge(None, b)?;
-    let lead = service::leads::create(&state.db, &me, input, &tag_ids).await?;
+    let today = service::business_today(state.config.business_tz);
+    let lead = service::leads::create(&state.db, &me, input, &tag_ids, today).await?;
     Ok((StatusCode::CREATED, Json(lead)))
 }
 
@@ -337,6 +352,11 @@ pub struct WebsiteLead {
     referrer: Option<String>,
     /// The first page of the visit, which is not always the page the form is on.
     landing_page: Option<String>,
+    /// Google Ads click id (`?gclid=` on the landing URL). A visit with one came from a paid
+    /// click; once the lead is won it is reported back to Google Ads.
+    gclid: Option<String>,
+    /// Meta click id (`?fbclid=`), for the Conversions API.
+    fbclid: Option<String>,
     /// The website the form is on (`hutoautok.hu` or its URL), when several sites post
     /// here. Lead tags claiming that domain are put on the lead.
     site: Option<String>,
@@ -388,6 +408,8 @@ fn lead_from_website(
     let referrer = capped("referrer", b.referrer, MAX_URL)?;
     let landing_page = capped("landing_page", b.landing_page, MAX_URL)?;
     let site = capped("site", b.site, MAX_URL)?;
+    let gclid = capped("gclid", b.gclid, 200)?;
+    let fbclid = capped("fbclid", b.fbclid, 300)?;
     // Strongest evidence first: the site the form is on, then where the visit began, then
     // whatever sent the visitor.
     let hosts = lead_tag::hosts_of([
@@ -400,13 +422,21 @@ fn lead_from_website(
         referrer.as_deref(),
     ]);
     let attribution = Attribution {
-        channel: attribution::classify(
-            utm_source.as_deref(),
-            utm_medium.as_deref(),
-            referrer.as_deref(),
-        )
-        .as_str()
-        .to_string(),
+        // A Google click id is a paid click whatever the tags say (auto-tagging sends no
+        // UTM at all). An fbclid is not: Facebook adds it to every outbound link.
+        channel: if gclid.is_some() {
+            "paid".to_string()
+        } else {
+            attribution::classify(
+                utm_source.as_deref(),
+                utm_medium.as_deref(),
+                referrer.as_deref(),
+            )
+            .as_str()
+            .to_string()
+        },
+        gclid,
+        fbclid,
         utm_source,
         utm_medium,
         utm_campaign,
@@ -432,6 +462,7 @@ fn lead_from_website(
         contact_email: email,
         contact_phone: phone,
         source: Some("website".into()),
+        source_detail: None,
         description: (!parts.is_empty()).then(|| parts.join("\n\n")),
         assigned_to: None,
         quoted_value_minor: None,
@@ -467,10 +498,8 @@ async fn website(
         return Ok(StatusCode::ACCEPTED);
     }
     let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
-    let (input, attribution, hosts) =
-        lead_from_website(b, header("origin"), header("referer"))?;
-    let lead =
-        service::leads::create_from_website(&state.db, input, &attribution, &hosts).await?;
+    let (input, attribution, hosts) = lead_from_website(b, header("origin"), header("referer"))?;
+    let lead = service::leads::create_from_website(&state.db, input, &attribution, &hosts).await?;
     // The lead is already committed; a failed alert is logged, never the visitor's problem.
     if let Err(e) = service::email::website_lead_alert(&state, &lead).await {
         tracing::error!(lead_id = lead.id, error = %e, "could not queue the website lead alert");
@@ -557,14 +586,23 @@ async fn update(
     let current = leads::lock(&mut *tx, id)
         .await?
         .ok_or(AppError::NotFound("lead"))?;
-    let input = merge(Some(&current), b)?;
+    let mut input = merge(Some(&current), b)?;
+    service::leads::normalize_source(&mut tx, current.source.as_deref(), &mut input).await?;
     // Create refuses dangling and mismatched relations; an update that swaps the
     // partner under a kept contact must not smuggle one in (N1). Archived partners
     // take no new work here either, like on orders (N6).
     service::leads::check_relations(&mut tx, input.partner_id, input.contact_id).await?;
-    let updated = leads::update(&mut *tx, id, &input)
+    let mut updated = leads::update(&mut *tx, id, &input)
         .await?
         .ok_or(AppError::NotFound("lead"))?;
+    // The rate is frozen when the quote changes, and on the first EUR quote.
+    if updated.quoted_value_minor != current.quoted_value_minor
+        || updated.currency != current.currency
+        || (updated.currency.as_deref() == Some("EUR") && updated.quote_fx_rate.is_none())
+    {
+        let today = service::business_today(state.config.business_tz);
+        updated = service::leads::refresh_quote_fx(&mut tx, updated, today).await?;
+    }
     let changes = audit::diff(&[
         ("title", json!(current.title), json!(updated.title)),
         (
@@ -593,6 +631,11 @@ async fn update(
             json!(updated.contact_phone),
         ),
         ("source", json!(current.source), json!(updated.source)),
+        (
+            "source_detail",
+            json!(current.source_detail),
+            json!(updated.source_detail),
+        ),
         (
             "description",
             json!(current.description),
@@ -648,7 +691,9 @@ async fn change_stage(
     let note = optional(b.note);
     if let Some(reason) = b.lost_reason_id
         && b.stage.trim() == "lost"
-        && crate::repo::lost_reasons::find(&state.db, reason).await?.is_none()
+        && crate::repo::lost_reasons::find(&state.db, reason)
+            .await?
+            .is_none()
     {
         return Err(AppError::validation("lost_reason_id does not exist"));
     }
@@ -656,7 +701,11 @@ async fn change_stage(
         service::stages::change_lead_stage(&state.db, &me, id, b.stage.trim(), note.as_deref())
             .await?;
     // The reason belongs to the lost stage: set on the way in, cleared on the way out.
-    let reason = if b.stage.trim() == "lost" { b.lost_reason_id } else { None };
+    let reason = if b.stage.trim() == "lost" {
+        b.lost_reason_id
+    } else {
+        None
+    };
     crate::repo::lost_reasons::set_for_lead(&state.db, id, reason).await?;
     Ok(Json(change))
 }
@@ -696,9 +745,19 @@ async fn convert(
         .ok_or(AppError::NotFound("lead"))?;
     let partner_id = b.partner_id.or(lead.partner_id);
     let title_fallback = lead.title.clone();
+    let valuation_given = b.valuation_date.is_some();
     let (mut fields, items) =
         fields_from_body(b, partner_id.unwrap_or(0), today, Some(title_fallback))?;
     fields.partner_id = partner_id.unwrap_or(0);
+    // An EUR quote froze its MNB day: the order is valued on it, so it reports in HUF what
+    // the customer was quoted, unless the office chose another valuation date.
+    if !valuation_given
+        && fields.currency == "EUR"
+        && lead.currency.as_deref() == Some("EUR")
+        && let Some(day) = lead.quote_fx_day
+    {
+        fields.valuation_date = day;
+    }
     let order = service::leads::convert(
         &state.db,
         &me,
@@ -711,6 +770,9 @@ async fn convert(
         },
     )
     .await?;
+    if let Err(e) = service::ads::queue_conversion(&state, id, order.id).await {
+        tracing::error!(lead_id = id, error = %e, "could not queue the ad conversion");
+    }
     Ok((StatusCode::CREATED, Json(order)))
 }
 
@@ -737,5 +799,33 @@ async fn quotation(
 ) -> AppResult<(StatusCode, Json<QuotationSent>)> {
     me.require(Capability::SendEmail)?;
     let email_id = service::email::send_quotation(&state, &me, id, &b).await?;
+    // Sending is quoting: the rate of the day the letter went out is the one that counts.
+    let mut tx = state.db.begin().await?;
+    if let Some(lead) = leads::lock(&mut *tx, id).await? {
+        let today = service::business_today(state.config.business_tz);
+        service::leads::refresh_quote_fx(&mut tx, lead, today).await?;
+    }
+    tx.commit().await?;
     Ok((StatusCode::ACCEPTED, Json(QuotationSent { email_id })))
+}
+
+/// The whole correspondence with the lead's customer, both ways, oldest first: our letters
+/// (manual and automatic, also those about the order once won) and the replies read back
+/// from the mailbox. Answering one threads the reply (`reply_to_inbound_id` on send).
+#[utoipa::path(
+    get, path = "/leads/{id}/conversation", tag = "leads",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = Items<crate::repo::emails::ConversationItem>))
+)]
+async fn conversation(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<Items<crate::repo::emails::ConversationItem>>> {
+    if leads::find(&state.db, id).await?.is_none() {
+        return Err(AppError::NotFound("lead"));
+    }
+    Ok(Items::new(
+        crate::repo::emails::lead_conversation(&state.db, id).await?,
+    ))
 }

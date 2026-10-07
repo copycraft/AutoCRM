@@ -14,7 +14,13 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-async fn call(pool: &PgPool, method: &str, uri: &str, bearer: &str, body: Option<Value>) -> (StatusCode, Value) {
+async fn call(
+    pool: &PgPool,
+    method: &str,
+    uri: &str,
+    bearer: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
     let mut builder = Request::builder()
         .method(method)
         .uri(uri)
@@ -32,7 +38,10 @@ async fn call(pool: &PgPool, method: &str, uri: &str, bearer: &str, body: Option
         .unwrap();
     let status = response.status();
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
 }
 
 async fn token(pool: &PgPool, role: Role) -> String {
@@ -70,33 +79,88 @@ async fn statuses_follow_the_employee_in_and_out(pool: PgPool) {
     let ended = status_id(&pool, "Megszűnt jogviszony").await;
     let papers = status_id(&pool, "Személyi adatokra vár").await;
 
-    let (status, emp) = call(&pool, "POST", "/api/hr/employees", &admin, Some(json!({ "full_name": "Nagy Anna" }))).await;
+    let (status, emp) = call(
+        &pool,
+        "POST",
+        "/api/hr/employees",
+        &admin,
+        Some(json!({ "full_name": "Nagy Anna" })),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED, "{emp}");
     assert_eq!(emp["status_id"], active);
     let id = emp["id"].as_i64().unwrap();
 
-    let (status, emp) = call(&pool, "PUT", &format!("/api/hr/employees/{id}/status"), &admin, Some(json!({ "status_id": papers }))).await;
+    let (status, emp) = call(
+        &pool,
+        "PUT",
+        &format!("/api/hr/employees/{id}/status"),
+        &admin,
+        Some(json!({ "status_id": papers })),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{emp}");
     assert_eq!(emp["status_id"], papers);
     assert!(emp["archived_at"].is_null());
 
     // Ending the employment archives; archiving and coming back move the status.
-    let (_, emp) = call(&pool, "PUT", &format!("/api/hr/employees/{id}/status"), &admin, Some(json!({ "status_id": ended }))).await;
+    let (_, emp) = call(
+        &pool,
+        "PUT",
+        &format!("/api/hr/employees/{id}/status"),
+        &admin,
+        Some(json!({ "status_id": ended })),
+    )
+    .await;
     assert!(emp["archived_at"].is_string());
-    let (_, emp) = call(&pool, "POST", &format!("/api/hr/employees/{id}/unarchive"), &admin, None).await;
+    let (_, emp) = call(
+        &pool,
+        "POST",
+        &format!("/api/hr/employees/{id}/unarchive"),
+        &admin,
+        None,
+    )
+    .await;
     assert_eq!(emp["status_id"], active);
     assert!(emp["archived_at"].is_null());
-    let (_, emp) = call(&pool, "POST", &format!("/api/hr/employees/{id}/archive"), &admin, None).await;
+    let (_, emp) = call(
+        &pool,
+        "POST",
+        &format!("/api/hr/employees/{id}/archive"),
+        &admin,
+        None,
+    )
+    .await;
     assert_eq!(emp["status_id"], ended);
     // Any other status brings them back.
-    let (_, emp) = call(&pool, "PUT", &format!("/api/hr/employees/{id}/status"), &admin, Some(json!({ "status_id": papers }))).await;
+    let (_, emp) = call(
+        &pool,
+        "PUT",
+        &format!("/api/hr/employees/{id}/status"),
+        &admin,
+        Some(json!({ "status_id": papers })),
+    )
+    .await;
     assert!(emp["archived_at"].is_null());
 
     // The list filters by status and counts.
-    let (_, list) = call(&pool, "GET", &format!("/api/hr/employees?status={papers}"), &admin, None).await;
+    let (_, list) = call(
+        &pool,
+        "GET",
+        &format!("/api/hr/employees?status={papers}"),
+        &admin,
+        None,
+    )
+    .await;
     assert_eq!(list["items"].as_array().unwrap().len(), 1);
     let (_, statuses) = call(&pool, "GET", "/api/hr/statuses", &admin, None).await;
-    let s = statuses["items"].as_array().unwrap().iter().find(|s| s["id"] == papers).unwrap().clone();
+    let s = statuses["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == papers)
+        .unwrap()
+        .clone();
     assert_eq!(s["employees"], 1);
     assert_eq!(s["section"], "Aktív munkavállaló");
 }
@@ -116,14 +180,35 @@ async fn hr_edits_the_lists(pool: PgPool) {
     assert_eq!(created["color"], "#4f8a52");
     let id = created["id"].as_i64().unwrap();
 
-    let (status, _) = call(&pool, "PATCH", &format!("/api/hr/statuses/{id}"), &admin, Some(json!({ "archived": true }))).await;
+    let (status, _) = call(
+        &pool,
+        "PATCH",
+        &format!("/api/hr/statuses/{id}"),
+        &admin,
+        Some(json!({ "archived": true })),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
-    let (status, _) = call(&pool, "PUT", "/api/hr/employees/1/status", &admin, Some(json!({ "status_id": id }))).await;
+    let (status, _) = call(
+        &pool,
+        "PUT",
+        "/api/hr/employees/1/status",
+        &admin,
+        Some(json!({ "status_id": id })),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // The start and end statuses stay.
     let active = status_id(&pool, "Aktív munkavállaló").await;
-    let (status, body) = call(&pool, "PATCH", &format!("/api/hr/statuses/{active}"), &admin, Some(json!({ "archived": true }))).await;
+    let (status, body) = call(
+        &pool,
+        "PATCH",
+        &format!("/api/hr/statuses/{active}"),
+        &admin,
+        Some(json!({ "archived": true })),
+    )
+    .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
     assert_eq!(body["error"]["code"], "status_required");
 

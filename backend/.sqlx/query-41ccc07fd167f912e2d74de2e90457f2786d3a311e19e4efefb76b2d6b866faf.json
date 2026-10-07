@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.id, m.vehicle_id, m.location_id, l.name AS \"location_name?\", m.order_id, m.note,\n                  m.moved_by, u.display_name AS \"moved_by_name?\", m.moved_at\n           FROM vehicle_moves m\n           LEFT JOIN yard_locations l ON l.id = m.location_id\n           LEFT JOIN users u ON u.id = m.moved_by\n           WHERE m.vehicle_id = $1\n           ORDER BY m.moved_at DESC, m.id DESC LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "vehicle_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "location_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "location_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "note",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "moved_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "moved_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "moved_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "41ccc07fd167f912e2d74de2e90457f2786d3a311e19e4efefb76b2d6b866faf"
+}

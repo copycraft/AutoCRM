@@ -6,7 +6,8 @@ import { getTranslations } from 'next-intl/server';
 import type { Metadata } from 'next';
 import { PrivacyContent, type PrivacyCompany } from '@/components/privacy/PrivacyContent';
 
-export async function generateMetadata({ params: { locale } }: { params: { locale: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'privacy' });
   return { title: `${t('title')} | Autotherm` };
 }

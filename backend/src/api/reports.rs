@@ -32,6 +32,14 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(fx_rates))
         .routes(routes!(lead_sources))
         .routes(routes!(website_conversion))
+        // 0049
+        .routes(routes!(sales_funnel))
+        .routes(routes!(salespeople))
+        .routes(routes!(first_response))
+        .routes(routes!(revenue_by_country))
+        .routes(routes!(cumulative_flow))
+        .routes(routes!(newsletter_trends))
+        .routes(routes!(get_weekly_recipients, put_weekly_recipients))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -438,4 +446,222 @@ async fn website_conversion(
         lost_reasons: crate::repo::lost_reasons::breakdown(&state.db, from, to).await?,
         period: p,
     }))
+}
+
+// --- Sales and marketing reports (0049) ---
+
+use crate::repo::sales_reports::{
+    self, FlowPoint, FunnelStage, FunnelTotals, ResponseRow, RevenueRow, SalespersonRow, SendTrend,
+    SubscriberMonth,
+};
+
+#[derive(Serialize, ToSchema)]
+struct SalesFunnel {
+    period: Period,
+    totals: FunnelTotals,
+    /// Progress stages in order, then the exit (lost) stages.
+    stages: Vec<FunnelStage>,
+}
+
+/// The period's new leads, and how far they got.
+#[utoipa::path(
+    get, path = "/reports/sales-funnel", tag = "reports",
+    params(Range),
+    responses((status = 200, body = SalesFunnel))
+)]
+async fn sales_funnel(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<Range>,
+) -> AppResult<Json<SalesFunnel>> {
+    let p = period(&state, q.from, q.to)?;
+    let (from, to) = utc_bounds(state.config.business_tz, &p);
+    Ok(Json(SalesFunnel {
+        totals: sales_reports::funnel_totals(&state.db, from, to).await?,
+        stages: sales_reports::funnel(&state.db, from, to).await?,
+        period: p,
+    }))
+}
+
+#[derive(Serialize, ToSchema)]
+struct Salespeople {
+    period: Period,
+    rows: Vec<SalespersonRow>,
+}
+
+/// Each salesperson's leads from the period: quoted, won, lost, value, response time.
+#[utoipa::path(
+    get, path = "/reports/salespeople", tag = "reports",
+    params(Range),
+    responses((status = 200, body = Salespeople))
+)]
+async fn salespeople(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<Range>,
+) -> AppResult<Json<Salespeople>> {
+    let p = period(&state, q.from, q.to)?;
+    let (from, to) = utc_bounds(state.config.business_tz, &p);
+    Ok(Json(Salespeople {
+        rows: sales_reports::salespeople(&state.db, from, to).await?,
+        period: p,
+    }))
+}
+
+#[derive(Serialize, ToSchema)]
+struct FirstResponse {
+    period: Period,
+    /// The row with source `*` is all leads together.
+    rows: Vec<ResponseRow>,
+}
+
+/// How long new leads waited for a first human answer (a hand-written email or a stage
+/// moved by a person), by source.
+#[utoipa::path(
+    get, path = "/reports/first-response", tag = "reports",
+    params(Range),
+    responses((status = 200, body = FirstResponse))
+)]
+async fn first_response(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<Range>,
+) -> AppResult<Json<FirstResponse>> {
+    let p = period(&state, q.from, q.to)?;
+    let (from, to) = utc_bounds(state.config.business_tz, &p);
+    Ok(Json(FirstResponse {
+        rows: sales_reports::first_response(&state.db, from, to).await?,
+        period: p,
+    }))
+}
+
+#[derive(Serialize, ToSchema)]
+struct RevenueByCountry {
+    period: Period,
+    rows: Vec<RevenueRow>,
+}
+
+/// Order value per customer country and year (the export markets next to Hungary).
+#[utoipa::path(
+    get, path = "/reports/revenue-by-country", tag = "reports",
+    params(Range),
+    responses((status = 200, body = RevenueByCountry))
+)]
+async fn revenue_by_country(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<Range>,
+) -> AppResult<Json<RevenueByCountry>> {
+    let p = period(&state, q.from, q.to)?;
+    Ok(Json(RevenueByCountry {
+        rows: sales_reports::revenue_by_country(&state.db, p.from, p.to).await?,
+        period: p,
+    }))
+}
+
+#[derive(Serialize, ToSchema)]
+struct CumulativeFlow {
+    period: Period,
+    /// One point per week-end and stage.
+    points: Vec<FlowPoint>,
+}
+
+/// How many orders sat in each stage at the end of each week: widening bands are
+/// bottlenecks.
+#[utoipa::path(
+    get, path = "/reports/cumulative-flow", tag = "reports",
+    params(Range),
+    responses((status = 200, body = CumulativeFlow))
+)]
+async fn cumulative_flow(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<Range>,
+) -> AppResult<Json<CumulativeFlow>> {
+    let p = period(&state, q.from, q.to)?;
+    if (p.to - p.from).num_days() > 3 * 366 {
+        return Err(AppError::validation("at most three years at once"));
+    }
+    Ok(Json(CumulativeFlow {
+        points: sales_reports::cumulative_flow(&state.db, p.from, p.to).await?,
+        period: p,
+    }))
+}
+
+#[derive(Serialize, ToSchema)]
+struct NewsletterTrends {
+    period: Period,
+    months: Vec<SubscriberMonth>,
+    sends: Vec<SendTrend>,
+}
+
+/// Subscribers joining and leaving by month, and each tracked send's reach.
+#[utoipa::path(
+    get, path = "/reports/newsletter-trends", tag = "reports",
+    params(Range),
+    responses((status = 200, body = NewsletterTrends))
+)]
+async fn newsletter_trends(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiQuery(q): ApiQuery<Range>,
+) -> AppResult<Json<NewsletterTrends>> {
+    let p = period(&state, q.from, q.to)?;
+    let (from, to) = utc_bounds(state.config.business_tz, &p);
+    Ok(Json(NewsletterTrends {
+        months: sales_reports::subscriber_months(&state.db, p.from, p.to).await?,
+        sends: sales_reports::send_trends(&state.db, from, to).await?,
+        period: p,
+    }))
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+struct WeeklyRecipients {
+    /// Who gets the Monday report; empty turns it off.
+    recipients: Vec<String>,
+}
+
+#[utoipa::path(
+    get, path = "/reports/weekly/recipients", tag = "reports",
+    responses((status = 200, body = WeeklyRecipients))
+)]
+async fn get_weekly_recipients(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+) -> AppResult<Json<WeeklyRecipients>> {
+    me.require(crate::domain::role::Capability::ManageSettings)?;
+    Ok(Json(WeeklyRecipients {
+        recipients: crate::repo::config::weekly_report_recipients(&state.db).await?,
+    }))
+}
+
+#[utoipa::path(
+    put, path = "/reports/weekly/recipients", tag = "reports",
+    request_body = WeeklyRecipients,
+    responses((status = 200, body = WeeklyRecipients))
+)]
+async fn put_weekly_recipients(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    super::extract::ApiJson(b): super::extract::ApiJson<WeeklyRecipients>,
+) -> AppResult<Json<WeeklyRecipients>> {
+    me.require(crate::domain::role::Capability::ManageSettings)?;
+    let mut recipients = Vec::new();
+    for r in b
+        .recipients
+        .iter()
+        .map(|r| r.trim())
+        .filter(|r| !r.is_empty())
+    {
+        let address = crate::domain::email::normalize_address(r)
+            .ok_or_else(|| AppError::validation(format!("'{r}' is not a valid address")))?;
+        if !recipients.contains(&address) {
+            recipients.push(address);
+        }
+    }
+    if recipients.len() > 20 {
+        return Err(AppError::validation("at most 20 recipients"));
+    }
+    crate::repo::config::set_weekly_report_recipients(&state.db, &recipients).await?;
+    Ok(Json(WeeklyRecipients { recipients }))
 }

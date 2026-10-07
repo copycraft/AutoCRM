@@ -205,6 +205,20 @@ pub const ERROR_CODES: &[ErrorCode] = &[
         "The current password is incorrect.",
     ),
     code(
+        "totp_required",
+        422,
+        false,
+        "Adja meg a hitelesítő alkalmazás hatjegyű kódját is.",
+        "This account also needs the authenticator app's one-time code.",
+    ),
+    code(
+        "totp_invalid",
+        422,
+        false,
+        "Hibás vagy már felhasznált egyszer használatos kód.",
+        "The one-time code is wrong or was already used.",
+    ),
+    code(
         "last_admin",
         422,
         false,
@@ -440,6 +454,13 @@ pub const ERROR_CODES: &[ErrorCode] = &[
         true,
         "A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később.",
         "The invoicing service is unreachable.",
+    ),
+    code(
+        "overpayment",
+        422,
+        false,
+        "A befizetés több, mint a számlán még nyitott összeg.",
+        "The payment is more than is still open on the invoice.",
     ),
     code(
         "not_issued",

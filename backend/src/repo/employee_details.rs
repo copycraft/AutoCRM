@@ -72,7 +72,10 @@ impl EmployeeDetails {
     }
 }
 
-pub async fn get(db: impl PgExecutor<'_>, employee_id: i64) -> sqlx::Result<Option<EmployeeDetails>> {
+pub async fn get(
+    db: impl PgExecutor<'_>,
+    employee_id: i64,
+) -> sqlx::Result<Option<EmployeeDetails>> {
     sqlx::query_as(
         "SELECT employee_id, birth_name, birth_date, birth_place, mother_name, nationality,
                 address, id_card_number, tax_id, taj_number, bank_account, marital_status,

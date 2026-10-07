@@ -1,8 +1,11 @@
 //! HR leave and absence: who is away when, and how much annual leave is left. Every route
 //! needs `AccessHr`, like the rest of the HR module.
 
+use std::time::Duration;
+
 use axum::Json;
-use axum::extract::State;
+use axum::body::Bytes;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::http::StatusCode;
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -12,7 +15,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
-use super::{Items, optional};
+use super::{Items, optional, required};
 use crate::AppState;
 use crate::domain::leave::{LeaveKind, working_days};
 use crate::domain::role::Capability;
@@ -31,7 +34,17 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(create_absence))
         .routes(routes!(delete_absence))
         .routes(routes!(leave_summary))
+        // 0049: the sick note on the absence.
+        .routes(routes!(absence_file_url))
+        .merge(
+            OpenApiRouter::new()
+                .routes(routes!(upload_absence_file))
+                .layer(DefaultBodyLimit::max(MAX_FILE_BYTES)),
+        )
 }
+
+const MAX_FILE_BYTES: usize = 25 * 1024 * 1024;
+const FILE_URL_TTL: Duration = Duration::from_secs(3600);
 
 #[derive(Serialize, ToSchema)]
 pub struct Absence {
@@ -45,6 +58,8 @@ pub struct Absence {
     pub working_days: i32,
     pub note: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// The filed paper (sick note), if any; open it with `/hr/absences/{id}/file-url`.
+    pub file_name: Option<String>,
 }
 
 fn present(row: AbsenceRow) -> AppResult<Absence> {
@@ -60,6 +75,7 @@ fn present(row: AbsenceRow) -> AppResult<Absence> {
         end_date: row.end_date,
         note: row.note,
         created_at: row.created_at,
+        file_name: row.file_name,
     })
 }
 
@@ -284,4 +300,100 @@ async fn leave_summary(
         })
         .collect();
     Ok(Items::new(items))
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct AbsenceFileQuery {
+    /// The file's original name.
+    filename: String,
+}
+
+/// The paper behind an absence — a doctor's certificate (orvosi igazolás) for sick leave:
+/// the raw file as the body (PDF, JPEG, PNG or WebP, at most 25 MB). Replaces any earlier one.
+#[utoipa::path(
+    post, path = "/hr/absences/{id}/file", tag = "hr",
+    params(("id" = i64, Path), AbsenceFileQuery),
+    request_body(content = Vec<u8>, content_type = "application/octet-stream"),
+    responses((status = 204, description = "Stored"), (status = 404, description = "No such absence"))
+)]
+async fn upload_absence_file(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiQuery(q): ApiQuery<AbsenceFileQuery>,
+    body: Bytes,
+) -> AppResult<StatusCode> {
+    me.require(Capability::AccessHr)?;
+    if body.is_empty() {
+        return Err(AppError::validation("the request body must be the file"));
+    }
+    let row = absences::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("absence"))?;
+    let name: String = required("filename", &q.filename)?
+        .chars()
+        .take(200)
+        .collect();
+    let (content_type, ext) = super::incoming_invoices::sniff(&body)
+        .filter(|(_, ext)| *ext != "xml")
+        .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
+    let random: [u8; 12] = rand::random();
+    let key = format!(
+        "absences/{}/{id}-{}.{ext}",
+        row.employee_id,
+        hex::encode(random)
+    );
+    let size = body.len() as i64;
+    state
+        .storage
+        .put_bytes(&key, body.to_vec(), content_type)
+        .await
+        .map_err(|e| AppError::internal(format!("storing the absence paper: {e}")))?;
+    let mut tx = state.db.begin().await?;
+    if !absences::set_file(&mut *tx, id, &key, &name, content_type, size).await? {
+        return Err(AppError::NotFound("absence"));
+    }
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "employee",
+        row.employee_id,
+        "absence_file",
+        json!({ "absence_id": id, "file_name": name }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize, ToSchema)]
+struct AbsenceFileUrl {
+    /// Presigned, expires after one hour; opens in the browser.
+    url: String,
+}
+
+#[utoipa::path(
+    get, path = "/hr/absences/{id}/file-url", tag = "hr",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = AbsenceFileUrl), (status = 404, description = "No file"))
+)]
+async fn absence_file_url(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<AbsenceFileUrl>> {
+    me.require(Capability::AccessHr)?;
+    let (key, name) = absences::file_of(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("absence file"))?;
+    let url = state
+        .storage
+        .presign_get(
+            &key,
+            FILE_URL_TTL,
+            Some(crate::media::storage::content_disposition("inline", &name)),
+        )
+        .await?;
+    Ok(Json(AbsenceFileUrl { url }))
 }

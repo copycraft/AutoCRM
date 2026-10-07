@@ -19,11 +19,11 @@ use crate::domain::email::normalize_address;
 use crate::domain::lead_tag::normalize_color;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
-use crate::repo::{audit, like_pattern};
 use crate::repo::newsletter_tags::{
     self, ImportOutcome, NewsletterTag, SubscriberCounts, SubscriberFilter, SubscriberRow,
     SubscriberStatus, TagInput,
 };
+use crate::repo::{audit, like_pattern};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
@@ -34,6 +34,9 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(subscriber_counts))
         .routes(routes!(set_subscription_tags))
         .routes(routes!(bulk_tags))
+        // 0049
+        .routes(routes!(set_subscriber_language))
+        .routes(routes!(bulk_subscribers))
         .routes(routes!(import))
         .routes(routes!(audience))
 }
@@ -56,7 +59,9 @@ async fn list_tags(
     Auth(_): Auth,
     ApiQuery(q): ApiQuery<TagsQuery>,
 ) -> AppResult<Json<Items<NewsletterTag>>> {
-    Ok(Items::new(newsletter_tags::list(&state.db, q.archived).await?))
+    Ok(Items::new(
+        newsletter_tags::list(&state.db, q.archived).await?,
+    ))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -103,7 +108,11 @@ async fn create_tag(
     ApiJson(b): ApiJson<CreateNewsletterTag>,
 ) -> AppResult<(StatusCode, Json<NewsletterTag>)> {
     me.require(Capability::SendEmail)?;
-    let input = tag_input(&b.section, &b.label, b.color.as_deref().unwrap_or("#dbe8ff"))?;
+    let input = tag_input(
+        &b.section,
+        &b.label,
+        b.color.as_deref().unwrap_or("#dbe8ff"),
+    )?;
     let id = newsletter_tags::insert(&state.db, &input).await?;
     audit::record(
         &state.db,
@@ -153,7 +162,15 @@ async fn update_tag(
             json!(archived),
         ),
     ]);
-    audit::record(&state.db, Some(me.user_id), "newsletter_tag", id, "update", changes).await?;
+    audit::record(
+        &state.db,
+        Some(me.user_id),
+        "newsletter_tag",
+        id,
+        "update",
+        changes,
+    )
+    .await?;
     let tag = newsletter_tags::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("newsletter tag"))?;
@@ -279,7 +296,11 @@ async fn set_subscription_tags(
     let mut ids = b.tag_ids.clone();
     ids.sort_unstable();
     ids.dedup();
-    let new: Vec<i64> = ids.iter().copied().filter(|t| !before.contains(t)).collect();
+    let new: Vec<i64> = ids
+        .iter()
+        .copied()
+        .filter(|t| !before.contains(t))
+        .collect();
     check_live(&state, &new).await?;
     newsletter_tags::remove_others(&mut *tx, id, &ids).await?;
     newsletter_tags::add(&mut *tx, &[id], &new).await?;
@@ -334,6 +355,8 @@ struct ImportBody {
     /// Tags to put on every imported address, new or already on the list.
     #[serde(default)]
     tag_ids: Vec<i64>,
+    /// Two letters, given to every imported address that has no language yet (0049).
+    language: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -378,7 +401,24 @@ async fn import(
 ) -> AppResult<Json<ImportResult>> {
     me.require(Capability::SendEmail)?;
     let tag_ids = check_live(&state, &b.tag_ids).await?;
-    let lines: Vec<&str> = b.text.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let import_language = match b
+        .language
+        .as_deref()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+    {
+        None => None,
+        Some(l) => Some(
+            crate::repo::newsletter::normalize_language(l)
+                .ok_or_else(|| AppError::validation("language: expected two letters"))?,
+        ),
+    };
+    let lines: Vec<&str> = b
+        .text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
     if lines.len() > MAX_IMPORT_LINES {
         return Err(AppError::validation(format!(
             "at most {MAX_IMPORT_LINES} lines at once"
@@ -400,7 +440,15 @@ async fn import(
             }
             continue;
         };
-        match newsletter_tags::import_one(&mut *tx, &email, &name).await? {
+        if let Some(language) = import_language.as_deref() {
+            // Before the insert is fine: a new row gets it below.
+            crate::repo::newsletter::default_language(&mut *tx, &email, language).await?;
+        }
+        let outcome = newsletter_tags::import_one(&mut *tx, &email, &name).await?;
+        if let (Some(language), ImportOutcome::Added(_)) = (import_language.as_deref(), &outcome) {
+            crate::repo::newsletter::default_language(&mut *tx, &email, language).await?;
+        }
+        match outcome {
             ImportOutcome::Added(id) => {
                 result.added += 1;
                 ids.push(id);
@@ -478,9 +526,125 @@ mod tests {
             parse_line("\"a@b.hu\",\"Név, Kft.\""),
             Some(("a@b.hu".into(), "Név, Kft.".into()))
         );
-        assert_eq!(parse_line("a@b.hu\tNév"), Some(("a@b.hu".into(), "Név".into())));
+        assert_eq!(
+            parse_line("a@b.hu\tNév"),
+            Some(("a@b.hu".into(), "Név".into()))
+        );
         assert_eq!(parse_line("a@b.hu"), Some(("a@b.hu".into(), String::new())));
         assert_eq!(parse_line("E-mail;Név"), None);
         assert_eq!(parse_line("nem cím"), None);
     }
+}
+
+#[derive(Deserialize, ToSchema)]
+struct SubscriberLanguageBody {
+    /// Two letters, or null for unknown (the main letter).
+    language: Option<String>,
+}
+
+#[utoipa::path(
+    put, path = "/newsletter/subscriptions/{id}/language", tag = "newsletter",
+    params(("id" = i64, Path)),
+    request_body = SubscriberLanguageBody,
+    responses((status = 204, description = "Saved"))
+)]
+async fn set_subscriber_language(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<SubscriberLanguageBody>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::SendEmail)?;
+    let language = language_or_none(b.language.as_deref())?;
+    if !crate::repo::newsletter::set_language(&state.db, id, language.as_deref()).await? {
+        return Err(AppError::NotFound("subscription"));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn language_or_none(raw: Option<&str>) -> AppResult<Option<String>> {
+    match raw.map(str::trim).filter(|l| !l.is_empty()) {
+        None => Ok(None),
+        Some(l) => crate::repo::newsletter::normalize_language(l)
+            .map(Some)
+            .ok_or_else(|| AppError::validation("language: expected two letters")),
+    }
+}
+
+#[derive(Deserialize, ToSchema)]
+struct SubscriberBulkBody {
+    subscription_ids: Vec<i64>,
+    #[serde(flatten)]
+    action: SubscriberBulkAction,
+}
+
+/// One operation over the ticked readers.
+#[derive(Deserialize, ToSchema)]
+#[serde(tag = "action", rename_all = "snake_case")]
+enum SubscriberBulkAction {
+    /// As if they clicked the link in a letter.
+    Unsubscribe,
+    /// Back on the list (the office holds their renewed consent).
+    Resubscribe,
+    SetLanguage {
+        language: Option<String>,
+    },
+    /// Removes the rows entirely (an erasure request).
+    Delete,
+}
+
+#[derive(Serialize, ToSchema)]
+struct SubscriberBulkResult {
+    changed: u64,
+}
+
+#[utoipa::path(
+    post, path = "/newsletter/subscriptions/bulk-actions", tag = "newsletter",
+    request_body = SubscriberBulkBody,
+    responses((status = 200, body = SubscriberBulkResult))
+)]
+async fn bulk_subscribers(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<SubscriberBulkBody>,
+) -> AppResult<Json<SubscriberBulkResult>> {
+    me.require(Capability::SendEmail)?;
+    if b.subscription_ids.len() > 5000 {
+        return Err(AppError::validation("at most 5000 subscribers at once"));
+    }
+    let ids = &b.subscription_ids;
+    let mut tx = state.db.begin().await?;
+    let (changed, what) = match &b.action {
+        SubscriberBulkAction::Unsubscribe => (
+            crate::repo::newsletter::set_unsubscribed(&mut *tx, ids, true).await?,
+            "bulk_unsubscribe",
+        ),
+        SubscriberBulkAction::Resubscribe => (
+            crate::repo::newsletter::set_unsubscribed(&mut *tx, ids, false).await?,
+            "bulk_resubscribe",
+        ),
+        SubscriberBulkAction::SetLanguage { language } => {
+            let language = language_or_none(language.as_deref())?;
+            (
+                crate::repo::newsletter::set_language_many(&mut *tx, ids, language.as_deref())
+                    .await?,
+                "bulk_language",
+            )
+        }
+        SubscriberBulkAction::Delete => (
+            crate::repo::newsletter::remove_many(&mut *tx, ids).await?,
+            "bulk_delete",
+        ),
+    };
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "newsletter",
+        0,
+        what,
+        json!({ "count": changed }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Json(SubscriberBulkResult { changed }))
 }

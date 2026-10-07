@@ -512,6 +512,12 @@ fun OrderDetailScreen(
                                     if (spec.form == "cooling") {
                                         Info("Hűtőgép", listOfNotNull(spec.coolingUnitMake, spec.coolingUnitModel).joinToString(" ").ifBlank { null })
                                         Info("ATP osztály", spec.atpClass, mono = true)
+                                        CoolingSerialRow(
+                                            orderId = orderId,
+                                            current = spec.coolingUnitSerial,
+                                            canEdit = state.canChangeStage,
+                                            onSaved = { viewModel.load(orderId) },
+                                        )
                                     } else {
                                         Info("Fűtőkészülék", listOfNotNull(spec.heaterMake, spec.heaterModel).joinToString(" ").ifBlank { null })
                                         Info("Teljesítmény", spec.heatOutputKw?.let { "$it kW" }, mono = true)
@@ -586,7 +592,34 @@ fun OrderDetailScreen(
                                 orderNumber = detail.order.number,
                                 imageCounts = detail.imageCounts,
                                 viewModel = photoViewModel,
+                                stageCategory = detail.photoCategory,
                             )
+                        }
+
+                        item {
+                            hu.autotherm.autocrm.ui.yard.VehicleLocationCard(
+                                orderId = orderId,
+                                vehicles = detail.vehicles,
+                                current = detail.vehicleLocations,
+                                canMove = state.canChangeStage,
+                                onMoved = { viewModel.load(orderId) },
+                            )
+                        }
+
+                        item {
+                            hu.autotherm.autocrm.ui.common.CommentsSection(
+                                entity = "order",
+                                id = orderId,
+                                canComment = state.canChangeStage,
+                            )
+                        }
+
+                        if (state.canChangeStage) {
+                            item {
+                                Card {
+                                    hu.autotherm.autocrm.ui.common.VoiceNoteRecorder(orderId = orderId)
+                                }
+                            }
                         }
 
                         item {

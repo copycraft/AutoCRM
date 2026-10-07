@@ -322,15 +322,19 @@ pub async fn process_image(state: &AppState, image_id: i64) -> anyhow::Result<()
         .await?;
         return Ok(());
     }
-    if image.content_type == "image/heic" || image.content_type == "image/heif" {
-        images::set_processing_error(
-            &state.db,
-            image_id,
-            "previews for HEIC are not supported yet; original is stored",
-        )
-        .await?;
-        return Ok(());
-    }
+    // HEIC: the image library cannot decode HEVC, so an external converter makes a JPEG
+    // copy to derive the previews from. The original stays exactly as uploaded.
+    let bytes = if image.content_type == "image/heic" || image.content_type == "image/heif" {
+        match crate::media::heic::to_jpeg(&state.config.heic_converter, &bytes).await {
+            Ok(jpeg) => jpeg,
+            Err(e) => {
+                images::set_processing_error(&state.db, image_id, &format!("{e:#}")).await?;
+                return Ok(());
+            }
+        }
+    } else {
+        bytes
+    };
 
     let tz = state.config.business_tz;
     let processed = match tokio::task::spawn_blocking(move || pipeline::process(&bytes, tz)).await?
@@ -365,4 +369,97 @@ pub async fn process_image(state: &AppState, image_id: i64) -> anyhow::Result<()
     )
     .await?;
     Ok(())
+}
+
+/// A thumbnail for a drawing or picture filed as a document (0048): DXF drawn, the preview
+/// inside a DWG extracted, image files scaled. Anything that cannot be drawn records why.
+pub async fn process_document(state: &AppState, document_id: i64) -> anyhow::Result<()> {
+    use crate::domain::media::{ThumbSource, document_thumb_key, thumb_source};
+    use crate::repo::documents;
+
+    let Some(doc) = documents::find(&state.db, document_id).await? else {
+        return Ok(());
+    };
+    if doc.deleted_at.is_some() || doc.thumb_key.is_some() {
+        return Ok(());
+    }
+    let Some(source) = thumb_source(&doc.filename) else {
+        return Ok(());
+    };
+    let bytes = state.storage.get_bytes(&doc.storage_key).await?;
+    let made = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        match source {
+            ThumbSource::Dxf => crate::media::cad::dxf_thumbnail(&bytes).map_err(|e| e.to_string()),
+            ThumbSource::Dwg => crate::media::cad::dwg_thumbnail(&bytes).map_err(|e| e.to_string()),
+            ThumbSource::Image => {
+                let img = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
+                let mut out = std::io::Cursor::new(Vec::new());
+                img.thumbnail(
+                    crate::media::cad::THUMB_WIDTH,
+                    crate::media::cad::THUMB_HEIGHT,
+                )
+                .write_to(&mut out, image::ImageFormat::Png)
+                .map_err(|e| e.to_string())?;
+                Ok(out.into_inner())
+            }
+        }
+    })
+    .await?;
+    match made {
+        Ok(png) => {
+            let key = document_thumb_key(&doc.storage_key);
+            state.storage.put_bytes(&key, png, "image/png").await?;
+            documents::set_thumb(&state.db, document_id, Some(&key), None).await?;
+        }
+        Err(reason) => {
+            documents::set_thumb(&state.db, document_id, None, Some(&reason)).await?;
+        }
+    }
+    Ok(())
+}
+
+/// Has an evidence photo's sha256 stamped by the time-stamping authority (0048). A TSA
+/// outage fails the job, which the queue retries with backoff.
+pub async fn timestamp_image(state: &AppState, image_id: i64) -> anyhow::Result<()> {
+    let Some(tsa) = &state.config.tsa else {
+        return Ok(());
+    };
+    let Some(image) = images::find(&state.db, image_id).await? else {
+        return Ok(());
+    };
+    if image.deleted_at.is_some() || images::has_timestamp(&state.db, image_id).await? {
+        return Ok(());
+    }
+    let stamp = crate::integrations::tsa::stamp(tsa, &image.content_hash).await?;
+    images::insert_timestamp(
+        &state.db,
+        image_id,
+        &tsa.url,
+        &stamp.response,
+        stamp.gen_time,
+        &stamp.serial,
+    )
+    .await?;
+    tracing::info!(image_id, gen_time = %stamp.gen_time, "evidence photo timestamped");
+    Ok(())
+}
+
+/// Daily: queues a stamp for every evidence photo still without one — those from before
+/// the authority was configured, and those whose stamping ran out of retries.
+pub async fn timestamp_backfill(state: &AppState) -> anyhow::Result<usize> {
+    if state.config.tsa.is_none() {
+        return Ok(0);
+    }
+    let ids = images::unstamped_evidence(&state.db, 500).await?;
+    for id in &ids {
+        crate::repo::jobs::enqueue(
+            &state.db,
+            "timestamp_image",
+            json!({ "image_id": id }),
+            None,
+            Some(&format!("timestamp_image:{id}")),
+        )
+        .await?;
+    }
+    Ok(ids.len())
 }

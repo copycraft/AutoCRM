@@ -82,7 +82,10 @@ mod tests {
 
     #[test]
     fn domains_are_reduced_to_the_bare_host() {
-        assert_eq!(normalize_domain("hutoautok.hu").as_deref(), Some("hutoautok.hu"));
+        assert_eq!(
+            normalize_domain("hutoautok.hu").as_deref(),
+            Some("hutoautok.hu")
+        );
         assert_eq!(
             normalize_domain(" https://www.HutoAutok.hu/ajanlat?x=1 ").as_deref(),
             Some("hutoautok.hu")
@@ -95,7 +98,10 @@ mod tests {
             normalize_domain("info@bestattungswagen.at").as_deref(),
             Some("bestattungswagen.at")
         );
-        assert_eq!(normalize_domain("HUTOAUTOK.HU.").as_deref(), Some("hutoautok.hu"));
+        assert_eq!(
+            normalize_domain("HUTOAUTOK.HU.").as_deref(),
+            Some("hutoautok.hu")
+        );
     }
 
     #[test]

@@ -14,7 +14,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Money } from '@/components/ui/Money';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { invoicesApi, leadsApi } from '@/lib/api/endpoints';
-import { useAuth } from '@/lib/auth/context';
+import { canIssueInvoices, useAuth } from '@/lib/auth/context';
 import type { Currency } from '@/lib/api/types';
 
 export function DashboardReminders() {
@@ -22,7 +22,7 @@ export function DashboardReminders() {
   const locale = useLocale();
   const { user } = useAuth();
   const [mineOnly, setMineOnly] = useState(true);
-  const canBill = user?.role === 'admin' || user?.role === 'office';
+  const canBill = canIssueInvoices(user);
 
   const quotes = useQuery({
     queryKey: ['expiring-quotes', mineOnly ? user?.id : 'all'],

@@ -190,6 +190,8 @@ pub struct AudienceSubscriber {
     pub email: String,
     pub name: String,
     pub unsubscribe_token: String,
+    /// The reader's language, when known (0049): picks the send's variant.
+    pub language: Option<String>,
 }
 
 /// Active addresses a send reaches: confirmed, not unsubscribed, with any of the tags
@@ -199,7 +201,7 @@ pub async fn audience_subscribers(
     tag_ids: &[i64],
 ) -> sqlx::Result<Vec<AudienceSubscriber>> {
     sqlx::query_as(
-        "SELECT DISTINCT s.id, s.email, s.name, s.unsubscribe_token
+        "SELECT s.id, s.email, s.name, s.unsubscribe_token, s.language
            FROM newsletter_subscriptions s
           WHERE s.confirmed_at IS NOT NULL AND s.unsubscribed_at IS NULL
             AND (cardinality($1::bigint[]) = 0 OR EXISTS (
@@ -364,7 +366,7 @@ pub struct SendStats {
 pub async fn send_stats(db: impl PgExecutor<'_>, send_id: i64) -> sqlx::Result<SendStats> {
     sqlx::query_as(
         "SELECT $1 AS send_id,
-           (SELECT recipients FROM newsletter_sends WHERE id = $1) AS recipients,
+           (SELECT recipients::bigint FROM newsletter_sends WHERE id = $1) AS recipients,
            (SELECT count(*) FROM email_messages WHERE newsletter_send_id = $1) AS queued,
            (SELECT count(*) FROM email_messages
              WHERE newsletter_send_id = $1 AND status = 'sent') AS sent,
@@ -417,4 +419,125 @@ pub async fn record_click(
     .bind(url)
     .fetch_optional(db)
     .await
+}
+
+// ── Language variants of a send (0049) ──────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema, sqlx::FromRow)]
+pub struct SendVariant {
+    /// Two letters, e.g. en, de.
+    pub language: String,
+    pub subject: String,
+    pub body: String,
+    pub body_markdown: bool,
+    pub hero: Option<String>,
+}
+
+pub async fn insert_variant(
+    db: impl PgExecutor<'_>,
+    send_id: i64,
+    v: &SendVariant,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "INSERT INTO newsletter_send_variants (send_id, language, subject, body, body_markdown, hero)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(send_id)
+    .bind(&v.language)
+    .bind(&v.subject)
+    .bind(&v.body)
+    .bind(v.body_markdown)
+    .bind(&v.hero)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+pub async fn variants(db: impl PgExecutor<'_>, send_id: i64) -> sqlx::Result<Vec<SendVariant>> {
+    sqlx::query_as(
+        "SELECT language, subject, body, body_markdown, hero
+           FROM newsletter_send_variants WHERE send_id = $1 ORDER BY language",
+    )
+    .bind(send_id)
+    .fetch_all(db)
+    .await
+}
+
+/// Sets one reader's language (None: unknown, they get the main letter).
+pub async fn set_language(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    language: Option<&str>,
+) -> sqlx::Result<bool> {
+    let done = sqlx::query("UPDATE newsletter_subscriptions SET language = $2 WHERE id = $1")
+        .bind(id)
+        .bind(language)
+        .execute(db)
+        .await?;
+    Ok(done.rows_affected() == 1)
+}
+
+/// The language a signup form or import gave, kept unless the office already set one.
+pub async fn default_language(
+    db: impl PgExecutor<'_>,
+    email: &str,
+    language: &str,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE newsletter_subscriptions SET language = $2
+          WHERE lower(email) = lower($1) AND language IS NULL",
+    )
+    .bind(email.trim())
+    .bind(language)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// Bulk: unsubscribe (as if they clicked the link) or put back on the list. Returns how
+/// many changed.
+pub async fn set_unsubscribed(
+    db: impl PgExecutor<'_>,
+    ids: &[i64],
+    unsubscribed: bool,
+) -> sqlx::Result<u64> {
+    let done = sqlx::query(
+        "UPDATE newsletter_subscriptions
+            SET unsubscribed_at = CASE WHEN $2 THEN coalesce(unsubscribed_at, now()) END,
+                confirmed_at = CASE WHEN $2 THEN confirmed_at ELSE coalesce(confirmed_at, now()) END
+          WHERE id = ANY($1)
+            AND (unsubscribed_at IS NULL) = $2",
+    )
+    .bind(ids)
+    .bind(unsubscribed)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected())
+}
+
+pub async fn set_language_many(
+    db: impl PgExecutor<'_>,
+    ids: &[i64],
+    language: Option<&str>,
+) -> sqlx::Result<u64> {
+    let done = sqlx::query("UPDATE newsletter_subscriptions SET language = $2 WHERE id = ANY($1)")
+        .bind(ids)
+        .bind(language)
+        .execute(db)
+        .await?;
+    Ok(done.rows_affected())
+}
+
+pub async fn remove_many(db: impl PgExecutor<'_>, ids: &[i64]) -> sqlx::Result<u64> {
+    let done = sqlx::query("DELETE FROM newsletter_subscriptions WHERE id = ANY($1)")
+        .bind(ids)
+        .execute(db)
+        .await?;
+    Ok(done.rows_affected())
+}
+
+/// A two-letter language code, lower case; None for anything else.
+pub fn normalize_language(raw: &str) -> Option<String> {
+    let l = raw.trim().to_ascii_lowercase();
+    (l.len() == 2 && l.chars().all(|c| c.is_ascii_lowercase())).then_some(l)
 }

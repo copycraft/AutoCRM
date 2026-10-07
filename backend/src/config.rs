@@ -132,6 +132,8 @@ pub struct SupplierConfig {
     pub public_place_category: String,
     pub number: String,
     pub bank_account: Option<String>,
+    /// The account EUR invoices are paid to, when it differs (0049).
+    pub bank_account_eur: Option<String>,
 }
 
 /// Talking to the NAV invoicing sidecar.
@@ -196,13 +198,62 @@ pub struct Config {
     pub ai: Option<AiConfig>,
     /// The sales mailbox replies are read from.
     pub imap: Option<ImapConfig>,
+    /// The RFC 3161 time-stamping authority intake and inspection photos are stamped by.
+    /// None when TSA_URL is unset: photos are simply not stamped.
+    pub tsa: Option<TsaConfig>,
+    /// The command that turns a HEIC original into a JPEG for previews, called as
+    /// `<command> <input.heic> <output.jpg>` (libheif's `heif-dec`, or ImageMagick's
+    /// `magick`). Empty: HEIC previews are off.
+    pub heic_converter: String,
+    /// Seals secrets stored in the database (SMTP password, two-factor seeds). None: the
+    /// upload signing key is used (see service::secrets).
+    pub secrets_key: Option<String>,
+    /// "Sign in with Google" for the Workspace domain. None when unset.
+    pub google: Option<GoogleConfig>,
+    /// Facebook/Instagram lead ads and the Conversions API. None when unset.
+    pub meta: Option<MetaConfig>,
+    /// Key of the Google Ads offline-conversion export (`?key=`). None: the export is off.
+    pub google_ads_export_key: Option<String>,
+    /// The conversion action name the export reports under.
+    pub google_ads_conversion_name: String,
+    /// Look VINs up at NHTSA's free decoder as well as offline (sends the VIN to the US).
+    pub vin_online: bool,
+}
+
+/// Google Workspace sign-in (OpenID Connect, authorization code flow).
+#[derive(Clone)]
+pub struct GoogleConfig {
+    pub client_id: String,
+    pub client_secret: String,
+    /// Only accounts of this Workspace domain may sign in (`hd` claim), e.g. autotherm.hu.
+    pub domain: Option<String>,
+}
+
+/// Meta (Facebook/Instagram). Lead ads need the app secret, verify token and a page token;
+/// conversions need a pixel and its access token. Each part works alone.
+#[derive(Clone)]
+pub struct MetaConfig {
+    pub app_secret: Option<String>,
+    pub verify_token: Option<String>,
+    pub page_token: Option<String>,
+    pub pixel_id: Option<String>,
+    pub capi_token: Option<String>,
+}
+
+/// A time-stamping authority: FreeTSA for trying it out, a qualified provider (e-Szignó,
+/// NETLOCK…) for evidence that holds up in a dispute. Only the photo's sha256 is sent.
+#[derive(Debug, Clone)]
+pub struct TsaConfig {
+    pub url: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 /// An OpenAI-compatible chat endpoint with tool calling (llama.cpp `llama-server --jinja`,
 /// Ollama, vLLM...). Runs next to the app: CRM data never leaves the building.
 #[derive(Debug, Clone)]
 pub struct AiConfig {
-    /// Base URL without `/v1`, e.g. `http://127.0.0.1:8081`.
+    /// Base URL without `/v1`, e.g. `http://127.0.0.1:8082`.
     pub url: String,
     /// Sent as `model`; llama.cpp ignores it, Ollama needs it.
     pub model: String,
@@ -306,6 +357,7 @@ fn read_nav(r: &mut Reader) -> Option<NavConfig> {
             public_place_category: r.required("NAV_SUPPLIER_STREET_CATEGORY"),
             number: r.required("NAV_SUPPLIER_STREET_NUMBER"),
             bank_account: r.optional("NAV_SUPPLIER_BANK_ACCOUNT"),
+            bank_account_eur: r.optional("NAV_SUPPLIER_BANK_ACCOUNT_EUR"),
         },
         default_vat_rate,
         invoice_prefix: r
@@ -512,7 +564,10 @@ impl Config {
         let log_format = r.parsed("LOG_FORMAT", LogFormat::Pretty);
         let log_dir = r.optional("LOG_DIR").map(PathBuf::from);
         let ai = r.optional("AI_URL").map(|url| AiConfig {
-            url: url.trim_end_matches('/').trim_end_matches("/v1").to_string(),
+            url: url
+                .trim_end_matches('/')
+                .trim_end_matches("/v1")
+                .to_string(),
             model: r
                 .optional("AI_MODEL")
                 .unwrap_or_else(|| "qwen2.5-0.5b-instruct".into()),
@@ -522,10 +577,15 @@ impl Config {
             && !ai.url.starts_with("http://")
             && !ai.url.starts_with("https://")
         {
-            r.errors.push(format!("AI_URL must be an http(s) URL, got '{}'", ai.url));
+            r.errors
+                .push(format!("AI_URL must be an http(s) URL, got '{}'", ai.url));
         }
         let newsletter_api_key = r.optional("NEWSLETTER_API_KEY");
-        let imap = match (r.optional("IMAP_HOST"), r.optional("IMAP_USER"), r.optional("IMAP_PASSWORD")) {
+        let imap = match (
+            r.optional("IMAP_HOST"),
+            r.optional("IMAP_USER"),
+            r.optional("IMAP_PASSWORD"),
+        ) {
             (Some(host), Some(user), Some(password)) => Some(ImapConfig {
                 host,
                 port: r.parsed("IMAP_PORT", 993u16),
@@ -540,6 +600,58 @@ impl Config {
                 None
             }
         };
+        let tsa = r.optional("TSA_URL").map(|url| TsaConfig {
+            url,
+            username: r.optional("TSA_USERNAME"),
+            password: r.optional("TSA_PASSWORD"),
+        });
+        if let Some(tsa) = &tsa
+            && !tsa.url.starts_with("http://")
+            && !tsa.url.starts_with("https://")
+        {
+            r.errors
+                .push(format!("TSA_URL must be an http(s) URL, got '{}'", tsa.url));
+        }
+        let heic_converter = match std::env::var("HEIC_CONVERTER") {
+            Err(_) => "heif-dec".to_string(),
+            Ok(v) => v.trim().to_string(),
+        };
+        let secrets_key = r.optional("SECRETS_KEY");
+        if secrets_key.as_deref().is_some_and(|k| k.len() < 32) {
+            r.errors
+                .push("SECRETS_KEY must be at least 32 characters".into());
+        }
+        let google = match (
+            r.optional("GOOGLE_CLIENT_ID"),
+            r.optional("GOOGLE_CLIENT_SECRET"),
+        ) {
+            (Some(client_id), Some(client_secret)) => Some(GoogleConfig {
+                client_id,
+                client_secret,
+                domain: r
+                    .optional("GOOGLE_WORKSPACE_DOMAIN")
+                    .map(|d| d.to_ascii_lowercase()),
+            }),
+            (None, None) => None,
+            _ => {
+                r.errors
+                    .push("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET go together".into());
+                None
+            }
+        };
+        let meta = MetaConfig {
+            app_secret: r.optional("META_APP_SECRET"),
+            verify_token: r.optional("META_VERIFY_TOKEN"),
+            page_token: r.optional("META_PAGE_TOKEN"),
+            pixel_id: r.optional("META_PIXEL_ID"),
+            capi_token: r.optional("META_CAPI_TOKEN"),
+        };
+        let meta = (meta.app_secret.is_some() || meta.pixel_id.is_some()).then_some(meta);
+        let google_ads_export_key = r.optional("GOOGLE_ADS_EXPORT_KEY");
+        let google_ads_conversion_name = r
+            .optional("GOOGLE_ADS_CONVERSION_NAME")
+            .unwrap_or_else(|| "Megrendeles".into());
+        let vin_online = r.parsed("VIN_DECODER_ONLINE", false);
         let leads_api_key = r.optional("LEADS_API_KEY");
         let leads_notify_to = match std::env::var("LEADS_NOTIFY_TO") {
             Err(_) => Some(DEFAULT_LEADS_NOTIFY_TO.to_string()),
@@ -595,11 +707,72 @@ impl Config {
             log_dir,
             ai,
             imap,
+            tsa,
+            heic_converter,
+            secrets_key,
+            google,
+            meta,
+            google_ads_export_key,
+            google_ads_conversion_name,
+            vin_online,
         })
     }
 
     pub fn is_production(&self) -> bool {
         self.env == AppEnv::Production
+    }
+}
+
+/// A complete configuration for unit tests, touching no environment.
+#[cfg(test)]
+pub fn test_config() -> Config {
+    Config {
+        env: AppEnv::Dev,
+        bind_addr: "127.0.0.1:0".parse().unwrap(),
+        allowed_origins: vec![],
+        cookie_secure: false,
+        public_base_url: "http://localhost:3000".into(),
+        database_url: String::new(),
+        database_max_connections: 1,
+        upload_signing_key: vec![7; 32],
+        s3: S3Config {
+            endpoint: None,
+            region: "us-east-1".into(),
+            bucket: "test".into(),
+            access_key: "test".into(),
+            secret_key: "test".into(),
+            force_path_style: true,
+            intake_lock_years: 0,
+        },
+        email: EmailConfig {
+            transport: EmailTransportConfig::DryRun,
+            from_automatic: "noreply@autotherm.hu".into(),
+            from_name: "Autotherm".into(),
+            reply_to_default: "iroda@autotherm.hu".into(),
+            message_id_domain: "autotherm.test".into(),
+            sender_domains: vec![],
+            redirect_to: None,
+        },
+        mnb_endpoint: String::new(),
+        nav: None,
+        newsletter_api_key: None,
+        leads_api_key: None,
+        leads_notify_to: None,
+        business_tz: chrono_tz::Europe::Budapest,
+        worker_enabled: false,
+        worker_id: "test".into(),
+        log_format: LogFormat::Pretty,
+        log_dir: None,
+        ai: None,
+        imap: None,
+        tsa: None,
+        heic_converter: String::new(),
+        secrets_key: None,
+        google: None,
+        meta: None,
+        google_ads_export_key: None,
+        google_ads_conversion_name: "Megrendeles".into(),
+        vin_online: false,
     }
 }
 

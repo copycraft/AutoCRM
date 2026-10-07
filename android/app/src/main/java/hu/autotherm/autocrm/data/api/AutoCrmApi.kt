@@ -211,7 +211,7 @@ class AutoCrmApi(
 
     // ── Auth ────────────────────────────────────────────────────────────────────────
 
-    suspend fun login(email: String, password: String, deviceLabel: String): LoginResponse =
+    suspend fun login(email: String, password: String, deviceLabel: String, totpCode: String? = null): LoginResponse =
         send(
             Request.Builder().url(url("/auth/login").build())
                 .post(
@@ -221,6 +221,7 @@ class AutoCrmApi(
                             password = password,
                             client = "mobile",
                             deviceLabel = deviceLabel,
+                            totpCode = totpCode,
                         ),
                     ),
                 ),
@@ -708,19 +709,24 @@ class AutoCrmApi(
         return send(Request.Builder().url(u.build()).get(), Items.serializer(ZoneTemplate.serializer())).items
     }
 
-    /** Step 1 of a signature upload: a finger-drawn PNG travels as an `other` document. */
+    /** Step 1 of a document upload: a signature PNG (`other`), a walkaround clip (`video`),
+     *  a voice note or a shared file. To a lead when [leadId] is set, else to the order. */
     suspend fun requestDocumentUpload(
         orderId: Long,
         filename: String,
         contentType: String,
         byteSize: Long,
         sha256: String,
+        kind: String = "other",
+        leadId: Long? = null,
     ): UploadResponse =
         send(
-            Request.Builder().url(url("/orders/$orderId/uploads").build()).post(
+            Request.Builder().url(
+                url(if (leadId != null) "/leads/$leadId/uploads" else "/orders/$orderId/uploads").build(),
+            ).post(
                 body(
                     UploadRequest(
-                        target = UploadTarget(type = "document", kind = "other"),
+                        target = UploadTarget(type = "document", kind = kind),
                         filename = filename,
                         contentType = contentType,
                         byteSize = byteSize,
@@ -730,6 +736,61 @@ class AutoCrmApi(
             ),
             UploadResponse.serializer(),
         )
+
+    // ── 0048: tyres and clips on inspections ────────────────────────────────────────
+
+    /** The cooling unit's serial number on the order's spec (0049). */
+    suspend fun setCoolingSerial(orderId: Long, serial: String?): OrderSpec =
+        send(
+            Request.Builder().url(url("/orders/$orderId/cooling-serial").build())
+                .put(body(CoolingSerialBody(serial))),
+            OrderSpec.serializer(),
+        )
+
+    suspend fun putInspectionTyres(id: Long, tyres: List<InspectionTyre>): List<InspectionTyre> =
+        send(
+            Request.Builder().url(url("/inspections/$id/tyres").build()).put(body(TyresBody(tyres))),
+            kotlinx.serialization.builtins.ListSerializer(InspectionTyre.serializer()),
+        )
+
+    suspend fun attachInspectionVideo(id: Long, body: VideoBody) =
+        sendNoContent(Request.Builder().url(url("/inspections/$id/videos").build()).post(body(body)))
+
+    // ── 0048: lead sources, comments, the yard ──────────────────────────────────────
+
+    suspend fun leadSources(): List<LeadSource> =
+        send(
+            Request.Builder().url(url("/lead-sources").addQueryParameter("include_archived", "true").build()).get(),
+            Items.serializer(LeadSource.serializer()),
+        ).items
+
+    suspend fun comments(entityType: String, entityId: Long): List<Comment> {
+        val u = url("/comments")
+            .addQueryParameter("entity_type", entityType)
+            .addQueryParameter("entity_id", entityId.toString())
+        return send(Request.Builder().url(u.build()).get(), Items.serializer(Comment.serializer())).items
+    }
+
+    suspend fun createComment(body: CommentBody): Comment =
+        send(Request.Builder().url(url("/comments").build()).post(body(body)), Comment.serializer())
+
+    suspend fun mentionable(): List<Mentionable> =
+        send(
+            Request.Builder().url(url("/comments/mentionable").build()).get(),
+            Items.serializer(Mentionable.serializer()),
+        ).items
+
+    suspend fun yardBoard(): YardBoard =
+        send(Request.Builder().url(url("/yard/board").build()).get(), YardBoard.serializer())
+
+    suspend fun yardLocations(): List<YardLocation> =
+        send(
+            Request.Builder().url(url("/yard/locations").build()).get(),
+            Items.serializer(YardLocation.serializer()),
+        ).items
+
+    suspend fun moveVehicle(body: MoveBody): MoveResult =
+        send(Request.Builder().url(url("/yard/moves").build()).post(body(body)), MoveResult.serializer())
 
     // ── Configuration ───────────────────────────────────────────────────────────────
 

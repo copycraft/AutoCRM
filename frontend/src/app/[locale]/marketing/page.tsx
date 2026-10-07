@@ -18,7 +18,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlFlag, useUrlInt, useUrlState } from '@/hooks/useUrlState';
-import { newsletterApi } from '@/lib/api/endpoints';
+import { newsletterApi, subscribersApi } from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
 import { canSendEmail, useAuth } from '@/lib/auth/context';
 import { TagSidebar, type Selection } from '@/components/marketing/TagSidebar';
@@ -32,6 +32,8 @@ import {
 } from '@/components/marketing/NewsletterTags';
 import { ExportMenu, collectAll } from '@/components/tables/ExportCsvButton';
 import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
+import { MarketingTabs } from '@/components/layout/MarketingTabs';
+import { NEWSLETTER_LANGUAGES, SubscriberBulkBar } from '@/components/tables/BulkBar';
 import type { SubscriberRow } from '@/lib/api/types';
 
 const PAGE = 50;
@@ -103,6 +105,11 @@ export default function MarketingPage() {
     onSuccess: refresh,
     onError,
   });
+  const setLanguage = useMutation({
+    mutationFn: ({ id, language }: { id: number; language: string | null }) => subscribersApi.setLanguage(id, language),
+    onSuccess: refresh,
+    onError,
+  });
   const remove = useMutation({
     mutationFn: (id: number) => newsletterApi.removeSubscription(id),
     onSuccess: () => {
@@ -123,6 +130,7 @@ export default function MarketingPage() {
 
   return (
     <AppShell>
+      <MarketingTabs />
       <PageHeader
         title={tn('marketing')}
         subtitle={counts.data ? t('summary', { active: counts.data.active, total: counts.data.total }) : undefined}
@@ -267,6 +275,7 @@ export default function MarketingPage() {
               <span className="text-body font-medium">{t('ticked', { count: ticked.length })}</span>
               <NewsletterTagPicker label={t('bulkAdd')} value={[]} onChange={(ids) => bulk.mutate({ add: ids })} />
               <NewsletterTagPicker label={t('bulkRemove')} value={[]} onChange={(ids) => bulk.mutate({ remove: ids })} />
+              <SubscriberBulkBar ids={ticked} onDone={() => setTicked([])} />
               <button type="button" className="btn-ghost btn-sm" onClick={() => setTicked([])}>
                 {t('clearTicks')}
               </button>
@@ -329,8 +338,24 @@ export default function MarketingPage() {
                       )}
                       <td className="px-3 py-2">
                         <div className="font-medium">{r.email}</div>
-                        <div className="text-metadata text-steel-500">
+                        <div className="flex flex-wrap items-center gap-1 text-metadata text-steel-500">
                           {[r.name, r.source].filter(Boolean).join(' · ')}
+                          {editable ? (
+                            <select
+                              className="ml-1 rounded border border-steel-200 bg-transparent px-1 py-0 text-metadata"
+                              aria-label={t('language')}
+                              title={t('language')}
+                              value={r.language ?? ''}
+                              onChange={(e) => setLanguage.mutate({ id: r.id, language: e.target.value || null })}
+                            >
+                              <option value="">{t('languageAny')}</option>
+                              {NEWSLETTER_LANGUAGES.map((l) => (
+                                <option key={l} value={l}>{l.toUpperCase()}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            r.language && <span className="badge-muted">{r.language.toUpperCase()}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-2">

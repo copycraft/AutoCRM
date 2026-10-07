@@ -21,15 +21,17 @@ use crate::domain::search_terms::fold;
 use crate::domain::stage::StageEntity;
 use crate::error::{AppError, AppResult};
 use crate::repo::orders::OrderFilter;
+use crate::repo::timeline::TimelineEntity;
 use crate::repo::{
     config, incoming_invoices, invoices, lead_tags, leads, like_pattern, newsletter_tags, orders,
     partners, search, timeline,
 };
-use crate::repo::timeline::TimelineEntity;
 
 /// Today in Budapest, where the office works.
 fn local_today() -> chrono::NaiveDate {
-    chrono::Utc::now().with_timezone(&chrono_tz::Europe::Budapest).date_naive()
+    chrono::Utc::now()
+        .with_timezone(&chrono_tz::Europe::Budapest)
+        .date_naive()
 }
 
 /// Tries at a tool call: the first, and one more with the reason the first was refused.
@@ -85,55 +87,99 @@ fn tools() -> Value {
         })
     };
     json!([
-        f("search", "Keresés mindenben: megrendelés, partner, lead (név, szám, rendszám, e-mail).",
-          json!({ "query": { "type": "string" } }), &["query"]),
-        f("list_leads", "Leadek listája szűrve (legfeljebb 10, legújabb elöl).",
-          json!({
-              "query": { "type": "string", "description": "szöveg a címben, névben, e-mailben" },
-              "stage": { "type": "string", "description": "fázis kulcsa vagy neve" },
-              "tag": { "type": "string", "description": "címke neve, pl. JEGELVE" },
-              "open_only": { "type": "boolean", "description": "csak nyitott leadek" }
-          }), &[]),
-        f("list_orders", "Megrendelések listája szűrve (legfeljebb 10, legújabb elöl).",
-          json!({
-              "query": { "type": "string" },
-              "stage": { "type": "string", "description": "fázis kulcsa vagy neve" },
-              "open_only": { "type": "boolean" }
-          }), &[]),
-        f("get_record", "Egy lead, megrendelés vagy partner adatai azonosító alapján.",
-          json!({
-              "kind": { "type": "string", "enum": ["lead", "order", "partner"] },
-              "id": { "type": "integer" }
-          }), &["kind", "id"]),
-        f("overview", "Összesítő: leadek és megrendelések fázisonként, számlák és bejövő számlák listánként, hírlevél-feliratkozók.",
-          json!({}), &[]),
-        f("create_filter", "Szűrőt készít egy listához, amit a felhasználó megnyithat vagy elmenthet. Használd, ha szűrt listát kérnek.",
-          json!({
-              "list": { "type": "string", "enum": ["leads", "orders", "partners", "incoming_invoices", "subscribers"] },
-              "query": { "type": "string" },
-              "stage": { "type": "string", "description": "leads/orders: fázis kulcsa vagy neve" },
-              "tag": { "type": "string", "description": "leads: lead címke; subscribers: hírlevél lista neve" },
-              "open_only": { "type": "boolean", "description": "leads/orders" },
-              "bucket": { "type": "string", "description": "incoming_invoices: open_invoice, open_proforma, transferred, cash, partial, cash_receipt, booking_only" },
-              "status": { "type": "string", "description": "subscribers: active, pending, unsubscribed" },
-              "name": { "type": "string", "description": "a szűrő rövid neve" }
-          }), &["list"]),
-        f("list_incoming_invoices", "Bejövő (beszállítói) számlák listája (legfeljebb 10).",
-          json!({
-              "query": { "type": "string", "description": "beszállító vagy számlaszám" },
-              "bucket": { "type": "string", "description": "open_invoice, open_proforma, transferred, cash, partial, cash_receipt, booking_only" }
-          }), &[]),
-        f("expiring_quotes", "Hamarosan lejáró (vagy nemrég lejárt) árajánlatok nyitott leadeken.",
-          json!({ "days": { "type": "integer", "description": "hány napon belül (alapból 7)" } }), &[]),
-        f("overdue_invoices", "Lejárt fizetési határidejű, ki nem fizetett számlák, opcionálisan egy ügyfélé.",
-          json!({ "customer": { "type": "string", "description": "a partner neve vagy része" } }), &[]),
-        f("recent_history", "Mi történt / mi változott egy rekordon mostanában (előzmények).",
-          json!({
-              "kind": { "type": "string", "enum": ["lead", "order", "partner"] },
-              "id": { "type": "integer" }
-          }), &["kind", "id"]),
-        f("reply", "Csak köszönésre vagy nem a CRM adataira vonatkozó kérdésre: rövid válasz.",
-          json!({ "text": { "type": "string" } }), &["text"]),
+        f(
+            "search",
+            "Keresés mindenben: megrendelés, partner, lead (név, szám, rendszám, e-mail).",
+            json!({ "query": { "type": "string" } }),
+            &["query"]
+        ),
+        f(
+            "list_leads",
+            "Leadek listája szűrve (legfeljebb 10, legújabb elöl).",
+            json!({
+                "query": { "type": "string", "description": "szöveg a címben, névben, e-mailben" },
+                "stage": { "type": "string", "description": "fázis kulcsa vagy neve" },
+                "tag": { "type": "string", "description": "címke neve, pl. JEGELVE" },
+                "open_only": { "type": "boolean", "description": "csak nyitott leadek" }
+            }),
+            &[]
+        ),
+        f(
+            "list_orders",
+            "Megrendelések listája szűrve (legfeljebb 10, legújabb elöl).",
+            json!({
+                "query": { "type": "string" },
+                "stage": { "type": "string", "description": "fázis kulcsa vagy neve" },
+                "open_only": { "type": "boolean" }
+            }),
+            &[]
+        ),
+        f(
+            "get_record",
+            "Egy lead, megrendelés vagy partner adatai azonosító alapján.",
+            json!({
+                "kind": { "type": "string", "enum": ["lead", "order", "partner"] },
+                "id": { "type": "integer" }
+            }),
+            &["kind", "id"]
+        ),
+        f(
+            "overview",
+            "Összesítő: leadek és megrendelések fázisonként, számlák és bejövő számlák listánként, hírlevél-feliratkozók.",
+            json!({}),
+            &[]
+        ),
+        f(
+            "create_filter",
+            "Szűrőt készít egy listához, amit a felhasználó megnyithat vagy elmenthet. Használd, ha szűrt listát kérnek.",
+            json!({
+                "list": { "type": "string", "enum": ["leads", "orders", "partners", "incoming_invoices", "subscribers"] },
+                "query": { "type": "string" },
+                "stage": { "type": "string", "description": "leads/orders: fázis kulcsa vagy neve" },
+                "tag": { "type": "string", "description": "leads: lead címke; subscribers: hírlevél lista neve" },
+                "open_only": { "type": "boolean", "description": "leads/orders" },
+                "bucket": { "type": "string", "description": "incoming_invoices: open_invoice, open_proforma, transferred, cash, partial, cash_receipt, booking_only" },
+                "status": { "type": "string", "description": "subscribers: active, pending, unsubscribed" },
+                "name": { "type": "string", "description": "a szűrő rövid neve" }
+            }),
+            &["list"]
+        ),
+        f(
+            "list_incoming_invoices",
+            "Bejövő (beszállítói) számlák listája (legfeljebb 10).",
+            json!({
+                "query": { "type": "string", "description": "beszállító vagy számlaszám" },
+                "bucket": { "type": "string", "description": "open_invoice, open_proforma, transferred, cash, partial, cash_receipt, booking_only" }
+            }),
+            &[]
+        ),
+        f(
+            "expiring_quotes",
+            "Hamarosan lejáró (vagy nemrég lejárt) árajánlatok nyitott leadeken.",
+            json!({ "days": { "type": "integer", "description": "hány napon belül (alapból 7)" } }),
+            &[]
+        ),
+        f(
+            "overdue_invoices",
+            "Lejárt fizetési határidejű, ki nem fizetett számlák, opcionálisan egy ügyfélé.",
+            json!({ "customer": { "type": "string", "description": "a partner neve vagy része" } }),
+            &[]
+        ),
+        f(
+            "recent_history",
+            "Mi történt / mi változott egy rekordon mostanában (előzmények).",
+            json!({
+                "kind": { "type": "string", "enum": ["lead", "order", "partner"] },
+                "id": { "type": "integer" }
+            }),
+            &["kind", "id"]
+        ),
+        f(
+            "reply",
+            "Csak köszönésre vagy nem a CRM adataira vonatkozó kérdésre: rövid válasz.",
+            json!({ "text": { "type": "string" } }),
+            &["text"]
+        ),
     ])
 }
 
@@ -234,13 +280,19 @@ async fn complete(ai: &AiConfig, messages: &[Value]) -> AppResult<ModelMessage> 
         .await
         .map_err(|e| {
             tracing::warn!(error = %e, "assistant model unreachable");
-            AppError::rule("assistant_unavailable", "the assistant model is not reachable")
+            AppError::rule(
+                "assistant_unavailable",
+                "the assistant model is not reachable",
+            )
         })?;
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
         tracing::warn!(%status, body = %text.chars().take(500).collect::<String>(), "assistant model error");
-        return Err(AppError::rule("assistant_unavailable", "the assistant model answered with an error"));
+        return Err(AppError::rule(
+            "assistant_unavailable",
+            "the assistant model answered with an error",
+        ));
     }
     let completion: Completion = response
         .json()
@@ -310,7 +362,9 @@ fn b(args: &Value, key: &str) -> bool {
 
 /// A stage by key or label, or a message listing what exists.
 async fn stage_key(db: &PgPool, entity: StageEntity, wanted: &str) -> Result<String, String> {
-    let defs = config::stage_definitions(db, entity).await.map_err(|e| e.to_string())?;
+    let defs = config::stage_definitions(db, entity)
+        .await
+        .map_err(|e| e.to_string())?;
     let w = fold(wanted);
     defs.iter()
         .find(|d| d.key == wanted || fold(&d.key) == w || fold(&d.label_hu) == w)
@@ -319,7 +373,10 @@ async fn stage_key(db: &PgPool, entity: StageEntity, wanted: &str) -> Result<Str
         .ok_or_else(|| {
             format!(
                 "nincs ilyen fázis: {wanted}. Létezők: {}",
-                defs.iter().map(|d| d.key.as_str()).collect::<Vec<_>>().join(", ")
+                defs.iter()
+                    .map(|d| d.key.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )
         })
 }
@@ -327,9 +384,22 @@ async fn stage_key(db: &PgPool, entity: StageEntity, wanted: &str) -> Result<Str
 /// A lead tag by label (accents and case do not matter), as (id, "HU · label").
 /// The same label exists in every market (JEGELVE, Online ajánlatkérők...): a market named
 /// in `market` wins, then the tag most leads carry, then the Hungarian list.
-async fn lead_tag(db: &PgPool, wanted: &str, market: Option<&str>) -> Result<(i64, String), String> {
-    let mut tags = lead_tags::list(db, false).await.map_err(|e| e.to_string())?;
-    tags.sort_by_key(|t| (Some(t.market.as_str()) != market, std::cmp::Reverse(t.total_leads), t.market != "hu", t.id));
+async fn lead_tag(
+    db: &PgPool,
+    wanted: &str,
+    market: Option<&str>,
+) -> Result<(i64, String), String> {
+    let mut tags = lead_tags::list(db, false)
+        .await
+        .map_err(|e| e.to_string())?;
+    tags.sort_by_key(|t| {
+        (
+            Some(t.market.as_str()) != market,
+            std::cmp::Reverse(t.total_leads),
+            t.market != "hu",
+            t.id,
+        )
+    });
     let w = fold(wanted);
     tags.iter()
         .find(|t| fold(&t.label) == w)
@@ -339,7 +409,9 @@ async fn lead_tag(db: &PgPool, wanted: &str, market: Option<&str>) -> Result<(i6
 }
 
 async fn newsletter_tag(db: &PgPool, wanted: &str) -> Result<(i64, String), String> {
-    let tags = newsletter_tags::list(db, false).await.map_err(|e| e.to_string())?;
+    let tags = newsletter_tags::list(db, false)
+        .await
+        .map_err(|e| e.to_string())?;
     let w = fold(wanted);
     tags.iter()
         .find(|t| fold(&t.label) == w)
@@ -373,7 +445,9 @@ pub fn filter_path(list: &str, params: &BTreeMap<String, String>) -> Option<Stri
 fn urlencode(v: &str) -> String {
     v.bytes()
         .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
             _ => format!("%{b:02X}"),
         })
         .collect()
@@ -389,7 +463,11 @@ async fn create_filter(db: &PgPool, args: &Value) -> Result<FilterSuggestion, St
     }
     match list {
         "leads" | "orders" => {
-            let entity = if list == "leads" { StageEntity::Lead } else { StageEntity::Order };
+            let entity = if list == "leads" {
+                StageEntity::Lead
+            } else {
+                StageEntity::Order
+            };
             if let Some(stage) = s(args, "stage") {
                 let key = stage_key(db, entity, stage).await?;
                 parts.push(format!("fázis: {key}"));
@@ -467,7 +545,12 @@ fn compact(mut v: Value) -> Value {
     v
 }
 
-async fn run_tool(db: &PgPool, name: &str, args: &Value, filters: &mut Vec<FilterSuggestion>) -> Result<Value, String> {
+async fn run_tool(
+    db: &PgPool,
+    name: &str,
+    args: &Value,
+    filters: &mut Vec<FilterSuggestion>,
+) -> Result<Value, String> {
     let err = |e: sqlx::Error| e.to_string();
     match name {
         "search" => {
@@ -489,8 +572,16 @@ async fn run_tool(db: &PgPool, name: &str, args: &Value, filters: &mut Vec<Filte
                 None => None,
             };
             let rows = leads::search(
-                db, pattern.as_deref(), None, stage.as_deref(), None, tag,
-                b(args, "open_only"), leads::DEFAULT_SORT, ROWS, 0,
+                db,
+                pattern.as_deref(),
+                None,
+                stage.as_deref(),
+                None,
+                tag,
+                b(args, "open_only"),
+                leads::DEFAULT_SORT,
+                ROWS,
+                0,
             )
             .await
             .map_err(err)?;
@@ -513,7 +604,9 @@ async fn run_tool(db: &PgPool, name: &str, args: &Value, filters: &mut Vec<Filte
                 assigned_to: None,
                 open_only: b(args, "open_only"),
             };
-            let rows = orders::search(db, &filter, orders::DEFAULT_SORT, ROWS, 0).await.map_err(err)?;
+            let rows = orders::search(db, &filter, orders::DEFAULT_SORT, ROWS, 0)
+                .await
+                .map_err(err)?;
             Ok(json!(rows.iter().map(|o| json!({
                 "id": o.id, "number": o.number, "title": o.title, "partner": o.partner_name,
                 "stage": o.stage_label, "total": format!("{} {}", o.total_minor / 100, o.currency),
@@ -521,50 +614,81 @@ async fn run_tool(db: &PgPool, name: &str, args: &Value, filters: &mut Vec<Filte
             })).collect::<Vec<_>>()))
         }
         "get_record" => {
-            let id = args.get("id").and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()))
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()))
                 .ok_or("az id kötelező szám")?;
             match s(args, "kind") {
                 Some("lead") => {
-                    let lead = leads::find(db, id).await.map_err(err)?.ok_or("nincs ilyen lead")?;
+                    let lead = leads::find(db, id)
+                        .await
+                        .map_err(err)?
+                        .ok_or("nincs ilyen lead")?;
                     let stage: Option<String> = sqlx::query_scalar(
                         "SELECT sd.label_hu FROM lead_current_stage cs
                          JOIN stage_definitions sd ON sd.entity = 'lead' AND sd.key = cs.stage_key
                          WHERE cs.lead_id = $1",
-                    ).bind(id).fetch_optional(db).await.map_err(err)?;
-                    let tags: Vec<String> = lead_tags::for_lead(db, id).await.map_err(err)?
-                        .into_iter().map(|t| t.label).collect();
+                    )
+                    .bind(id)
+                    .fetch_optional(db)
+                    .await
+                    .map_err(err)?;
+                    let tags: Vec<String> = lead_tags::for_lead(db, id)
+                        .await
+                        .map_err(err)?
+                        .into_iter()
+                        .map(|t| t.label)
+                        .collect();
                     let mut v = compact(json!(lead));
                     v["stage"] = json!(stage);
                     v["tags"] = json!(tags);
                     Ok(v)
                 }
                 Some("order") => {
-                    let order = orders::find(db, id).await.map_err(err)?.ok_or("nincs ilyen megrendelés")?;
+                    let order = orders::find(db, id)
+                        .await
+                        .map_err(err)?
+                        .ok_or("nincs ilyen megrendelés")?;
                     let stage: Option<String> = sqlx::query_scalar(
                         "SELECT sd.label_hu FROM order_current_stage cs
                          JOIN stage_definitions sd ON sd.entity = 'order' AND sd.key = cs.stage_key
                          WHERE cs.order_id = $1",
-                    ).bind(id).fetch_optional(db).await.map_err(err)?;
+                    )
+                    .bind(id)
+                    .fetch_optional(db)
+                    .await
+                    .map_err(err)?;
                     let mut v = compact(json!(order));
                     v["stage"] = json!(stage);
                     Ok(v)
                 }
                 Some("partner") => Ok(compact(json!(
-                    partners::find(db, id).await.map_err(err)?.ok_or("nincs ilyen partner")?
+                    partners::find(db, id)
+                        .await
+                        .map_err(err)?
+                        .ok_or("nincs ilyen partner")?
                 ))),
                 _ => Err("a kind lead, order vagy partner".into()),
             }
         }
         "overview" => {
-            let per_stage = |view: &str, entity: &str| format!(
-                "SELECT sd.label_hu, count(*) FROM {view} cs
+            let per_stage = |view: &str, entity: &str| {
+                format!(
+                    "SELECT sd.label_hu, count(*) FROM {view} cs
                  JOIN stage_definitions sd ON sd.entity = '{entity}' AND sd.key = cs.stage_key
                  GROUP BY sd.label_hu, sd.position ORDER BY sd.position"
-            );
-            let lead_stages: Vec<(String, i64)> = sqlx::query_as(&per_stage("lead_current_stage", "lead"))
-                .fetch_all(db).await.map_err(err)?;
-            let order_stages: Vec<(String, i64)> = sqlx::query_as(&per_stage("order_current_stage", "order"))
-                .fetch_all(db).await.map_err(err)?;
+                )
+            };
+            let lead_stages: Vec<(String, i64)> =
+                sqlx::query_as(&per_stage("lead_current_stage", "lead"))
+                    .fetch_all(db)
+                    .await
+                    .map_err(err)?;
+            let order_stages: Vec<(String, i64)> =
+                sqlx::query_as(&per_stage("order_current_stage", "order"))
+                    .fetch_all(db)
+                    .await
+                    .map_err(err)?;
             let pairs = |rows: Vec<(String, i64)>| rows.into_iter().collect::<BTreeMap<_, _>>();
             Ok(json!({
                 "leads_by_stage": pairs(lead_stages),
@@ -598,15 +722,23 @@ async fn run_tool(db: &PgPool, name: &str, args: &Value, filters: &mut Vec<Filte
             let rows = incoming_invoices::search(db, pattern.as_deref(), bucket, ROWS, 0)
                 .await
                 .map_err(err)?;
-            Ok(json!(rows.iter().map(|i| json!({
-                "id": i.id, "supplier": i.supplier_name, "number": i.invoice_number,
-                "gross": i.gross_amount.map(|g| format!("{} {}", g / 100, i.currency)),
-                "due": i.due_date, "list": i.bucket, "file": i.file_name,
-            })).collect::<Vec<_>>()))
+            Ok(json!(
+                rows.iter()
+                    .map(|i| json!({
+                        "id": i.id, "supplier": i.supplier_name, "number": i.invoice_number,
+                        "gross": i.gross_amount.map(|g| format!("{} {}", g / 100, i.currency)),
+                        "due": i.due_date, "list": i.bucket, "file": i.file_name,
+                    }))
+                    .collect::<Vec<_>>()
+            ))
         }
         "reply" => Ok(json!({ "text": s(args, "text").unwrap_or("") })),
         "expiring_quotes" => {
-            let days = args.get("days").and_then(Value::as_i64).unwrap_or(7).clamp(1, 90);
+            let days = args
+                .get("days")
+                .and_then(Value::as_i64)
+                .unwrap_or(7)
+                .clamp(1, 90);
             let rows = crate::service::reminders::expiring_quotes(db, local_today(), days, None)
                 .await
                 .map_err(err)?;
@@ -630,7 +762,9 @@ async fn run_tool(db: &PgPool, name: &str, args: &Value, filters: &mut Vec<Filte
                 ),
                 None => None,
             };
-            let rows = invoices::overdue(db, local_today(), partner_id, 50).await.map_err(err)?;
+            let rows = invoices::overdue(db, local_today(), partner_id, 50)
+                .await
+                .map_err(err)?;
             Ok(json!(rows.iter().map(|i| json!({
                 "id": i.id, "number": i.number, "partner": i.partner_name,
                 "gross": format!("{} {}", i.gross_amount / 100, i.currency),
@@ -638,7 +772,9 @@ async fn run_tool(db: &PgPool, name: &str, args: &Value, filters: &mut Vec<Filte
             })).collect::<Vec<_>>()))
         }
         "recent_history" => {
-            let id = args.get("id").and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()))
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_i64().or_else(|| v.as_str()?.parse().ok()))
                 .ok_or("az id kötelező szám")?;
             let entity = match s(args, "kind") {
                 Some("lead") => TimelineEntity::Lead,
@@ -757,9 +893,19 @@ async fn stage_in(db: &PgPool, entity: StageEntity, q: &str) -> Option<String> {
 /// The tag whose label the question names, longest match first.
 async fn tag_in(db: &PgPool, newsletter: bool, q: &str) -> Option<String> {
     let labels: Vec<String> = if newsletter {
-        newsletter_tags::list(db, false).await.ok()?.into_iter().map(|t| t.label).collect()
+        newsletter_tags::list(db, false)
+            .await
+            .ok()?
+            .into_iter()
+            .map(|t| t.label)
+            .collect()
     } else {
-        lead_tags::list(db, false).await.ok()?.into_iter().map(|t| t.label).collect()
+        lead_tags::list(db, false)
+            .await
+            .ok()?
+            .into_iter()
+            .map(|t| t.label)
+            .collect()
     };
     labels
         .into_iter()
@@ -769,11 +915,46 @@ async fn tag_in(db: &PgPool, newsletter: bool, q: &str) -> Option<String> {
 
 /// Words that ask for a list or filter rather than name something to look for.
 const FILLER: &[&str] = &[
-    "mutasd", "mutass", "listazd", "keresd", "keress", "meg", "a", "az", "es", "is", "milyen",
-    "melyik", "mely", "vannak", "van", "lead", "leadek", "leadeket", "megrendeles",
-    "megrendelesek", "partner", "partnert", "partnerek", "szuro", "szurot", "szurd", "csinalj",
-    "keszits", "cimkes", "cimke", "fazis", "fazisban", "nyitott", "osszes", "kerem", "nekem",
-    "kapcsolatos", "ki", "mi", "hol",
+    "mutasd",
+    "mutass",
+    "listazd",
+    "keresd",
+    "keress",
+    "meg",
+    "a",
+    "az",
+    "es",
+    "is",
+    "milyen",
+    "melyik",
+    "mely",
+    "vannak",
+    "van",
+    "lead",
+    "leadek",
+    "leadeket",
+    "megrendeles",
+    "megrendelesek",
+    "partner",
+    "partnert",
+    "partnerek",
+    "szuro",
+    "szurot",
+    "szurd",
+    "csinalj",
+    "keszits",
+    "cimkes",
+    "cimke",
+    "fazis",
+    "fazisban",
+    "nyitott",
+    "osszes",
+    "kerem",
+    "nekem",
+    "kapcsolatos",
+    "ki",
+    "mi",
+    "hol",
 ];
 
 /// Keeps only the arguments the question supports and fills in what it plainly says.
@@ -809,13 +990,19 @@ async fn ground(db: &PgPool, tool: &str, args: &mut Value, question: &str) {
     };
     match list.as_deref() {
         Some("leads") => {
-            put("stage", stage_in(db, StageEntity::Lead, &q).await.map(Value::from));
+            put(
+                "stage",
+                stage_in(db, StageEntity::Lead, &q).await.map(Value::from),
+            );
             put("tag", tag_in(db, false, &q).await.map(Value::from));
             put("market", market_in(&q).map(Value::from));
             put("open_only", q.contains("nyitott").then_some(json!(true)));
         }
         Some("orders") => {
-            put("stage", stage_in(db, StageEntity::Order, &q).await.map(Value::from));
+            put(
+                "stage",
+                stage_in(db, StageEntity::Order, &q).await.map(Value::from),
+            );
             put("open_only", q.contains("nyitott").then_some(json!(true)));
         }
         Some("incoming_invoices") => put("bucket", bucket_in(&q).map(Value::from)),
@@ -841,8 +1028,13 @@ async fn ground(db: &PgPool, tool: &str, args: &mut Value, question: &str) {
 async fn route(db: &PgPool, question: &str) -> Option<(String, Value)> {
     let q = fold(question);
     let list = list_in(&q);
-    let greetings = ["szia", "hello", "hallo", "jonapot", "udv", "hey", "hi", "koszonom", "koszi"];
-    if q.len() <= 12 && greetings.iter().any(|g| q.starts_with(g)) || q.contains("mittudsz") || q.contains("segits") {
+    let greetings = [
+        "szia", "hello", "hallo", "jonapot", "udv", "hey", "hi", "koszonom", "koszi",
+    ];
+    if q.len() <= 12 && greetings.iter().any(|g| q.starts_with(g))
+        || q.contains("mittudsz")
+        || q.contains("segits")
+    {
         return Some(("reply".to_string(), json!({ "text": HELP })));
     }
     let record_kind = |l: Option<&str>| match l {
@@ -852,19 +1044,31 @@ async fn route(db: &PgPool, question: &str) -> Option<(String, Value)> {
         _ => None,
     };
     // "Mi változott a 8-as leaden?": the record's recent history.
-    if ["valtoz", "elozmeny", "tortent", "modosit"].iter().any(|w| q.contains(w))
+    if ["valtoz", "elozmeny", "tortent", "modosit"]
+        .iter()
+        .any(|w| q.contains(w))
         && let (Some(id), Some(kind)) = (number_in(question), record_kind(list))
     {
-        return Some(("recent_history".to_string(), json!({ "kind": kind, "id": id })));
+        return Some((
+            "recent_history".to_string(),
+            json!({ "kind": kind, "id": id }),
+        ));
     }
     // "Mely ajánlatok járnak le?"
     if q.contains("ajanlat") && (q.contains("lejar") || q.contains("ervenyes")) {
         return Some(("expiring_quotes".to_string(), json!({})));
     }
     // "Ki tartozik?", "lejárt számlák", "ki nem fizetett számlák".
-    if ["tartoz", "kintlev", "fizetetlen", "nemfizet", "kifizetetlen", "kesedelm"]
-        .iter()
-        .any(|w| q.contains(w))
+    if [
+        "tartoz",
+        "kintlev",
+        "fizetetlen",
+        "nemfizet",
+        "kifizetetlen",
+        "kesedelm",
+    ]
+    .iter()
+    .any(|w| q.contains(w))
         || (q.contains("szaml") && (q.contains("lejart") || q.contains("kesik")))
     {
         return Some(("overdue_invoices".to_string(), json!({})));
@@ -883,10 +1087,18 @@ async fn route(db: &PgPool, question: &str) -> Option<(String, Value)> {
             return Some(("get_record".to_string(), json!({ "kind": kind, "id": id })));
         }
     }
-    if q.starts_with("szuro") || q.contains("szurot") || q.contains("szurd") || q.contains("nezetet") {
+    if q.starts_with("szuro")
+        || q.contains("szurot")
+        || q.contains("szurd")
+        || q.contains("nezetet")
+    {
         return list.map(|l| ("create_filter".to_string(), json!({ "list": l })));
     }
-    if q.contains("fazisonkent") || q.contains("osszesit") || q.contains("attekint") || q.contains("statisztik") {
+    if q.contains("fazisonkent")
+        || q.contains("osszesit")
+        || q.contains("attekint")
+        || q.contains("statisztik")
+    {
         return Some(("overview".to_string(), json!({})));
     }
     match list {
@@ -945,71 +1157,144 @@ fn render(tool: &str, result: &Value) -> String {
             let line = |title: &str, v: &Value| {
                 let parts: Vec<String> = v
                     .as_object()
-                    .map(|m| m.iter().map(|(k, n)| format!("{}: {n}", bucket_label(k))).collect())
+                    .map(|m| {
+                        m.iter()
+                            .map(|(k, n)| format!("{}: {n}", bucket_label(k)))
+                            .collect()
+                    })
                     .unwrap_or_default();
-                if parts.is_empty() { format!("{title}: nincs adat") } else { format!("{title}: {}", parts.join(", ")) }
+                if parts.is_empty() {
+                    format!("{title}: nincs adat")
+                } else {
+                    format!("{title}: {}", parts.join(", "))
+                }
             };
             let nl = &result["newsletter"];
             [
                 line("Leadek fázisonként", &result["leads_by_stage"]),
                 line("Megrendelések fázisonként", &result["orders_by_stage"]),
                 line("Számlák listánként", &result["invoices_by_list"]),
-                line("Bejövő számlák listánként", &result["incoming_invoices_by_list"]),
-                format!("Hírlevél: {} aktív feliratkozó, összesen {}", txt(&nl["active"]), txt(&nl["total"])),
+                line(
+                    "Bejövő számlák listánként",
+                    &result["incoming_invoices_by_list"],
+                ),
+                format!(
+                    "Hírlevél: {} aktív feliratkozó, összesen {}",
+                    txt(&nl["active"]),
+                    txt(&nl["total"])
+                ),
             ]
             .join("\n")
         }
         "search" => {
             let mut out = Vec::new();
-            for (key, title) in [("orders", "Megrendelések"), ("partners", "Partnerek"), ("leads", "Leadek")] {
+            for (key, title) in [
+                ("orders", "Megrendelések"),
+                ("partners", "Partnerek"),
+                ("leads", "Leadek"),
+            ] {
                 let rows = rows_of(&result[key]);
                 if rows.is_empty() {
                     continue;
                 }
                 out.push(format!("{title}:"));
                 for r in rows {
-                    let name = r.get("number").map(|n| format!("{} {}", txt(n), txt(&r["title"])))
+                    let name = r
+                        .get("number")
+                        .map(|n| format!("{} {}", txt(n), txt(&r["title"])))
                         .or_else(|| r.get("name").map(txt))
                         .unwrap_or_else(|| txt(&r["title"]));
                     out.push(format!("• {name}"));
                 }
             }
-            if out.is_empty() { "Nincs találat.".into() } else { out.join("\n") }
+            if out.is_empty() {
+                "Nincs találat.".into()
+            } else {
+                out.join("\n")
+            }
         }
         "list_leads" | "list_orders" | "list_incoming_invoices" => {
             let rows = rows_of(result);
             if rows.is_empty() {
                 return "Nincs ilyen tétel.".into();
             }
-            let mut out = vec![format!("{} találat{}:", rows.len(), if rows.len() == 10 { " (az első 10)" } else { "" })];
+            let mut out = vec![format!(
+                "{} találat{}:",
+                rows.len(),
+                if rows.len() == 10 {
+                    " (az első 10)"
+                } else {
+                    ""
+                }
+            )];
             for r in rows {
                 out.push(match tool {
-                    "list_leads" => format!("• #{} {} — {} ({})", txt(&r["id"]), txt(&r["title"]), txt(&r["stage"]),
-                        r["partner"].as_str().or(r["contact"].as_str()).unwrap_or("—")),
-                    "list_orders" => format!("• {} {} — {} ({}, {})", txt(&r["number"]), txt(&r["title"]), txt(&r["stage"]),
-                        txt(&r["partner"]), txt(&r["total"])),
-                    _ => format!("• {} {} — {}{}", txt(&r["supplier"]), r["number"].as_str().unwrap_or(""),
+                    "list_leads" => format!(
+                        "• #{} {} — {} ({})",
+                        txt(&r["id"]),
+                        txt(&r["title"]),
+                        txt(&r["stage"]),
+                        r["partner"]
+                            .as_str()
+                            .or(r["contact"].as_str())
+                            .unwrap_or("—")
+                    ),
+                    "list_orders" => format!(
+                        "• {} {} — {} ({}, {})",
+                        txt(&r["number"]),
+                        txt(&r["title"]),
+                        txt(&r["stage"]),
+                        txt(&r["partner"]),
+                        txt(&r["total"])
+                    ),
+                    _ => format!(
+                        "• {} {} — {}{}",
+                        txt(&r["supplier"]),
+                        r["number"].as_str().unwrap_or(""),
                         r["gross"].as_str().unwrap_or("összeg nélkül"),
-                        r["due"].as_str().map(|d| format!(", esedékes {d}")).unwrap_or_default()),
+                        r["due"]
+                            .as_str()
+                            .map(|d| format!(", esedékes {d}"))
+                            .unwrap_or_default()
+                    ),
                 });
             }
             out.join("\n")
         }
         "get_record" => {
             let keys = [
-                ("title", "Cím"), ("name", "Név"), ("number", "Szám"), ("stage", "Fázis"), ("tags", "Címkék"),
-                ("contact_name", "Kapcsolattartó"), ("contact_email", "E-mail"), ("email", "E-mail"),
-                ("contact_phone", "Telefon"), ("phone", "Telefon"), ("source", "Forrás"), ("city", "Város"),
-                ("due_date", "Határidő"), ("created_at", "Létrehozva"),
+                ("title", "Cím"),
+                ("name", "Név"),
+                ("number", "Szám"),
+                ("stage", "Fázis"),
+                ("tags", "Címkék"),
+                ("contact_name", "Kapcsolattartó"),
+                ("contact_email", "E-mail"),
+                ("email", "E-mail"),
+                ("contact_phone", "Telefon"),
+                ("phone", "Telefon"),
+                ("source", "Forrás"),
+                ("city", "Város"),
+                ("due_date", "Határidő"),
+                ("created_at", "Létrehozva"),
             ];
             let lines: Vec<String> = keys
                 .iter()
-                .filter_map(|(k, label)| result.get(*k).filter(|v| !v.is_null()).map(|v| {
-                    let v = match v { Value::Array(a) => a.iter().map(txt).collect::<Vec<_>>().join(", "), v => txt(v) };
-                    format!("{label}: {v}")
-                }))
+                .filter_map(|(k, label)| {
+                    result.get(*k).filter(|v| !v.is_null()).map(|v| {
+                        let v = match v {
+                            Value::Array(a) => a.iter().map(txt).collect::<Vec<_>>().join(", "),
+                            v => txt(v),
+                        };
+                        format!("{label}: {v}")
+                    })
+                })
                 .collect();
-            if lines.is_empty() { "Nincs adat.".into() } else { lines.join("\n") }
+            if lines.is_empty() {
+                "Nincs adat.".into()
+            } else {
+                lines.join("\n")
+            }
         }
         "expiring_quotes" => {
             let rows = rows_of(result);
@@ -1024,8 +1309,14 @@ fn render(tool: &str, result: &Value) -> String {
                     d if d < 0 => format!("{} napja lejárt", -d),
                     d => format!("{d} nap múlva"),
                 };
-                out.push(format!("• #{} {} — {} ({}, felelős: {})", txt(&r["id"]), txt(&r["title"]), when,
-                    r["partner"].as_str().unwrap_or("—"), r["assigned"].as_str().unwrap_or("nincs")));
+                out.push(format!(
+                    "• #{} {} — {} ({}, felelős: {})",
+                    txt(&r["id"]),
+                    txt(&r["title"]),
+                    when,
+                    r["partner"].as_str().unwrap_or("—"),
+                    r["assigned"].as_str().unwrap_or("nincs")
+                ));
             }
             out.join("\n")
         }
@@ -1036,8 +1327,14 @@ fn render(tool: &str, result: &Value) -> String {
             }
             let mut out = vec![format!("{} lejárt, kifizetetlen számla:", rows.len())];
             for r in rows {
-                out.push(format!("• {} — {}, {} ({} napja lejárt, {} emlékeztető)", txt(&r["number"]),
-                    txt(&r["partner"]), txt(&r["gross"]), txt(&r["days_overdue"]), txt(&r["reminders"])));
+                out.push(format!(
+                    "• {} — {}, {} ({} napja lejárt, {} emlékeztető)",
+                    txt(&r["number"]),
+                    txt(&r["partner"]),
+                    txt(&r["gross"]),
+                    txt(&r["days_overdue"]),
+                    txt(&r["reminders"])
+                ));
             }
             out.join("\n")
         }
@@ -1050,19 +1347,29 @@ fn render(tool: &str, result: &Value) -> String {
             for r in rows {
                 let what = match (r["kind"].as_str(), r["action"].as_str()) {
                     (Some("change"), _) => {
-                        let fields = r["changes"].as_array().map(|a| a.iter().map(txt).collect::<Vec<_>>().join(", "));
+                        let fields = r["changes"]
+                            .as_array()
+                            .map(|a| a.iter().map(txt).collect::<Vec<_>>().join(", "));
                         format!("módosítás: {}", fields.unwrap_or_default())
                     }
                     (Some("stage"), _) => format!("fázis: {}", txt(&r["text"])),
-                    (Some("email"), Some("received")) => format!("beérkező levél: {}", txt(&r["text"])),
+                    (Some("email"), Some("received")) => {
+                        format!("beérkező levél: {}", txt(&r["text"]))
+                    }
                     (Some("email"), _) => format!("e-mail: {}", txt(&r["text"])),
                     (Some("file"), _) => format!("fájl: {}", txt(&r["text"])),
                     (Some("task"), _) => format!("feladat: {}", txt(&r["text"])),
                     (Some("create"), _) => "létrehozva".to_string(),
-                    (_, Some(action)) => r["text"].as_str().map(|t| format!("{action}: {t}")).unwrap_or_else(|| action.to_string()),
+                    (_, Some(action)) => r["text"]
+                        .as_str()
+                        .map(|t| format!("{action}: {t}"))
+                        .unwrap_or_else(|| action.to_string()),
                     _ => "esemény".to_string(),
                 };
-                let who = r["who"].as_str().map(|w| format!(" ({w})")).unwrap_or_default();
+                let who = r["who"]
+                    .as_str()
+                    .map(|w| format!(" ({w})"))
+                    .unwrap_or_default();
                 out.push(format!("• {} — {what}{who}", txt(&r["at"])));
             }
             out.join("\n")
@@ -1091,7 +1398,11 @@ async fn answer(
     filters: &mut Vec<FilterSuggestion>,
 ) -> Result<String, String> {
     let result = run_tool(db, name, args, filters).await;
-    steps.push(ToolStep { tool: name.to_string(), arguments: args.clone(), ok: result.is_ok() });
+    steps.push(ToolStep {
+        tool: name.to_string(),
+        arguments: args.clone(),
+        ok: result.is_ok(),
+    });
     let value = result?;
     if let Some(f) = filter_args_for(name, args)
         && let Ok(filter) = create_filter(db, &f).await
@@ -1127,10 +1438,15 @@ pub async fn chat(
         .find(|m| m.role == "user")
         .map(|m| m.content.chars().take(2000).collect::<String>())
         .unwrap_or_default();
-    let mut messages = vec![json!({ "role": "system", "content": system_prompt(db, today).await? })];
+    let mut messages =
+        vec![json!({ "role": "system", "content": system_prompt(db, today).await? })];
     // The last few turns, so "and the open ones?" can lean on the previous question.
     for m in history.iter().rev().take(6).rev() {
-        let role = if m.role == "assistant" { "assistant" } else { "user" };
+        let role = if m.role == "assistant" {
+            "assistant"
+        } else {
+            "user"
+        };
         let content: String = m.content.chars().take(1000).collect();
         messages.push(json!({ "role": role, "content": content }));
     }
@@ -1144,7 +1460,11 @@ pub async fn chat(
         let reply = answer(db, &name, &args, &mut steps, &mut filters)
             .await
             .unwrap_or_else(|e| format!("Ezt nem sikerült lekérdeznem: {e}"));
-        return Ok(AssistantReply { reply, filters, steps });
+        return Ok(AssistantReply {
+            reply,
+            filters,
+            steps,
+        });
     }
 
     for round in 0..MAX_ROUNDS {
@@ -1157,9 +1477,14 @@ pub async fn chat(
         // Not even a parseable call: look the question up as plain search instead.
         let Some(mut call) = calls.into_iter().next() else {
             if round == 0 {
-                let args = json!({ "query": search_words(&question).unwrap_or_else(|| question.clone()) });
+                let args =
+                    json!({ "query": search_words(&question).unwrap_or_else(|| question.clone()) });
                 if let Ok(reply) = answer(db, "search", &args, &mut steps, &mut filters).await {
-                    return Ok(AssistantReply { reply, filters, steps });
+                    return Ok(AssistantReply {
+                        reply,
+                        filters,
+                        steps,
+                    });
                 }
             }
             break;
@@ -1171,7 +1496,11 @@ pub async fn chat(
         let name = call.function.name.clone();
         ground(db, &name, &mut args, &question).await;
         let result = run_tool(db, &name, &args, &mut filters).await;
-        steps.push(ToolStep { tool: name.clone(), arguments: args.clone(), ok: result.is_ok() });
+        steps.push(ToolStep {
+            tool: name.clone(),
+            arguments: args.clone(),
+            ok: result.is_ok(),
+        });
         match result {
             Ok(v) => {
                 // A list answer comes with the filter that opens the same rows.
@@ -1181,11 +1510,16 @@ pub async fn chat(
                 {
                     filters.push(filter);
                 }
-                return Ok(AssistantReply { reply: render(&name, &v), filters, steps });
+                return Ok(AssistantReply {
+                    reply: render(&name, &v),
+                    filters,
+                    steps,
+                });
             }
             Err(e) => {
                 // Once more, with the reason: the model gets to correct its arguments.
-                messages.push(json!({ "role": "assistant", "content": content, "tool_calls": [call] }));
+                messages
+                    .push(json!({ "role": "assistant", "content": content, "tool_calls": [call] }));
                 messages.push(json!({ "role": "tool", "tool_call_id": call.id, "content": format!("HIBA: {e}") }));
                 last_error = Some(e);
             }
@@ -1220,7 +1554,10 @@ mod tests {
 
     #[test]
     fn arguments_come_as_a_string_or_an_object() {
-        let f = |a: Value| ModelFunction { name: "x".into(), arguments: a };
+        let f = |a: Value| ModelFunction {
+            name: "x".into(),
+            arguments: a,
+        };
         assert_eq!(arguments(&f(json!("{\"id\": 5}")))["id"], 5);
         assert_eq!(arguments(&f(json!({"id": 5})))["id"], 5);
         assert_eq!(arguments(&f(json!("nem json"))), json!({}));
@@ -1235,7 +1572,10 @@ mod tests {
             filter_path("leads", &p).unwrap(),
             "/leads?open=1&q=h%C5%B1t%C5%91s%20furgon"
         );
-        assert_eq!(filter_path("subscribers", &BTreeMap::new()).unwrap(), "/marketing");
+        assert_eq!(
+            filter_path("subscribers", &BTreeMap::new()).unwrap(),
+            "/marketing"
+        );
         assert_eq!(filter_path("spaceships", &BTreeMap::new()), None);
     }
 }

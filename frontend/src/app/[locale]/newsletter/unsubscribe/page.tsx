@@ -3,7 +3,7 @@
 // Public unsubscribe: no login, no shell — readers arrive from a mail link. A token link
 // unsubscribes in one click; without one, the address can be typed in.
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { newsletterApi } from '@/lib/api/endpoints';
@@ -12,8 +12,9 @@ import { errorMessage } from '@/lib/api/errors';
 export default function UnsubscribePage({
   searchParams,
 }: {
-  searchParams: { token?: string };
+  searchParams: Promise<{ token?: string }>;
 }) {
+  const { token: rawToken } = React.use(searchParams);
   const t = useTranslations('emails');
   const tp = useTranslations('privacy');
   const locale = useLocale();
@@ -21,7 +22,7 @@ export default function UnsubscribePage({
   const [email, setEmail] = useState('');
   const [done, setDone] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const token = searchParams.token ?? '';
+  const token = rawToken ?? '';
 
   const run = useMutation({
     mutationFn: (search: { token?: string; email?: string }) => newsletterApi.unsubscribe(search),

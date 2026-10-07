@@ -1,0 +1,51 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT key AS stage_key, label_hu, position,\n                  default_image_category AS \"category: ImageCategory\"\n           FROM stage_definitions WHERE entity = 'order' ORDER BY position, id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stage_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "label_hu",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "category: ImageCategory",
+        "type_info": {
+          "Custom": {
+            "name": "image_category",
+            "kind": {
+              "Enum": [
+                "intake",
+                "production",
+                "completion",
+                "marketing",
+                "inspection"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "526b2ff0704d3fa182dd65b3e77627711b5cdb84cdea36f600a72952676ef8a5"
+}

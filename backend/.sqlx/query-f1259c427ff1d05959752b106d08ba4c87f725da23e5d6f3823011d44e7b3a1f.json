@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO image_timestamps (image_id, tsa_url, response, gen_time, serial)\n         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (image_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Bytea",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f1259c427ff1d05959752b106d08ba4c87f725da23e5d6f3823011d44e7b3a1f"
+}

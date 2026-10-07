@@ -35,6 +35,8 @@ data class LoginBody(
      */
     @SerialName("client") val client: String,
     @SerialName("device_label") val deviceLabel: String? = null,
+    /** The authenticator app's code, for an account with two-factor sign-in (0049). */
+    @SerialName("totp_code") val totpCode: String? = null,
 )
 
 @Serializable
@@ -60,6 +62,8 @@ data class SessionUser(
     @SerialName("must_change_password") val mustChangePassword: Boolean,
     /** Whether the HR module is open to this user (admins, or granted by an admin). */
     @SerialName("hr_access") val hrAccess: Boolean = false,
+    /** Everything this user may do: the role's defaults plus what an admin granted. */
+    @SerialName("capabilities") val capabilities: List<String> = emptyList(),
 )
 
 @Serializable
@@ -205,6 +209,8 @@ data class OrderSpec(
     @SerialName("fuel") val fuel: String? = null,
     @SerialName("thermostat") val thermostat: Boolean? = null,
     @SerialName("notes") val notes: String? = null,
+    /** Read off the unit's plate (or its barcode) on the phone (0049). */
+    @SerialName("cooling_unit_serial") val coolingUnitSerial: String? = null,
 )
 
 @Serializable
@@ -227,6 +233,11 @@ data class OrderDetail(
     @SerialName("vehicles") val vehicles: List<Vehicle> = emptyList(),
     @SerialName("spec") val spec: OrderSpec? = null,
     @SerialName("image_counts") val imageCounts: Map<String, Long> = emptyMap(),
+    /** The category a new photo takes in the current stage (0048); null: production. */
+    @SerialName("photo_category") val photoCategory: String? = null,
+    @SerialName("vehicle_locations") val vehicleLocations: List<CurrentLocation> = emptyList(),
+    @SerialName("comment_count") val commentCount: Long = 0,
+    @SerialName("open_incidents") val openIncidents: Long = 0,
 )
 
 @Serializable
@@ -311,6 +322,8 @@ data class UploadTarget(
     @SerialName("type") val type: String,
     @SerialName("category") val category: String? = null,
     @SerialName("kind") val kind: String? = null,
+    /** A new version of this document (0048). */
+    @SerialName("replaces") val replaces: Long? = null,
 )
 
 @Serializable
@@ -428,6 +441,7 @@ data class Partner(
     @SerialName("default_currency") val defaultCurrency: String? = null,
     @SerialName("email") val email: String? = null,
     @SerialName("phone") val phone: String? = null,
+    @SerialName("postal_code") val postalCode: String? = null,
     @SerialName("city") val city: String? = null,
     @SerialName("address_line") val addressLine: String? = null,
     @SerialName("role") val role: String? = null,
@@ -472,10 +486,14 @@ data class Lead(
     @SerialName("contact_email") val contactEmail: String? = null,
     @SerialName("contact_phone") val contactPhone: String? = null,
     @SerialName("source") val source: String? = null,
+    @SerialName("source_detail") val sourceDetail: String? = null,
     @SerialName("description") val description: String? = null,
     @SerialName("quoted_value_minor") val quotedValueMinor: Long? = null,
     @SerialName("currency") val currency: String? = null,
     @SerialName("quote_valid_until") val quoteValidUntil: String? = null,
+    /** An EUR quote's frozen MNB rate (decimal string) and its day. */
+    @SerialName("quote_fx_rate") val quoteFxRate: String? = null,
+    @SerialName("quote_fx_day") val quoteFxDay: String? = null,
 )
 
 @Serializable
@@ -536,6 +554,7 @@ data class LeadBody(
     @SerialName("contact_email") val contactEmail: String? = null,
     @SerialName("contact_phone") val contactPhone: String? = null,
     @SerialName("source") val source: String? = null,
+    @SerialName("source_detail") val sourceDetail: String? = null,
     @SerialName("description") val description: String? = null,
     @SerialName("quoted_value_minor") val quotedValueMinor: Long? = null,
     @SerialName("currency") val currency: String? = null,
@@ -738,6 +757,38 @@ data class InspectionDetail(
     @SerialName("notes") val notes: List<InspectionNote> = emptyList(),
     /** Zone heading by zone key, from the list this inspection was walked with. */
     @SerialName("zone_titles") val zoneTitles: Map<String, String> = emptyMap(),
+    @SerialName("tyres") val tyres: List<InspectionTyre> = emptyList(),
+    @SerialName("videos") val videos: List<InspectionVideo> = emptyList(),
+)
+
+/** One tyre's tread (decimal string, mm) and condition (0048). */
+@Serializable
+data class InspectionTyre(
+    @SerialName("position") val position: String,
+    @SerialName("tread_mm") val treadMm: String? = null,
+    @SerialName("condition") val condition: String,
+    @SerialName("note") val note: String? = null,
+)
+
+@Serializable
+data class TyresBody(@SerialName("tyres") val tyres: List<InspectionTyre>)
+
+@Serializable
+data class InspectionVideo(
+    @SerialName("id") val id: Long,
+    @SerialName("document_id") val documentId: Long,
+    @SerialName("zone_key") val zoneKey: String? = null,
+    @SerialName("duration_ms") val durationMs: Long? = null,
+    @SerialName("taken_at") val takenAt: String,
+    @SerialName("url") val url: String? = null,
+)
+
+@Serializable
+data class VideoBody(
+    @SerialName("document_id") val documentId: Long,
+    @SerialName("zone_key") val zoneKey: String? = null,
+    @SerialName("duration_ms") val durationMs: Long? = null,
+    @SerialName("taken_at") val takenAt: String,
 )
 
 @Serializable
@@ -884,6 +935,9 @@ data class Lookups(
     @SerialName("image_categories") val imageCategories: List<ImageCategoryEntry> = emptyList(),
     @SerialName("email_themes") val emailThemes: List<EmailThemeEntry> = emptyList(),
     @SerialName("error_texts") val errorTexts: List<ErrorTextEntry> = emptyList(),
+    @SerialName("tyre_positions") val tyrePositions: List<LookupItem> = emptyList(),
+    @SerialName("tyre_conditions") val tyreConditions: List<LookupItem> = emptyList(),
+    @SerialName("yard_kinds") val yardKinds: List<LookupItem> = emptyList(),
 )
 @Serializable
 data class Comparison(
@@ -1069,4 +1123,103 @@ data class SearchResults(
     @SerialName("emails") val emails: List<EmailHit> = emptyList(),
     /** Empty unless the caller has HR access. */
     @SerialName("employees") val employees: List<EmployeeHit> = emptyList(),
+)
+
+// ── 0048: lead sources, comments, the yard ─────────────────────────────────────
+
+@Serializable
+data class LeadSource(
+    @SerialName("key") val key: String,
+    @SerialName("label") val label: String,
+    @SerialName("is_system") val isSystem: Boolean = false,
+    @SerialName("archived_at") val archivedAt: String? = null,
+)
+
+@Serializable
+data class Mention(
+    @SerialName("user_id") val userId: Long,
+    @SerialName("name") val name: String,
+)
+
+@Serializable
+data class Comment(
+    @SerialName("id") val id: Long,
+    @SerialName("body") val body: String,
+    @SerialName("created_by") val createdBy: Long,
+    @SerialName("author_name") val authorName: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("edited_at") val editedAt: String? = null,
+    @SerialName("mentions") val mentions: List<Mention> = emptyList(),
+)
+
+@Serializable
+data class CommentBody(
+    @SerialName("entity_type") val entityType: String,
+    @SerialName("entity_id") val entityId: Long,
+    @SerialName("body") val body: String,
+    @SerialName("mention_ids") val mentionIds: List<Long> = emptyList(),
+)
+
+@Serializable
+data class Mentionable(
+    @SerialName("id") val id: Long,
+    @SerialName("display_name") val displayName: String,
+)
+
+@Serializable
+data class YardLocation(
+    @SerialName("id") val id: Long,
+    @SerialName("name") val name: String,
+    @SerialName("kind") val kind: String,
+    @SerialName("capacity") val capacity: Int? = null,
+)
+
+@Serializable
+data class CurrentLocation(
+    @SerialName("vehicle_id") val vehicleId: Long,
+    @SerialName("location_id") val locationId: Long? = null,
+    @SerialName("location_name") val locationName: String? = null,
+    @SerialName("moved_at") val movedAt: String,
+    @SerialName("moved_by_name") val movedByName: String? = null,
+)
+
+@Serializable
+data class YardVehicle(
+    @SerialName("vehicle_id") val vehicleId: Long,
+    @SerialName("plate") val plate: String? = null,
+    @SerialName("vin") val vin: String? = null,
+    @SerialName("make") val make: String? = null,
+    @SerialName("model") val model: String? = null,
+    @SerialName("order_id") val orderId: Long? = null,
+    @SerialName("order_number") val orderNumber: String? = null,
+    @SerialName("partner_name") val partnerName: String? = null,
+    @SerialName("stage_label") val stageLabel: String? = null,
+    @SerialName("location_id") val locationId: Long? = null,
+)
+
+@Serializable
+data class YardBoard(
+    @SerialName("locations") val locations: List<YardLocation> = emptyList(),
+    @SerialName("vehicles") val vehicles: List<YardVehicle> = emptyList(),
+)
+
+/** Explicit null for `location_id` means "left the site", so it is always sent. */
+@Serializable
+data class MoveBody(
+    @SerialName("vehicle_id") val vehicleId: Long,
+    @SerialName("location_id") val locationId: Long?,
+    @SerialName("order_id") val orderId: Long? = null,
+)
+
+@Serializable
+data class MoveResult(
+    @SerialName("id") val id: Long,
+    @SerialName("over_capacity") val overCapacity: Boolean = false,
+)
+
+// ── 0049 ──────────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class CoolingSerialBody(
+    @SerialName("serial") val serial: String?,
 )

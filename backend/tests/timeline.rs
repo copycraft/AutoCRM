@@ -14,7 +14,13 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-async fn call(pool: &PgPool, method: &str, uri: &str, bearer: &str, body: Option<Value>) -> (StatusCode, Value) {
+async fn call(
+    pool: &PgPool,
+    method: &str,
+    uri: &str,
+    bearer: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
     let mut builder = Request::builder()
         .method(method)
         .uri(uri)
@@ -32,7 +38,10 @@ async fn call(pool: &PgPool, method: &str, uri: &str, bearer: &str, body: Option
         .unwrap();
     let status = response.status();
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
 }
 
 async fn token(pool: &PgPool, role: Role) -> (i64, String) {
@@ -58,12 +67,32 @@ async fn token(pool: &PgPool, role: Role) -> (i64, String) {
 #[sqlx::test(migrations = "./migrations")]
 async fn a_lead_history_shows_changes_stages_and_tasks(pool: PgPool) {
     let (me, office) = token(&pool, Role::Office).await;
-    let (_, lead) = call(&pool, "POST", "/api/leads", &office, Some(json!({ "title": "Hűtős Sprinter" }))).await;
+    let (_, lead) = call(
+        &pool,
+        "POST",
+        "/api/leads",
+        &office,
+        Some(json!({ "title": "Hűtős Sprinter" })),
+    )
+    .await;
     let id = lead["id"].as_i64().unwrap();
-    let (status, _) = call(&pool, "PATCH", &format!("/api/leads/{id}"), &office,
-        Some(json!({ "assigned_to": me, "contact_name": "Faragó Aurél" }))).await;
+    let (status, _) = call(
+        &pool,
+        "PATCH",
+        &format!("/api/leads/{id}"),
+        &office,
+        Some(json!({ "assigned_to": me, "contact_name": "Faragó Aurél" })),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
-    let (status, _) = call(&pool, "POST", &format!("/api/leads/{id}/stage"), &office, Some(json!({ "stage": "contacted" }))).await;
+    let (status, _) = call(
+        &pool,
+        "POST",
+        &format!("/api/leads/{id}/stage"),
+        &office,
+        Some(json!({ "stage": "contacted" })),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     sqlx::query("INSERT INTO tasks (entity_type, entity_id, title, created_by, done_at) VALUES ('lead', $1, 'Önéletrajz feltöltve', $2, now())")
         .bind(id)
@@ -72,12 +101,32 @@ async fn a_lead_history_shows_changes_stages_and_tasks(pool: PgPool) {
         .await
         .unwrap();
 
-    let (status, history) = call(&pool, "GET", &format!("/api/timeline/lead/{id}"), &office, None).await;
+    let (status, history) = call(
+        &pool,
+        "GET",
+        &format!("/api/timeline/lead/{id}"),
+        &office,
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{history}");
     let items = history["items"].as_array().unwrap();
-    let kinds: Vec<(&str, &str)> = items.iter().map(|e| (e["kind"].as_str().unwrap(), e["action"].as_str().unwrap())).collect();
-    for expected in [("create", "create"), ("change", "update"), ("stage", "new"), ("stage", "contacted"), ("task", "created"), ("task", "done")] {
-        assert!(kinds.contains(&expected), "missing {expected:?} in {kinds:?}");
+    let kinds: Vec<(&str, &str)> = items
+        .iter()
+        .map(|e| (e["kind"].as_str().unwrap(), e["action"].as_str().unwrap()))
+        .collect();
+    for expected in [
+        ("create", "create"),
+        ("change", "update"),
+        ("stage", "new"),
+        ("stage", "contacted"),
+        ("task", "created"),
+        ("task", "done"),
+    ] {
+        assert!(
+            kinds.contains(&expected),
+            "missing {expected:?} in {kinds:?}"
+        );
     }
     // The stage change is shown once, from the stage history, not again from the audit log.
     assert_eq!(kinds.iter().filter(|k| k.1 == "stage_change").count(), 0);
@@ -107,9 +156,23 @@ async fn an_incoming_invoice_history_starts_with_its_file(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    let (status, _) = call(&pool, "PATCH", &format!("/api/incoming-invoices/{id}"), &office, Some(json!({ "supplier_name": "Hűtőgép Kft." }))).await;
+    let (status, _) = call(
+        &pool,
+        "PATCH",
+        &format!("/api/incoming-invoices/{id}"),
+        &office,
+        Some(json!({ "supplier_name": "Hűtőgép Kft." })),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
-    let (_, history) = call(&pool, "GET", &format!("/api/timeline/incoming_invoice/{id}"), &office, None).await;
+    let (_, history) = call(
+        &pool,
+        "GET",
+        &format!("/api/timeline/incoming_invoice/{id}"),
+        &office,
+        None,
+    )
+    .await;
     let items = history["items"].as_array().unwrap();
     assert_eq!(items[0]["kind"], "change");
     let file = items.iter().find(|e| e["kind"] == "file").unwrap();

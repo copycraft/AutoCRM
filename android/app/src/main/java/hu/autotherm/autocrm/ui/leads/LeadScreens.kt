@@ -233,7 +233,11 @@ fun LeadListScreen(
     }
 }
 
-class LeadDetailViewModel(private val api: AutoCrmApi, private val lookupsCache: LookupsCache) : ViewModel() {
+class LeadDetailViewModel(
+    private val api: AutoCrmApi,
+    private val lookupsCache: LookupsCache,
+    private val sessionStore: hu.autotherm.autocrm.data.auth.SessionStore? = null,
+) : ViewModel() {
 
     data class State(
         val loading: Boolean = true,
@@ -250,6 +254,10 @@ class LeadDetailViewModel(private val api: AutoCrmApi, private val lookupsCache:
         val convertCurrency: String = "HUF",
         /** The server's enumerations; cached for offline opens. */
         val lookups: Lookups? = null,
+        /** Source names for the source key (0048). */
+        val sources: List<hu.autotherm.autocrm.data.api.LeadSource> = emptyList(),
+        /** Comments need a capability viewers do not have. */
+        val canComment: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -265,10 +273,13 @@ class LeadDetailViewModel(private val api: AutoCrmApi, private val lookupsCache:
             )
             try {
                 val lookups = downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
+                val sources = runCatching { api.leadSources() }.getOrDefault(_state.value.sources)
                 _state.value = State(
                     loading = false,
                     detail = api.lead(id),
                     lookups = lookups,
+                    sources = sources,
+                    canComment = sessionStore?.currentAccount()?.canComment == true,
                 )
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(
@@ -439,7 +450,13 @@ fun LeadDetailScreen(
                                 Info("Kapcsolattartó", lead.contactName)
                                 EmailInfo("E-mail", lead.contactEmail)
                                 PhoneInfo("Telefon", lead.contactPhone)
-                                Info("Forrás", lead.source)
+                                Info(
+                                    "Forrás",
+                                    listOfNotNull(
+                                        state.sources.firstOrNull { it.key == lead.source }?.label ?: lead.source,
+                                        lead.sourceDetail,
+                                    ).joinToString(" · ").ifBlank { null },
+                                )
                                 detail.attribution?.let { a ->
                                     Info("Csatorna", channelLabel(a.channel))
                                     a.utmCampaign?.let { Info("Kampány", it) }
@@ -460,6 +477,29 @@ fun LeadDetailScreen(
                                     mono = true,
                                 )
                                 Info("Érvényes eddig", formatDate(lead.quoteValidUntil))
+                                val rate = lead.quoteFxRate?.toDoubleOrNull()
+                                if (rate != null && lead.quotedValueMinor != null) {
+                                    Info(
+                                        "Forintban (MNB ${formatDate(lead.quoteFxDay).orEmpty()})",
+                                        "≈ " + formatMoney(Math.round(lead.quotedValueMinor * rate), "HUF") +
+                                            " · " + String.format(java.util.Locale.ROOT, "%.2f", rate) + " Ft/EUR",
+                                        mono = true,
+                                    )
+                                }
+                            }
+                        }
+                        item {
+                            hu.autotherm.autocrm.ui.common.CommentsSection(
+                                entity = "lead",
+                                id = leadId,
+                                canComment = state.canComment,
+                            )
+                        }
+                        if (state.canComment) {
+                            item {
+                                hu.autotherm.autocrm.ui.common.Card {
+                                    hu.autotherm.autocrm.ui.common.VoiceNoteRecorder(orderId = 0, leadId = leadId)
+                                }
                             }
                         }
                         if (detail.orders.isNotEmpty()) {

@@ -1288,6 +1288,8 @@ async fn load_files(
                     byte_size: file.byte_size,
                     uploaded_by: None,
                     source_ref: Some(&entry.source_url),
+                    previous_version_id: None,
+                    version: 1,
                 },
             )
             .await?;

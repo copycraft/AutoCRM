@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT cl.vehicle_id AS \"vehicle_id!\", cl.location_id, l.name AS \"location_name?\",\n                  cl.moved_at AS \"moved_at!\", u.display_name AS \"moved_by_name?\"\n           FROM vehicle_current_location cl\n           LEFT JOIN yard_locations l ON l.id = cl.location_id\n           LEFT JOIN users u ON u.id = cl.moved_by\n           WHERE cl.vehicle_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "vehicle_id!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "location_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "location_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "moved_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "moved_by_name?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f651659076bcb7455a7fc7122c64afbe794fb5f58bcf88da4bc8ba624830ee5c"
+}

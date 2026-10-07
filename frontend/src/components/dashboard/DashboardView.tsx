@@ -26,6 +26,8 @@ import type { Currency } from '@/lib/api/types';
 function taskHref(locale: string, entity: string, id: number): string {
   if (entity === 'order') return `/${locale}/orders/${id}`;
   if (entity === 'lead') return `/${locale}/leads/${id}`;
+  // A joining/leaving step: HR's page (0049).
+  if (entity === 'employee') return `/${locale}/hr`;
   return `/${locale}/partners/${id}`;
 }
 

@@ -5,6 +5,8 @@ import hu.autotherm.autocrm.data.api.ApiException
 import hu.autotherm.autocrm.data.api.AttachPhotoBody
 import hu.autotherm.autocrm.data.api.DamageBody
 import hu.autotherm.autocrm.data.api.InspectionBody
+import hu.autotherm.autocrm.data.api.InspectionTyre
+import hu.autotherm.autocrm.data.api.VideoBody
 import hu.autotherm.autocrm.data.db.PendingUpload
 import hu.autotherm.autocrm.data.api.SignatureBody
 import hu.autotherm.autocrm.data.api.VerdictBody
@@ -124,6 +126,23 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
             persist(app, uuid, current)
         }
 
+        // Tyres: one replace of the whole record (0048).
+        if (!current.tyresSynced && current.tyres.isNotEmpty()) {
+            app.api.putInspectionTyres(
+                id,
+                current.tyres.map {
+                    InspectionTyre(
+                        position = it.position,
+                        treadMm = it.treadMm.replace(',', '.').trim().takeIf { mm -> mm.toDoubleOrNull() != null },
+                        condition = it.condition,
+                        note = it.note.takeIf { n -> n.isNotBlank() },
+                    )
+                },
+            )
+            current = current.copy(tyresSynced = true)
+            persist(app, uuid, current)
+        }
+
         // Photos: bytes ride pending_uploads; attach once the server confirms them.
         for (photo in current.photos.filter { it.attachedPhotoId == null }) {
             var row = uploadDao.byContent(draft.orderId, photo.sha256)
@@ -219,6 +238,38 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
             persist(app, uuid, current)
         }
 
+        // Walkaround clips (0048): uploaded straight, like signatures, as video documents.
+        for (video in current.videos.filter { !it.attached }) {
+            var documentId = video.serverDocumentId
+            if (documentId == null) {
+                val file = File(inspectionDir(app, uuid), video.fileName)
+                if (!file.exists()) return fail(app, uuid, "hiányzó videófájl a telefonon")
+                documentId = uploadDocument(app, draft.orderId, file, video.fileName, "video/mp4", "video")
+                    ?: return SyncResult.Retry
+                current = current.copy(
+                    videos = current.videos.map {
+                        if (it.localId == video.localId) it.copy(serverDocumentId = documentId) else it
+                    },
+                )
+                persist(app, uuid, current)
+            }
+            app.api.attachInspectionVideo(
+                id,
+                VideoBody(
+                    documentId = documentId,
+                    zoneKey = video.zoneKey,
+                    durationMs = video.durationMs,
+                    takenAt = video.takenAt,
+                ),
+            )
+            current = current.copy(
+                videos = current.videos.map {
+                    if (it.localId == video.localId) it.copy(attached = true) else it
+                },
+            )
+            persist(app, uuid, current)
+        }
+
         // Check-in verdicts, then the lock.
         for (verdict in current.verdicts) {
             val damageServerId = current.damages
@@ -278,26 +329,31 @@ private suspend fun fail(app: AutoCrmApp, uuid: String, message: String): SyncRe
     return SyncResult.Failed(message)
 }
 
-/** Direct three-step document upload (signatures skip the photo queue). */
-private suspend fun uploadDocument(
+/** Direct three-step document upload (signatures and clips skip the photo queue). */
+internal suspend fun uploadDocument(
     app: AutoCrmApp,
     orderId: Long,
     file: File,
     filename: String,
+    contentType: String = "image/png",
+    kind: String = "other",
+    leadId: Long? = null,
 ): Long? {
     val sha = file.sha256Hex()
     val response = app.api.requestDocumentUpload(
         orderId = orderId,
         filename = filename,
-        contentType = "image/png",
+        contentType = contentType,
         byteSize = file.length(),
         sha256 = sha,
+        kind = kind,
+        leadId = leadId,
     )
     when (response.status) {
         "already_uploaded" -> return response.documentId
         "upload" -> {
             val presigned = response.upload ?: return null
-            putBytes(app, presigned.url, presigned.headers, file, "image/png")
+            putBytes(app, presigned.url, presigned.headers, file, contentType)
             val ticket = response.ticket ?: return null
             return app.api.completeUpload(ticket).document?.id
         }
