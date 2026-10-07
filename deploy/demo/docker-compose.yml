@@ -58,7 +58,8 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       S3_ENDPOINT: https://${FILES_HOST}
       PUBLIC_BASE_URL: https://${APP_HOST}
-      ALLOWED_ORIGINS: https://${APP_HOST}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://${APP_HOST}}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       UPLOAD_SIGNING_KEY: ${UPLOAD_SIGNING_KEY}
     depends_on:
       postgres: { condition: service_healthy }
