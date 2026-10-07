@@ -24,7 +24,7 @@ header for the files hostname.
 3. Point your tunnel at `APP_PORT` and `FILES_PORT`.
 
 No tunnel of your own? Leave the rest as is, set `TUNNEL_TOKEN` from a Cloudflare tunnel
-(hostnames → `frontend:3000` and `minio:9000`), and `setup.sh` starts cloudflared too.
+(hostnames → `frontend:3000` and `s3:9000`), and `setup.sh` starts cloudflared too.
 
 ## Each showing
 
