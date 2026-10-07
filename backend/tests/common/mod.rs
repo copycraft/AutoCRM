@@ -79,6 +79,14 @@ pub fn config() -> Config {
         log_dir: None,
         ai: None,
         imap: None,
+        tsa: None,
+        heic_converter: String::new(),
+        secrets_key: None,
+        google: None,
+        meta: None,
+        google_ads_export_key: None,
+        google_ads_conversion_name: "Megrendeles".into(),
+        vin_online: false,
     }
 }
 
@@ -117,6 +125,7 @@ pub async fn user(pool: &PgPool, role: Role) -> AuthUser {
         role,
         must_change_password: false,
         hr_access: false,
+        permissions: vec![],
     }
 }
 
@@ -325,6 +334,7 @@ pub fn state_with_nav(pool: PgPool, sidecar_url: &str, supplier_tax_number: &str
             public_place_category: "utca".into(),
             number: "12".into(),
             bank_account: Some("12345678-12345678-12345678".into()),
+            bank_account_eur: None,
         },
         default_vat_rate: "0.27".parse().unwrap(),
         invoice_prefix: "AT".into(),

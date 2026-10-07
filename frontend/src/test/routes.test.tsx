@@ -76,7 +76,7 @@ const routes: Route[] = [
     element: () => <OrderDetailPage params={{ id: '3' }} />,
     expect: /MC-1001/,
   },
-  { path: '/hu/blockers', element: () => BlockersPage({ params: locale }), expect: /Akadályok/ },
+  { path: '/hu/blockers', element: () => BlockersPage({ params: Promise.resolve(locale) }), expect: /Akadályok/ },
   { path: '/hu/board', element: () => <BoardPage />, expect: /Átvehető/ },
   { path: '/hu/emails', element: () => <EmailsPage />, expect: /fenyezo\.hu/ },
   {
@@ -91,20 +91,20 @@ const routes: Route[] = [
   },
   {
     path: '/hu/newsletter/unsubscribe',
-    element: () => <UnsubscribePage searchParams={{}} />,
+    element: () => <UnsubscribePage searchParams={Promise.resolve({})} />,
     expect: /Leiratkozás/,
   },
   {
     path: '/hu/newsletter/confirm',
-    element: () => <ConfirmPage searchParams={{}} />,
+    element: () => <ConfirmPage searchParams={Promise.resolve({})} />,
     expect: /megerősítése/,
   },
-  { path: '/hu/reports', element: () => ReportsPage({ params: locale }), expect: /Jelentések/ },
+  { path: '/hu/reports', element: () => ReportsPage({ params: Promise.resolve(locale) }), expect: /Jelentések/ },
   { path: '/hu/settings', element: () => <SettingsPage />, expect: /smtp\.example\.com|Beállítások/ },
   { path: '/hu/marketing', element: () => <MarketingPage />, expect: /info@pekseg.hu/ },
   { path: '/hu/incoming-invoices', element: () => <IncomingInvoicesPage />, expect: /Hűtőgép Kft/ },
   { path: '/hu/templates', element: () => <TemplatesPage />, expect: /Árajánlat utánkövetés/ },
-  { path: '/hu/admin', element: () => AdminPage({ params: locale }), expect: /Adminisztráció/i },
+  { path: '/hu/admin', element: () => AdminPage({ params: Promise.resolve(locale) }), expect: /Adminisztráció/i },
 ];
 
 describe.each(routes)('$path', (route) => {

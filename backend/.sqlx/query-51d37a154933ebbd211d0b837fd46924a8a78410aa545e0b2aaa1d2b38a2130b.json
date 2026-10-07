@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT weekly_report_recipients FROM settings",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "weekly_report_recipients",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "51d37a154933ebbd211d0b837fd46924a8a78410aa545e0b2aaa1d2b38a2130b"
+}

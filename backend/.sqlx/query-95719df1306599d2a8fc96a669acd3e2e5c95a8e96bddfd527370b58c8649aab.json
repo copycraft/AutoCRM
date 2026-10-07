@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_settings (user_id, density, page_size, email_signature) VALUES ($1, $2, $3, $4)\n         ON CONFLICT (user_id) DO UPDATE SET density = $2, page_size = $3, email_signature = $4\n         RETURNING user_id, density, page_size, email_signature, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "density",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "page_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "email_signature",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "95719df1306599d2a8fc96a669acd3e2e5c95a8e96bddfd527370b58c8649aab"
+}

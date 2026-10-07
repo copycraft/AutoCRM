@@ -15,13 +15,17 @@ pub struct Attribution {
     pub utm_campaign: Option<String>,
     pub referrer: Option<String>,
     pub landing_page: Option<String>,
+    /// Google Ads click id from the landing URL (0049): a won lead is reported back.
+    pub gclid: Option<String>,
+    /// Meta click id from the landing URL (0049).
+    pub fbclid: Option<String>,
 }
 
 pub async fn insert(db: impl PgExecutor<'_>, lead_id: i64, a: &Attribution) -> sqlx::Result<()> {
     sqlx::query(
         "INSERT INTO lead_attribution
-             (lead_id, channel, utm_source, utm_medium, utm_campaign, referrer, landing_page)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+             (lead_id, channel, utm_source, utm_medium, utm_campaign, referrer, landing_page, gclid, fbclid)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(lead_id)
     .bind(&a.channel)
@@ -30,6 +34,8 @@ pub async fn insert(db: impl PgExecutor<'_>, lead_id: i64, a: &Attribution) -> s
     .bind(&a.utm_campaign)
     .bind(&a.referrer)
     .bind(&a.landing_page)
+    .bind(&a.gclid)
+    .bind(&a.fbclid)
     .execute(db)
     .await?;
     Ok(())
@@ -37,7 +43,7 @@ pub async fn insert(db: impl PgExecutor<'_>, lead_id: i64, a: &Attribution) -> s
 
 pub async fn find(db: impl PgExecutor<'_>, lead_id: i64) -> sqlx::Result<Option<Attribution>> {
     sqlx::query_as(
-        "SELECT channel, utm_source, utm_medium, utm_campaign, referrer, landing_page
+        "SELECT channel, utm_source, utm_medium, utm_campaign, referrer, landing_page, gclid, fbclid
          FROM lead_attribution WHERE lead_id = $1",
     )
     .bind(lead_id)

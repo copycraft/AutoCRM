@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE stage_definitions SET default_image_category = $2 WHERE entity = 'order' AND key = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "image_category",
+            "kind": {
+              "Enum": [
+                "intake",
+                "production",
+                "completion",
+                "marketing",
+                "inspection"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "352233b948640ed50328a174c6c7cc8e52fdf2452be09a4473b0c6a2cde4ec29"
+}

@@ -20,6 +20,7 @@ import { BucketBadge, BucketList, type Bucket } from '@/components/tags/BucketLi
 import { Timeline } from '@/components/timeline/Timeline';
 import { ExportMenu, collectAll } from '@/components/tables/ExportCsvButton';
 import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
+import { IncomingBulkBar } from '@/components/tables/BulkBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUrlInt, useUrlState } from '@/hooks/useUrlState';
 import { incomingApi } from '@/lib/api/endpoints';
@@ -94,6 +95,8 @@ export default function IncomingInvoicesPage() {
   const counts = useQuery({ queryKey: ['incoming-invoices', 'buckets'], queryFn: () => incomingApi.buckets() });
   const countMap = Object.fromEntries((counts.data?.items ?? []).map((c) => [c.bucket, c.count]));
   const refresh = () => void qc.invalidateQueries({ queryKey: ['incoming-invoices'] });
+  // Ticked rows for the bulk bar (0049).
+  const [ticked, setTicked] = useState<number[]>([]);
 
   const remove = useMutation({
     mutationFn: (id: number) => incomingApi.remove(id),
@@ -256,10 +259,17 @@ export default function IncomingInvoicesPage() {
               <ErrorState error={list.error} onRetry={() => void list.refetch()} />
             ) : (
               <ul className="space-y-2">
+                {editable && ticked.length > 0 && (
+                  <li>
+                    <IncomingBulkBar ids={ticked} onClear={() => setTicked([])} />
+                  </li>
+                )}
                 {(list.data?.items ?? []).map((inv) => (
                   <IncomingRow
                     key={inv.id}
                     inv={inv}
+                    ticked={ticked.includes(inv.id)}
+                    onTick={(on) => setTicked(on ? [...ticked, inv.id] : ticked.filter((x) => x !== inv.id))}
                     bucket={allBuckets.find((b) => b.key === inv.bucket)}
                     editable={editable}
                     expanded={open === inv.id}
@@ -300,6 +310,8 @@ export default function IncomingInvoicesPage() {
 
 function IncomingRow({
   inv,
+  ticked,
+  onTick,
   bucket,
   editable,
   expanded,
@@ -308,6 +320,8 @@ function IncomingRow({
   onRemove,
 }: {
   inv: IncomingInvoice;
+  ticked: boolean;
+  onTick: (on: boolean) => void;
   bucket: Bucket | undefined;
   editable: boolean;
   expanded: boolean;
@@ -331,6 +345,15 @@ function IncomingRow({
   return (
     <li className={cn('card', expanded && 'ring-2 ring-steel-500/30')}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 p-4">
+        {editable && (
+          <input
+            type="checkbox"
+            className="rounded border-steel-200 accent-steel-900"
+            aria-label={inv.supplier_name || inv.invoice_number || String(inv.id)}
+            checked={ticked}
+            onChange={(e) => onTick(e.target.checked)}
+          />
+        )}
         <BucketBadge bucket={bucket} />
         <button type="button" className="min-w-0 text-left font-medium hover:underline" onClick={onToggle}>
           {inv.supplier_name || <span className="italic text-steel-500">{t('toFill')}</span>}

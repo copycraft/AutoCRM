@@ -57,6 +57,25 @@ export const sessionUser: SessionUser = {
   must_change_password: false,
   session_kind: 'web',
   hr_access: true,
+  capabilities: [
+    'manage_users',
+    'manage_settings',
+    'manage_configuration',
+    'operate_system',
+    'edit_partners',
+    'edit_leads',
+    'edit_orders',
+    'change_stages',
+    'manage_blockers',
+    'upload_media',
+    'delete_media',
+    'view_original_images',
+    'send_email',
+    'issue_invoices',
+    'annul_invoices',
+    'access_hr',
+    'comment',
+  ],
 };
 
 export const user: User = {
@@ -67,6 +86,8 @@ export const user: User = {
   is_active: true,
   must_change_password: false,
   hr_access: false,
+  permissions: [],
+  two_factor: false,
   created_at: NOW,
   updated_at: NOW,
 };
@@ -295,6 +316,9 @@ export const orderDetail: OrderDetail = {
   vehicles: [vehicle],
   spec: orderSpec,
   image_counts: { intake: 3, completion: 2 },
+  vehicle_locations: [],
+  comment_count: 0,
+  open_incidents: 0,
 };
 
 export const lead: Lead = {
@@ -656,6 +680,23 @@ export const lookups: Lookups = {
     { key: 'checkout', label_hu: 'Átvétel' },
     { key: 'checkin', label_hu: 'Kiadás' },
   ],
+  tyre_positions: [
+    { key: 'front_left', label_hu: 'Bal első' },
+    { key: 'front_right', label_hu: 'Jobb első' },
+    { key: 'rear_left', label_hu: 'Bal hátsó' },
+    { key: 'rear_right', label_hu: 'Jobb hátsó' },
+  ],
+  tyre_conditions: [
+    { key: 'ok', label_hu: 'Rendben' },
+    { key: 'worn', label_hu: 'Kopott' },
+    { key: 'damaged', label_hu: 'Sérült' },
+    { key: 'missing', label_hu: 'Hiányzik' },
+  ],
+  yard_kinds: [
+    { key: 'bay', label_hu: 'Műhelyállás' },
+    { key: 'parking', label_hu: 'Parkoló, udvar' },
+    { key: 'external', label_hu: 'Külső helyszín' },
+  ],
   fuel_levels: [
     { key: 'E', label_hu: 'E' },
     { key: '1/4', label_hu: '1/4' },
@@ -683,6 +724,7 @@ export const lookups: Lookups = {
     { key: 'order', label_hu: 'Megrendelés' },
     { key: 'lead', label_hu: 'Érdeklődő' },
     { key: 'partner', label_hu: 'Partner' },
+    { key: 'employee', label_hu: 'Munkatárs' },
   ],
   currencies: [
     { key: 'HUF', label_hu: 'Forint' },
@@ -735,6 +777,7 @@ export const billedInvoice: BilledInvoice = {
   paid_at: null,
   reminders_off: false,
   reminders_sent: 0,
+  paid_amount: 0,
 };
 
 export const billedStorno: BilledInvoice = {
@@ -752,6 +795,7 @@ export const billedStorno: BilledInvoice = {
   paid_at: null,
   reminders_off: false,
   reminders_sent: 0,
+  paid_amount: 0,
 };
 
 export const billedProforma: BilledProforma = {

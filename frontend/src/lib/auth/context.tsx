@@ -4,13 +4,13 @@ import { createContext, useCallback, useContext, useMemo, type ReactNode } from 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import type { LoginResponse, SessionUser } from '@/lib/api/types';
+import type { Capability, LoginResponse, SessionUser } from '@/lib/api/types';
 
 interface AuthState {
   user: SessionUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<LoginResponse>;
+  login: (email: string, password: string, totpCode?: string) => Promise<LoginResponse>;
   logout: () => Promise<void>;
   refetch: () => Promise<void>;
 }
@@ -26,8 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const res = await authApi.login({ email, password, client: 'web' });
+    async (email: string, password: string, totpCode?: string) => {
+      const res = await authApi.login({ email, password, client: 'web', totp_code: totpCode || undefined });
       await qc.invalidateQueries({ queryKey: qk.me });
       await refetch();
       return res;
@@ -67,43 +67,48 @@ export function useAuth(): AuthState {
   return ctx;
 }
 
-// Capability helpers mirror backend domain/role.rs (Role::can).
+// Capability helpers. The backend sends the effective set in `capabilities`: the role's
+// defaults plus whatever an admin granted this user (domain/role.rs, Capability).
 // UI-only: backend remains the security boundary.
-// NOTE: lead stage changes require EditLeads (admin|office) — designers get
-// 403 there, unlike order stage changes (ChangeStages). Use canEditLeads.
+// NOTE: lead stage changes require EditLeads — use canEditLeads there, not canChangeStage.
+export function hasCapability(user: SessionUser | null, capability: Capability): boolean {
+  return !!user && (user.capabilities ?? []).includes(capability);
+}
+
 export function canEdit(user: SessionUser | null): boolean {
-  return !!user && (user.role === 'admin' || user.role === 'office');
+  return hasCapability(user, 'edit_orders');
 }
 
 export function canEditPartners(user: SessionUser | null): boolean {
-  return canEdit(user);
+  return hasCapability(user, 'edit_partners');
 }
 
 export function canEditLeads(user: SessionUser | null): boolean {
-  return canEdit(user);
+  return hasCapability(user, 'edit_leads');
 }
 
 export function canEditOrders(user: SessionUser | null): boolean {
-  return canEdit(user);
+  return hasCapability(user, 'edit_orders');
 }
 
 export function canChangeStage(user: SessionUser | null): boolean {
-  return !!user && (user.role === 'admin' || user.role === 'office' || user.role === 'designer');
+  return hasCapability(user, 'change_stages');
 }
 
 export function canManageBlockers(user: SessionUser | null): boolean {
-  return canChangeStage(user);
+  return hasCapability(user, 'manage_blockers');
 }
 
 export function canUploadMedia(user: SessionUser | null): boolean {
-  return canChangeStage(user);
+  return hasCapability(user, 'upload_media');
 }
 
-/// Sending mail (manual, quotation, newsletter) is office work, like invoices.
+/// Sending mail (manual, quotation, newsletter).
 export function canSendEmail(user: SessionUser | null): boolean {
-  return canEdit(user);
+  return hasCapability(user, 'send_email');
 }
 
+/// The admin role itself (user management is never granted per user).
 export function canAdmin(user: SessionUser | null): boolean {
   return !!user && user.role === 'admin';
 }
@@ -114,7 +119,12 @@ export function canAccessHr(user: SessionUser | null): boolean {
   return !!user && user.hr_access;
 }
 
-/// Issuing invoices, marking them paid, and recording incoming ones: office work.
+/// Issuing invoices, marking them paid, and recording incoming ones.
 export function canIssueInvoices(user: SessionUser | null): boolean {
-  return canEdit(user);
+  return hasCapability(user, 'issue_invoices');
+}
+
+/// Comments with mentions.
+export function canComment(user: SessionUser | null): boolean {
+  return hasCapability(user, 'comment');
 }

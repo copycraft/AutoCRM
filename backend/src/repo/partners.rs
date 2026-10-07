@@ -25,6 +25,9 @@ pub struct Partner {
     /// treated as a customer by the pickers — the paint shop turning up in the customer
     /// list is a nuisance, a customer missing from it is a bug.
     pub role: Option<String>,
+    /// The language this partner's invoice and proforma PDFs are rendered in: hu, en or
+    /// de (0049). None: the invoicing service's default.
+    pub invoice_language: Option<String>,
     pub minicrm_id: Option<i64>,
     pub archived_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -54,7 +57,7 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Partn
     sqlx::query_as!(
         Partner,
         r#"SELECT id, kind AS "kind: PartnerKind", name, tax_number, eu_tax_number, country, default_currency,
-                  email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at
+                  email, phone, website, postal_code, city, address_line, notes, role, invoice_language, minicrm_id, archived_at, created_at, updated_at
            FROM partners WHERE id = $1"#,
         id
     )
@@ -85,7 +88,7 @@ pub async fn search(
     sqlx::query_as!(
         Partner,
         r#"SELECT id, kind AS "kind: PartnerKind", name, tax_number, eu_tax_number, country, default_currency,
-                  email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at
+                  email, phone, website, postal_code, city, address_line, notes, role, invoice_language, minicrm_id, archived_at, created_at, updated_at
            FROM partners
            WHERE ($1::text IS NULL OR name ILIKE $1 OR tax_number ILIKE $1 OR eu_tax_number ILIKE $1
                   OR email ILIKE $1 OR city ILIKE $1
@@ -125,7 +128,7 @@ pub async fn insert(db: impl PgExecutor<'_>, p: &PartnerInput) -> sqlx::Result<P
                                  email, phone, website, postal_code, city, address_line, notes, role)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            RETURNING id, kind AS "kind: PartnerKind", name, tax_number, eu_tax_number, country, default_currency,
-                     email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at"#,
+                     email, phone, website, postal_code, city, address_line, notes, role, invoice_language, minicrm_id, archived_at, created_at, updated_at"#,
         p.kind as PartnerKind,
         p.name,
         p.tax_number,
@@ -158,7 +161,7 @@ pub async fn update(
                notes = $14, role = $15
            WHERE id = $1
            RETURNING id, kind AS "kind: PartnerKind", name, tax_number, eu_tax_number, country, default_currency,
-                     email, phone, website, postal_code, city, address_line, notes, role, minicrm_id, archived_at, created_at, updated_at"#,
+                     email, phone, website, postal_code, city, address_line, notes, role, invoice_language, minicrm_id, archived_at, created_at, updated_at"#,
         id,
         p.kind as PartnerKind,
         p.name,
@@ -188,4 +191,43 @@ pub async fn set_archived(db: impl PgExecutor<'_>, id: i64, archived: bool) -> s
     .execute(db)
     .await?;
     Ok(r.rows_affected() == 1)
+}
+
+/// Sets the language of the partner's invoice PDFs (0049). False when there is no such
+/// partner.
+pub async fn set_invoice_language(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    language: Option<&str>,
+) -> sqlx::Result<bool> {
+    let done = sqlx::query!(
+        "UPDATE partners SET invoice_language = $2 WHERE id = $1",
+        id,
+        language
+    )
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected() == 1)
+}
+
+/// The invoice language of the partner an order belongs to.
+pub async fn invoice_language_for_order(
+    db: impl PgExecutor<'_>,
+    order_id: i64,
+) -> sqlx::Result<Option<String>> {
+    Ok(sqlx::query_scalar!(
+        "SELECT p.invoice_language FROM orders o JOIN partners p ON p.id = o.partner_id WHERE o.id = $1",
+        order_id
+    )
+    .fetch_optional(db)
+    .await?
+    .flatten())
+}
+
+/// Sets whether the partner is a customer, a supplier or both. False when there is none.
+pub async fn set_role(db: impl PgExecutor<'_>, id: i64, role: &str) -> sqlx::Result<bool> {
+    let done = sqlx::query!("UPDATE partners SET role = $2 WHERE id = $1", id, role)
+        .execute(db)
+        .await?;
+    Ok(done.rows_affected() == 1)
 }

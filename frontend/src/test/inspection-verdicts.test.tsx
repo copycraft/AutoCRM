@@ -31,6 +31,7 @@ vi.mock('@/lib/auth/context', async (orig) => ({
       role: 'office',
       must_change_password: false,
       session_kind: 'web',
+      capabilities: ['edit_orders', 'change_stages', 'upload_media', 'comment'],
     },
   }),
 }));
@@ -92,6 +93,8 @@ function detail(insp: ReturnType<typeof inspection>, damages: ReturnType<typeof 
     signatures: [],
     notes: [],
     zone_titles: insp.kind === 'checkin' ? ZONE_TITLES.checkin : ZONE_TITLES.checkout,
+    tyres: [],
+    videos: [],
   };
 }
 

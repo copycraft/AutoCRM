@@ -42,7 +42,8 @@ pub struct TagInput {
     pub domains: Vec<String>,
 }
 
-const SELECT: &str = "SELECT t.id, t.market, t.label, t.color, t.domains, t.position, t.archived_at,
+const SELECT: &str =
+    "SELECT t.id, t.market, t.label, t.color, t.domains, t.position, t.archived_at,
         count(k.lead_id) FILTER (WHERE NOT sd.is_terminal) AS open_leads,
         count(k.lead_id) AS total_leads
     FROM lead_tags t
@@ -223,11 +224,7 @@ pub async fn unlink_others(
 }
 
 /// Detaches one tag from the lead.
-pub async fn remove_tag(
-    db: impl PgExecutor<'_>,
-    lead_id: i64,
-    tag_id: i64,
-) -> sqlx::Result<()> {
+pub async fn remove_tag(db: impl PgExecutor<'_>, lead_id: i64, tag_id: i64) -> sqlx::Result<()> {
     sqlx::query("DELETE FROM lead_tag_links WHERE lead_id = $1 AND tag_id = $2")
         .bind(lead_id)
         .bind(tag_id)

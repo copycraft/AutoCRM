@@ -40,6 +40,11 @@ pub struct OutgoingEmail {
     pub attachments: Vec<OutgoingAttachment>,
     /// Marks the message as machine-generated so vacation responders don't answer it.
     pub automatic: bool,
+    /// The message this answers (`<id@host>`), so the reader's mail app files it under
+    /// the same conversation (0049).
+    pub in_reply_to: Option<String>,
+    /// The thread so far, oldest first, space-separated `<id@host>` values.
+    pub references: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -350,6 +355,12 @@ fn build_message(email: &OutgoingEmail) -> anyhow::Result<Message> {
     if email.automatic {
         builder = builder.header(AutoSubmitted).header(AutoResponseSuppress);
     }
+    if let Some(id) = &email.in_reply_to {
+        builder = builder.in_reply_to(id.clone());
+    }
+    if let Some(refs) = &email.references {
+        builder = builder.references(refs.clone());
+    }
     let alternative =
         MultiPart::alternative_plain_html(email.body_text.clone(), email.body_html.clone());
     let body = if email.attachments.is_empty() {
@@ -393,6 +404,8 @@ mod tests {
                 content_id: None,
             }],
             automatic: true,
+            in_reply_to: None,
+            references: None,
         }
     }
 

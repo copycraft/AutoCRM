@@ -435,6 +435,8 @@ async fn a_document_attached_and_embedded_is_not_reported_deleted(pool: PgPool) 
             byte_size: 10,
             uploaded_by: Some(user.user_id),
             source_ref: None,
+            previous_version_id: None,
+            version: 1,
         },
     )
     .await

@@ -3,6 +3,7 @@
 // New email: a direct letter or a newsletter blast, written in text or Markdown with a
 // live preview of exactly what will be stored and sent.
 
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import { useAuth, canSendEmail } from '@/lib/auth/context';
 export default function NewEmailPage({
   searchParams,
 }: {
-  searchParams?: {
+  searchParams?: Promise<{
     order_id?: string;
     lead_id?: string;
     partner_id?: string;
@@ -24,8 +25,24 @@ export default function NewEmailPage({
     // `newsletter` opens the blast; `tags` (comma-separated ids) aims it, from Marketing.
     audience?: string;
     tags?: string;
-  };
+    // Answering a received letter (0049): its id threads the reply; subject and quote prefill.
+    reply_to?: string;
+    subject?: string;
+    quote?: string;
+  }>;
 }) {
+  type SP = {
+    order_id?: string;
+    lead_id?: string;
+    partner_id?: string;
+    to?: string;
+    audience?: string;
+    tags?: string;
+    reply_to?: string;
+    subject?: string;
+    quote?: string;
+  };
+  const resolvedParams = React.use(searchParams ?? Promise.resolve({} as SP));
   const t = useTranslations('emails');
   const tn = useTranslations('navigation');
   const tq = useTranslations('qol');
@@ -41,7 +58,7 @@ export default function NewEmailPage({
   };
   // Context from `?order_id=&lead_id=&partner_id=&to=`: the letter is filed against the
   // record, and its documents become attachable.
-  const params = searchParams ?? {};
+  const params = resolvedParams;
   const about = {
     ...(num(params.order_id) ? { order_id: num(params.order_id)! } : {}),
     ...(num(params.lead_id) ? { lead_id: num(params.lead_id)! } : {}),
@@ -73,6 +90,9 @@ export default function NewEmailPage({
           defaultTo={params.to}
           defaultAudience={params.audience === 'newsletter' ? 'newsletter' : undefined}
           defaultTagIds={(params.tags ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0)}
+          defaultSubject={params.subject}
+          replyToInboundId={num(params.reply_to)}
+          quote={params.quote}
           onSent={(id, newsletterRecipients) => {
             void qc.invalidateQueries({ queryKey: ['emails'] });
             toast.success(

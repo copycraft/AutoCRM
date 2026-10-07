@@ -26,13 +26,22 @@ import {
   type OrderFormValues,
 } from '@/components/forms/OrderForm';
 import type { SpecForm } from '@/components/forms/BuildSpecSection';
+import { CoolingSerial } from '@/components/orders/VehicleExtras';
 import { ItemsSection } from '@/components/forms/ItemsSection';
 import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
 import { configApi, ordersApi, usersApi } from '@/lib/api/endpoints';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
-import { canAdmin, canChangeStage, canEditOrders, canSendEmail, useAuth } from '@/lib/auth/context';
+import {
+  canAdmin,
+  canChangeStage,
+  canComment,
+  canEditOrders,
+  canSendEmail,
+  canUploadMedia,
+  useAuth,
+} from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
@@ -42,8 +51,15 @@ import { useRecentRecords } from '@/hooks/useRecent';
 import type { PatchOrder } from '@/lib/api/types';
 import { isBlockerOpen } from '@/lib/utils/blockers';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
+import { useSearchParams } from 'next/navigation';
+import { PhotoGallery } from '@/components/media/PhotoGallery';
+import { DocumentsPanel } from '@/components/media/DocumentsPanel';
+import { CommentThread } from '@/components/comments/CommentThread';
+import { VehicleLocations } from '@/components/yard/YardBoard';
+import { OrderIncidents } from '@/components/incidents/Incidents';
 
-type Tab = 'data' | 'items' | 'invoices' | 'stages' | 'blockers' | 'audit';
+type Tab = 'data' | 'photos' | 'documents' | 'comments' | 'items' | 'invoices' | 'stages' | 'blockers' | 'audit';
+const TABS: Tab[] = ['data', 'photos', 'documents', 'comments', 'items', 'invoices', 'stages', 'blockers', 'audit'];
 
 /** Enum values render from the server's lookups; unknown ones read as themselves. */
 
@@ -60,7 +76,6 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const id = Number(params.id);
   const t = useTranslations('orders');
   const tc = useTranslations('common');
-  const ti = useTranslations('images');
   const ts = useTranslations('spec');
   const tt = useTranslations('tasks');
   const ter = useTranslations('errors');
@@ -69,8 +84,15 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const { user } = useAuth();
   const qc = useQueryClient();
   const tn = useTranslations('navigation');
+  const tm = useTranslations('media');
   const { push: pushRecent } = useRecentRecords(6);
-  const [tab, setTab] = useState<Tab>('data');
+  // A notification can open a tab directly (`?tab=comments` for a mention).
+  const search = useSearchParams();
+  const wanted = search.get('tab') as Tab | null;
+  const [tab, setTab] = useState<Tab>(wanted && TABS.includes(wanted) ? wanted : 'data');
+  useEffect(() => {
+    if (wanted && TABS.includes(wanted)) setTab(wanted);
+  }, [wanted]);
   const [editing, setEditing] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
   const canEdit = canEditOrders(user);
@@ -149,8 +171,23 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     );
   }
 
-  const { order, partner, stage, items, value, blockers, image_counts, related, vehicles, spec } =
-    detail.data;
+  const {
+    order,
+    partner,
+    stage,
+    items,
+    value,
+    blockers,
+    image_counts,
+    related,
+    vehicles,
+    spec,
+    photo_category,
+    vehicle_locations,
+    comment_count,
+    open_incidents,
+  } = detail.data;
+  const photoCount = Object.values(image_counts).reduce((a, b) => a + b, 0);
   const currency = order.currency;
   const projectTypeName = order.project_type_id
     ? (projectTypes.data?.items.find((p) => p.id === order.project_type_id)?.label_hu ??
@@ -163,7 +200,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const defs = stagesQuery.data?.items ?? [];
   const openBlockers = blockers.filter(isBlockerOpen);
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'data', label: t('tabsData') },
+    { key: 'data', label: open_incidents > 0 ? `${t('tabsData')} ⚠` : t('tabsData') },
+    { key: 'photos', label: `${tm('photosTab')} (${photoCount})` },
+    { key: 'documents', label: tm('documentsTab') },
+    { key: 'comments', label: `${tm('commentsTab')} (${comment_count})` },
     { key: 'items', label: `${t('tabsItems')} (${items.length})` },
     { key: 'invoices', label: ti2('tab') },
     { key: 'stages', label: t('tabsStages') },
@@ -320,9 +360,14 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     )}
                     {Object.entries(image_counts).map(([cat, n]) => (
                       <StatusBadge key={cat} tone="steel">
-                        {ti(cat)}: {n}
+                        {lookupLabel(lookups?.image_categories, cat)}: {n}
                       </StatusBadge>
                     ))}
+                    {photoCount > 0 && (
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => setTab('photos')}>
+                        {tm('openGallery')} →
+                      </button>
+                    )}
                   </div>
                 </section>
 
@@ -343,6 +388,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         </span>
                       </p>
                     ))}
+                    <VehicleLocations
+                      orderId={id}
+                      vehicles={vehicles}
+                      locations={vehicle_locations}
+                      canMove={canStage}
+                    />
                   </div>
                 </section>
 
@@ -383,6 +434,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                             label={ts('electricStandby')}
                             value={spec.electric_standby ? tc('yes') : tc('no')}
                           />
+                          <CoolingSerial orderId={id} value={spec.cooling_unit_serial} editable={canUploadMedia(user)} />
                         </>
                       ) : (
                         <>
@@ -426,7 +478,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
                 {!editing && <IntakeSlipSection order={order} editable={canEdit} />}
 
-                {!editing && <InspectionSection orderId={id} />}
+                {!editing && <InspectionSection orderId={id} currency={currency} />}
+
+                {!editing && <OrderIncidents orderId={id} currency={currency} />}
 
                 {!editing && (
                   <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
@@ -438,6 +492,25 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 )}
               </div>
             )}
+          </Tabs.Content>
+
+          <Tabs.Content value="photos">
+            <PhotoGallery
+              orderId={id}
+              vehicles={vehicles}
+              stageCategory={photo_category}
+              canUpload={canUploadMedia(user)}
+              canDelete={canEdit}
+              canViewOriginal={canEdit}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="documents">
+            <DocumentsPanel owner={{ order: id }} canUpload={canUploadMedia(user)} canDelete={canEdit} />
+          </Tabs.Content>
+
+          <Tabs.Content value="comments">
+            <CommentThread entity="order" id={id} canComment={canComment(user)} />
           </Tabs.Content>
 
           <Tabs.Content value="items">

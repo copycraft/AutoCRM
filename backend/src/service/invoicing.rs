@@ -148,11 +148,17 @@ pub fn sidecar(config: &Config) -> AppResult<(NavSidecar, &NavConfig)> {
 }
 
 /// Us, from configuration.
-fn supplier_party(nav: &NavConfig) -> nav::Supplier {
+/// The supplier: us. A EUR document names the EUR account when there is one, so the
+/// customer pays euros into a euro account rather than through a conversion (0049).
+fn supplier_party(nav: &NavConfig, currency: Currency) -> nav::Supplier {
+    let bank_account = match (&nav.supplier.bank_account_eur, currency) {
+        (Some(eur), Currency::EUR) => Some(eur.clone()),
+        _ => nav.supplier.bank_account.clone(),
+    };
     nav::Supplier {
         name: nav.supplier.name.clone(),
         tax_number: nav.supplier.tax_number.clone(),
-        bank_account: nav.supplier.bank_account.clone(),
+        bank_account,
         address: nav::Address {
             country_code: Some("HU".into()),
             postal_code: nav.supplier.postal_code.clone(),
@@ -1136,7 +1142,10 @@ async fn adopt_reconciled(
 /// with the order's other documents.
 pub async fn store_invoice_pdf(state: &AppState, invoice: &Invoice) -> anyhow::Result<i64> {
     let (client, _) = sidecar(&state.config)?;
-    let pdf = client.invoice_pdf(&invoice.number).await?;
+    let language = partners::invoice_language_for_order(&state.db, invoice.order_id).await?;
+    let pdf = client
+        .invoice_pdf(&invoice.number, language.as_deref())
+        .await?;
     let filename = format!("{}.pdf", invoice.number);
     let document_id = store_pdf(
         state,
@@ -1221,6 +1230,8 @@ async fn store_pdf(
             // Generated, not uploaded: nobody chose this file.
             uploaded_by: None,
             source_ref,
+            previous_version_id: None,
+            version: 1,
         },
     )
     .await?;
@@ -1391,12 +1402,13 @@ pub async fn create_proforma(
             exchange_rate,
             payment_method: Some("TRANSFER".into()),
             order_numbers: Some(vec![order.number.clone()]),
-            supplier: supplier_party(nav),
+            supplier: supplier_party(nav, currency),
             customer,
             lines: snapshot.lines.iter().map(|(_, l)| l.clone()).collect(),
         },
         id: number.clone(),
         note: req.note.clone(),
+        language: partner.invoice_language.clone(),
     };
 
     let rendered = client
@@ -1648,7 +1660,7 @@ async fn build_request(
         exchange_rate,
         payment_method: Some(method.as_str().to_string()),
         order_numbers: Some(vec![order.number.clone()]),
-        supplier: supplier_party(nav_cfg),
+        supplier: supplier_party(nav_cfg, currency),
         customer: customer_party(&partner)?,
         lines: lines
             .iter()

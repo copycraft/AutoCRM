@@ -32,6 +32,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(variables))
         .routes(routes!(update_template))
         .routes(routes!(copy_template))
+        // 0049
+        .routes(routes!(preview_template))
         .routes(routes!(list_suppressions, add_suppression))
         .routes(routes!(remove_suppression))
 }
@@ -229,10 +231,16 @@ const FOLDERS: &[&str] = &["customer", "workflow", "design"];
 
 fn check_place(category: &str, folder: &str) -> AppResult<()> {
     if !CATEGORIES.contains(&category) {
-        return Err(AppError::validation(format!("category must be one of {}", CATEGORIES.join(", "))));
+        return Err(AppError::validation(format!(
+            "category must be one of {}",
+            CATEGORIES.join(", ")
+        )));
     }
     if !FOLDERS.contains(&folder) {
-        return Err(AppError::validation(format!("folder must be one of {}", FOLDERS.join(", "))));
+        return Err(AppError::validation(format!(
+            "folder must be one of {}",
+            FOLDERS.join(", ")
+        )));
     }
     Ok(())
 }
@@ -262,7 +270,12 @@ async fn create_template(
 ) -> AppResult<(StatusCode, Json<EmailTemplate>)> {
     me.require(Capability::ManageConfiguration)?;
     let generated = format!("custom_{}", chrono::Utc::now().format("%Y%m%d%H%M%S%3f"));
-    let key = b.key.as_deref().map(str::trim).filter(|k| !k.is_empty()).unwrap_or(&generated);
+    let key = b
+        .key
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+        .unwrap_or(&generated);
     let category = b.category.as_deref().unwrap_or("general");
     let folder = b.folder.as_deref().unwrap_or("customer");
     check_place(category, folder)?;
@@ -282,7 +295,10 @@ async fn create_template(
     );
     check_variables(&subject, &body)?;
     let mut tx = state.db.begin().await?;
-    let template = templates::insert(&mut *tx, key, &name, &subject, &body, category, folder, me.user_id).await?;
+    let template = templates::insert(
+        &mut *tx, key, &name, &subject, &body, category, folder, me.user_id,
+    )
+    .await?;
     audit::record(
         &mut *tx,
         Some(me.user_id),
@@ -336,14 +352,20 @@ async fn update_template(
     let folder = p.folder.unwrap_or_else(|| current.folder.clone());
     check_place(&category, &folder)?;
     let archived = p.archived.unwrap_or(current.archived_at.is_some());
-    if archived && current.archived_at.is_none()
+    if archived
+        && current.archived_at.is_none()
         && let Some(why) = templates::in_use(&mut *tx, &current.key, current.is_automatic).await?
     {
-        return Err(AppError::rule("template_in_use", format!("this template cannot go to the bin: {why}")));
+        return Err(AppError::rule(
+            "template_in_use",
+            format!("this template cannot go to the bin: {why}"),
+        ));
     }
-    let updated = templates::update(&mut *tx, id, &name, &subject, &body, &category, &folder, archived, me.user_id)
-        .await?
-        .ok_or(AppError::NotFound("email template"))?;
+    let updated = templates::update(
+        &mut *tx, id, &name, &subject, &body, &category, &folder, archived, me.user_id,
+    )
+    .await?
+    .ok_or(AppError::NotFound("email template"))?;
     audit::record(
         &mut *tx,
         Some(me.user_id),
@@ -356,7 +378,11 @@ async fn update_template(
             ("body", json!(current.body), json!(updated.body)),
             ("category", json!(current.category), json!(updated.category)),
             ("folder", json!(current.folder), json!(updated.folder)),
-            ("archived", json!(current.archived_at.is_some()), json!(updated.archived_at.is_some())),
+            (
+                "archived",
+                json!(current.archived_at.is_some()),
+                json!(updated.archived_at.is_some()),
+            ),
         ]),
     )
     .await?;
@@ -441,7 +467,11 @@ async fn copy_template(
         .ok_or(AppError::NotFound("email template"))?;
     let key = format!("custom_{}", chrono::Utc::now().format("%Y%m%d%H%M%S%3f"));
     // A design sample's copy is a real letter for customers; anything else keeps its folder.
-    let folder = if source.folder == "design" { "customer" } else { source.folder.as_str() };
+    let folder = if source.folder == "design" {
+        "customer"
+    } else {
+        source.folder.as_str()
+    };
     let copy = templates::insert(
         &mut *tx,
         &key,
@@ -453,8 +483,86 @@ async fn copy_template(
         me.user_id,
     )
     .await?;
-    audit::record(&mut *tx, Some(me.user_id), "email_template", copy.id, "create",
-        json!({ "key": key, "copied_from": source.key })).await?;
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "email_template",
+        copy.id,
+        "create",
+        json!({ "key": key, "copied_from": source.key }),
+    )
+    .await?;
     tx.commit().await?;
     Ok((StatusCode::CREATED, Json(copy)))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct TemplatePreviewBody {
+    subject: String,
+    body: String,
+    /// Render against this record (at most one); none shows every variable as missing.
+    order_id: Option<i64>,
+    lead_id: Option<i64>,
+    partner_id: Option<i64>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct TemplatePreview {
+    subject: String,
+    body_text: String,
+    body_html: String,
+    /// Variables this record has no value for (or that do not exist).
+    unresolved: Vec<String>,
+}
+
+/// A template as it would read for a real order, lead or partner, while it is being edited
+/// (nothing is saved or sent). Letter-specific values (invoice, login, newsletter) only
+/// exist when that letter is sent, so they show as missing here.
+#[utoipa::path(
+    post, path = "/email-templates/preview", tag = "email",
+    request_body = TemplatePreviewBody,
+    responses((status = 200, body = TemplatePreview))
+)]
+async fn preview_template(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<TemplatePreviewBody>,
+) -> AppResult<Json<TemplatePreview>> {
+    me.require(Capability::SendEmail)?;
+    if [b.order_id, b.lead_id, b.partner_id]
+        .iter()
+        .flatten()
+        .count()
+        > 1
+    {
+        return Err(AppError::validation(
+            "preview against at most one of order, lead or partner",
+        ));
+    }
+    let about = email_service::About {
+        order_id: b.order_id,
+        lead_id: b.lead_id,
+        partner_id: b.partner_id,
+        blocker_id: None,
+    };
+    let mut conn = state.db.acquire().await?;
+    let values = email_service::template_values(
+        &mut conn,
+        &about,
+        Some(&me.display_name),
+        state.config.business_tz,
+    )
+    .await?;
+    let subject = crate::domain::template::render(&b.subject, &values);
+    let body = crate::domain::template::render(&b.body, &values);
+    let mut unresolved = subject.unresolved;
+    unresolved.extend(body.unresolved);
+    unresolved.sort();
+    unresolved.dedup();
+    Ok(Json(TemplatePreview {
+        subject: crate::domain::template::single_line(&subject.output),
+        body_html: crate::domain::template::email_html(&body.output),
+        body_text: body.output,
+        unresolved,
+    }))
 }

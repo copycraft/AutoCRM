@@ -17,9 +17,12 @@ import { NewsletterChips, NewsletterTagPicker, useNewsletterTags } from '@/compo
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { errorMessage } from '@/lib/api/errors';
+import { usePreferences } from '@/hooks/usePreferences';
+import { NEWSLETTER_LANGUAGES } from '@/components/tables/BulkBar';
 import type { components } from '@/lib/api/schema.gen';
 
 type ComposeRequest = components['schemas']['ComposeRequest'];
+type Variant = { language: string; subject: string; hero: string; body: string };
 type Audience = 'direct' | 'newsletter';
 
 const PREVIEW_DEBOUNCE_MS = 600;
@@ -29,12 +32,21 @@ export function ComposeForm({
   defaultTo,
   defaultAudience,
   defaultTagIds,
+  defaultSubject,
+  replyToInboundId,
+  quote,
   onSent,
 }: {
   about?: { order_id?: number; lead_id?: number; partner_id?: number };
   defaultTo?: string;
   defaultAudience?: Audience;
   defaultTagIds?: number[];
+  /** "Re: …" when answering a customer's letter. */
+  defaultSubject?: string;
+  /** The received letter this answers: the reply threads under it in their mail app. */
+  replyToInboundId?: number;
+  /** The answered letter's text, quoted under the reply. */
+  quote?: string;
   onSent: (emailId: number, newsletterRecipients?: number) => void;
 }) {
   const t = useTranslations('emails');
@@ -47,7 +59,7 @@ export function ComposeForm({
   const [cc, setCc] = useState('');
   const [templateKey, setTemplateKey] = useState('');
   const [theme, setTheme] = useState('');
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState(defaultSubject ?? '');
   const [hero, setHero] = useState('');
   const [body, setBody] = useState('');
   const [markdown, setMarkdown] = useState(false);
@@ -57,6 +69,31 @@ export function ComposeForm({
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  // The same letter in other languages, for readers with that language (0049).
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const setVariant = (i: number, patch: Partial<Variant>) =>
+    setVariants((vs) => vs.map((v, j) => (j === i ? { ...v, ...patch } : v)));
+
+  // The writer's own signature under a fresh letter (0049); a quoted reply goes below it.
+  const prefs = usePreferences();
+  const signed = useRef(false);
+  useEffect(() => {
+    if (signed.current || !prefs.data) return;
+    signed.current = true;
+    const signature = prefs.data.email_signature?.trim();
+    const parts: string[] = [];
+    if (signature) parts.push(signature);
+    if (quote?.trim()) {
+      parts.push(
+        quote
+          .trim()
+          .split('\n')
+          .map((l) => `> ${l}`)
+          .join('\n'),
+      );
+    }
+    if (parts.length > 0) setBody((b) => (b.trim() === '' ? `\n\n${parts.join('\n\n')}` : b));
+  }, [prefs.data, quote]);
 
   const insertVariable = (name: string) => {
     const token = `{{${name}}}`;
@@ -183,6 +220,7 @@ export function ComposeForm({
     body_markdown: markdown,
     attachment_document_ids: attachmentIds,
     embed_document_ids: embedIds,
+    reply_to_inbound_id: replyToInboundId ?? null,
   });
   const debouncedKey = useDebouncedValue(draftKey, PREVIEW_DEBOUNCE_MS);
   const draft = useMemo(() => JSON.parse(debouncedKey) as ComposeRequest, [debouncedKey]);
@@ -216,6 +254,15 @@ export function ComposeForm({
           embed_document_ids: embedIds,
           tag_ids: tagIds,
           send_at: sendAt ? new Date(sendAt).toISOString() : null,
+          variants: variants
+            .filter((v) => v.subject.trim() !== '' && v.body.trim() !== '')
+            .map((v) => ({
+              language: v.language,
+              subject: v.subject.trim(),
+              body: v.body,
+              body_markdown: markdown,
+              hero: v.hero.trim() || null,
+            })),
         });
         return { id: sent.id, newsletterRecipients: sent.recipients };
       }
@@ -381,6 +428,76 @@ export function ComposeForm({
             <p className="mt-1 text-metadata text-steel-500">{t('embedHint')}</p>
           )}
         </div>
+
+        {audience === 'newsletter' && (
+          <div className="space-y-3 rounded-lg border border-steel-200 p-3" data-testid="newsletter-variants">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="label">{t('variantsTitle')}</span>
+              <button
+                type="button"
+                className="btn-ghost btn-sm"
+                onClick={() =>
+                  setVariants((vs) => [
+                    ...vs,
+                    {
+                      language: NEWSLETTER_LANGUAGES.find((l) => l !== 'hu' && !vs.some((v) => v.language === l)) ?? 'en',
+                      subject: '',
+                      hero: '',
+                      body: '',
+                    },
+                  ])
+                }
+              >
+                {t('variantAdd')}
+              </button>
+            </div>
+            {variants.length === 0 && <p className="text-metadata text-steel-500">{t('variantsHint')}</p>}
+            {variants.map((v, i) => (
+              <div key={i} className="space-y-2 border-t border-steel-200 pt-3 first:border-t-0 first:pt-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="input h-8 w-auto py-0"
+                    aria-label={t('variantLanguage')}
+                    value={v.language}
+                    onChange={(e) => setVariant(i, { language: e.target.value })}
+                  >
+                    {NEWSLETTER_LANGUAGES.filter((l) => l !== 'hu').map((l) => (
+                      <option key={l} value={l}>{l.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  <input
+                    className="input h-8 min-w-0 flex-1 py-0"
+                    placeholder={t('subject')}
+                    aria-label={`${t('subject')} (${v.language})`}
+                    value={v.subject}
+                    onChange={(e) => setVariant(i, { subject: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="btn-ghost btn-sm"
+                    onClick={() => setVariants((vs) => vs.filter((_, j) => j !== i))}
+                  >
+                    {t('variantRemove')}
+                  </button>
+                </div>
+                <input
+                  className="input"
+                  placeholder={t('heroLabel')}
+                  aria-label={`${t('heroLabel')} (${v.language})`}
+                  value={v.hero}
+                  onChange={(e) => setVariant(i, { hero: e.target.value })}
+                />
+                <textarea
+                  className="input font-mono"
+                  rows={6}
+                  aria-label={`${t('body')} (${v.language})`}
+                  value={v.body}
+                  onChange={(e) => setVariant(i, { body: e.target.value })}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {error && (
           <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">

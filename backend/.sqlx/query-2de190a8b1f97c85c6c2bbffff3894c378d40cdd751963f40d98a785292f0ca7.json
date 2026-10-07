@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM inspection_tyres WHERE inspection_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2de190a8b1f97c85c6c2bbffff3894c378d40cdd751963f40d98a785292f0ca7"
+}

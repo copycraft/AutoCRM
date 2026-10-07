@@ -37,7 +37,9 @@ const CONTACT_FIELDS: &[&str] = &["contact_id"];
 fn ids_in(events: &[TimelineEvent], fields: &[&str]) -> Vec<i64> {
     let mut out = Vec::new();
     for e in events {
-        let Value::Object(map) = &e.changes else { continue };
+        let Value::Object(map) = &e.changes else {
+            continue;
+        };
         for f in fields {
             if let Some(Value::Array(pair)) = map.get(*f) {
                 out.extend(pair.iter().filter_map(Value::as_i64));
@@ -81,7 +83,9 @@ async fn history(
                 .map(|(kind, id, name)| ((kind, id), name))
                 .collect();
         for e in &mut events {
-            let Value::Object(map) = &mut e.changes else { continue };
+            let Value::Object(map) = &mut e.changes else {
+                continue;
+            };
             for (field, value) in map.iter_mut() {
                 let kind = if USER_FIELDS.contains(&field.as_str()) {
                     "user"

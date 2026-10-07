@@ -26,6 +26,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(update))
         .routes(routes!(reset_password))
         .routes(routes!(revoke_sessions))
+        .routes(routes!(reset_two_factor))
 }
 
 #[utoipa::path(
@@ -84,6 +85,9 @@ struct UpdateUser {
     is_active: Option<bool>,
     /// Unlocks the HR module for a non-admin. Admins have it regardless.
     hr_access: Option<bool>,
+    /// Replaces the capabilities granted on top of the role. `manage_users` and
+    /// `access_hr` cannot be granted this way.
+    permissions: Option<Vec<Capability>>,
 }
 
 #[utoipa::path(
@@ -103,6 +107,22 @@ async fn update(
         .display_name
         .as_deref()
         .map(|n| required("display_name", n))
+        .transpose()?;
+
+    let permissions = body
+        .permissions
+        .map(|caps| {
+            if let Some(c) = caps.iter().find(|c| !c.grantable()) {
+                return Err(AppError::validation(format!(
+                    "{} cannot be granted per user",
+                    c.key()
+                )));
+            }
+            let mut keys: Vec<String> = caps.iter().map(|c| c.key()).collect();
+            keys.sort();
+            keys.dedup();
+            Ok(keys)
+        })
         .transpose()?;
 
     let mut tx = state.db.begin().await?;
@@ -128,6 +148,7 @@ async fn update(
         body.role,
         body.is_active,
         body.hr_access,
+        permissions.as_deref(),
     )
     .await?
     .ok_or(AppError::NotFound("user"))?;
@@ -151,6 +172,11 @@ async fn update(
             ("role", json!(before.role), json!(after.role)),
             ("is_active", json!(before.is_active), json!(after.is_active)),
             ("hr_access", json!(before.hr_access), json!(after.hr_access)),
+            (
+                "permissions",
+                json!(before.permissions),
+                json!(after.permissions),
+            ),
         ]),
     )
     .await?;
@@ -215,4 +241,33 @@ async fn revoke_sessions(
     me.require(Capability::ManageUsers)?;
     let revoked = sessions::revoke_all(&state.db, id, None).await?;
     Ok(Json(RevokedSessions { revoked }))
+}
+
+#[utoipa::path(
+    delete, path = "/users/{id}/two-factor", tag = "users",
+    params(("id" = i64, Path)),
+    responses((status = 204, description = "Two-factor sign-in switched off (a lost phone); the person can set it up again"))
+)]
+async fn reset_two_factor(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::ManageUsers)?;
+    let mut tx = state.db.begin().await?;
+    if users::find(&mut *tx, id).await?.is_none() {
+        return Err(AppError::NotFound("user"));
+    }
+    users::disable_totp(&mut *tx, id).await?;
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "user",
+        id,
+        "reset_two_factor",
+        json!({}),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }

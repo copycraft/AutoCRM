@@ -1,0 +1,140 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.id, i.order_id, o.number AS order_number, o.title AS order_title, i.inspection_id,\n                  i.damage_id, i.title, i.description, i.cost_minor, i.currency, i.responsible, i.status,\n                  i.resolution, i.rework_order_id, r.number AS \"rework_order_number?\", i.created_by,\n                  cu.display_name AS \"created_by_name?\", i.created_at, i.resolved_at,\n                  ru.display_name AS \"resolved_by_name?\"\n           FROM incidents i\n           JOIN orders o ON o.id = i.order_id\n           LEFT JOIN orders r ON r.id = i.rework_order_id\n           LEFT JOIN users cu ON cu.id = i.created_by\n           LEFT JOIN users ru ON ru.id = i.resolved_by\n           WHERE ($1::text IS NULL OR i.status = $1)\n             AND ($2::bigint IS NULL OR i.order_id = $2 OR i.rework_order_id = $2)\n             AND ($3::bigint IS NULL OR i.inspection_id = $3)\n           ORDER BY (i.status = 'open') DESC, i.created_at DESC, i.id DESC\n           LIMIT $4 OFFSET $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "order_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "order_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "inspection_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "damage_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "cost_minor",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "responsible",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "resolution",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "rework_order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "rework_order_number?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "resolved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "resolved_by_name?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "69d8a37d4ef3a9b4d091970280ec1085d386036f1481d7dce5f9b59ae4fa5ceb"
+}

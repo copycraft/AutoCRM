@@ -143,6 +143,8 @@ fn nudge() -> OutgoingEmail {
         body_html: "<html><body><p>Please send the ATP certificate.</p></body></html>".into(),
         attachments: vec![],
         automatic: true,
+        in_reply_to: None,
+        references: None,
     }
 }
 
@@ -264,6 +266,7 @@ async fn staff_send_as_themselves_through_the_queue(pool: PgPool) {
         role: Role::Office,
         must_change_password: false,
         hr_access: false,
+        permissions: vec![],
     };
 
     let id = send_manual(
@@ -282,6 +285,7 @@ async fn staff_send_as_themselves_through_the_queue(pool: PgPool) {
             hero: None,
             attachment_document_ids: vec![],
             embed_document_ids: vec![],
+            reply_to_inbound_id: None,
         },
     )
     .await

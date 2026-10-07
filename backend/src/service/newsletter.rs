@@ -29,15 +29,93 @@ pub struct Compose {
     pub attachment_document_ids: Vec<i64>,
     pub embed_document_ids: Vec<i64>,
     pub send_at: DateTime<Utc>,
+    /// The same letter in other languages (0049); a reader whose language matches gets
+    /// that one, everyone else the main letter.
+    pub variants: Vec<newsletter::SendVariant>,
+}
+
+/// Checks and tidies the variants: a known two-letter language once each, a subject and a
+/// body, no template variables.
+fn clean_variants(variants: &[newsletter::SendVariant]) -> AppResult<Vec<newsletter::SendVariant>> {
+    let empty = TemplateValues::new();
+    let mut out: Vec<newsletter::SendVariant> = Vec::new();
+    for v in variants {
+        let language = newsletter::normalize_language(&v.language).ok_or_else(|| {
+            AppError::validation(format!(
+                "variant language '{}': expected two letters",
+                v.language
+            ))
+        })?;
+        if out.iter().any(|o| o.language == language) {
+            return Err(AppError::validation(format!(
+                "variant language '{language}' is given twice"
+            )));
+        }
+        let subject = v.subject.trim();
+        let body = v.body.trim();
+        if subject.is_empty() || body.is_empty() {
+            return Err(AppError::validation(format!(
+                "the '{language}' variant needs a subject and a body"
+            )));
+        }
+        let mut unresolved = template::render(subject, &empty).unresolved;
+        unresolved.extend(template::render(body, &empty).unresolved);
+        if !unresolved.is_empty() {
+            return Err(AppError::validation(format!(
+                "a newsletter has no recipient to resolve {} against: remove it",
+                unresolved.join(", ")
+            )));
+        }
+        out.push(newsletter::SendVariant {
+            language,
+            subject: subject.to_string(),
+            body: body.to_string(),
+            body_markdown: v.body_markdown,
+            hero: v
+                .hero
+                .as_deref()
+                .map(str::trim)
+                .filter(|h| !h.is_empty())
+                .map(str::to_string),
+        });
+    }
+    Ok(out)
+}
+
+/// "Unsubscribe" in the reader's language.
+fn unsubscribe_words(language: Option<&str>) -> (&'static str, &'static str) {
+    match language {
+        Some("en") => ("Unsubscribe", "Unsubscribe from this newsletter"),
+        Some("de") => ("Abmelden", "Vom Newsletter abmelden"),
+        _ => ("Leiratkozás", "Leiratkozás a hírlevélről"),
+    }
+}
+
+fn render_html(subject_body: (&str, bool, Option<&str>)) -> String {
+    let (body, markdown, hero) = subject_body;
+    match (hero.map(str::trim), markdown) {
+        (Some(hero), true) if !hero.is_empty() => template::markdown_to_html_hero(hero, body),
+        (Some(hero), false) if !hero.is_empty() => template::email_html_hero(hero, body),
+        (_, true) => template::markdown_to_html(body),
+        (_, false) => template::text_to_html(body),
+    }
+}
+
+/// (language, subject, body, Markdown?, hero) of the main letter (no language) or a variant.
+type LetterSource = (Option<String>, String, String, bool, Option<String>);
+
+/// One rendered letter: the main one or a language variant.
+struct Letter {
+    language: Option<String>,
+    subject: String,
+    html: String,
+    text: String,
+    embedded: Vec<email::AttachmentRef>,
 }
 
 /// Creates the send and queues its dispatch job. A future `send_at` is honoured by the
 /// job's `run_at`; the dispatch itself also refuses to run early.
-pub async fn schedule(
-    state: &AppState,
-    user: &AuthUser,
-    c: &Compose,
-) -> AppResult<(i64, usize)> {
+pub async fn schedule(state: &AppState, user: &AuthUser, c: &Compose) -> AppResult<(i64, usize)> {
     let subject = c.subject.trim();
     let body = c.body.trim();
     if subject.is_empty() {
@@ -68,6 +146,8 @@ pub async fn schedule(
         )));
     }
 
+    let variants = clean_variants(&c.variants)?;
+
     let mut tx = state.db.begin().await?;
     let id = newsletter::create_send(
         &mut *tx,
@@ -82,6 +162,9 @@ pub async fn schedule(
         user.user_id,
     )
     .await?;
+    for v in &variants {
+        newsletter::insert_variant(&mut *tx, id, v).await?;
+    }
     let audience = newsletter::audience_subscribers(&mut *tx, &tag_ids).await?;
     let recipients = audience.len() as i32;
     // The job waits until send_at; the dispatch re-checks it anyway.
@@ -108,12 +191,11 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
     if send.send_at > Utc::now() {
         return Ok(0);
     }
-    let already: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM email_messages WHERE newsletter_send_id = $1",
-    )
-    .bind(send_id)
-    .fetch_one(&state.db)
-    .await?;
+    let already: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM email_messages WHERE newsletter_send_id = $1")
+            .bind(send_id)
+            .fetch_one(&state.db)
+            .await?;
     if already > 0 {
         return Ok(0);
     }
@@ -127,18 +209,17 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
     }
 
     let empty = TemplateValues::new();
-    let subject = template::single_line(&template::render(&send.subject, &empty).output);
-    let rendered_body = template::render(&send.body, &empty).output;
-    let rendered_html = match (send.hero.as_deref().map(str::trim), send.body_markdown) {
-        (Some(hero), true) if !hero.is_empty() => {
-            template::markdown_to_html_hero(hero, &rendered_body)
-        }
-        (Some(hero), false) if !hero.is_empty() => {
-            template::email_html_hero(hero, &rendered_body)
-        }
-        (_, true) => template::markdown_to_html(&rendered_body),
-        (_, false) => template::text_to_html(&rendered_body),
-    };
+    let variants = newsletter::variants(&mut *tx, send_id).await?;
+    let mut sources: Vec<LetterSource> = vec![(
+        None,
+        send.subject.clone(),
+        send.body.clone(),
+        send.body_markdown,
+        send.hero.clone(),
+    )];
+    for v in variants {
+        sources.push((Some(v.language), v.subject, v.body, v.body_markdown, v.hero));
+    }
 
     // Attachments and inline images are company documents; the endpoint is office-only,
     // so ownership is not checked — the same rule as the BCC blast.
@@ -160,17 +241,27 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
             })
             .collect();
     }
-    let base_html = rendered_html;
-    let base_text = rendered_body.clone();
-    let (embedded_html, embedded_text, mut embedded) = email::apply_embeds_for_newsletter(
-        &mut tx,
-        &send.embed_document_ids,
-        base_html,
-        base_text,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-    attachments.append(&mut embedded);
+    let mut letters: Vec<Letter> = Vec::new();
+    for (language, subject, body, markdown, hero) in sources {
+        let subject = template::single_line(&template::render(&subject, &empty).output);
+        let rendered_body = template::render(&body, &empty).output;
+        let html = render_html((&rendered_body, markdown, hero.as_deref()));
+        let (html, text, embedded) = email::apply_embeds_for_newsletter(
+            &mut tx,
+            &send.embed_document_ids,
+            html,
+            rendered_body,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        letters.push(Letter {
+            language,
+            subject,
+            html,
+            text,
+            embedded,
+        });
+    }
 
     let from = email::format_from(
         &state.config.email.from_name,
@@ -181,6 +272,10 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
 
     let mut written = 0;
     for sub in &audience {
+        let letter = letters
+            .iter()
+            .find(|l| l.language.is_some() && l.language == sub.language)
+            .unwrap_or(&letters[0]);
         let token: String = sqlx::query_scalar("SELECT encode(gen_random_bytes(24), 'hex')")
             .fetch_one(&mut *tx)
             .await?;
@@ -188,17 +283,24 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
             "{base}/hu/newsletter/unsubscribe?token={}",
             sub.unsubscribe_token
         );
-        let footer_text = format!("\n\n---\nLeiratkozás: {unsub}");
+        let (unsub_short, unsub_long) = unsubscribe_words(letter.language.as_deref());
+        let footer_text = format!("\n\n---\n{unsub_short}: {unsub}");
         let footer_html = format!(
             "<p style=\"margin:16px 0 0 0;font-size:11px;line-height:1.5;color:#8a847a;\">\
-             <a href=\"{unsub}\" style=\"color:#8a847a;\">Leiratkozás a hírlevélről</a></p>"
+             <a href=\"{unsub}\" style=\"color:#8a847a;\">{unsub_long}</a></p>"
         );
-        let body_text = format!("{}{}", embedded_text, footer_text);
-        let with_links = rewrite_links(&embedded_html, base, &token, &state.config.upload_signing_key);
+        let body_text = format!("{}{}", letter.text, footer_text);
+        let with_links =
+            rewrite_links(&letter.html, base, &token, &state.config.upload_signing_key);
+        let mut letter_attachments = attachments.clone();
+        letter_attachments.extend(letter.embedded.iter().cloned());
         let pixel = format!(
             "<img src=\"{base}/api/newsletter/track/open?token={token}\" width=\"1\" height=\"1\" alt=\"\" />"
         );
-        let mut body_html = with_links.replace("</body></html>", &format!("{footer_html}{pixel}</body></html>"));
+        let mut body_html = with_links.replace(
+            "</body></html>",
+            &format!("{footer_html}{pixel}</body></html>"),
+        );
         if !body_html.contains(&pixel) {
             body_html.push_str(&format!("{footer_html}{pixel}"));
         }
@@ -219,10 +321,10 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
                 bcc: &[],
                 from_address: &from,
                 reply_to: Some(&state.config.email.reply_to_default),
-                subject: &subject,
+                subject: &letter.subject,
                 body_html: &body_html,
                 body_text: &body_text,
-                attachments: json!(attachments),
+                attachments: json!(letter_attachments),
                 send_after: None,
             },
         )
@@ -239,7 +341,7 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
         .await?;
         written += 1;
     }
-    newsletter::set_send_recipients(&mut *tx, send_id, written as i32).await?;
+    newsletter::set_send_recipients(&mut *tx, send_id, written).await?;
     tx.commit().await?;
     if written > 0 {
         tracing::info!(send_id, written, "newsletter dispatched");
@@ -318,7 +420,8 @@ pub fn safe_redirect(base: &str, url: &str) -> String {
 /// wrote into a letter — never to whatever a crafted URL asks for.
 pub fn link_signature(key: &[u8], token: &str, url: &str) -> String {
     use hmac::{Hmac, Mac};
-    let mut mac = <Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
+    let mut mac =
+        <Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
     mac.update(token.as_bytes());
     mac.update(b"\n");
     mac.update(url.as_bytes());
@@ -331,7 +434,8 @@ pub fn link_signature_ok(key: &[u8], token: &str, url: &str, signature: &str) ->
     let Ok(given) = hex::decode(signature) else {
         return false;
     };
-    let mut mac = <Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
+    let mut mac =
+        <Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
     mac.update(token.as_bytes());
     mac.update(b"\n");
     mac.update(url.as_bytes());
@@ -344,14 +448,38 @@ mod tests {
 
     #[test]
     fn links_are_rewritten_with_a_signature_only_this_key_accepts() {
-        let html = r#"<a href="https://autotherm.hu/x?a=1&b=2">x</a> <a href="mailto:a@b.hu">m</a>"#;
+        let html =
+            r#"<a href="https://autotherm.hu/x?a=1&b=2">x</a> <a href="mailto:a@b.hu">m</a>"#;
         let out = rewrite_links(html, "https://crm.autotherm.hu", "tok", b"key");
         assert!(out.contains("/api/newsletter/track/click?token=tok&url=https%3A%2F%2Fautotherm.hu%2Fx%3Fa%3D1%26b%3D2&s="));
-        assert!(out.contains("mailto:a@b.hu"), "only http(s) links are tracked");
+        assert!(
+            out.contains("mailto:a@b.hu"),
+            "only http(s) links are tracked"
+        );
         let sig = link_signature(b"key", "tok", "https://autotherm.hu/x?a=1&b=2");
-        assert!(link_signature_ok(b"key", "tok", "https://autotherm.hu/x?a=1&b=2", &sig));
-        assert!(!link_signature_ok(b"other", "tok", "https://autotherm.hu/x?a=1&b=2", &sig));
-        assert!(!link_signature_ok(b"key", "tok", "https://evil.example", &sig));
-        assert!(!link_signature_ok(b"key", "tok", "https://autotherm.hu/x?a=1&b=2", ""));
+        assert!(link_signature_ok(
+            b"key",
+            "tok",
+            "https://autotherm.hu/x?a=1&b=2",
+            &sig
+        ));
+        assert!(!link_signature_ok(
+            b"other",
+            "tok",
+            "https://autotherm.hu/x?a=1&b=2",
+            &sig
+        ));
+        assert!(!link_signature_ok(
+            b"key",
+            "tok",
+            "https://evil.example",
+            &sig
+        ));
+        assert!(!link_signature_ok(
+            b"key",
+            "tok",
+            "https://autotherm.hu/x?a=1&b=2",
+            ""
+        ));
     }
 }

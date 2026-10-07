@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { errorMessage } from '@/lib/api/errors';
-import { partnersApi } from '@/lib/api/endpoints';
+import { leadSourcesApi, partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { parseMajorToMinor, minorToMajorString } from '@/lib/utils/format';
 import { PartnerPicker, type PartnerOption } from './PartnerPicker';
@@ -27,6 +27,7 @@ const schema = z.object({
   contact_email: z.string().trim().optional(),
   contact_phone: z.string().trim().optional(),
   source: z.string().trim().optional(),
+  source_detail: z.string().trim().optional(),
   description: z.string().trim().optional(),
   assigned_to: z.custom<number | null | 'me'>(() => true),
   // V2.3: the quotation. Major units in the field, minor units on the wire.
@@ -70,6 +71,7 @@ export function leadCreateBody(v: LeadFormValues, meId: number | undefined): Lea
     contact_email: clean(v.contact_email),
     contact_phone: clean(v.contact_phone),
     source: clean(v.source),
+    source_detail: clean(v.source_detail),
     description: clean(v.description),
     assigned_to: assigned,
     quoted_value_minor: toMinor(v.quoted_value),
@@ -86,7 +88,7 @@ export function leadPatchBody(original: Lead, v: LeadFormValues, meId: number | 
   if ((v.partner?.id ?? null) !== origPartner) body.partner_id = v.partner?.id ?? null;
   const newContact = contactOf(v);
   if (newContact !== (original.contact_id ?? null)) body.contact_id = newContact;
-  for (const f of ['contact_name', 'contact_email', 'contact_phone', 'source', 'description'] as const) {
+  for (const f of ['contact_name', 'contact_email', 'contact_phone', 'source', 'source_detail', 'description'] as const) {
     const nv = v[f]?.trim() ?? '';
     if (nv !== (original[f] ?? '')) body[f] = nv ? nv : null;
   }
@@ -130,6 +132,7 @@ export function LeadForm({
     contact_email: '',
     contact_phone: '',
     source: '',
+    source_detail: '',
     description: '',
     assigned_to: null,
     quoted_value: '',
@@ -147,6 +150,7 @@ export function LeadForm({
       contact_email: initial?.contact_email ?? '',
       contact_phone: initial?.contact_phone ?? '',
       source: initial?.source ?? '',
+      source_detail: initial?.source_detail ?? '',
       description: initial?.description ?? '',
       assigned_to: initial?.assigned_to ?? lastAssignee(),
       quoted_value: fromMinor(initial?.quoted_value_minor),
@@ -165,6 +169,12 @@ export function LeadForm({
   const partnerId = partner?.id;
   const { data: lookups } = useLookups();
   const currencies = lookups?.currencies ?? [];
+  const sources = useQuery({ queryKey: qk.leadSources(true), queryFn: () => leadSourcesApi.list(true) });
+  const currentSource = watch('source');
+  // Hand-pickable sources; the lead's own stays listed even if archived or set by the system.
+  const sourceOptions = (sources.data?.items ?? []).filter(
+    (x) => (!x.is_system && !x.archived_at) || x.key === (initial?.source ?? '') || x.key === currentSource,
+  );
   useDirtyGuard(formState.isDirty && !formState.isSubmitSuccessful, tq('unsavedChanges'));
   const contactsQuery = useQuery({
     queryKey: qk.partner(partnerId ?? 0),
@@ -261,7 +271,21 @@ export function LeadForm({
         </div>
         <div>
           <label className="label" htmlFor="lf-source">{t('source')}</label>
-          <input id="lf-source" className="input" placeholder={t('sourcePlaceholder')} {...register('source')} />
+          <select id="lf-source" className="input" {...register('source')}>
+            <option value="">—</option>
+            {sourceOptions.map((x) => (
+              <option key={x.key} value={x.key} disabled={x.is_system}>
+                {x.label}
+              </option>
+            ))}
+          </select>
+          <input
+            id="lf-source-detail"
+            className="input mt-2"
+            placeholder={t('sourceDetailPlaceholder')}
+            aria-label={t('sourceDetail')}
+            {...register('source_detail')}
+          />
         </div>
         <div className="md:col-span-2">
           <label className="label" htmlFor="lf-desc">{t('description')}</label>

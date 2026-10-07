@@ -7,7 +7,7 @@
 //! caller already checked `status = 'draft'`.
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgExecutor;
 use utoipa::ToSchema;
 
@@ -684,4 +684,127 @@ pub async fn delete_template_list(
     .execute(db)
     .await?;
     Ok(done.rows_affected() > 0)
+}
+
+// ── Tyres (0048) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct InspectionTyre {
+    /// A key of `tyre_positions` in `GET /config/lookups`.
+    pub position: String,
+    /// Tread depth in millimetres.
+    #[schema(value_type = Option<String>)]
+    pub tread_mm: Option<rust_decimal::Decimal>,
+    /// A key of `tyre_conditions` in `GET /config/lookups`.
+    pub condition: String,
+    pub note: Option<String>,
+}
+
+pub async fn tyres_for(
+    db: impl PgExecutor<'_>,
+    inspection_id: i64,
+) -> sqlx::Result<Vec<InspectionTyre>> {
+    sqlx::query_as!(
+        InspectionTyre,
+        "SELECT position, tread_mm, condition, note FROM inspection_tyres
+          WHERE inspection_id = $1 ORDER BY position",
+        inspection_id
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// Replaces the inspection's tyre record with `tyres`.
+pub async fn replace_tyres(
+    conn: &mut sqlx::PgConnection,
+    inspection_id: i64,
+    tyres: &[InspectionTyre],
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "DELETE FROM inspection_tyres WHERE inspection_id = $1",
+        inspection_id
+    )
+    .execute(&mut *conn)
+    .await?;
+    for t in tyres {
+        sqlx::query!(
+            "INSERT INTO inspection_tyres (inspection_id, position, tread_mm, condition, note)
+             VALUES ($1, $2, $3, $4, $5)",
+            inspection_id,
+            t.position,
+            t.tread_mm,
+            t.condition,
+            t.note
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
+}
+
+// ── Videos (0048) ──
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct InspectionVideo {
+    pub id: i64,
+    pub inspection_id: i64,
+    pub document_id: i64,
+    pub zone_key: Option<String>,
+    pub duration_ms: Option<i32>,
+    pub taken_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
+pub async fn attach_video(
+    db: impl PgExecutor<'_>,
+    inspection_id: i64,
+    document_id: i64,
+    zone_key: Option<&str>,
+    duration_ms: Option<i32>,
+    taken_at: DateTime<Utc>,
+) -> sqlx::Result<InspectionVideo> {
+    // Idempotent for the phone's retried sync: the same document attaches once.
+    sqlx::query_as!(
+        InspectionVideo,
+        r#"INSERT INTO inspection_videos (inspection_id, document_id, zone_key, duration_ms, taken_at)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (document_id) DO UPDATE SET document_id = EXCLUDED.document_id
+           RETURNING id, inspection_id, document_id, zone_key, duration_ms, taken_at, created_at"#,
+        inspection_id,
+        document_id,
+        zone_key,
+        duration_ms,
+        taken_at
+    )
+    .fetch_one(db)
+    .await
+}
+
+pub async fn videos_for(
+    db: impl PgExecutor<'_>,
+    inspection_id: i64,
+) -> sqlx::Result<Vec<InspectionVideo>> {
+    sqlx::query_as!(
+        InspectionVideo,
+        "SELECT id, inspection_id, document_id, zone_key, duration_ms, taken_at, created_at
+           FROM inspection_videos WHERE inspection_id = $1 ORDER BY taken_at, id",
+        inspection_id
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// The inspection a damage was recorded on.
+pub async fn damage_owner(
+    db: impl PgExecutor<'_>,
+    damage_id: i64,
+) -> sqlx::Result<Option<(i64, i64, String)>> {
+    let row = sqlx::query!(
+        "SELECT i.id, i.order_id, i.kind FROM inspection_damages d JOIN inspections i ON i.id = d.inspection_id
+          WHERE d.id = $1",
+        damage_id
+    )
+    .fetch_optional(db)
+    .await?;
+    Ok(row.map(|r| (r.id, r.order_id, r.kind)))
 }

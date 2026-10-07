@@ -149,7 +149,7 @@ async fn only_admins_and_flagged_users_open_the_directory(pool: PgPool) {
 async fn the_users_list_shows_everyone_with_their_flag(pool: PgPool) {
     let (_, admin) = token_for(&pool, Role::Admin).await;
     let (office_id, _) = token_for(&pool, Role::Office).await;
-    users::update(&pool, office_id, None, None, None, Some(true))
+    users::update(&pool, office_id, None, None, None, Some(true), None)
         .await
         .unwrap();
     token_for(&pool, Role::Designer).await;
@@ -335,4 +335,43 @@ async fn a_photo_is_stored_squared_and_served_by_link(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(removed["photo_url"], Value::Null);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn admins_grant_single_capabilities_on_top_of_the_role(pool: PgPool) {
+    let (_, admin) = token_for(&pool, Role::Admin).await;
+    let (viewer_id, viewer) = token_for(&pool, Role::Viewer).await;
+    let partner = json!({ "kind": "business", "name": "Grant Kft." });
+
+    let (status, _) = call(&pool, "POST", "/api/partners", &viewer, Some(partner.clone())).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, user) = call(
+        &pool,
+        "PATCH",
+        &format!("/api/users/{viewer_id}"),
+        &admin,
+        Some(json!({ "permissions": ["edit_partners"] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(user["permissions"], json!(["edit_partners"]));
+
+    let (status, _) = call(&pool, "POST", "/api/partners", &viewer, Some(partner)).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (_, me) = call(&pool, "GET", "/api/auth/me", &viewer, None).await;
+    let caps = me["user"]["capabilities"].as_array().unwrap();
+    assert!(caps.contains(&json!("edit_partners")));
+    assert!(!caps.contains(&json!("edit_orders")));
+
+    // Managing users is the admin role itself, so it is never granted per user.
+    let (status, _) = call(
+        &pool,
+        "PATCH",
+        &format!("/api/users/{viewer_id}"),
+        &admin,
+        Some(json!({ "permissions": ["manage_users"] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }

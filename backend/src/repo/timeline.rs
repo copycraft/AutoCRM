@@ -80,7 +80,7 @@ const AUDIT: &str = "
            NULL::bigint AS email_id, NULL::bigint AS order_id, NULL::bigint AS lead_id
     FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
     WHERE a.entity = $1 AND a.entity_id = $2
-      AND a.action NOT IN ('stage_change', 'document_add', 'image_add', 'upload')";
+      AND a.action NOT IN ('stage_change', 'document_add', 'document_version', 'image_add', 'upload', 'vehicle_moved', 'incident')";
 
 /// One row shape for everything that is not an audit row; `{cols}` fills the columns
 /// in the order of `TimelineEvent`.
@@ -135,6 +135,15 @@ fn inbound(owner_col: &str) -> String {
     ))
 }
 
+fn comments(entity: &str) -> String {
+    row(&format!(
+        "c.created_at, 'note', 'comment', u.display_name, '{{}}'::jsonb,
+         c.body, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+         FROM comments c JOIN users u ON u.id = c.created_by
+         WHERE c.entity_type = '{entity}' AND c.entity_id = $2 AND c.deleted_at IS NULL"
+    ))
+}
+
 fn stages(table: &str, entity: &str, owner_col: &str) -> String {
     row(&format!(
         "s.entered_at, 'stage', s.stage_key, u.display_name, '{{}}'::jsonb,
@@ -154,6 +163,7 @@ fn sources(entity: TimelineEntity) -> Vec<String> {
             tasks("lead"),
             emails("lead_id"),
             inbound("lead_id"),
+            comments("lead"),
             // Every order this enquiry became.
             row("o.created_at, 'event', 'order_created', NULL, '{}'::jsonb,
                  o.number, NULL, NULL, NULL, NULL, NULL, NULL, NULL, o.id, NULL
@@ -169,6 +179,19 @@ fn sources(entity: TimelineEntity) -> Vec<String> {
             tasks("order"),
             emails("order_id"),
             inbound("order_id"),
+            comments("order"),
+            // Where the vehicle was moved on the yard for this job.
+            row("m.moved_at, 'event', 'vehicle_moved', u.display_name, '{}'::jsonb,
+                 coalesce(l.name, 'Elvitték a telephelyről'), coalesce(v.plate, v.vin), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+                 FROM vehicle_moves m JOIN vehicles v ON v.id = m.vehicle_id
+                 LEFT JOIN yard_locations l ON l.id = m.location_id
+                 LEFT JOIN users u ON u.id = m.moved_by
+                 WHERE m.order_id = $2"),
+            // Internal incidents logged against the job.
+            row("i.created_at, 'event', 'incident', u.display_name, '{}'::jsonb,
+                 i.title, i.description, NULL, NULL, NULL, NULL, NULL, NULL, i.rework_order_id, NULL
+                 FROM incidents i LEFT JOIN users u ON u.id = i.created_by
+                 WHERE i.order_id = $2"),
             // MiniCRM's own history of the job, imported as notes.
             row("n.occurred_at, 'note', 'note', n.author_name, '{}'::jsonb,
                  n.body, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL

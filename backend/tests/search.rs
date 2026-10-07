@@ -49,6 +49,7 @@ async fn phone_lead(pool: &PgPool, user_id: i64) -> i64 {
             contact_email: None,
             contact_phone: Some("+36 30 123 4567".into()),
             source: None,
+            source_detail: None,
             description: None,
             assigned_to: None,
             quoted_value_minor: None,

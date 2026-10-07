@@ -3,7 +3,8 @@ import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { UnavailableState } from '@/components/ui/UnavailableState';
 
-export default async function BlockersPage({ params: { locale } }: { params: { locale: string } }) {
+export default async function BlockersPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'navigation' });
   const tu = await getTranslations({ locale, namespace: 'unavailable' });
   return (

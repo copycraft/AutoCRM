@@ -141,7 +141,9 @@ async fn new_job(pool: &PgPool, admin: &str, publish: bool) -> Value {
         "POST",
         "/api/hr/jobs",
         admin,
-        Some(json!({ "title": "Hűtős szerelő", "description": "Műszakban", "location": "Budapest" })),
+        Some(
+            json!({ "title": "Hűtős szerelő", "description": "Műszakban", "location": "Budapest" }),
+        ),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -169,7 +171,11 @@ async fn only_hr_can_manage_listings(pool: PgPool) {
 
     for (method, uri, body) in [
         ("GET", "/api/hr/jobs".to_string(), None),
-        ("POST", "/api/hr/jobs".to_string(), Some(json!({ "title": "X" }))),
+        (
+            "POST",
+            "/api/hr/jobs".to_string(),
+            Some(json!({ "title": "X" })),
+        ),
         ("GET", format!("/api/hr/jobs/{id}/applications"), None),
         ("POST", format!("/api/hr/jobs/{id}/publish"), None),
         ("DELETE", "/api/hr/applications/1".to_string(), None),
@@ -206,7 +212,14 @@ async fn a_listing_is_a_draft_until_published_and_the_link_follows(pool: PgPool)
     assert_eq!(status, StatusCode::NOT_FOUND);
 
     // Published: the page loads, with no login.
-    let (_, published) = call(&pool, "POST", &format!("/api/hr/jobs/{id}/publish"), &admin, None).await;
+    let (_, published) = call(
+        &pool,
+        "POST",
+        &format!("/api/hr/jobs/{id}/publish"),
+        &admin,
+        None,
+    )
+    .await;
     assert_eq!(published["status"], "published");
     assert!(published["published_at"].is_string());
     let anon = Request::builder()
@@ -221,7 +234,14 @@ async fn a_listing_is_a_draft_until_published_and_the_link_follows(pool: PgPool)
     assert!(page.get("id").is_none() && page.get("application_count").is_none());
 
     // Closed: still readable (it says so), and applications are refused.
-    call(&pool, "POST", &format!("/api/hr/jobs/{id}/close"), &admin, None).await;
+    call(
+        &pool,
+        "POST",
+        &format!("/api/hr/jobs/{id}/close"),
+        &admin,
+        None,
+    )
+    .await;
     let anon = Request::builder()
         .uri(format!("/api/public/jobs/{slug}"))
         .body(Body::empty())
@@ -260,11 +280,20 @@ async fn the_form_refuses_bad_details_and_unusable_resumes(pool: PgPool) {
         StatusCode::BAD_REQUEST
     );
     assert_eq!(
-        apply(&pool, &slug, &good_fields(), Some(("cv.pdf", b""))).await.0,
+        apply(&pool, &slug, &good_fields(), Some(("cv.pdf", b"")))
+            .await
+            .0,
         StatusCode::BAD_REQUEST
     );
     assert_eq!(
-        apply(&pool, &slug, &good_fields(), Some(("cv.pdf", b"MZ\x90\x00"))).await.0,
+        apply(
+            &pool,
+            &slug,
+            &good_fields(),
+            Some(("cv.pdf", b"MZ\x90\x00"))
+        )
+        .await
+        .0,
         StatusCode::BAD_REQUEST
     );
 
@@ -279,7 +308,13 @@ async fn a_filled_honeypot_is_dropped_without_a_profile(pool: PgPool) {
     let job = new_job(&pool, &admin, true).await;
     let mut fields = good_fields();
     fields.push(("company", "Spam Kft."));
-    let (status, _) = apply(&pool, &slug_of(&job), &fields, Some(("cv.pdf", b"%PDF-1.4"))).await;
+    let (status, _) = apply(
+        &pool,
+        &slug_of(&job),
+        &fields,
+        Some(("cv.pdf", b"%PDF-1.4")),
+    )
+    .await;
     // The bot is told it worked.
     assert_eq!(status, StatusCode::CREATED);
     let (_, jobs) = call(&pool, "GET", "/api/hr/jobs", &admin, None).await;
@@ -297,15 +332,34 @@ async fn an_application_creates_a_profile_with_its_resume(pool: PgPool) {
     let slug = slug_of(&job);
     let id = job["id"].as_i64().unwrap();
 
-    let (status, _) = apply(&pool, &slug, &good_fields(), Some(("Önéletrajz.pdf", b"%PDF-1.4 hello"))).await;
+    let (status, _) = apply(
+        &pool,
+        &slug,
+        &good_fields(),
+        Some(("Önéletrajz.pdf", b"%PDF-1.4 hello")),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
 
     // The same person applying twice is one profile.
-    let (status, _) = apply(&pool, &slug, &good_fields(), Some(("again.pdf", b"%PDF-1.4"))).await;
+    let (status, _) = apply(
+        &pool,
+        &slug,
+        &good_fields(),
+        Some(("again.pdf", b"%PDF-1.4")),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // HR sees the profile, the resume attached, and a notification that it arrived.
-    let (status, apps) = call(&pool, "GET", &format!("/api/hr/jobs/{id}/applications"), &admin, None).await;
+    let (status, apps) = call(
+        &pool,
+        "GET",
+        &format!("/api/hr/jobs/{id}/applications"),
+        &admin,
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let app = &apps["items"][0];
     assert_eq!(app["full_name"], "Kiss Péter");
@@ -331,24 +385,51 @@ async fn an_application_creates_a_profile_with_its_resume(pool: PgPool) {
 
     // A listing with applicants cannot be deleted, only closed.
     assert_eq!(
-        call(&pool, "DELETE", &format!("/api/hr/jobs/{id}"), &admin, None).await.0,
+        call(&pool, "DELETE", &format!("/api/hr/jobs/{id}"), &admin, None)
+            .await
+            .0,
         StatusCode::BAD_REQUEST
     );
 
     // Deleting the profile is how an applicant stops being a candidate.
     assert_eq!(
-        call(&pool, "DELETE", &format!("/api/hr/applications/{app_id}"), &admin, None).await.0,
+        call(
+            &pool,
+            "DELETE",
+            &format!("/api/hr/applications/{app_id}"),
+            &admin,
+            None
+        )
+        .await
+        .0,
         StatusCode::NO_CONTENT
     );
-    let (_, apps) = call(&pool, "GET", &format!("/api/hr/jobs/{id}/applications"), &admin, None).await;
+    let (_, apps) = call(
+        &pool,
+        "GET",
+        &format!("/api/hr/jobs/{id}/applications"),
+        &admin,
+        None,
+    )
+    .await;
     assert!(apps["items"].as_array().unwrap().is_empty());
     assert_eq!(
-        call(&pool, "DELETE", &format!("/api/hr/applications/{app_id}"), &admin, None).await.0,
+        call(
+            &pool,
+            "DELETE",
+            &format!("/api/hr/applications/{app_id}"),
+            &admin,
+            None
+        )
+        .await
+        .0,
         StatusCode::NOT_FOUND
     );
     // With nobody left, the listing itself can go.
     assert_eq!(
-        call(&pool, "DELETE", &format!("/api/hr/jobs/{id}"), &admin, None).await.0,
+        call(&pool, "DELETE", &format!("/api/hr/jobs/{id}"), &admin, None)
+            .await
+            .0,
         StatusCode::NO_CONTENT
     );
 }

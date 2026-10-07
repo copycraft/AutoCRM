@@ -1,0 +1,252 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.id, i.order_id, o.number AS order_number, p.name AS partner_name,\n                  i.number, i.kind AS \"kind: InvoiceKind\", i.status AS \"status: InvoiceStatus\",\n                  i.original_invoice_id, i.currency, i.issue_date, i.delivery_date, i.payment_date,\n                  i.payment_method, i.net_amount, i.vat_amount, i.gross_amount,\n                  i.nav_transaction_id, i.nav_status, i.nav_error_code, i.nav_message,\n                  i.annulment_transaction_id, i.annulment_code, i.annulment_reason,\n                  i.annulled_at, i.document_id, i.submitted_at, i.issued_at,\n                  i.created_by, i.created_at, i.updated_at,\n                  b.bucket AS \"bucket!\", i.paid_at, i.reminders_off,\n                  (SELECT count(*) FROM invoice_reminders r\n                    WHERE r.invoice_id = i.id AND r.status = 'sent') AS \"reminders_sent!\",\n                  i.paid_amount\n             FROM invoices i\n             JOIN invoice_buckets b ON b.id = i.id\n             JOIN orders o ON o.id = i.order_id\n             JOIN partners p ON p.id = o.partner_id\n            WHERE ($1::text IS NULL OR i.status::text = $1)\n              AND ($2::text IS NULL OR i.kind::text = $2)\n              AND ($4::text IS NULL OR b.bucket = $4)\n            ORDER BY i.id DESC LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "order_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "partner_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "kind: InvoiceKind",
+        "type_info": {
+          "Custom": {
+            "name": "invoice_kind",
+            "kind": {
+              "Enum": [
+                "invoice",
+                "storno"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "status: InvoiceStatus",
+        "type_info": {
+          "Custom": {
+            "name": "invoice_status",
+            "kind": {
+              "Enum": [
+                "submitting",
+                "issued",
+                "rejected",
+                "stornoed",
+                "annulled"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "original_invoice_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "issue_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 10,
+        "name": "delivery_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 11,
+        "name": "payment_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 12,
+        "name": "payment_method",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "net_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "vat_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "gross_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "nav_transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "nav_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "nav_error_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "nav_message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "annulment_transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "annulment_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 22,
+        "name": "annulment_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 23,
+        "name": "annulled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 24,
+        "name": "document_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 25,
+        "name": "submitted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 26,
+        "name": "issued_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 27,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 28,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 29,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 30,
+        "name": "bucket!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 31,
+        "name": "paid_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 32,
+        "name": "reminders_off",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 33,
+        "name": "reminders_sent!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 34,
+        "name": "paid_amount",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "daa47f8b814f31887fa8dca9e1a2736758f51561eb310fcacf4fc92cb2f346db"
+}

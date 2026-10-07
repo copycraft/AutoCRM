@@ -30,9 +30,10 @@ use super::Items;
 use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use crate::AppState;
 use crate::domain::lookups::{
-    DAMAGE_TYPE_KEYS as DAMAGE_TYPES, SEVERITY_KEYS as SEVERITIES, VERDICT_KEYS as VERDICTS,
-    WALKAROUND_KEYS as KINDS,
+    DAMAGE_TYPE_KEYS as DAMAGE_TYPES, SEVERITY_KEYS as SEVERITIES, TYRE_CONDITION_KEYS,
+    TYRE_POSITION_KEYS, VERDICT_KEYS as VERDICTS, WALKAROUND_KEYS as KINDS,
 };
+use crate::domain::media::DocumentKind;
 use crate::domain::media::ImageCategory;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
@@ -40,7 +41,8 @@ use crate::repo::documents::{self, Owner};
 use crate::repo::images::{self, Image};
 use crate::repo::inspections::{
     self, Inspection, InspectionDamage, InspectionNote, InspectionPhoto as InspectionPhotoRow,
-    InspectionSignature, InspectionVerdict, ZoneTemplate,
+    InspectionSignature, InspectionTyre, InspectionVerdict, InspectionVideo as InspectionVideoRow,
+    ZoneTemplate,
 };
 use crate::repo::{config, orders};
 
@@ -62,6 +64,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(add_note))
         .routes(routes!(comparison, set_verdict))
         .routes(routes!(templates, replace_templates, delete_templates))
+        .routes(routes!(put_tyres))
+        .routes(routes!(attach_video))
 }
 
 fn in_list(value: &str, allowed: &[&str], field: &str) -> AppResult<()> {
@@ -309,6 +313,55 @@ struct InspectionDetail {
     /// so a client can name a zone without keeping its own table. A zone the office has
     /// since removed from the list has no entry: show its key.
     zone_titles: BTreeMap<String, String>,
+    /// Each tyre's tread and condition (0048).
+    tyres: Vec<InspectionTyre>,
+    /// Walkaround clips (0048).
+    videos: Vec<InspectionVideoView>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct InspectionVideoView {
+    #[serde(flatten)]
+    video: InspectionVideoRow,
+    filename: String,
+    byte_size: i64,
+    content_type: String,
+    /// Presigned, served inline for the video player; expires after one hour.
+    url: Option<String>,
+}
+
+async fn video_views(
+    state: &AppState,
+    rows: Vec<InspectionVideoRow>,
+) -> AppResult<Vec<InspectionVideoView>> {
+    let mut out = Vec::with_capacity(rows.len());
+    for video in rows {
+        let Some(doc) = documents::find(&state.db, video.document_id)
+            .await?
+            .filter(|d| d.deleted_at.is_none())
+        else {
+            continue;
+        };
+        let url = state
+            .storage
+            .presign_get(
+                &doc.storage_key,
+                URL_TTL,
+                Some(crate::media::storage::content_disposition(
+                    "inline",
+                    &doc.filename,
+                )),
+            )
+            .await?;
+        out.push(InspectionVideoView {
+            video,
+            filename: doc.filename,
+            byte_size: doc.byte_size,
+            content_type: doc.content_type,
+            url: Some(url),
+        });
+    }
+    Ok(out)
 }
 
 async fn photo_views(
@@ -374,6 +427,12 @@ async fn detail_for(state: &AppState, inspection: &Inspection) -> AppResult<Insp
         },
         signatures: inspections::signatures_for(&state.db, inspection.id).await?,
         notes: inspections::notes_for(&state.db, inspection.id).await?,
+        tyres: inspections::tyres_for(&state.db, inspection.id).await?,
+        videos: video_views(
+            state,
+            inspections::videos_for(&state.db, inspection.id).await?,
+        )
+        .await?,
     })
 }
 
@@ -1074,4 +1133,115 @@ mod tests {
             })
         ));
     }
+}
+
+// ── Tyres and videos (0048) ─────────────────────────────────────────────────
+
+#[derive(Deserialize, ToSchema)]
+struct TyresBody {
+    /// The whole tyre record; replaces what was there. A position appears once.
+    tyres: Vec<InspectionTyre>,
+}
+
+#[utoipa::path(
+    put, path = "/inspections/{id}/tyres", tag = "inspections",
+    params(("id" = i64, Path)),
+    request_body = TyresBody,
+    responses((status = 200, body = Vec<InspectionTyre>))
+)]
+async fn put_tyres(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<TyresBody>,
+) -> AppResult<Json<Vec<InspectionTyre>>> {
+    me.require(Capability::ChangeStages)?;
+    draft_or_locked(&state.db, id).await?;
+    let mut seen = std::collections::HashSet::new();
+    let mut tyres = Vec::with_capacity(b.tyres.len());
+    for mut t in b.tyres {
+        in_list(&t.position, TYRE_POSITION_KEYS, "position")?;
+        in_list(&t.condition, TYRE_CONDITION_KEYS, "condition")?;
+        if !seen.insert(t.position.clone()) {
+            return Err(AppError::validation(format!(
+                "tyre position '{}' appears twice",
+                t.position
+            )));
+        }
+        if let Some(mm) = t.tread_mm
+            && (mm.is_sign_negative() || mm > rust_decimal::Decimal::from(30))
+        {
+            return Err(AppError::validation("tread_mm must be between 0 and 30"));
+        }
+        t.tread_mm = t.tread_mm.map(|mm| mm.round_dp(1));
+        t.note = super::optional(t.note);
+        if t.note.as_deref().is_some_and(|n| n.chars().count() > 500) {
+            return Err(AppError::validation(
+                "a tyre note is at most 500 characters",
+            ));
+        }
+        tyres.push(t);
+    }
+    let mut tx = state.db.begin().await?;
+    inspections::replace_tyres(&mut tx, id, &tyres).await?;
+    tx.commit().await?;
+    Ok(Json(inspections::tyres_for(&state.db, id).await?))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct VideoBody {
+    /// A `video` document of the same order, uploaded through the normal flow.
+    document_id: i64,
+    zone_key: Option<String>,
+    duration_ms: Option<i32>,
+    taken_at: DateTime<Utc>,
+}
+
+#[utoipa::path(
+    post, path = "/inspections/{id}/videos", tag = "inspections",
+    params(("id" = i64, Path)),
+    request_body = VideoBody,
+    responses((status = 201, body = InspectionVideoRow))
+)]
+async fn attach_video(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<VideoBody>,
+) -> AppResult<(StatusCode, Json<InspectionVideoRow>)> {
+    me.require(Capability::ChangeStages)?;
+    let inspection = draft_or_locked(&state.db, id).await?;
+    let doc = documents::find(&state.db, b.document_id)
+        .await?
+        .filter(|d| d.deleted_at.is_none())
+        .ok_or(AppError::NotFound("document"))?;
+    if !Owner::Order(inspection.order_id).owns(&doc) {
+        return Err(AppError::validation("document belongs to another order"));
+    }
+    if doc.kind != DocumentKind::Video {
+        return Err(AppError::validation("document is not a video"));
+    }
+    if b.duration_ms.is_some_and(|d| d < 0) {
+        return Err(AppError::validation("duration_ms cannot be negative"));
+    }
+    let zone_key = super::optional(b.zone_key);
+    if zone_key.as_deref().is_some_and(|z| z.chars().count() > 64) {
+        return Err(AppError::validation("zone_key is at most 64 characters"));
+    }
+    let video = inspections::attach_video(
+        &state.db,
+        id,
+        b.document_id,
+        zone_key.as_deref(),
+        b.duration_ms,
+        b.taken_at,
+    )
+    .await?;
+    if video.inspection_id != id {
+        return Err(AppError::rule(
+            "already_attached",
+            "the video is already attached to another inspection",
+        ));
+    }
+    Ok((StatusCode::CREATED, Json(video)))
 }

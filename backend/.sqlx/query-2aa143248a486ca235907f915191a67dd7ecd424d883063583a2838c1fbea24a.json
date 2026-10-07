@@ -1,0 +1,163 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, kind AS \"kind: PartnerKind\", name, tax_number, eu_tax_number, country, default_currency,\n                  email, phone, website, postal_code, city, address_line, notes, role, invoice_language, minicrm_id, archived_at, created_at, updated_at\n           FROM partners\n           WHERE ($1::text IS NULL OR name ILIKE $1 OR tax_number ILIKE $1 OR eu_tax_number ILIKE $1\n                  OR email ILIKE $1 OR city ILIKE $1\n                  -- Phone digits with Hungarian prefixes unified, mirroring\n                  -- domain::partner::normalize_phone: \"+36 30 ...\" finds \"06-30-...\".\n                  OR ($2::text IS NOT NULL AND regexp_replace(regexp_replace(regexp_replace(phone, '[^0-9]', '', 'g'), '^00', ''), '^06', '36') LIKE $2))\n             AND ($3::partner_kind IS NULL OR kind = $3)\n             -- An unclassified partner counts as a customer; a supplier filter is exact.\n             AND ($4::text IS NULL\n                 OR (role = $4 OR role = 'both')\n                 OR ($4 = 'customer' AND role IS NULL))\n             AND ($5 OR archived_at IS NULL)\n           ORDER BY\n               CASE WHEN $8 = 'name' THEN name END ASC,\n               CASE WHEN $8 = '-name' THEN name END DESC,\n               CASE WHEN $8 = 'created_at' THEN created_at END ASC,\n               CASE WHEN $8 = '-created_at' THEN created_at END DESC,\n               id ASC\n           LIMIT $6 OFFSET $7",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind: PartnerKind",
+        "type_info": {
+          "Custom": {
+            "name": "partner_kind",
+            "kind": {
+              "Enum": [
+                "business",
+                "person"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "tax_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "eu_tax_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "country",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "default_currency",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "phone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "website",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "postal_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "address_line",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "invoice_language",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "minicrm_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "archived_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        {
+          "Custom": {
+            "name": "partner_kind",
+            "kind": {
+              "Enum": [
+                "business",
+                "person"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Bool",
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "2aa143248a486ca235907f915191a67dd7ecd424d883063583a2838c1fbea24a"
+}

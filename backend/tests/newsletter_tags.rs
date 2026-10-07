@@ -14,7 +14,13 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-async fn call(pool: &PgPool, method: &str, uri: &str, bearer: &str, body: Option<Value>) -> (StatusCode, Value) {
+async fn call(
+    pool: &PgPool,
+    method: &str,
+    uri: &str,
+    bearer: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
     let mut builder = Request::builder()
         .method(method)
         .uri(uri)
@@ -32,7 +38,10 @@ async fn call(pool: &PgPool, method: &str, uri: &str, bearer: &str, body: Option
         .unwrap();
     let status = response.status();
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
 }
 
 async fn token(pool: &PgPool, role: Role) -> String {
@@ -97,21 +106,64 @@ async fn an_import_tags_new_and_known_addresses_and_skips_the_opted_out(pool: Pg
     assert_eq!(result["invalid"], json!(["nem cím"]));
 
     // The opted-out address got no tag; the others did, and the new ones are active.
-    let (_, rows) = call(&pool, "GET", &format!("/api/newsletter/subscribers?tag={bakeries}"), &office, None).await;
-    let mut emails: Vec<&str> = rows["items"].as_array().unwrap().iter().map(|r| r["email"].as_str().unwrap()).collect();
+    let (_, rows) = call(
+        &pool,
+        "GET",
+        &format!("/api/newsletter/subscribers?tag={bakeries}"),
+        &office,
+        None,
+    )
+    .await;
+    let mut emails: Vec<&str> = rows["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["email"].as_str().unwrap())
+        .collect();
     emails.sort();
-    assert_eq!(emails, vec!["masik@pekseg.ro", "regi@pekseg.hu", "uj@pekseg.hu"]);
-    let (_, counts) = call(&pool, "GET", "/api/newsletter/subscribers/counts", &office, None).await;
+    assert_eq!(
+        emails,
+        vec!["masik@pekseg.ro", "regi@pekseg.hu", "uj@pekseg.hu"]
+    );
+    let (_, counts) = call(
+        &pool,
+        "GET",
+        "/api/newsletter/subscribers/counts",
+        &office,
+        None,
+    )
+    .await;
     assert_eq!(counts["active"], 3);
     assert_eq!(counts["unsubscribed"], 1);
     assert_eq!(counts["untagged"], 1);
 
     // Search, status and the untagged filter.
-    let (_, found) = call(&pool, "GET", "/api/newsletter/subscribers?q=brut", &office, None).await;
+    let (_, found) = call(
+        &pool,
+        "GET",
+        "/api/newsletter/subscribers?q=brut",
+        &office,
+        None,
+    )
+    .await;
     assert_eq!(found["items"][0]["email"], "masik@pekseg.ro");
-    let (_, out) = call(&pool, "GET", "/api/newsletter/subscribers?status=unsubscribed", &office, None).await;
+    let (_, out) = call(
+        &pool,
+        "GET",
+        "/api/newsletter/subscribers?status=unsubscribed",
+        &office,
+        None,
+    )
+    .await;
     assert_eq!(out["items"].as_array().unwrap().len(), 1);
-    let (_, bare) = call(&pool, "GET", "/api/newsletter/subscribers?untagged=true", &office, None).await;
+    let (_, bare) = call(
+        &pool,
+        "GET",
+        "/api/newsletter/subscribers?untagged=true",
+        &office,
+        None,
+    )
+    .await;
     assert_eq!(bare["items"][0]["email"], "kilepett@pekseg.hu");
 
     // Bulk: move the Romanian one to its own list.
@@ -130,18 +182,38 @@ async fn an_import_tags_new_and_known_addresses_and_skips_the_opted_out(pool: Pg
     // The audience follows the tags; a suppressed address is left out of it.
     let (_, all) = call(&pool, "GET", "/api/newsletter/audience", &office, None).await;
     assert_eq!(all["recipients"], 3);
-    let (_, hu) = call(&pool, "GET", &format!("/api/newsletter/audience?tags={bakeries}"), &office, None).await;
+    let (_, hu) = call(
+        &pool,
+        "GET",
+        &format!("/api/newsletter/audience?tags={bakeries}"),
+        &office,
+        None,
+    )
+    .await;
     assert_eq!(hu["recipients"], 2);
     sqlx::query("INSERT INTO email_suppressions (email) VALUES ('uj@pekseg.hu')")
         .execute(&pool)
         .await
         .unwrap();
-    let (_, hu) = call(&pool, "GET", &format!("/api/newsletter/audience?tags={bakeries},{romanian}"), &office, None).await;
+    let (_, hu) = call(
+        &pool,
+        "GET",
+        &format!("/api/newsletter/audience?tags={bakeries},{romanian}"),
+        &office,
+        None,
+    )
+    .await;
     assert_eq!(hu["recipients"], 2);
 
     // The tag list counts its subscribers.
     let (_, tags) = call(&pool, "GET", "/api/newsletter/tags", &office, None).await;
-    let b = tags["items"].as_array().unwrap().iter().find(|t| t["id"] == bakeries).unwrap().clone();
+    let b = tags["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == bakeries)
+        .unwrap()
+        .clone();
     assert_eq!(b["active_subscribers"], 2);
 }
 
@@ -160,10 +232,12 @@ async fn tags_are_edited_and_set_on_one_subscriber(pool: PgPool) {
     assert_eq!(tag["color"], "#5b93f5");
     let id = tag["id"].as_i64().unwrap();
     // Placed at the end of its section, before the next section.
-    let last_list: i32 = sqlx::query_scalar("SELECT position FROM newsletter_tags WHERE label = 'Szerbiai temetkezési'")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let last_list: i32 = sqlx::query_scalar(
+        "SELECT position FROM newsletter_tags WHERE label = 'Szerbiai temetkezési'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert!(tag["position"].as_i64().unwrap() > last_list as i64);
     assert!(tag["position"].as_i64().unwrap() < 1010);
 
@@ -201,7 +275,14 @@ async fn tags_are_edited_and_set_on_one_subscriber(pool: PgPool) {
     assert_eq!(ids, json!([other]));
 
     // Archived tags cannot be put on anyone.
-    let (status, _) = call(&pool, "PATCH", &format!("/api/newsletter/tags/{id}"), &office, Some(json!({ "archived": true }))).await;
+    let (status, _) = call(
+        &pool,
+        "PATCH",
+        &format!("/api/newsletter/tags/{id}"),
+        &office,
+        Some(json!({ "archived": true })),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let (status, _) = call(
         &pool,
@@ -214,13 +295,27 @@ async fn tags_are_edited_and_set_on_one_subscriber(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // Deleting the subscription takes its tags with it.
-    let (status, _) = call(&pool, "DELETE", &format!("/api/newsletter/subscriptions/{sub_id}"), &office, None).await;
+    let (status, _) = call(
+        &pool,
+        "DELETE",
+        &format!("/api/newsletter/subscriptions/{sub_id}"),
+        &office,
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
     // A viewer reads but does not change.
     let viewer = token(&pool, Role::Viewer).await;
     let (status, _) = call(&pool, "GET", "/api/newsletter/tags", &viewer, None).await;
     assert_eq!(status, StatusCode::OK);
-    let (status, _) = call(&pool, "POST", "/api/newsletter/import", &viewer, Some(json!({ "text": "a@b.hu" }))).await;
+    let (status, _) = call(
+        &pool,
+        "POST",
+        "/api/newsletter/import",
+        &viewer,
+        Some(json!({ "text": "a@b.hu" })),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }

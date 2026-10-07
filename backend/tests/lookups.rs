@@ -113,7 +113,7 @@ async fn any_signed_in_user_reads_the_whole_document(pool: PgPool) {
     assert_eq!(doc["order_relations"][0]["label_hu"], "Garanciális");
     assert_eq!(
         keys(&doc["task_entity_types"]),
-        ["order", "lead", "partner"]
+        ["order", "lead", "partner", "employee"]
     );
     assert_eq!(keys(&doc["currencies"]), ["HUF", "EUR"]);
     assert_eq!(keys(&doc["invoice_payment_methods"]), ["TRANSFER", "CASH"]);

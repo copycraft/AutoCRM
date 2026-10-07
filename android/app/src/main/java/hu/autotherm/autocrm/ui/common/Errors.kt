@@ -38,6 +38,7 @@ private fun describeApi(e: ApiException): String = when (e) {
 }
 
 
+
 /**
  * The backend error-code catalog (`backend/src/error.rs::ERROR_CODES`, published in
  * `openapi.json` as `ErrorCode` with `x-error-catalog`), Hungarian text only.
@@ -51,12 +52,18 @@ internal val ERROR_TEXT: Map<String, String> = mapOf(
     "too_many_requests" to "Túl sok próbálkozás. Próbálja újra később.",
     "duplicate" to "Ilyen adat már létezik.",
     "overlap" to "A munkatársnak ebben az időszakban már van rögzített távolléte.",
+    "domain_taken" to "Ez a domain már egy másik címkéhez tartozik.",
+    "assistant_unavailable" to "Az asszisztens most nem érhető el (a nyelvi modell nem fut vagy nincs beállítva).",
+    "template_in_use" to "Ezt a sablont automatikus levél vagy utánkövetés használja, ezért nem tehető a lomtárba.",
+    "status_required" to "Erre az állapotra kerülnek az új vagy a távozó munkatársak, ezért nem archiválható; nevezze át inkább.",
     "invalid_reference" to "Érvénytelen hivatkozás, vagy a hivatkozott adat még használatban van.",
     "constraint_violation" to "Az adat sérti az adatbázis szabályait.",
     "immutable" to "Ez bizonyítási célból védett adat, nem módosítható és nem törölhető.",
     "internal" to "Szerverhiba. Próbálja újra később.",
     "password_change_required" to "Első bejelentkezéskor kötelező jelszót változtatni.",
     "wrong_password" to "Hibás a jelenlegi jelszó.",
+    "totp_required" to "Adja meg a hitelesítő alkalmazás hatjegyű kódját is.",
+    "totp_invalid" to "Hibás vagy már felhasznált egyszer használatos kód.",
     "last_admin" to "Az utolsó aktív adminisztrátor nem tiltható le.",
     "stage_gate" to "A megrendelés nem léphet tovább, mert egy szükséges feltétel még nem teljesült.",
     "note_required" to "A visszalépéshez indoklás szükséges.",
@@ -90,6 +97,7 @@ internal val ERROR_TEXT: Map<String, String> = mapOf(
     "no_items" to "A számlához legalább egy tétel kell a megrendelésen.",
     "nav_rejected" to "A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja.",
     "nav_unreachable" to "A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később.",
+    "overpayment" to "A befizetés több, mint a számlán még nyitott összeg.",
     "not_issued" to "Csak kiállított számlának van letölthető bizonylata.",
     "pdf_unavailable" to "A PDF most nem tölthető le. Próbálja újra később.",
 )

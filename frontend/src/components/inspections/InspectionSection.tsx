@@ -8,7 +8,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { inspectionsApi } from '@/lib/api/endpoints';
+import { incidentsApi, inspectionsApi } from '@/lib/api/endpoints';
+import { BeforeAfter } from '@/components/media/BeforeAfter';
+import { IncidentDialog } from '@/components/incidents/Incidents';
 import { qk } from '@/lib/query/provider';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { errorMessage } from '@/lib/api/errors';
@@ -29,7 +31,7 @@ function useKindLabel(): (kind: string) => string {
   return (kind: string) => lookupLabel(lookups?.walkaround_kinds, kind);
 }
 
-export function InspectionSection({ orderId }: { orderId: number }) {
+export function InspectionSection({ orderId, currency = 'HUF' }: { orderId: number; currency?: 'HUF' | 'EUR' }) {
   const t = useTranslations('orders');
   const query = useQuery({
     queryKey: qk.inspections({ order: orderId }),
@@ -57,7 +59,7 @@ export function InspectionSection({ orderId }: { orderId: number }) {
         ) : (
           <ul className="space-y-3">
             {query.data.items.map((inspection) => (
-              <InspectionCard key={inspection.id} inspection={inspection} />
+              <InspectionCard key={inspection.id} inspection={inspection} currency={currency} />
             ))}
           </ul>
         )}
@@ -66,7 +68,7 @@ export function InspectionSection({ orderId }: { orderId: number }) {
   );
 }
 
-function InspectionCard({ inspection }: { inspection: Inspection }) {
+function InspectionCard({ inspection, currency }: { inspection: Inspection; currency: 'HUF' | 'EUR' }) {
   const t = useTranslations('orders');
   const kindLabel = useKindLabel();
   const [open, setOpen] = useState(false);
@@ -111,6 +113,7 @@ function InspectionCard({ inspection }: { inspection: Inspection }) {
               inspectionId={inspection.id}
               kind={inspection.kind}
               detail={detail.data}
+              currency={currency}
             />
           )}
         </div>
@@ -128,10 +131,12 @@ function InspectionDetailView({
   inspectionId,
   kind,
   detail,
+  currency,
 }: {
   inspectionId: number;
   kind: string;
   detail: import('@/lib/api/types').InspectionDetail;
+  currency: 'HUF' | 'EUR';
 }) {
   const t = useTranslations('orders');
   const { inspection, photos, damages, verdicts, signatures, notes, zone_titles: titles } = detail;
@@ -156,6 +161,9 @@ function InspectionDetailView({
         />
         <Info label={t('inspectionWarnings')} value={inspection.warning_lights} />
       </div>
+
+      <TyreTable tyres={detail.tyres} />
+      <VideoList videos={detail.videos} titles={titles} />
 
       {overviews.length > 0 && (
         <div>
@@ -205,7 +213,7 @@ function InspectionDetailView({
         </p>
       )}
 
-      {kind === 'checkin' && <ComparisonView inspectionId={inspectionId} />}
+      {kind === 'checkin' && <ComparisonView inspectionId={inspectionId} orderId={inspection.order_id} currency={currency} />}
 
       <NotesList notes={notes} />
       <NoteComposer inspectionId={inspectionId} />
@@ -235,7 +243,22 @@ function DamageRow({
   );
 }
 
-function ComparisonView({ inspectionId }: { inspectionId: number }) {
+function ComparisonView({
+  inspectionId,
+  orderId,
+  currency,
+}: {
+  inspectionId: number;
+  orderId: number;
+  currency: 'HUF' | 'EUR';
+}) {
+  const ti = useTranslations('incidents');
+  const [incidentFor, setIncidentFor] = useState<{ damageId: number; title: string } | null>(null);
+  const incidents = useQuery({
+    queryKey: qk.incidents({ inspection: inspectionId }),
+    queryFn: () => incidentsApi.list({ inspection_id: inspectionId }),
+  });
+  const incidentByDamage = new Map((incidents.data?.items ?? []).filter((i) => i.damage_id).map((i) => [i.damage_id!, i]));
   const t = useTranslations('orders');
   const ter = useTranslations('errors');
   const { user } = useAuth();
@@ -311,6 +334,30 @@ function ComparisonView({ inspectionId }: { inspectionId: number }) {
                   </p>
                 )}
                 {damage.note && <p className="mt-1 text-body">{damage.note}</p>}
+                {(current?.verdict ?? suggestion?.suggested) === 'new' && (
+                  <p className="mt-2 flex flex-wrap items-center gap-2 text-metadata">
+                    {incidentByDamage.get(damage.id) ? (
+                      <StatusBadge tone={incidentByDamage.get(damage.id)!.status === 'open' ? 'signal' : 'done'}>
+                        {ti('logged')}: {incidentByDamage.get(damage.id)!.title}
+                      </StatusBadge>
+                    ) : (
+                      canChangeStage(user) && (
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() =>
+                            setIncidentFor({
+                              damageId: damage.id,
+                              title: `${lookupLabel(lookups?.damage_types, damage.damage_type)} – ${zoneName(comparison.checkin.zone_titles, damage.zone_key)}`,
+                            })
+                          }
+                        >
+                          {ti('fromDamage')}
+                        </button>
+                      )
+                    )}
+                  </p>
+                )}
                 {review && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {verdictOptions.map((option) => (
@@ -348,6 +395,123 @@ function ComparisonView({ inspectionId }: { inspectionId: number }) {
         </p>
       )}
       <OdoDelta comparison={comparison} />
+      <ZonePairs comparison={comparison} />
+      {incidentFor && (
+        <IncidentDialog
+          orderId={orderId}
+          currency={currency}
+          damageId={incidentFor.damageId}
+          initialTitle={incidentFor.title}
+          onClose={() => setIncidentFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Each zone's átvétel photo against its kiadás photo, wiped one over the other. */
+function ZonePairs({ comparison }: { comparison: InspectionComparison }) {
+  const t = useTranslations('media');
+  const pairs = comparison.checkin.photos
+    .filter((p) => p.purpose === 'overview' && (p.display_url ?? p.thumb_url))
+    .map((after) => ({
+      after,
+      before: comparison.checkout.photos.find(
+        (b) => b.purpose === 'overview' && b.zone_key === after.zone_key && (b.display_url ?? b.thumb_url),
+      ),
+    }))
+    .filter((x) => x.before);
+  const [zone, setZone] = useState<string | null>(null);
+  const firstPair = pairs[0];
+  if (!firstPair) return null;
+  const shown = pairs.find((x) => x.after.zone_key === (zone ?? firstPair.after.zone_key)) ?? firstPair;
+  return (
+    <div className="mt-4 space-y-2">
+      <h3 className="text-body font-semibold">{t('beforeAfterTitle')}</h3>
+      <div className="flex flex-wrap gap-1">
+        {pairs.map((x) => (
+          <button
+            key={x.after.id}
+            type="button"
+            className={`btn-sm ${x === shown ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setZone(x.after.zone_key)}
+          >
+            {zoneName(comparison.checkin.zone_titles, x.after.zone_key)}
+          </button>
+        ))}
+      </div>
+      <div className="max-w-3xl">
+        <BeforeAfter
+          before={(shown.before!.display_url ?? shown.before!.thumb_url)!}
+          after={(shown.after.display_url ?? shown.after.thumb_url)!}
+          beforeLabel={t('atIntake')}
+          afterLabel={t('atHandover')}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TyreTable({ tyres }: { tyres: import('@/lib/api/types').InspectionTyre[] }) {
+  const t = useTranslations('media');
+  const { data: lookups } = useLookups();
+  if (!tyres.length) return null;
+  return (
+    <div>
+      <h3 className="text-body font-semibold">{t('tyres')}</h3>
+      <div className="table-container mt-2">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">{t('tyrePosition')}</th>
+              <th scope="col" className="text-right">{t('tread')}</th>
+              <th scope="col">{t('tyreCondition')}</th>
+              <th scope="col">{t('note')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tyres.map((ty) => (
+              <tr key={ty.position}>
+                <td>{lookupLabel(lookups?.tyre_positions, ty.position)}</td>
+                <td className="text-right font-mono">{ty.tread_mm != null ? `${ty.tread_mm} mm` : '—'}</td>
+                <td>
+                  <StatusBadge tone={ty.condition === 'ok' ? 'done' : ty.condition === 'worn' ? 'steel' : 'signal'}>
+                    {lookupLabel(lookups?.tyre_conditions, ty.condition)}
+                  </StatusBadge>
+                </td>
+                <td>{ty.note ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function VideoList({
+  videos,
+  titles,
+}: {
+  videos: import('@/lib/api/types').InspectionVideoView[];
+  titles: Record<string, string>;
+}) {
+  const t = useTranslations('media');
+  if (!videos.length) return null;
+  return (
+    <div>
+      <h3 className="text-body font-semibold">{t('videos')}</h3>
+      <ul className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
+        {videos.map((v) => (
+          <li key={v.id}>
+            {v.url ? <video src={v.url} controls preload="metadata" className="w-full rounded-lg bg-steel-900" /> : null}
+            <p className="mt-1 text-metadata text-steel-500">
+              {v.zone_key ? zoneName(titles, v.zone_key) : t('walkaroundVideo')}
+              {v.duration_ms != null ? ` · ${Math.round(v.duration_ms / 1000)} s` : ''}
+            </p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -73,6 +73,8 @@ class OrderPhotoViewModel(
 
     data class State(
         val category: String = CapturePrefs.CATEGORY_PRODUCTION,
+        /** What may be picked: the attachable categories plus the stage's default (0048). */
+        val choices: List<String> = listOf(CapturePrefs.CATEGORY_PRODUCTION),
         val pending: Int = 0,
         val message: String? = null,
         val lookups: Lookups? = null,
@@ -90,19 +92,34 @@ class OrderPhotoViewModel(
         }
     }
 
-    fun loadStickyCategory() {
+    /**
+     * The category new photos take. Manual attaching is production-only (client rule):
+     * intake and handover shots come from their own flows. The one addition is the order's
+     * current stage default (0048), so in MEO the completion photo the gate needs can be
+     * taken here; it is also preselected. Evidence categories are never offered.
+     */
+    fun loadStickyCategory(stageCategory: String? = null) {
         viewModelScope.launch {
             val lookups = downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
-            // Manual attaching is production-only (client rule): intake and handover
-            // shots come from their own flows. Coerce any older sticky value back
-            // to production so a stale "intake" can never file here by accident.
             val stored = prefs.category.first()
-            val allowed = CapturePrefs.attachable(lookups)
-            val category = if (stored in allowed) stored
-            else allowed.firstOrNull() ?: CapturePrefs.CATEGORY_PRODUCTION
-            if (category != stored) prefs.setCategory(category)
-            _state.value = _state.value.copy(category = category, lookups = lookups)
+            val allowed = CapturePrefs.attachable(lookups).toMutableList()
+            val stageOk = stageCategory != null &&
+                stageCategory != CapturePrefs.CATEGORY_INTAKE &&
+                stageCategory != CapturePrefs.CATEGORY_INSPECTION
+            if (stageOk && stageCategory !in allowed) allowed.add(0, stageCategory!!)
+            val category = when {
+                stageOk -> stageCategory!!
+                stored in allowed -> stored
+                else -> allowed.firstOrNull() ?: CapturePrefs.CATEGORY_PRODUCTION
+            }
+            if (category != stored && category in CapturePrefs.attachable(lookups)) prefs.setCategory(category)
+            _state.value = _state.value.copy(category = category, choices = allowed, lookups = lookups)
         }
+    }
+
+    fun pickCategory(category: String) {
+        if (category !in _state.value.choices) return
+        _state.value = _state.value.copy(category = category)
     }
 
     fun add(uris: List<Uri>, orderId: Long, orderNumber: String) {
@@ -166,6 +183,8 @@ fun OrderPhotoSection(
     orderNumber: String,
     imageCounts: Map<String, Long>,
     viewModel: OrderPhotoViewModel,
+    /** The order's current stage default (`photo_category` on the order detail). */
+    stageCategory: String? = null,
 ) {
     val state by viewModel.state.collectAsState()
     // Held across the launcher round trip: the result callback only says whether the camera
@@ -193,10 +212,8 @@ fun OrderPhotoSection(
         cameraUri = null
     }
 
-    LaunchedEffect(orderId) {
-        viewModel.observe(orderId)
-        viewModel.loadStickyCategory()
-    }
+    LaunchedEffect(orderId) { viewModel.observe(orderId) }
+    LaunchedEffect(orderId, stageCategory) { viewModel.loadStickyCategory(stageCategory) }
 
     Card {
         SectionTitle(
@@ -218,8 +235,26 @@ fun OrderPhotoSection(
             StatusBadge("${state.pending} feltöltésre vár", Tone.Cold)
         }
 
+        if (state.choices.size > 1) {
+            Row(
+                Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                state.choices.forEach { key ->
+                    androidx.compose.material3.FilterChip(
+                        selected = state.category == key,
+                        onClick = { viewModel.pickCategory(key) },
+                        label = { Text(CapturePrefs.label(key, state.lookups)) },
+                    )
+                }
+            }
+        }
         Text(
-            "Ide gyártás közbeni fotók kerülnek. A bevételi és az átadási fotók a saját folyamatukban készülnek.",
+            if (state.category == CapturePrefs.CATEGORY_PRODUCTION) {
+                "Ide gyártás közbeni fotók kerülnek. A bevételi és az átadási fotók a saját folyamatukban készülnek."
+            } else {
+                "A fotók ide kerülnek: ${CapturePrefs.label(state.category, state.lookups)} (a jelenlegi fázis alapértéke)."
+            },
             style = MaterialTheme.typography.labelMedium,
             color = Steel500,
             modifier = Modifier.padding(top = 8.dp),

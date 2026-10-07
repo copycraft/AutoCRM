@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT default_image_category AS \"category: ImageCategory\"\n           FROM stage_definitions WHERE entity = 'order' AND key = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "category: ImageCategory",
+        "type_info": {
+          "Custom": {
+            "name": "image_category",
+            "kind": {
+              "Enum": [
+                "intake",
+                "production",
+                "completion",
+                "marketing",
+                "inspection"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "08c2a84355b8396be565b6618b06c66de9653b4198c714c9ebb2a28a219d859e"
+}

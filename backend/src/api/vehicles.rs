@@ -29,6 +29,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(detail, update))
         .routes(routes!(list_for_order, attach))
         .routes(routes!(detach))
+        .routes(routes!(decode_vin))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -345,4 +346,34 @@ mod tests {
         let f = body(r#"{"plate":"xyz-987"}"#).merged(&stored()).unwrap();
         assert_eq!(f.plate.as_deref(), Some("XYZ-987"));
     }
+}
+
+#[utoipa::path(
+    get, path = "/vehicles/decode/{vin}", tag = "vehicles",
+    params(("vin" = String, Path, description = "17 characters; spaces and dashes are ignored")),
+    responses((status = 200, body = crate::domain::vin::VinInfo, description = "What the VIN itself says (maker, region, model year), plus make and model from NHTSA when VIN_DECODER_ONLINE is on"))
+)]
+async fn decode_vin(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+    ApiPath(vin): ApiPath<String>,
+) -> AppResult<Json<crate::domain::vin::VinInfo>> {
+    use chrono::Datelike;
+    let next_year = crate::service::business_today(state.config.business_tz).year() + 1;
+    let mut info = crate::domain::vin::decode(&vin, next_year)
+        .ok_or_else(|| AppError::validation("vin: 17 letters and digits, without I, O and Q"))?;
+    if state.config.vin_online {
+        match crate::integrations::vpic::lookup(&info.vin).await {
+            Ok(found) => {
+                if found.make.is_some() || found.model.is_some() {
+                    info.make = found.make;
+                    info.model = found.model;
+                    info.model_year = found.model_year.or(info.model_year);
+                    info.source = "nhtsa".into();
+                }
+            }
+            Err(e) => tracing::warn!(error = %e, "online VIN lookup failed; offline answer only"),
+        }
+    }
+    Ok(Json(info))
 }

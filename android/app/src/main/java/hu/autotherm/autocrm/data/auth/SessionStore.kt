@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -38,6 +39,7 @@ class SessionStore(private val context: Context) {
         val ROLE = stringPreferencesKey("role")
         val MUST_CHANGE_PASSWORD = booleanPreferencesKey("must_change_password")
         val HR_ACCESS = booleanPreferencesKey("hr_access")
+        val CAPABILITIES = stringSetPreferencesKey("capabilities")
     }
 
     data class Account(
@@ -47,15 +49,20 @@ class SessionStore(private val context: Context) {
         val role: String,
         val mustChangePassword: Boolean,
         val hrAccess: Boolean = false,
+        val capabilities: Set<String> = emptySet(),
     ) {
         /**
-         * Mirrors `domain/role.rs`. UI-only: the server is the security boundary, and every
-         * one of these is re-checked there. Hiding a button the API would refuse is a
-         * courtesy, not a control.
+         * The server's effective capabilities (role defaults plus per-user grants, see
+         * `domain/role.rs`). UI-only: the server is the security boundary, and every one of
+         * these is re-checked there. Hiding a button the API would refuse is a courtesy, not a
+         * control. A session saved before the server sent capabilities falls back to the role.
          */
-        val canEdit: Boolean get() = role == "admin" || role == "office"
-        val canChangeStage: Boolean get() = canEdit || role == "designer"
-        val canUploadMedia: Boolean get() = canChangeStage
+        private fun has(capability: String, vararg roles: String): Boolean =
+            if (capabilities.isEmpty()) role in roles else capability in capabilities
+        val canEdit: Boolean get() = has("edit_orders", "admin", "office")
+        val canChangeStage: Boolean get() = has("change_stages", "admin", "office", "designer")
+        val canUploadMedia: Boolean get() = has("upload_media", "admin", "office", "designer")
+        val canComment: Boolean get() = has("comment", "admin", "office", "designer")
         val isAdmin: Boolean get() = role == "admin"
     }
 
@@ -71,6 +78,7 @@ class SessionStore(private val context: Context) {
             role = this[Keys.ROLE].orEmpty(),
             mustChangePassword = this[Keys.MUST_CHANGE_PASSWORD] ?: false,
             hrAccess = this[Keys.HR_ACCESS] ?: false,
+            capabilities = this[Keys.CAPABILITIES] ?: emptySet(),
         )
     }
 
@@ -88,6 +96,7 @@ class SessionStore(private val context: Context) {
             it[Keys.ROLE] = user.role
             it[Keys.MUST_CHANGE_PASSWORD] = user.mustChangePassword
             it[Keys.HR_ACCESS] = user.hrAccess
+            it[Keys.CAPABILITIES] = user.capabilities.toSet()
         }
     }
 
@@ -106,6 +115,7 @@ class SessionStore(private val context: Context) {
             it[Keys.ROLE] = user.role
             it[Keys.MUST_CHANGE_PASSWORD] = user.mustChangePassword
             it[Keys.HR_ACCESS] = user.hrAccess
+            it[Keys.CAPABILITIES] = user.capabilities.toSet()
         }
     }
     /**

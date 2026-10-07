@@ -534,6 +534,9 @@ pub struct BilledInvoice {
     pub reminders_off: bool,
     /// How many payment reminders went out.
     pub reminders_sent: i64,
+    /// Received so far, in minor units (0049). Equal to the gross once paid; in between
+    /// on a partly paid invoice.
+    pub paid_amount: i64,
 }
 
 /// Every invoice and storno, newest first. Stornos are rows like any other
@@ -558,7 +561,8 @@ pub async fn list_invoices(
                   i.created_by, i.created_at, i.updated_at,
                   b.bucket AS "bucket!", i.paid_at, i.reminders_off,
                   (SELECT count(*) FROM invoice_reminders r
-                    WHERE r.invoice_id = i.id AND r.status = 'sent') AS "reminders_sent!"
+                    WHERE r.invoice_id = i.id AND r.status = 'sent') AS "reminders_sent!",
+                  i.paid_amount
              FROM invoices i
              JOIN invoice_buckets b ON b.id = i.id
              JOIN orders o ON o.id = i.order_id
@@ -628,11 +632,29 @@ pub async fn bucket_counts(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<BucketCo
         .await
 }
 
-/// Marks an issued invoice paid (now) or unpaid. False when it is not an issued invoice.
+/// Marks an issued invoice paid in full (now) or unpaid. Paid books whatever was still
+/// open as one payment today, so the payment list adds up; unpaid removes every booked
+/// payment. False when it is not an issued invoice.
 pub async fn set_paid(db: impl PgExecutor<'_>, id: i64, paid: bool) -> sqlx::Result<bool> {
     let done = sqlx::query(
-        "UPDATE invoices SET paid_at = CASE WHEN $2 THEN coalesce(paid_at, now()) END
-         WHERE id = $1 AND kind = 'invoice' AND status = 'issued'",
+        "WITH inv AS (
+             SELECT id, gross_amount - paid_amount AS rest, payment_method
+               FROM invoices
+              WHERE id = $1 AND kind = 'invoice' AND status = 'issued'
+              FOR UPDATE
+         ), booked AS (
+             INSERT INTO invoice_payments (invoice_id, amount_minor, paid_on, method)
+             SELECT id, rest, (now() AT TIME ZONE 'Europe/Budapest')::date,
+                    CASE WHEN payment_method IN ('TRANSFER', 'CASH', 'CARD') THEN payment_method
+                         ELSE 'OTHER' END
+               FROM inv WHERE $2 AND rest > 0
+         ), removed AS (
+             DELETE FROM invoice_payments WHERE NOT $2 AND invoice_id IN (SELECT id FROM inv)
+         )
+         UPDATE invoices
+            SET paid_at = CASE WHEN $2 THEN coalesce(paid_at, now()) END,
+                paid_amount = CASE WHEN $2 THEN greatest(paid_amount, gross_amount) ELSE 0 END
+          WHERE id IN (SELECT id FROM inv)",
     )
     .bind(id)
     .bind(paid)
@@ -643,11 +665,12 @@ pub async fn set_paid(db: impl PgExecutor<'_>, id: i64, paid: bool) -> sqlx::Res
 
 /// Turns the automatic payment reminders of one invoice off or back on.
 pub async fn set_reminders_off(db: impl PgExecutor<'_>, id: i64, off: bool) -> sqlx::Result<bool> {
-    let done = sqlx::query("UPDATE invoices SET reminders_off = $2 WHERE id = $1 AND kind = 'invoice'")
-        .bind(id)
-        .bind(off)
-        .execute(db)
-        .await?;
+    let done =
+        sqlx::query("UPDATE invoices SET reminders_off = $2 WHERE id = $1 AND kind = 'invoice'")
+            .bind(id)
+            .bind(off)
+            .execute(db)
+            .await?;
     Ok(done.rows_affected() == 1)
 }
 
@@ -721,6 +744,8 @@ pub struct OverdueInvoice {
     pub partner_name: String,
     pub currency: String,
     pub gross_amount: i64,
+    /// Received so far (0049); the rest is what is overdue.
+    pub paid_amount: i64,
     pub payment_date: NaiveDate,
     pub days_overdue: i32,
     pub reminders_sent: i64,
@@ -735,7 +760,7 @@ pub async fn overdue(
 ) -> sqlx::Result<Vec<OverdueInvoice>> {
     sqlx::query_as(
         "SELECT i.id, i.number, i.order_id, p.id AS partner_id, p.name AS partner_name,
-                i.currency, i.gross_amount, i.payment_date,
+                i.currency, i.gross_amount, i.paid_amount, i.payment_date,
                 ($1::date - i.payment_date)::int AS days_overdue,
                 (SELECT count(*) FROM invoice_reminders r
                   WHERE r.invoice_id = i.id AND r.status = 'sent') AS reminders_sent

@@ -55,6 +55,13 @@ sealed class Phase {
     data class Done(val serverId: Long?) : Phase()
 }
 
+/** A clip being recorded for a zone (or the whole walkaround when [zoneKey] is null). */
+data class VideoRequest(
+    val zoneKey: String?,
+    val instruction: String,
+    val file: File,
+)
+
 data class CaptureRequest(
     val purpose: String,
     val zoneKey: String,
@@ -83,6 +90,11 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
         val notice: String? = null,
         /** The server's enumerations (damage types, fuel marks, ...); cached for offline starts. */
         val lookups: Lookups? = null,
+        /** Readings recognised on the odometer photo, best first (0048). */
+        val odometerCandidates: List<String> = emptyList(),
+        val readingOdometer: Boolean = false,
+        /** Non-null while the clip camera is open. */
+        val videoCapture: VideoRequest? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -202,6 +214,87 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
         viewModelScope.launch { persist() }
     }
 
+    // ── Tyres (0048) ──
+
+    /** Sets, changes or (with null) forgets one tyre's reading. */
+    fun setTyre(position: String, next: (hu.autotherm.autocrm.data.inspection.DraftTyre?) -> hu.autotherm.autocrm.data.inspection.DraftTyre?) {
+        setReadings { p ->
+            val current = p.tyres.firstOrNull { it.position == position }
+            val updated = next(current)
+            val rest = p.tyres.filterNot { it.position == position }
+            p.copy(tyres = if (updated == null) rest else rest + updated, tyresSynced = false)
+        }
+    }
+
+    // ── Odometer from a photo (0048) ──
+
+    fun requestOdometerPhoto() {
+        requestCapture("dashboard", "odometer", "Óraállás – a számláló legyen élesen a képen")
+    }
+
+    fun useOdometer(value: String) {
+        setReadings { it.copy(odometer = value.filter { c -> c.isDigit() }) }
+        update { it.copy(odometerCandidates = emptyList()) }
+    }
+
+    private fun readOdometer(file: File) {
+        update { it.copy(readingOdometer = true, odometerCandidates = emptyList()) }
+        viewModelScope.launch {
+            val found = runCatching {
+                hu.autotherm.autocrm.data.inspection.OdometerReader.read(app, file)
+            }.getOrDefault(emptyList())
+            update { it.copy(readingOdometer = false, odometerCandidates = found) }
+        }
+    }
+
+    // ── Clips (0048) ──
+
+    fun requestVideo(zoneKey: String?, instruction: String) {
+        val s = _state.value
+        val file = File(
+            inspectionDir(app, s.uuid),
+            "video_${zoneKey ?: "walkaround"}_${System.currentTimeMillis()}.mp4",
+        )
+        update { it.copy(videoCapture = VideoRequest(zoneKey, instruction, file), error = null) }
+    }
+
+    fun cancelVideo() {
+        _state.value.videoCapture?.file?.delete()
+        update { it.copy(videoCapture = null) }
+    }
+
+    fun onVideoRecorded(request: VideoRequest, durationMs: Long) {
+        if (!request.file.exists() || request.file.length() == 0L) {
+            update { it.copy(videoCapture = null, error = "a videó nem mentődött") }
+            return
+        }
+        update {
+            val payload = it.payload ?: return@update it.copy(videoCapture = null)
+            it.copy(
+                videoCapture = null,
+                payload = payload.copy(
+                    videos = payload.videos + hu.autotherm.autocrm.data.inspection.DraftVideo(
+                        fileName = request.file.name,
+                        zoneKey = request.zoneKey,
+                        durationMs = durationMs,
+                        takenAt = Instant.now().toString(),
+                    ),
+                ),
+            )
+        }
+        viewModelScope.launch { persist() }
+    }
+
+    fun removeVideo(localId: String) {
+        val video = _state.value.payload?.videos?.firstOrNull { it.localId == localId } ?: return
+        File(inspectionDir(app, _state.value.uuid), video.fileName).delete()
+        update { st ->
+            val p = st.payload ?: return@update st
+            st.copy(payload = p.copy(videos = p.videos.filterNot { it.localId == localId }))
+        }
+        viewModelScope.launch { persist() }
+    }
+
     fun readingsDone() {
         update { it.copy(phase = Phase.Zone) }
     }
@@ -293,6 +386,8 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
                     )
                 }
                 persist()
+                // The odometer shot is also read: the digits are offered for the field.
+                if (request.purpose == "dashboard" && request.zoneKey == "odometer") readOdometer(request.file)
             } catch (e: Exception) {
                 request.file.delete()
                 update { it.copy(busy = false, error = "a fotó mentése nem sikerült") }

@@ -1,19 +1,22 @@
 //! Use cases: orchestration of domain rules, repositories and integrations.
 
-pub mod auth;
+pub mod ads;
 pub mod assistant;
+pub mod auth;
 pub mod automation;
 pub mod email;
 pub mod followups;
 pub mod invoicing;
 pub mod leads;
-pub mod newsletter;
 pub mod mailbox;
 pub mod media;
+pub mod newsletter;
 pub mod notifications;
 pub mod orders;
 pub mod reminders;
+pub mod secrets;
 pub mod stages;
+pub mod weekly_report;
 
 use chrono::{NaiveDate, Utc};
 use chrono_tz::Tz;

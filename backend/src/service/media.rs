@@ -12,8 +12,8 @@ use sha2::{Digest, Sha256};
 
 use crate::AppState;
 use crate::domain::media::{
-    MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, document_extension, document_storage_key, image_extension,
-    image_storage_key, lead_document_storage_key,
+    ImageCategory, MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, document_extension, document_storage_key,
+    image_extension, image_storage_key, lead_document_storage_key, thumb_source,
 };
 use crate::error::{AppError, AppResult};
 use crate::media::storage::PresignedRequest;
@@ -89,6 +89,25 @@ fn validate_content_type(ct: &str) -> AppResult<()> {
     }
 }
 
+/// The document a new version replaces: the same owner's, live, and not already replaced.
+async fn current_version(state: &AppState, owner: Owner, id: i64) -> AppResult<Document> {
+    let previous = documents::find(&state.db, id)
+        .await?
+        .filter(|d| d.deleted_at.is_none())
+        .ok_or(AppError::NotFound("document"))?;
+    if !owner.owns(&previous) {
+        return Err(AppError::validation(
+            "the document to replace belongs to another record",
+        ));
+    }
+    if previous.superseded_at.is_some() {
+        return Err(AppError::validation(
+            "that version was already replaced; upload over the current one",
+        ));
+    }
+    Ok(previous)
+}
+
 pub async fn request_upload(
     state: &AppState,
     _user: &AuthUser,
@@ -147,9 +166,12 @@ pub async fn request_upload(
             };
             (image_storage_key(order_id, *category, &hash_hex, ext), lock)
         }
-        UploadTarget::Document { .. } => {
+        UploadTarget::Document { replaces, .. } => {
             if req.byte_size > MAX_DOCUMENT_BYTES {
                 return Err(AppError::validation("document is too large"));
+            }
+            if let Some(previous) = replaces {
+                current_version(state, owner, *previous).await?;
             }
             let name = filename
                 .as_deref()
@@ -306,19 +328,49 @@ pub async fn complete_upload(
                     Some(&format!("process_image:{}", image.id)),
                 )
                 .await?;
+                // Evidence gets a third party's word on when it existed (0048).
+                if state.config.tsa.is_some()
+                    && matches!(category, ImageCategory::Intake | ImageCategory::Inspection)
+                {
+                    jobs::enqueue(
+                        &mut *tx,
+                        "timestamp_image",
+                        json!({ "image_id": image.id }),
+                        None,
+                        Some(&format!("timestamp_image:{}", image.id)),
+                    )
+                    .await?;
+                }
             }
             Completed::Image { image, created }
         }
-        UploadTarget::Document { kind } => {
+        UploadTarget::Document { kind, replaces } => {
             let filename = claims
                 .original_filename
                 .clone()
                 .unwrap_or_else(|| "document".into());
+            // A new version: checked again under the transaction, since the ticket was
+            // issued up to two hours ago and someone may have replaced it meanwhile.
+            let previous = match replaces {
+                Some(id) => {
+                    let previous = documents::find(&mut *tx, id)
+                        .await?
+                        .filter(|d| d.deleted_at.is_none() && owner.owns(d))
+                        .ok_or(AppError::NotFound("document"))?;
+                    if previous.superseded_at.is_some() {
+                        return Err(AppError::validation(
+                            "that version was already replaced; upload over the current one",
+                        ));
+                    }
+                    Some(previous)
+                }
+                None => None,
+            };
             let (document, created) = documents::insert(
                 &mut tx,
                 &NewDocument {
                     owner,
-                    vehicle_id: None,
+                    vehicle_id: previous.as_ref().and_then(|p| p.vehicle_id),
                     kind,
                     filename: &filename,
                     content_type: &claims.content_type,
@@ -327,10 +379,15 @@ pub async fn complete_upload(
                     byte_size: claims.byte_size,
                     uploaded_by: Some(user.user_id),
                     source_ref: None,
+                    previous_version_id: previous.as_ref().map(|p| p.id),
+                    version: previous.as_ref().map_or(1, |p| p.version + 1),
                 },
             )
             .await?;
             if created {
+                if let Some(previous) = &previous {
+                    documents::supersede(&mut *tx, previous.id).await?;
+                }
                 let (entity, entity_id) = match owner {
                     Owner::Order(id) => ("order", id),
                     Owner::Lead(id) => ("lead", id),
@@ -340,10 +397,29 @@ pub async fn complete_upload(
                     Some(user.user_id),
                     entity,
                     entity_id,
-                    "document_add",
-                    json!({ "document_id": document.id, "filename": filename, "sha256": claims.sha256_hex }),
+                    if previous.is_some() {
+                        "document_version"
+                    } else {
+                        "document_add"
+                    },
+                    json!({
+                        "document_id": document.id,
+                        "filename": filename,
+                        "sha256": claims.sha256_hex,
+                        "replaces": previous.as_ref().map(|p| p.id),
+                    }),
                 )
                 .await?;
+                if thumb_source(&filename).is_some() {
+                    jobs::enqueue(
+                        &mut *tx,
+                        "process_document",
+                        json!({ "document_id": document.id }),
+                        None,
+                        Some(&format!("process_document:{}", document.id)),
+                    )
+                    .await?;
+                }
             }
             Completed::Document { document, created }
         }

@@ -23,6 +23,7 @@ import { StatusSelect, StatusSidebar, useStatuses } from './StatusSidebar';
 import { ExportMenu } from '@/components/tables/ExportCsvButton';
 import { Timeline } from '@/components/timeline/Timeline';
 import { EmployeeDetailsForm, EmployeeDocuments, ExpiringDocumentsBanner } from './EmployeePapers';
+import { EmployeeOnboarding } from './HrChecklists';
 import type { Employee } from '@/lib/api/types';
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
@@ -448,6 +449,7 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
             </form>
             {employee && <EmployeeDetailsForm employeeId={employee.id} />}
             {employee && <EmployeeDocuments employeeId={employee.id} />}
+            {employee && <EmployeeOnboarding employee={employee} />}
             {employee && (
               <section className="card-content border-t border-steel-200">
                 <h3 className="mb-3 text-section font-semibold">{tl('title')}</h3>

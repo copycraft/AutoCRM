@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_id, density, page_size, email_signature, updated_at FROM user_settings WHERE user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "density",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "page_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "email_signature",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "dc02dd37e5c6df5821bcaddef11dbecd8a4a620ce3f0c4da2e48c35582d6918d"
+}

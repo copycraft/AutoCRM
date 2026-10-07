@@ -42,6 +42,9 @@ class LeadEditViewModel(private val api: AutoCrmApi) : ViewModel() {
         val contactEmail: String = "",
         val contactPhone: String = "",
         val source: String = "",
+        val sourceDetail: String = "",
+        /** The list the source picker offers (0048). */
+        val sources: List<hu.autotherm.autocrm.data.api.LeadSource> = emptyList(),
         val description: String = "",
         val quotedValue: String = "",
         val quoteValidUntil: String = "",
@@ -56,7 +59,10 @@ class LeadEditViewModel(private val api: AutoCrmApi) : ViewModel() {
         viewModelScope.launch {
             try {
                 val l = api.lead(id).lead
+                val sources = runCatching { api.leadSources() }.getOrDefault(emptyList())
                 _state.value = State(
+                    sources = sources,
+                    sourceDetail = l.sourceDetail.orEmpty(),
                     title = l.title,
                     contactName = l.contactName.orEmpty(),
                     contactEmail = l.contactEmail.orEmpty(),
@@ -68,6 +74,14 @@ class LeadEditViewModel(private val api: AutoCrmApi) : ViewModel() {
                 )
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(error = describeError(e))
+            }
+        }
+    }
+
+    fun loadSources() {
+        viewModelScope.launch {
+            runCatching { api.leadSources() }.onSuccess { list ->
+                _state.value = _state.value.copy(sources = list)
             }
         }
     }
@@ -90,6 +104,7 @@ class LeadEditViewModel(private val api: AutoCrmApi) : ViewModel() {
                     contactEmail = blankToNull(s.contactEmail),
                     contactPhone = blankToNull(s.contactPhone),
                     source = blankToNull(s.source),
+                    sourceDetail = blankToNull(s.sourceDetail),
                     description = blankToNull(s.description),
                     quotedValueMinor = s.quotedValue.trim().toLongOrNull()?.let { it * 100 },
                     currency = "HUF",
@@ -106,7 +121,7 @@ class LeadEditViewModel(private val api: AutoCrmApi) : ViewModel() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun LeadEditScreen(
     leadId: Long?,
@@ -117,7 +132,7 @@ fun LeadEditScreen(
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(leadId) {
-        if (leadId != null) viewModel.load(leadId)
+        if (leadId != null) viewModel.load(leadId) else viewModel.loadSources()
     }
 
     Scaffold(
@@ -159,10 +174,28 @@ fun LeadEditScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth(),
             )
+            Text("Forrás", style = MaterialTheme.typography.labelMedium)
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                state.sources
+                    .filter { (!it.isSystem && it.archivedAt == null) || it.key == state.source }
+                    .forEach { src ->
+                        androidx.compose.material3.FilterChip(
+                            selected = state.source == src.key,
+                            enabled = !src.isSystem,
+                            onClick = {
+                                viewModel.set { it.copy(source = if (it.source == src.key) "" else src.key) }
+                            },
+                            label = { Text(src.label) },
+                        )
+                    }
+            }
             AutoCrmTextField(
-                value = state.source,
-                onValueChange = { v -> viewModel.set { it.copy(source = v) } },
-                label = "Forrás",
+                value = state.sourceDetail,
+                onValueChange = { v -> viewModel.set { it.copy(sourceDetail = v) } },
+                label = "Forrás részletei (melyik vásár, ki ajánlotta…)",
                 modifier = Modifier.fillMaxWidth(),
             )
             AutoCrmTextField(

@@ -53,7 +53,9 @@ async fn list_steps(
     Auth(_): Auth,
     ApiQuery(q): ApiQuery<StepsQuery>,
 ) -> AppResult<Json<Items<FollowupStep>>> {
-    Ok(Items::new(followups::steps(&state.db, kind_of(q.kind.as_deref())?).await?))
+    Ok(Items::new(
+        followups::steps(&state.db, kind_of(q.kind.as_deref())?).await?,
+    ))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -76,13 +78,20 @@ struct StepPatch {
     is_active: Option<bool>,
 }
 
-async fn checked(state: &AppState, label: &str, delay_days: i32, template_key: &str) -> AppResult<String> {
+async fn checked(
+    state: &AppState,
+    label: &str,
+    delay_days: i32,
+    template_key: &str,
+) -> AppResult<String> {
     let label = required("label", label)?;
     if !(1..=365).contains(&delay_days) {
         return Err(AppError::validation("delay_days must be between 1 and 365"));
     }
     if !followups::template_exists(&state.db, template_key).await? {
-        return Err(AppError::validation(format!("no email template '{template_key}'")));
+        return Err(AppError::validation(format!(
+            "no email template '{template_key}'"
+        )));
     }
     Ok(label)
 }
@@ -101,9 +110,18 @@ async fn create_step(
     let label = checked(&state, &b.label, b.delay_days, &b.template_key).await?;
     let kind = kind_of(b.kind.as_deref())?;
     let id = followups::insert_step(&state.db, &label, b.delay_days, &b.template_key, kind).await?;
-    audit::record(&state.db, Some(me.user_id), "followup_step", id, "create",
-        json!({ "label": label, "delay_days": b.delay_days, "template_key": b.template_key })).await?;
-    let step = followups::step(&state.db, id).await?.ok_or(AppError::NotFound("follow-up step"))?;
+    audit::record(
+        &state.db,
+        Some(me.user_id),
+        "followup_step",
+        id,
+        "create",
+        json!({ "label": label, "delay_days": b.delay_days, "template_key": b.template_key }),
+    )
+    .await?;
+    let step = followups::step(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("follow-up step"))?;
     Ok((StatusCode::CREATED, Json(step)))
 }
 
@@ -120,20 +138,46 @@ async fn update_step(
     ApiJson(b): ApiJson<StepPatch>,
 ) -> AppResult<Json<FollowupStep>> {
     me.require(Capability::SendEmail)?;
-    let current = followups::step(&state.db, id).await?.ok_or(AppError::NotFound("follow-up step"))?;
+    let current = followups::step(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("follow-up step"))?;
     let delay_days = b.delay_days.unwrap_or(current.delay_days);
-    let template_key = b.template_key.unwrap_or_else(|| current.template_key.clone());
-    let label = checked(&state, b.label.as_deref().unwrap_or(&current.label), delay_days, &template_key).await?;
+    let template_key = b
+        .template_key
+        .unwrap_or_else(|| current.template_key.clone());
+    let label = checked(
+        &state,
+        b.label.as_deref().unwrap_or(&current.label),
+        delay_days,
+        &template_key,
+    )
+    .await?;
     let is_active = b.is_active.unwrap_or(current.is_active);
     followups::update_step(&state.db, id, &label, delay_days, &template_key, is_active).await?;
     let changes = audit::diff(&[
         ("label", json!(current.label), json!(label)),
         ("delay_days", json!(current.delay_days), json!(delay_days)),
-        ("template_key", json!(current.template_key), json!(template_key)),
+        (
+            "template_key",
+            json!(current.template_key),
+            json!(template_key),
+        ),
         ("is_active", json!(current.is_active), json!(is_active)),
     ]);
-    audit::record(&state.db, Some(me.user_id), "followup_step", id, "update", changes).await?;
-    Ok(Json(followups::step(&state.db, id).await?.ok_or(AppError::NotFound("follow-up step"))?))
+    audit::record(
+        &state.db,
+        Some(me.user_id),
+        "followup_step",
+        id,
+        "update",
+        changes,
+    )
+    .await?;
+    Ok(Json(
+        followups::step(&state.db, id)
+            .await?
+            .ok_or(AppError::NotFound("follow-up step"))?,
+    ))
 }
 
 #[utoipa::path(
@@ -172,16 +216,28 @@ async fn schedule(
     ApiJson(b): ApiJson<ScheduleBody>,
 ) -> AppResult<(StatusCode, Json<Followup>)> {
     me.require(Capability::SendEmail)?;
-    leads::find(&state.db, id).await?.ok_or(AppError::NotFound("lead"))?;
+    leads::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("lead"))?;
     let label = b.label.unwrap_or_else(|| format!("{} nap", b.delay_days));
     let label = checked(&state, &label, b.delay_days, &b.template_key).await?;
     let due = Utc::now() + TimeDelta::days(i64::from(b.delay_days));
     let mut tx = state.db.begin().await?;
-    let fid = followups::schedule(&mut *tx, id, &label, &b.template_key, due, Some(me.user_id)).await?;
-    audit::record(&mut *tx, Some(me.user_id), "lead", id, "followup_scheduled",
-        json!({ "label": label, "due_at": due, "template_key": b.template_key })).await?;
+    let fid =
+        followups::schedule(&mut *tx, id, &label, &b.template_key, due, Some(me.user_id)).await?;
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "lead",
+        id,
+        "followup_scheduled",
+        json!({ "label": label, "due_at": due, "template_key": b.template_key }),
+    )
+    .await?;
     tx.commit().await?;
-    let row = followups::find(&state.db, fid).await?.ok_or(AppError::NotFound("follow-up"))?;
+    let row = followups::find(&state.db, fid)
+        .await?
+        .ok_or(AppError::NotFound("follow-up"))?;
     Ok((StatusCode::CREATED, Json(row)))
 }
 
@@ -203,9 +259,18 @@ async fn cancel_all(
 ) -> AppResult<Json<Cancelled>> {
     me.require(Capability::SendEmail)?;
     let mut tx = state.db.begin().await?;
-    let n = followups::cancel_for_lead(&mut *tx, id, &format!("leállította: {}", me.display_name)).await?;
+    let n = followups::cancel_for_lead(&mut *tx, id, &format!("leállította: {}", me.display_name))
+        .await?;
     if n > 0 {
-        audit::record(&mut *tx, Some(me.user_id), "lead", id, "followup_cancelled", json!({ "count": n })).await?;
+        audit::record(
+            &mut *tx,
+            Some(me.user_id),
+            "lead",
+            id,
+            "followup_cancelled",
+            json!({ "count": n }),
+        )
+        .await?;
     }
     tx.commit().await?;
     Ok(Json(Cancelled { cancelled: n }))
@@ -222,13 +287,29 @@ async fn cancel_one(
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Followup>> {
     me.require(Capability::SendEmail)?;
-    let row = followups::find(&state.db, id).await?.ok_or(AppError::NotFound("follow-up"))?;
+    let row = followups::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("follow-up"))?;
     let mut tx = state.db.begin().await?;
     if !followups::cancel(&mut *tx, id, &format!("leállította: {}", me.display_name)).await? {
-        return Err(AppError::rule("not_cancellable", "this follow-up is no longer scheduled"));
+        return Err(AppError::rule(
+            "not_cancellable",
+            "this follow-up is no longer scheduled",
+        ));
     }
-    audit::record(&mut *tx, Some(me.user_id), "lead", row.lead_id, "followup_cancelled",
-        json!({ "label": row.label })).await?;
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "lead",
+        row.lead_id,
+        "followup_cancelled",
+        json!({ "label": row.label }),
+    )
+    .await?;
     tx.commit().await?;
-    Ok(Json(followups::find(&state.db, id).await?.ok_or(AppError::NotFound("follow-up"))?))
+    Ok(Json(
+        followups::find(&state.db, id)
+            .await?
+            .ok_or(AppError::NotFound("follow-up"))?,
+    ))
 }

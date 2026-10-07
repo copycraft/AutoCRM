@@ -316,6 +316,8 @@ pub struct UserSettings {
     pub user_id: i64,
     pub density: String,
     pub page_size: i32,
+    /// Put under hand-written mail when the composer opens (0049). Plain text.
+    pub email_signature: Option<String>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -325,7 +327,7 @@ pub async fn user_settings(
 ) -> sqlx::Result<Option<UserSettings>> {
     sqlx::query_as!(
         UserSettings,
-        "SELECT user_id, density, page_size, updated_at FROM user_settings WHERE user_id = $1",
+        "SELECT user_id, density, page_size, email_signature, updated_at FROM user_settings WHERE user_id = $1",
         user_id
     )
     .fetch_optional(db)
@@ -337,16 +339,140 @@ pub async fn upsert_user_settings(
     user_id: i64,
     density: &str,
     page_size: i32,
+    email_signature: Option<&str>,
 ) -> sqlx::Result<UserSettings> {
     sqlx::query_as!(
         UserSettings,
-        "INSERT INTO user_settings (user_id, density, page_size) VALUES ($1, $2, $3)
-         ON CONFLICT (user_id) DO UPDATE SET density = $2, page_size = $3
-         RETURNING user_id, density, page_size, updated_at",
+        "INSERT INTO user_settings (user_id, density, page_size, email_signature) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id) DO UPDATE SET density = $2, page_size = $3, email_signature = $4
+         RETURNING user_id, density, page_size, email_signature, updated_at",
         user_id,
         density,
-        page_size
+        page_size,
+        email_signature
     )
     .fetch_one(db)
     .await
+}
+
+/// Which category a new photo takes while an order is in a stage (0048).
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct StagePhotoCategory {
+    pub stage_key: String,
+    pub label_hu: String,
+    pub position: i32,
+    pub category: Option<ImageCategory>,
+}
+
+pub async fn stage_photo_categories(
+    db: impl PgExecutor<'_>,
+) -> sqlx::Result<Vec<StagePhotoCategory>> {
+    sqlx::query_as!(
+        StagePhotoCategory,
+        r#"SELECT key AS stage_key, label_hu, position,
+                  default_image_category AS "category: ImageCategory"
+           FROM stage_definitions WHERE entity = 'order' ORDER BY position, id"#
+    )
+    .fetch_all(db)
+    .await
+}
+
+pub async fn photo_category_for_stage(
+    db: impl PgExecutor<'_>,
+    stage_key: &str,
+) -> sqlx::Result<Option<ImageCategory>> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT default_image_category AS "category: ImageCategory"
+           FROM stage_definitions WHERE entity = 'order' AND key = $1"#,
+        stage_key
+    )
+    .fetch_optional(db)
+    .await?
+    .flatten())
+}
+
+pub async fn set_stage_photo_category(
+    db: impl PgExecutor<'_>,
+    stage_key: &str,
+    category: Option<ImageCategory>,
+) -> sqlx::Result<bool> {
+    let r = sqlx::query!(
+        "UPDATE stage_definitions SET default_image_category = $2 WHERE entity = 'order' AND key = $1",
+        stage_key,
+        category as Option<ImageCategory>
+    )
+    .execute(db)
+    .await?;
+    Ok(r.rows_affected() == 1)
+}
+
+/// The secret in a user's calendar-feed link, if they made one (0049).
+pub async fn calendar_token(db: impl PgExecutor<'_>, user_id: i64) -> sqlx::Result<Option<String>> {
+    Ok(sqlx::query_scalar!(
+        "SELECT calendar_token FROM user_settings WHERE user_id = $1",
+        user_id
+    )
+    .fetch_optional(db)
+    .await?
+    .flatten())
+}
+
+/// Sets (Some) or removes (None) the calendar-feed secret.
+pub async fn set_calendar_token(
+    db: impl PgExecutor<'_>,
+    user_id: i64,
+    token: Option<&str>,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "INSERT INTO user_settings (user_id, calendar_token) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET calendar_token = $2",
+        user_id,
+        token
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// Whose calendar a feed link opens: the active user owning the token.
+pub async fn calendar_owner(
+    db: impl PgExecutor<'_>,
+    token: &str,
+) -> sqlx::Result<Option<(i64, String)>> {
+    let row = sqlx::query!(
+        "SELECT u.id, u.display_name FROM user_settings s JOIN users u ON u.id = s.user_id
+         WHERE s.calendar_token = $1 AND u.is_active",
+        token
+    )
+    .fetch_optional(db)
+    .await?;
+    Ok(row.map(|r| (r.id, r.display_name)))
+}
+
+/// Replaces the stored SMTP password as it is (already sealed by the caller).
+pub async fn set_email_secret(db: impl PgExecutor<'_>, sealed: &str) -> sqlx::Result<()> {
+    sqlx::query!("UPDATE settings SET smtp_password = $1", sealed)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+/// Who gets the Monday report (0049).
+pub async fn weekly_report_recipients(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<String>> {
+    sqlx::query_scalar!("SELECT weekly_report_recipients FROM settings")
+        .fetch_one(db)
+        .await
+}
+
+pub async fn set_weekly_report_recipients(
+    db: impl PgExecutor<'_>,
+    recipients: &[String],
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE settings SET weekly_report_recipients = $1",
+        recipients
+    )
+    .execute(db)
+    .await?;
+    Ok(())
 }

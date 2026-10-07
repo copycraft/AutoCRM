@@ -9,6 +9,7 @@ export type QueryOf<Op extends keyof operations> = NonNullable<operations[Op]['p
 
 export type Currency = Schemas['Currency'];
 export type Role = Schemas['Role'];
+export type Capability = Schemas['Capability'];
 export type PartnerKind = Schemas['PartnerKind'];
 export type ImageCategory = Schemas['ImageCategory'];
 export type StageEntity = Schemas['StageEntity'];
@@ -121,3 +122,21 @@ export type InspectionComparison = Schemas['Comparison'];
 export type ZoneTemplate = Schemas['ZoneTemplate'];
 export type Lookups = Schemas['Lookups'];
 export type LookupItem = Schemas['LookupItem'];
+
+// 0048: lead sources, comments, the yard, incidents, photos and documents.
+export type LeadSource = Schemas['LeadSource'];
+export type Comment = Schemas['Comment'];
+export type Mentionable = Schemas['Mentionable'];
+export type YardLocation = Schemas['YardLocation'];
+export type YardVehicle = Schemas['YardVehicle'];
+export type YardBoard = Schemas['Board'];
+export type VehicleMove = Schemas['VehicleMove'];
+export type CurrentLocation = Schemas['CurrentLocation'];
+export type Incident = Schemas['Incident'];
+export type IncidentBody = Schemas['IncidentBody'];
+export type ImageView = Schemas['ImageView'];
+export type DocumentView = Schemas['DocumentView'];
+export type Annotations = Schemas['Annotations'];
+export type InspectionTyre = Schemas['InspectionTyre'];
+export type InspectionVideoView = Schemas['InspectionVideoView'];
+export type StagePhotoCategory = Schemas['StagePhotoCategory'];

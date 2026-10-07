@@ -20,6 +20,7 @@ fn input(partner_id: Option<i64>, contact_id: Option<i64>) -> LeadInput {
         contact_email: None,
         contact_phone: None,
         source: None,
+        source_detail: None,
         description: None,
         assigned_to: None,
         quoted_value_minor: None,
@@ -104,15 +105,27 @@ async fn lead_relations_are_checked_the_same_on_every_write(pool: PgPool) {
     let user = common::user(&pool, Role::Office).await;
     assert_eq!(
         validation_message(
-            leads::create(&pool, &user, input(Some(b), None), &[])
-                .await
-                .unwrap_err()
+            leads::create(
+                &pool,
+                &user,
+                input(Some(b), None),
+                &[],
+                chrono::NaiveDate::from_ymd_opt(2026, 9, 10).unwrap()
+            )
+            .await
+            .unwrap_err()
         ),
         "partner is archived",
     );
     // …while a live partner still works.
-    let lead = leads::create(&pool, &user, input(Some(a), Some(contact.id)), &[])
-        .await
-        .unwrap();
+    let lead = leads::create(
+        &pool,
+        &user,
+        input(Some(a), Some(contact.id)),
+        &[],
+        chrono::NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+    )
+    .await
+    .unwrap();
     assert_eq!(lead.partner_id, Some(a));
 }

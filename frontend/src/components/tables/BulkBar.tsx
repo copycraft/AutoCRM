@@ -8,7 +8,16 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
-import { configApi, leadsApi, leadTagsApi, ordersApi, usersApi } from '@/lib/api/endpoints';
+import {
+  configApi,
+  incomingExtrasApi,
+  leadsApi,
+  leadTagsApi,
+  ordersApi,
+  partnerExtrasApi,
+  subscribersApi,
+  usersApi,
+} from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
 import { qk } from '@/lib/query/provider';
 
@@ -177,6 +186,187 @@ export function OrderBulkBar({ ids, onClear }: { ids: number[]; onClear: () => v
       </button>
       {result && <Outcome applied={result.applied} skipped={result.skipped} />}
       {error && <span className="text-metadata text-signal" role="alert">{error}</span>}
+      <button type="button" className="btn-ghost btn-sm ml-auto" onClick={onClear}>
+        <X className="h-4 w-4" aria-hidden />
+        {t('clear')}
+      </button>
+    </div>
+  );
+}
+
+/** Archive, restore, classify or set the invoice language of the ticked partners (0049). */
+export function PartnerBulkBar({ ids, onClear }: { ids: number[]; onClear: () => void }) {
+  const t = useTranslations('bulk');
+  const ts = useTranslations('statement');
+  const ter = useTranslations('errors');
+  const qc = useQueryClient();
+  const [action, setAction] = useState<'archive' | 'unarchive' | 'set_role' | 'set_invoice_language'>('set_role');
+  const [value, setValue] = useState('');
+  const [result, setResult] = useState<{ applied: number; skipped: Skip[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const needsValue = action === 'set_role';
+  const run = useMutation({
+    mutationFn: () =>
+      partnerExtrasApi.bulk(
+        action === 'set_role'
+          ? { ids, action, role: value }
+          : action === 'set_invoice_language'
+            ? { ids, action, language: value || null }
+            : { ids, action },
+      ),
+    onSuccess: (r) => {
+      setError(null);
+      setResult(r);
+      void qc.invalidateQueries({ queryKey: ['partners'] });
+    },
+    onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
+  });
+  return (
+    <div className="card flex flex-wrap items-center gap-2 border-steel-900 p-3" data-testid="partner-bulk-bar">
+      <span className="text-body font-medium">{t('selected', { count: ids.length })}</span>
+      <select
+        className="input h-8 w-auto py-0"
+        aria-label={t('action')}
+        value={action}
+        onChange={(e) => {
+          setAction(e.target.value as typeof action);
+          setValue('');
+          setResult(null);
+        }}
+      >
+        <option value="set_role">{t('setRole')}</option>
+        <option value="set_invoice_language">{ts('invoiceLanguage')}</option>
+        <option value="archive">{t('archive')}</option>
+        <option value="unarchive">{t('unarchive')}</option>
+      </select>
+      {action === 'set_role' && (
+        <select className="input h-8 w-auto min-w-40 py-0" aria-label={t('value')} value={value} onChange={(e) => setValue(e.target.value)}>
+          <option value="">—</option>
+          <option value="customer">{t('roles.customer')}</option>
+          <option value="supplier">{t('roles.supplier')}</option>
+          <option value="both">{t('roles.both')}</option>
+        </select>
+      )}
+      {action === 'set_invoice_language' && (
+        <select className="input h-8 w-auto min-w-40 py-0" aria-label={t('value')} value={value} onChange={(e) => setValue(e.target.value)}>
+          <option value="">{ts('languageDefault')}</option>
+          {(['hu', 'en', 'de'] as const).map((l) => (
+            <option key={l} value={l}>{ts(`languages.${l}`)}</option>
+          ))}
+        </select>
+      )}
+      <button type="button" className="btn-primary btn-sm" disabled={(needsValue && !value) || run.isPending} onClick={() => run.mutate()}>
+        {run.isPending ? '…' : t('apply')}
+      </button>
+      {result && <Outcome applied={result.applied} skipped={result.skipped} />}
+      {error && <span className="text-metadata text-signal" role="alert">{error}</span>}
+      <button type="button" className="btn-ghost btn-sm ml-auto" onClick={onClear}>
+        <X className="h-4 w-4" aria-hidden />
+        {t('clear')}
+      </button>
+    </div>
+  );
+}
+
+/** Unsubscribe, resubscribe, set the language of, or delete the ticked readers (0049). */
+export function SubscriberBulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) {
+  const t = useTranslations('bulk');
+  const ter = useTranslations('errors');
+  const qc = useQueryClient();
+  const [action, setAction] = useState<'unsubscribe' | 'resubscribe' | 'set_language' | 'delete'>('set_language');
+  const [language, setLanguage] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const run = useMutation({
+    mutationFn: () =>
+      subscribersApi.bulk(
+        action === 'set_language'
+          ? { subscription_ids: ids, action, language: language || null }
+          : { subscription_ids: ids, action },
+      ),
+    onSuccess: (r) => {
+      setMessage(t('applied', { count: r.changed }));
+      void qc.invalidateQueries({ queryKey: ['newsletter'] });
+      if (action === 'delete') onDone();
+    },
+    onError: (e) => setMessage(errorMessage(e, ter, ter('unknownError'))),
+  });
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <select className="input h-8 w-auto py-0" aria-label={t('action')} value={action} onChange={(e) => setAction(e.target.value as typeof action)}>
+        <option value="set_language">{t('setLanguage')}</option>
+        <option value="unsubscribe">{t('unsubscribe')}</option>
+        <option value="resubscribe">{t('resubscribe')}</option>
+        <option value="delete">{t('delete')}</option>
+      </select>
+      {action === 'set_language' && (
+        <select className="input h-8 w-auto py-0" aria-label={t('value')} value={language} onChange={(e) => setLanguage(e.target.value)}>
+          <option value="">{t('languageUnknown')}</option>
+          {NEWSLETTER_LANGUAGES.map((l) => (
+            <option key={l} value={l}>{l.toUpperCase()}</option>
+          ))}
+        </select>
+      )}
+      <button
+        type="button"
+        className={action === 'delete' ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}
+        disabled={run.isPending}
+        onClick={() => {
+          if (action !== 'delete' || window.confirm(t('deleteConfirm', { count: ids.length }))) run.mutate();
+        }}
+      >
+        {t('apply')}
+      </button>
+      {message && <span className="text-metadata text-steel-600" role="status">{message}</span>}
+    </span>
+  );
+}
+
+/** Languages a newsletter variant or a reader can have. */
+export const NEWSLETTER_LANGUAGES = ['hu', 'en', 'de', 'sk', 'ro', 'hr', 'sr', 'pl', 'cs'] as const;
+
+/** Mark paid, file as books-only, or remove the ticked supplier invoices (0049). */
+export function IncomingBulkBar({ ids, onClear }: { ids: number[]; onClear: () => void }) {
+  const t = useTranslations('bulk');
+  const ter = useTranslations('errors');
+  const qc = useQueryClient();
+  const [action, setAction] = useState<'mark_paid' | 'booking_only' | 'delete'>('mark_paid');
+  const [message, setMessage] = useState<string | null>(null);
+  const run = useMutation({
+    mutationFn: () =>
+      incomingExtrasApi.bulk(
+        action === 'mark_paid'
+          ? { ids, action, paid_on: null }
+          : action === 'booking_only'
+            ? { ids, action, on: true }
+            : { ids, action },
+      ),
+    onSuccess: (r) => {
+      setMessage(t('applied', { count: r.changed }));
+      void qc.invalidateQueries({ queryKey: ['incoming'] });
+      void qc.invalidateQueries({ queryKey: ['incoming-invoices'] });
+      if (action === 'delete') onClear();
+    },
+    onError: (e) => setMessage(errorMessage(e, ter, ter('unknownError'))),
+  });
+  return (
+    <div className="card flex flex-wrap items-center gap-2 border-steel-900 p-3" data-testid="incoming-bulk-bar">
+      <span className="text-body font-medium">{t('selected', { count: ids.length })}</span>
+      <select className="input h-8 w-auto py-0" aria-label={t('action')} value={action} onChange={(e) => setAction(e.target.value as typeof action)}>
+        <option value="mark_paid">{t('markPaid')}</option>
+        <option value="booking_only">{t('bookingOnly')}</option>
+        <option value="delete">{t('remove')}</option>
+      </select>
+      <button
+        type="button"
+        className="btn-primary btn-sm"
+        disabled={run.isPending}
+        onClick={() => {
+          if (action !== 'delete' || window.confirm(t('removeConfirm', { count: ids.length }))) run.mutate();
+        }}
+      >
+        {run.isPending ? '…' : t('apply')}
+      </button>
+      {message && <span className="text-metadata text-steel-600" role="status">{message}</span>}
       <button type="button" className="btn-ghost btn-sm ml-auto" onClick={onClear}>
         <X className="h-4 w-4" aria-hidden />
         {t('clear')}

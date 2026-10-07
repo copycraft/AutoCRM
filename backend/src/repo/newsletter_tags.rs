@@ -118,6 +118,8 @@ pub struct SubscriberRow {
     #[sqlx(flatten)]
     pub subscription: Subscription,
     pub tag_ids: Vec<i64>,
+    /// Two letters; None: unknown, the main letter (0049).
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, ToSchema)]
@@ -153,7 +155,8 @@ pub async fn search(
     sqlx::query_as(
         "SELECT s.id, s.email, s.name, s.source, s.subscribed_at, s.confirmed_at, s.unsubscribed_at,
                 coalesce(array_agg(k.tag_id ORDER BY k.tag_id) FILTER (WHERE k.tag_id IS NOT NULL),
-                         '{}') AS tag_ids
+                         '{}') AS tag_ids,
+                s.language
          FROM newsletter_subscriptions s
          LEFT JOIN newsletter_subscription_tags k ON k.subscription_id = s.id
          WHERE ($1::text IS NULL OR s.email ILIKE $1 OR s.name ILIKE $1)

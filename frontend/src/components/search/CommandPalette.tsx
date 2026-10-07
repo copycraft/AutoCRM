@@ -9,7 +9,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FilePlus2, LayoutDashboard, Mail, MonitorPlay, BarChart3, Package, Target } from 'lucide-react';
+import { FilePlus2, LayoutDashboard, Mail, BarChart3, Package, Target } from 'lucide-react';
 import { searchApi } from '@/lib/api/endpoints';
 import { buildSearchHits } from '@/components/search/searchHits';
 import { qk } from '@/lib/query/provider';
@@ -94,7 +94,7 @@ export function CommandPalette() {
       { id: 'orders', href: `/${locale}/orders`, label: tn('orders'), hint: 'g o', icon: Package },
       { id: 'leads', href: `/${locale}/leads`, label: tn('leads'), hint: 'g l', icon: Target },
       { id: 'emails', href: `/${locale}/emails`, label: tn('emails'), hint: 'g e', icon: Mail },
-      { id: 'board', href: `/${locale}/board`, label: tn('board'), hint: 'g b', icon: MonitorPlay },
+
       { id: 'reports', href: `/${locale}/reports`, label: tn('reports'), hint: 'g r', icon: BarChart3 },
     ];
     if (canEditOrders(user)) {

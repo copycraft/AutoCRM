@@ -65,6 +65,7 @@ async fn check_target(db: &sqlx::PgPool, entity_type: &str, entity_id: i64) -> A
         "order" => orders::find(db, entity_id).await?.is_some(),
         "lead" => leads::find(db, entity_id).await?.is_some(),
         "partner" => partners::find(db, entity_id).await?.is_some(),
+        "employee" => crate::repo::employees::find(db, entity_id).await?.is_some(),
         _ => unreachable!("entity_type is in TASK_ENTITY_KEYS"),
     };
     if !exists {
@@ -86,6 +87,10 @@ async fn create(
     let title = required("title", &b.title)?;
     if title.chars().count() > 200 {
         return Err(AppError::validation("title is at most 200 characters"));
+    }
+    if b.entity_type == "employee" {
+        // A task on a person is HR paperwork (joining, leaving): HR's to see.
+        me.require(crate::domain::role::Capability::AccessHr)?;
     }
     check_target(&state.db, &b.entity_type, b.entity_id).await?;
     if let Some(uid) = b.assigned_to {
@@ -115,9 +120,12 @@ async fn create(
 )]
 async fn for_entity(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath((entity, id)): ApiPath<(String, i64)>,
 ) -> AppResult<Json<Items<Task>>> {
+    if entity == "employee" {
+        me.require(crate::domain::role::Capability::AccessHr)?;
+    }
     if !TASK_ENTITY_KEYS.contains(&entity.as_str()) {
         return Err(AppError::validation(format!(
             "entity must be one of {}",

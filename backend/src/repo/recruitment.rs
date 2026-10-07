@@ -235,10 +235,7 @@ pub async fn set_notes(
 }
 
 /// Deletes the profile; returns its resume key so the caller can drop the file.
-pub async fn delete_application(
-    db: impl PgExecutor<'_>,
-    id: i64,
-) -> sqlx::Result<Option<String>> {
+pub async fn delete_application(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<String>> {
     sqlx::query_scalar("DELETE FROM job_applications WHERE id = $1 RETURNING resume_key")
         .bind(id)
         .fetch_optional(db)

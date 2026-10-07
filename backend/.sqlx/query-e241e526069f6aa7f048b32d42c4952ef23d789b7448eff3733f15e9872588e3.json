@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id, c.entity_type, c.entity_id, c.body, c.created_by, u.display_name AS author_name,\n                  c.created_at, c.edited_at,\n                  coalesce(array_agg(m.user_id ORDER BY mu.display_name) FILTER (WHERE m.user_id IS NOT NULL), '{}') AS \"mention_ids!\",\n                  coalesce(array_agg(mu.display_name ORDER BY mu.display_name) FILTER (WHERE m.user_id IS NOT NULL), '{}') AS \"mention_names!\"\n           FROM comments c\n           JOIN users u ON u.id = c.created_by\n           LEFT JOIN comment_mentions m ON m.comment_id = c.id\n           LEFT JOIN users mu ON mu.id = m.user_id\n           WHERE c.entity_type = $1 AND c.entity_id = $2 AND c.deleted_at IS NULL\n           GROUP BY c.id, u.display_name\n           ORDER BY c.created_at, c.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "entity_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "entity_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_by",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "author_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "edited_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "mention_ids!",
+        "type_info": "Int8Array"
+      },
+      {
+        "ordinal": 9,
+        "name": "mention_names!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "e241e526069f6aa7f048b32d42c4952ef23d789b7448eff3733f15e9872588e3"
+}

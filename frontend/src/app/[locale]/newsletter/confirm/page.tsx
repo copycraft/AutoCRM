@@ -4,7 +4,7 @@
 // in the confirmation letter. Opening the link confirms; the address joins the list only
 // here, never at signup.
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation } from '@tanstack/react-query';
 import { newsletterApi } from '@/lib/api/endpoints';
@@ -13,15 +13,16 @@ import { errorMessage } from '@/lib/api/errors';
 export default function ConfirmPage({
   searchParams,
 }: {
-  searchParams: { token?: string };
+  searchParams: Promise<{ token?: string }>;
 }) {
+  const { token: rawToken } = React.use(searchParams);
   const t = useTranslations('emails');
   const tp = useTranslations('privacy');
   const locale = useLocale();
   const ter = useTranslations('errors');
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const token = searchParams.token ?? '';
+  const token = rawToken ?? '';
 
   const run = useMutation({
     mutationFn: (tok: string) => newsletterApi.confirm(tok),

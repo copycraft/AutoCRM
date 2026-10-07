@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:warm": "next dev & timeout /t 5 /nobreak >nul & curl -s http://localhost:3000/hu >nul 2>&1",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -23,8 +24,8 @@
     "clsx": "^2.1.0",
     "date-fns": "^3.6.0",
     "lucide-react": "^0.372.0",
-    "next": "^14.2.0",
-    "next-intl": "^3.11.0",
+    "next": "^16.4.0",
+    "next-intl": "^4.14.9",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-hook-form": "^7.51.0",

@@ -56,11 +56,19 @@ pub async fn send_payment_reminders(state: &AppState) -> anyhow::Result<usize> {
                 continue;
             }
             handled = Some(d.invoice_id);
-            let outcome = queue_reminder(&mut tx, state, d.invoice_id, &d.template_key, d.step_id).await;
+            let outcome =
+                queue_reminder(&mut tx, state, d.invoice_id, &d.template_key, d.step_id).await;
             match outcome {
                 Ok(Some(email_id)) => {
-                    invoices::record_reminder(&mut *tx, d.invoice_id, d.step_id, Some(email_id), "sent", None)
-                        .await?;
+                    invoices::record_reminder(
+                        &mut *tx,
+                        d.invoice_id,
+                        d.step_id,
+                        Some(email_id),
+                        "sent",
+                        None,
+                    )
+                    .await?;
                     audit::record(
                         &mut *tx,
                         None,
@@ -124,7 +132,10 @@ async fn queue_reminder(
     let mut values = TemplateValues::new();
     values.insert("invoice.number", invoice.number.clone());
     values.insert("invoice.issue_date", hu_date(invoice.issue_date));
-    values.insert("invoice.total", money_text(invoice.gross_amount, &invoice.currency));
+    values.insert(
+        "invoice.total",
+        money_text(invoice.gross_amount, &invoice.currency),
+    );
     if let Some(day) = invoice.payment_date {
         values.insert("invoice.payment_date", hu_date(day));
     }
@@ -247,8 +258,15 @@ pub async fn quote_expiry_alerts(state: &AppState) -> anyhow::Result<usize> {
         let link = format!("/leads/{}", q.lead_id);
         match q.assigned_to {
             Some(user) => {
-                notifications::notify_user(&mut *tx, user, "quote_expiry", &title, Some(&body), Some(&link))
-                    .await?
+                notifications::notify_user(
+                    &mut *tx,
+                    user,
+                    "quote_expiry",
+                    &title,
+                    Some(&body),
+                    Some(&link),
+                )
+                .await?
             }
             None => {
                 notifications::broadcast(
@@ -289,7 +307,11 @@ pub async fn document_expiry_alerts(state: &AppState) -> anyhow::Result<usize> {
     .await?;
     let mut sent = 0;
     for (id, employee_id, name, title, valid_until) in rows {
-        let stage = if valid_until <= today { "expired" } else { "soon" };
+        let stage = if valid_until <= today {
+            "expired"
+        } else {
+            "soon"
+        };
         let mut tx = state.db.begin().await?;
         let fresh = sqlx::query(
             "INSERT INTO employee_document_alerts (document_id, stage, valid_until)

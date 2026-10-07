@@ -1,0 +1,7 @@
+backend/target/
+backend/target-linux/
+frontend/node_modules/
+frontend/.next/
+android/
+build/
+**/.env

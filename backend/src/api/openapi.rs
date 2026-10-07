@@ -29,7 +29,7 @@ use crate::error::ErrorBody;
         (name = "reports"), (name = "search"), (name = "tasks"), (name = "admin"),
         (name = "vehicles"), (name = "inspections"), (name = "invoices"),
         (name = "incoming_invoices"), (name = "timeline"), (name = "assistant"),
-        (name = "followups")
+        (name = "followups"), (name = "comments"), (name = "yard"), (name = "incidents"), (name = "ads")
     )
 )]
 struct ApiDoc;

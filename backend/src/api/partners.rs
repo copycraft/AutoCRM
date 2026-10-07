@@ -32,6 +32,9 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(list_contacts, create_contact))
         .routes(routes!(update_contact))
         .routes(routes!(archive_contact))
+        // 0049
+        .routes(routes!(set_invoice_language))
+        .routes(routes!(bulk_action))
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -594,6 +597,7 @@ mod tests {
             address_line: None,
             notes: None,
             role: role.map(str::to_string),
+            invoice_language: None,
             minicrm_id: None,
             archived_at: None,
             created_at: Utc::now(),
@@ -612,4 +616,156 @@ mod tests {
         let p = partner(Some("both"));
         assert_eq!(partner_changes(&p, &p), json!({}));
     }
+}
+
+#[derive(Deserialize, ToSchema)]
+struct InvoiceLanguageBody {
+    /// hu, en or de; null for the default.
+    language: Option<String>,
+}
+
+#[utoipa::path(
+    put, path = "/partners/{id}/invoice-language", tag = "partners",
+    params(("id" = i64, Path)),
+    request_body = InvoiceLanguageBody,
+    responses((status = 204, description = "Later invoice and proforma PDFs use it"))
+)]
+async fn set_invoice_language(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<InvoiceLanguageBody>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::EditPartners)?;
+    let language = optional(b.language).map(|l| l.to_ascii_lowercase());
+    if let Some(l) = language.as_deref()
+        && !["hu", "en", "de"].contains(&l)
+    {
+        return Err(AppError::validation("language: expected hu, en or de"));
+    }
+    let mut tx = state.db.begin().await?;
+    if !partners::set_invoice_language(&mut *tx, id, language.as_deref()).await? {
+        return Err(AppError::NotFound("partner"));
+    }
+    audit::record(
+        &mut *tx,
+        Some(me.user_id),
+        "partner",
+        id,
+        "invoice_language",
+        json!({ "language": language }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize, ToSchema)]
+struct PartnerBulkBody {
+    ids: Vec<i64>,
+    #[serde(flatten)]
+    action: PartnerBulkAction,
+}
+
+/// One operation over the ticked partners.
+#[derive(Deserialize, ToSchema)]
+#[serde(tag = "action", rename_all = "snake_case")]
+enum PartnerBulkAction {
+    Archive,
+    Unarchive,
+    /// customer, supplier or both.
+    SetRole {
+        role: String,
+    },
+    /// hu, en, de, or null for the default.
+    SetInvoiceLanguage {
+        language: Option<String>,
+    },
+}
+
+#[derive(Serialize, ToSchema)]
+struct PartnerBulkResult {
+    applied: i64,
+    skipped: Vec<PartnerBulkSkip>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct PartnerBulkSkip {
+    id: i64,
+    error: String,
+}
+
+#[utoipa::path(
+    post, path = "/partners/bulk-actions", tag = "partners",
+    request_body = PartnerBulkBody,
+    responses((status = 200, body = PartnerBulkResult))
+)]
+async fn bulk_action(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiJson(b): ApiJson<PartnerBulkBody>,
+) -> AppResult<Json<PartnerBulkResult>> {
+    me.require(Capability::EditPartners)?;
+    match &b.action {
+        PartnerBulkAction::SetRole { role }
+            if !["customer", "supplier", "both"].contains(&role.as_str()) =>
+        {
+            return Err(AppError::validation(
+                "role: expected customer, supplier or both",
+            ));
+        }
+        PartnerBulkAction::SetInvoiceLanguage { language: Some(l) }
+            if !["hu", "en", "de"].contains(&l.as_str()) =>
+        {
+            return Err(AppError::validation("language: expected hu, en or de"));
+        }
+        _ => {}
+    }
+    let mut applied = 0;
+    let mut skipped = Vec::new();
+    for id in b.ids.iter().copied().take(500) {
+        let outcome: AppResult<bool> = async {
+            let mut tx = state.db.begin().await?;
+            let (found, what, detail) = match &b.action {
+                PartnerBulkAction::Archive => (
+                    partners::set_archived(&mut *tx, id, true).await?,
+                    "archive",
+                    json!({}),
+                ),
+                PartnerBulkAction::Unarchive => (
+                    partners::set_archived(&mut *tx, id, false).await?,
+                    "unarchive",
+                    json!({}),
+                ),
+                PartnerBulkAction::SetRole { role } => (
+                    partners::set_role(&mut *tx, id, role).await?,
+                    "role",
+                    json!({ "role": role }),
+                ),
+                PartnerBulkAction::SetInvoiceLanguage { language } => (
+                    partners::set_invoice_language(&mut *tx, id, language.as_deref()).await?,
+                    "invoice_language",
+                    json!({ "language": language }),
+                ),
+            };
+            if found {
+                audit::record(&mut *tx, Some(me.user_id), "partner", id, what, detail).await?;
+                tx.commit().await?;
+            }
+            Ok(found)
+        }
+        .await;
+        match outcome {
+            Ok(true) => applied += 1,
+            Ok(false) => skipped.push(PartnerBulkSkip {
+                id,
+                error: "not found".into(),
+            }),
+            Err(e) => skipped.push(PartnerBulkSkip {
+                id,
+                error: e.to_string(),
+            }),
+        }
+    }
+    Ok(Json(PartnerBulkResult { applied, skipped }))
 }

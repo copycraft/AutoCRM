@@ -99,6 +99,63 @@ pub fn walkaround_kinds() -> Vec<LookupItem> {
         .collect()
 }
 
+// ── Tyres and the yard (0048) ─────────────────────────────────────────────────
+
+/// Accepted by `PUT /inspections/{id}/tyres`; the phone's tyre card renders these. Inner
+/// rear wheels are for twin-tyred vans and trucks: a walkaround records the ones it has.
+pub const TYRE_POSITION_KEYS: &[&str] = &[
+    "front_left",
+    "front_right",
+    "rear_left",
+    "rear_right",
+    "rear_left_inner",
+    "rear_right_inner",
+    "spare",
+];
+
+pub fn tyre_positions() -> Vec<LookupItem> {
+    [
+        ("front_left", "Bal első"),
+        ("front_right", "Jobb első"),
+        ("rear_left", "Bal hátsó"),
+        ("rear_right", "Jobb hátsó"),
+        ("rear_left_inner", "Bal hátsó belső"),
+        ("rear_right_inner", "Jobb hátsó belső"),
+        ("spare", "Pótkerék"),
+    ]
+    .into_iter()
+    .map(|(key, label_hu)| item(key, label_hu))
+    .collect()
+}
+
+pub const TYRE_CONDITION_KEYS: &[&str] = &["ok", "worn", "damaged", "missing"];
+
+pub fn tyre_conditions() -> Vec<LookupItem> {
+    [
+        ("ok", "Rendben"),
+        ("worn", "Kopott"),
+        ("damaged", "Sérült"),
+        ("missing", "Hiányzik"),
+    ]
+    .into_iter()
+    .map(|(key, label_hu)| item(key, label_hu))
+    .collect()
+}
+
+/// What kind of place a yard location is. Validated in `api::yard`.
+pub const YARD_KIND_KEYS: &[&str] = &["bay", "parking", "external"];
+
+pub fn yard_kinds() -> Vec<LookupItem> {
+    [
+        ("bay", "Műhelyállás"),
+        ("parking", "Parkoló, udvar"),
+        ("external", "Külső helyszín"),
+    ]
+    .into_iter()
+    .map(|(key, label_hu)| item(key, label_hu))
+    .collect()
+}
+
 // ── Fuel, tasks, money, invoicing ─────────────────────────────────────────────
 
 /// The intake-slip and walkaround fuel chips, in gauge order. The order slip is
@@ -157,13 +214,14 @@ pub fn heating_fuels() -> Vec<LookupItem> {
 }
 
 /// Records a task may be pinned to; `POST /tasks` refuses anything else.
-pub const TASK_ENTITY_KEYS: &[&str] = &["order", "lead", "partner"];
+pub const TASK_ENTITY_KEYS: &[&str] = &["order", "lead", "partner", "employee"];
 
 pub fn task_entity_types() -> Vec<LookupItem> {
     [
         ("order", "Megrendelés"),
         ("lead", "Érdeklődő"),
         ("partner", "Partner"),
+        ("employee", "Munkatárs"),
     ]
     .into_iter()
     .map(|(key, label_hu)| item(key, label_hu))
@@ -326,6 +384,9 @@ pub struct Lookups {
     pub severities: Vec<LookupItem>,
     pub verdicts: Vec<LookupItem>,
     pub walkaround_kinds: Vec<LookupItem>,
+    pub tyre_positions: Vec<LookupItem>,
+    pub tyre_conditions: Vec<LookupItem>,
+    pub yard_kinds: Vec<LookupItem>,
     pub fuel_levels: Vec<LookupItem>,
     pub heating_fuels: Vec<LookupItem>,
     pub defrost_modes: Vec<LookupItem>,
@@ -346,6 +407,9 @@ impl Lookups {
             severities: severities(),
             verdicts: verdicts(),
             walkaround_kinds: walkaround_kinds(),
+            tyre_positions: tyre_positions(),
+            tyre_conditions: tyre_conditions(),
+            yard_kinds: yard_kinds(),
             fuel_levels: fuel_levels(),
             heating_fuels: heating_fuels(),
             defrost_modes: defrost_modes(),
@@ -376,6 +440,9 @@ mod tests {
         assert_eq!(keys(&severities()), SEVERITY_KEYS);
         assert_eq!(keys(&verdicts()), VERDICT_KEYS);
         assert_eq!(keys(&walkaround_kinds()), WALKAROUND_KEYS);
+        assert_eq!(keys(&tyre_positions()), TYRE_POSITION_KEYS);
+        assert_eq!(keys(&tyre_conditions()), TYRE_CONDITION_KEYS);
+        assert_eq!(keys(&yard_kinds()), YARD_KIND_KEYS);
         assert_eq!(keys(&fuel_levels()), FUEL_LEVEL_KEYS);
         assert_eq!(keys(&heating_fuels()), HEATING_FUEL_KEYS);
         assert_eq!(keys(&defrost_modes()), DEFROST_KEYS);
@@ -405,6 +472,9 @@ mod tests {
             all.severities,
             all.verdicts,
             all.walkaround_kinds,
+            all.tyre_positions,
+            all.tyre_conditions,
+            all.yard_kinds,
             all.fuel_levels,
             all.heating_fuels,
             all.defrost_modes,

@@ -185,6 +185,19 @@ impl Storage {
         Ok(bytes.into_bytes().to_vec())
     }
 
+    /// The object's bytes as a stream, for passing large files on without holding them.
+    pub async fn open(&self, key: &str) -> anyhow::Result<ByteStream> {
+        let out = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| anyhow!("GET {key}: {}", DisplayErrorContext(e)))?;
+        Ok(out.body)
+    }
+
     /// Removes an object. Missing keys are not an error (S3 answers 204 either way).
     pub async fn delete(&self, key: &str) -> anyhow::Result<()> {
         self.client

@@ -1,0 +1,131 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO order_specs (order_id, form, cooling_unit_serial)\n           VALUES ($1, 'cooling', $2)\n           ON CONFLICT (order_id) DO UPDATE SET cooling_unit_serial = EXCLUDED.cooling_unit_serial\n           WHERE order_specs.form = 'cooling'\n           RETURNING order_id, form, target_temp_c, insulation_mm, cooling_unit_make, cooling_unit_model,\n                     atp_class, compartments, defrost, electric_standby, cooling_unit_serial, heater_make, heater_model,\n                     heat_output_kw, fuel, thermostat, notes, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "order_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "form",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "target_temp_c",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "insulation_mm",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "cooling_unit_make",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "cooling_unit_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "atp_class",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "compartments",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "defrost",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "electric_standby",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "cooling_unit_serial",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "heater_make",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "heater_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "heat_output_kw",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 14,
+        "name": "fuel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "thermostat",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 16,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "07081805f6da49bc80b39dedf3981714d159ea48cb7d736a69ea1ced302c2835"
+}

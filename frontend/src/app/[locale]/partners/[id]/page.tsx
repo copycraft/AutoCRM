@@ -23,6 +23,7 @@ import { useToast } from '@/components/ui/Toasts';
 import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
 import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
+import { InvoiceLanguageSelect } from '@/components/partners/InvoiceLanguageSelect';
 import { useRecentRecords } from '@/hooks/useRecent';
 import { useEffect, useState } from 'react';
 
@@ -48,6 +49,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
   const { push: pushRecent } = useRecentRecords(6);
   const toast = useToast();
   const tq = useTranslations('qol');
+  const ts = useTranslations('statement');
   const [editing, setEditing] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const editable = canEditPartners(user);
@@ -128,8 +130,12 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                   </span>
                 }
                 subtitle={`#${partner.id} · ${partner.kind === 'business' ? t('business') : t('person')}`}
-                actions={editable && (
+                actions={(
                   <>
+                    <Link className="btn-secondary btn-sm" href={`/${locale}/partners/${partner.id}/statement`}>
+                      {ts('open')}
+                    </Link>
+                    {editable && (<>
                     {!editing && (
                       <button className="btn-secondary btn-sm" onClick={() => setEditing(true)}>
                         {tc('edit')}
@@ -150,6 +156,7 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                     >
                       {archived ? t('unarchive') : t('archive')}
                     </button>
+                    </>)}
                   </>
                 )}
               />
@@ -180,7 +187,26 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
                     <DetailRow label={t('website')} value={partner.website ?? '—'} />
                     <DetailRow
                       label={t('addressLine')}
-                      value={[partner.postal_code, partner.city, partner.address_line].filter(Boolean).join(' · ') || '—'}
+                      value={
+                        partner.city || partner.address_line ? (
+                          <a
+                            className="underline"
+                            target="_blank"
+                            rel="noreferrer"
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+                              [partner.postal_code, partner.city, partner.address_line, partner.country].filter(Boolean).join(' '),
+                            )}`}
+                          >
+                            {[partner.postal_code, partner.city, partner.address_line].filter(Boolean).join(' · ')}
+                          </a>
+                        ) : (
+                          '—'
+                        )
+                      }
+                    />
+                    <DetailRow
+                      label={ts('invoiceLanguage')}
+                      value={<InvoiceLanguageSelect partnerId={partner.id} value={partner.invoice_language} editable={editable} />}
                     />
                     <DetailRow label={t('notes')} value={partner.notes ?? '—'} />
                     <DetailRow label={t('createdAt')} value={<DateDisplay value={partner.created_at} />} />

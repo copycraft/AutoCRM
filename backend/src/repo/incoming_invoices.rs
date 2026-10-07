@@ -114,10 +114,13 @@ fn select() -> String {
 }
 
 pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<IncomingInvoice>> {
-    sqlx::query_as(&format!("{} WHERE id = $1 AND deleted_at IS NULL", select()))
-        .bind(id)
-        .fetch_optional(db)
-        .await
+    sqlx::query_as(&format!(
+        "{} WHERE id = $1 AND deleted_at IS NULL",
+        select()
+    ))
+    .bind(id)
+    .fetch_optional(db)
+    .await
 }
 
 /// Newest first. `pattern` is an ILIKE over supplier, number and file name.
@@ -190,10 +193,12 @@ pub async fn insert_with_file(
 
 /// The live row already holding this exact file, if any.
 pub async fn by_hash(db: impl PgExecutor<'_>, hash: &[u8]) -> sqlx::Result<Option<i64>> {
-    sqlx::query_scalar("SELECT id FROM incoming_invoices WHERE file_hash = $1 AND deleted_at IS NULL")
-        .bind(hash)
-        .fetch_optional(db)
-        .await
+    sqlx::query_scalar(
+        "SELECT id FROM incoming_invoices WHERE file_hash = $1 AND deleted_at IS NULL",
+    )
+    .bind(hash)
+    .fetch_optional(db)
+    .await
 }
 
 pub async fn update(db: impl PgExecutor<'_>, id: i64, f: &Fields) -> sqlx::Result<()> {
@@ -269,4 +274,48 @@ pub async fn known_suppliers(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<KnownS
     )
     .fetch_all(db)
     .await
+}
+
+/// Bulk (0049): paid in full on `paid_on` (rows without a gross amount are left alone,
+/// there is nothing to settle yet). Returns how many changed.
+pub async fn mark_paid_many(
+    db: impl PgExecutor<'_>,
+    ids: &[i64],
+    paid_on: NaiveDate,
+) -> sqlx::Result<u64> {
+    let done = sqlx::query(
+        "UPDATE incoming_invoices SET paid_amount = gross_amount, paid_on = coalesce(paid_on, $2)
+          WHERE id = ANY($1) AND deleted_at IS NULL AND gross_amount IS NOT NULL
+            AND paid_amount < gross_amount",
+    )
+    .bind(ids)
+    .bind(paid_on)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected())
+}
+
+pub async fn set_booking_only_many(
+    db: impl PgExecutor<'_>,
+    ids: &[i64],
+    on: bool,
+) -> sqlx::Result<u64> {
+    let done = sqlx::query(
+        "UPDATE incoming_invoices SET booking_only = $2 WHERE id = ANY($1) AND deleted_at IS NULL",
+    )
+    .bind(ids)
+    .bind(on)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected())
+}
+
+pub async fn soft_delete_many(db: impl PgExecutor<'_>, ids: &[i64]) -> sqlx::Result<u64> {
+    let done = sqlx::query(
+        "UPDATE incoming_invoices SET deleted_at = now() WHERE id = ANY($1) AND deleted_at IS NULL",
+    )
+    .bind(ids)
+    .execute(db)
+    .await?;
+    Ok(done.rows_affected())
 }

@@ -26,6 +26,7 @@ import { Money } from '@/components/ui/Money';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { InvoicesSection } from '@/components/orders/InvoicesSection';
 import { ProformasSection } from '@/components/orders/ProformasSection';
+import { PaymentsPanel } from '@/components/billing/PaymentsPanel';
 import type { BilledInvoice, BilledProforma, Currency, OrderSummary } from '@/lib/api/types';
 
 const STATUSES = ['submitting', 'issued', 'rejected', 'stornoed', 'annulled'] as const;
@@ -289,6 +290,9 @@ function InvoiceRow({
   // Automatic payment reminders run for unpaid transfer invoices.
   const remindable = payable && !invoice.paid_at && invoice.payment_method === 'TRANSFER';
   const { data: lookups } = useLookups();
+  const tp = useTranslations('payments');
+  const [showPayments, setShowPayments] = useState(false);
+  const partly = !invoice.paid_at && invoice.paid_amount > 0;
   return (
     <li className="card p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -312,6 +316,16 @@ function InvoiceRow({
           <span>
             {t('buckets.paidOn')} <DateDisplay value={invoice.paid_at} />
           </span>
+        )}
+        {partly && (
+          <span className="text-steel-700">
+            {tp('partly')} <Money minor={invoice.paid_amount} currency={invoice.currency as Currency} />
+          </span>
+        )}
+        {invoice.kind === 'invoice' && invoice.status === 'issued' && (
+          <button className="underline hover:text-steel-900" onClick={() => setShowPayments((v) => !v)}>
+            {tp('title')}
+          </button>
         )}
         {payable && (
           <button
@@ -355,6 +369,15 @@ function InvoiceRow({
         <p className="mt-1 font-mono text-metadata text-steel-900">
           {invoice.nav_error_code}: {invoice.nav_message}
         </p>
+      )}
+      {showPayments && (
+        <PaymentsPanel
+          invoiceId={invoice.id}
+          gross={invoice.gross_amount}
+          paid={invoice.paid_amount}
+          currency={invoice.currency as Currency}
+          canEdit={payable}
+        />
       )}
     </li>
   );

@@ -51,6 +51,8 @@ Status mapping on Android: 400/409/422 → `ApiException.Rule` (rendered from th
 | `internal` | 500 | yes | Szerverhiba. Próbálja újra később. |
 | `password_change_required` | 422 | no | Első bejelentkezéskor kötelező jelszót változtatni. |
 | `wrong_password` | 422 | no | Hibás a jelenlegi jelszó. |
+| `totp_required` | 422 | no | Adja meg a hitelesítő alkalmazás hatjegyű kódját is. |
+| `totp_invalid` | 422 | no | Hibás vagy már felhasznált egyszer használatos kód. |
 | `last_admin` | 422 | no | Az utolsó aktív adminisztrátor nem tiltható le. |
 | `stage_gate` | 422 | no | A megrendelés nem léphet tovább, mert egy szükséges feltétel még nem teljesült. |
 | `note_required` | 422 | no | A visszalépéshez indoklás szükséges. |
@@ -84,5 +86,6 @@ Status mapping on Android: 400/409/422 → `ApiException.Rule` (rendered from th
 | `no_items` | 422 | no | A számlához legalább egy tétel kell a megrendelésen. |
 | `nav_rejected` | 422 | no | A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja. |
 | `nav_unreachable` | 422 | yes | A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később. |
+| `overpayment` | 422 | no | A befizetés több, mint a számlán még nyitott összeg. |
 | `not_issued` | 422 | no | Csak kiállított számlának van letölthető bizonylata. |
 | `pdf_unavailable` | 422 | yes | A PDF most nem tölthető le. Próbálja újra később. |

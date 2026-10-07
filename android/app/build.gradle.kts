@@ -126,6 +126,11 @@ dependencies {
     implementation(libs.camera.camera2)
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
+    implementation(libs.camera.video)
+    implementation(libs.mlkit.text)
+    implementation(libs.mlkit.barcode)
+    implementation(libs.biometric)
+    implementation(libs.glance.appwidget)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

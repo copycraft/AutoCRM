@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT totp_secret AS secret, totp_enabled_at IS NOT NULL AS \"enabled!\", totp_last_step AS last_step\n           FROM users WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "secret",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "enabled!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_step",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      null,
+      true
+    ]
+  },
+  "hash": "37f30af1adc54d8f0065aeb1688db7f82385572680461548b6542eb57cc3ee5d"
+}

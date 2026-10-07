@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use anyhow::anyhow;
-use chrono::{DateTime, NaiveDate, NaiveTime, TimeDelta, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, TimeDelta, Utc};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::sync::watch;
@@ -22,6 +22,12 @@ use crate::service::invoicing;
 pub mod kinds {
     pub const SEND_EMAIL: &str = "send_email";
     pub const PROCESS_IMAGE: &str = "process_image";
+    /// A thumbnail for a drawing or picture filed as a document.
+    pub const PROCESS_DOCUMENT: &str = "process_document";
+    /// An RFC 3161 stamp over an evidence photo.
+    pub const TIMESTAMP_IMAGE: &str = "timestamp_image";
+    /// Daily: queue stamps for evidence photos that have none.
+    pub const TIMESTAMP_BACKFILL: &str = "timestamp_backfill";
     pub const NUDGE_BLOCKERS: &str = "nudge_blockers";
     pub const STALLED_ORDERS: &str = "stalled_orders";
     /// Hourly: quote follow-up letters that are due.
@@ -35,6 +41,12 @@ pub mod kinds {
     /// At a newsletter's send time: write one letter per reader.
     pub const NEWSLETTER_DISPATCH: &str = "newsletter_dispatch";
     pub const FETCH_FX_RATES: &str = "fetch_fx_rates";
+    /// Monday morning: last week's report to the managers (0049).
+    pub const WEEKLY_REPORT: &str = "weekly_report";
+    /// A Facebook/Instagram lead form submission to fetch and file (0049).
+    pub const META_LEADGEN: &str = "meta_leadgen";
+    /// A won lead to report to Meta's Conversions API (0049).
+    pub const META_CONVERSION: &str = "meta_conversion";
     /// Report an invoice or storno to NAV through the sidecar, then store its PDF and
     /// queue the letter. Reporting is asynchronous at NAV, so it is asynchronous here.
     pub const NAV_SUBMIT_INVOICE: &str = "nav_submit_invoice";
@@ -67,8 +79,7 @@ pub async fn run(state: AppState, mut shutdown: watch::Receiver<bool>) {
         // else environment), so transport changes apply without a restart.
         // Building the client performs no I/O; a broken config only skips
         // this cycle with an error log, it never stops the worker.
-        let (email_config, source) =
-            email::effective_email_config(&state.db, &state.config.email).await;
+        let (email_config, source) = email::effective_email_config(&state.db, &state.config).await;
         tracing::debug!(?source, "effective email transport");
         let mailer = match Mailer::from_config(&email_config) {
             Ok(m) => m,
@@ -167,6 +178,11 @@ struct ImagePayload {
 }
 
 #[derive(Deserialize)]
+struct DocumentPayload {
+    document_id: i64,
+}
+
+#[derive(Deserialize)]
 struct FxPayload {
     from: NaiveDate,
     to: NaiveDate,
@@ -175,6 +191,17 @@ struct FxPayload {
 #[derive(Deserialize)]
 struct NewsletterPayload {
     send_id: i64,
+}
+
+#[derive(Deserialize)]
+struct LeadgenPayload {
+    leadgen_id: String,
+}
+
+#[derive(Deserialize)]
+struct ConversionPayload {
+    lead_id: i64,
+    order_id: i64,
 }
 
 fn payload<T: for<'de> Deserialize<'de>>(job: &Job) -> anyhow::Result<T> {
@@ -194,6 +221,20 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
         kinds::PROCESS_IMAGE => {
             let p: ImagePayload = payload(job)?;
             automation::process_image(state, p.image_id).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::PROCESS_DOCUMENT => {
+            let p: DocumentPayload = payload(job)?;
+            automation::process_document(state, p.document_id).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::TIMESTAMP_IMAGE => {
+            let p: ImagePayload = payload(job)?;
+            automation::timestamp_image(state, p.image_id).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::TIMESTAMP_BACKFILL => {
+            automation::timestamp_backfill(state).await?;
             Ok(Outcome::Done)
         }
         kinds::NUDGE_BLOCKERS => {
@@ -241,6 +282,20 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
             automation::fetch_fx_rates(state, p.from, p.to).await?;
             Ok(Outcome::Done)
         }
+        kinds::WEEKLY_REPORT => {
+            crate::service::weekly_report::send(state).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::META_LEADGEN => {
+            let p: LeadgenPayload = payload(job)?;
+            crate::service::ads::fetch_leadgen(state, &p.leadgen_id).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::META_CONVERSION => {
+            let p: ConversionPayload = payload(job)?;
+            crate::service::ads::send_conversion(state, p.lead_id, p.order_id).await?;
+            Ok(Outcome::Done)
+        }
         other => Err(anyhow!("unknown job kind '{other}'")),
     }
 }
@@ -279,12 +334,28 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
 
     once(
         state,
-        &format!("{}:{}", kinds::QUOTE_FOLLOWUPS, local_now.format("%Y-%m-%dT%H")),
+        &format!(
+            "{}:{}",
+            kinds::QUOTE_FOLLOWUPS,
+            local_now.format("%Y-%m-%dT%H")
+        ),
         kinds::QUOTE_FOLLOWUPS,
         json!({}),
     )
     .await?;
 
+    // Monday, after seven: last week's report.
+    if time >= NaiveTime::from_hms_opt(7, 0, 0).expect("valid time")
+        && today.weekday() == chrono::Weekday::Mon
+    {
+        once(
+            state,
+            &format!("{}:{today}", kinds::WEEKLY_REPORT),
+            kinds::WEEKLY_REPORT,
+            json!({}),
+        )
+        .await?;
+    }
     if time >= NaiveTime::from_hms_opt(7, 0, 0).expect("valid time") {
         once(
             state,
@@ -311,9 +382,23 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
         )
         .await?;
     }
+    // Evidence photos without a stamp get one, once a day, when an authority is configured.
+    if state.config.tsa.is_some() {
+        once(
+            state,
+            &format!("{}:{today}", kinds::TIMESTAMP_BACKFILL),
+            kinds::TIMESTAMP_BACKFILL,
+            json!({}),
+        )
+        .await?;
+    }
     // The sales mailbox is read every ten minutes, when one is configured.
     if state.config.imap.is_some() {
-        let minute = local_now.format("%M").to_string().parse::<u32>().unwrap_or(0);
+        let minute = local_now
+            .format("%M")
+            .to_string()
+            .parse::<u32>()
+            .unwrap_or(0);
         once(
             state,
             &format!(

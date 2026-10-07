@@ -22,8 +22,8 @@ use crate::domain::email::normalize_address;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::media::storage::content_disposition;
-use crate::repo::recruitment::{self, ApplicationInput, ApplicationRow, PostingInput, PostingRow};
 use crate::repo::audit;
+use crate::repo::recruitment::{self, ApplicationInput, ApplicationRow, PostingInput, PostingRow};
 use crate::service;
 
 const RESUME_URL_TTL: Duration = Duration::from_secs(900);
@@ -452,11 +452,7 @@ async fn update_application(
     let current = recruitment::find_application(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("application"))?;
-    let notes = capped(
-        "notes",
-        patch_text(&current.notes, b.notes),
-        MAX_NOTES,
-    )?;
+    let notes = capped("notes", patch_text(&current.notes, b.notes), MAX_NOTES)?;
     let row = recruitment::set_notes(&state.db, id, notes.as_deref())
         .await?
         .ok_or(AppError::NotFound("application"))?;
@@ -725,9 +721,8 @@ async fn apply(
     if bytes.len() > MAX_RESUME_BYTES {
         return Err(AppError::validation("resume is too large (at most 10 MB)"));
     }
-    let (ext, content_type) = sniff_resume(&filename, &bytes).ok_or_else(|| {
-        AppError::validation("resume must be a PDF, DOC, DOCX, ODT or RTF file")
-    })?;
+    let (ext, content_type) = sniff_resume(&filename, &bytes)
+        .ok_or_else(|| AppError::validation("resume must be a PDF, DOC, DOCX, ODT or RTF file"))?;
 
     // One profile per person per listing: a double-click or a second try is not a second
     // candidate.
@@ -859,7 +854,10 @@ mod tests {
 
     #[test]
     fn filenames_lose_paths_and_stay_bounded() {
-        assert_eq!(clean_filename("C:\\Users\\x\\Önéletrajz.pdf"), "Önéletrajz.pdf");
+        assert_eq!(
+            clean_filename("C:\\Users\\x\\Önéletrajz.pdf"),
+            "Önéletrajz.pdf"
+        );
         assert_eq!(clean_filename("../../etc/passwd"), "passwd");
         assert_eq!(clean_filename("  "), "resume");
         let long = format!("{}.pdf", "a".repeat(400));

@@ -86,7 +86,10 @@ fn ids(value: &HeaderValue<'_>) -> Vec<String> {
 }
 
 fn bare(id: &str) -> String {
-    id.trim().trim_start_matches('<').trim_end_matches('>').to_string()
+    id.trim()
+        .trim_start_matches('<')
+        .trim_end_matches('>')
+        .to_string()
 }
 
 /// Parses and stores one raw (RFC 822) message. `own_address` is the mailbox itself: what
@@ -113,10 +116,7 @@ pub async fn ingest(db: &PgPool, raw: &[u8], own_address: &str) -> anyhow::Resul
         .and_then(|a| a.name())
         .map(str::to_string);
     let subject = msg.subject().unwrap_or("").to_string();
-    let body = msg
-        .body_text(0)
-        .map(|b| b.to_string())
-        .unwrap_or_default();
+    let body = msg.body_text(0).map(|b| b.to_string()).unwrap_or_default();
     let received_at = msg
         .date()
         .and_then(|d| DateTime::<Utc>::from_timestamp(d.to_timestamp(), 0))
@@ -159,8 +159,7 @@ pub async fn ingest(db: &PgPool, raw: &[u8], own_address: &str) -> anyhow::Resul
         return Ok(None);
     };
     if let Some(lead_id) = found.lead_id {
-        let stopped =
-            followups::cancel_for_lead(&mut *tx, lead_id, "az ügyfél válaszolt").await?;
+        let stopped = followups::cancel_for_lead(&mut *tx, lead_id, "az ügyfél válaszolt").await?;
         audit::record(
             &mut *tx,
             None,
@@ -170,18 +169,21 @@ pub async fn ingest(db: &PgPool, raw: &[u8], own_address: &str) -> anyhow::Resul
             json!({ "inbound_email_id": id, "followups_stopped": stopped }),
         )
         .await?;
-        let owner: Option<i64> =
-            sqlx::query_scalar("SELECT assigned_to FROM leads WHERE id = $1")
-                .bind(lead_id)
-                .fetch_one(&mut *tx)
-                .await?;
+        let owner: Option<i64> = sqlx::query_scalar("SELECT assigned_to FROM leads WHERE id = $1")
+            .bind(lead_id)
+            .fetch_one(&mut *tx)
+            .await?;
         if let Some(user) = owner {
             notifications::notify_user(
                 &mut *tx,
                 user,
                 "customer_reply",
                 "Válasz érkezett egy ügyféltől",
-                Some(&format!("{}: {}", from_name.as_deref().unwrap_or(&from), subject)),
+                Some(&format!(
+                    "{}: {}",
+                    from_name.as_deref().unwrap_or(&from),
+                    subject
+                )),
                 Some(&format!("/leads/{lead_id}")),
             )
             .await?;
@@ -193,13 +195,16 @@ pub async fn ingest(db: &PgPool, raw: &[u8], own_address: &str) -> anyhow::Resul
 
 /// Our letter it answers, by its headers; else the newest open lead, an order, or a
 /// partner with this address.
+/// (email id, lead, order, partner) of one of our letters.
+type EmailLinks = (i64, Option<i64>, Option<i64>, Option<i64>);
+
 async fn match_message(
     conn: &mut PgConnection,
     refs: &[String],
     from: &str,
 ) -> sqlx::Result<Match> {
     for r in refs {
-        let hit: Option<(i64, Option<i64>, Option<i64>, Option<i64>)> = sqlx::query_as(
+        let hit: Option<EmailLinks> = sqlx::query_as(
             "SELECT id, lead_id, order_id, partner_id FROM email_messages
               WHERE provider_id = $1 OR provider_id = '<' || $1 || '>'
               LIMIT 1",

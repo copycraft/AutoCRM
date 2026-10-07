@@ -127,6 +127,8 @@ async fn billed_order(pool: &PgPool) -> (i64, String) {
             byte_size: 12,
             uploaded_by: Some(user.user_id),
             source_ref: None,
+            previous_version_id: None,
+            version: 1,
         },
     )
     .await

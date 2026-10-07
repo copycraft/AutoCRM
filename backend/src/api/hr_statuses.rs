@@ -46,7 +46,9 @@ async fn list_statuses(
     ApiQuery(q): ApiQuery<StatusesQuery>,
 ) -> AppResult<Json<Items<EmployeeStatus>>> {
     me.require(Capability::AccessHr)?;
-    Ok(Items::new(employee_statuses::list(&state.db, q.archived).await?))
+    Ok(Items::new(
+        employee_statuses::list(&state.db, q.archived).await?,
+    ))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -90,10 +92,21 @@ async fn create_status(
     ApiJson(b): ApiJson<CreateStatus>,
 ) -> AppResult<(StatusCode, Json<EmployeeStatus>)> {
     me.require(Capability::AccessHr)?;
-    let s = input(&b.section, &b.label, b.color.as_deref().unwrap_or("#dde1e6"))?;
+    let s = input(
+        &b.section,
+        &b.label,
+        b.color.as_deref().unwrap_or("#dde1e6"),
+    )?;
     let id = employee_statuses::insert(&state.db, &s).await?;
-    audit::record(&state.db, Some(me.user_id), "employee_status", id, "create",
-        json!({ "section": s.section, "label": s.label })).await?;
+    audit::record(
+        &state.db,
+        Some(me.user_id),
+        "employee_status",
+        id,
+        "create",
+        json!({ "section": s.section, "label": s.label }),
+    )
+    .await?;
     let row = employee_statuses::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("employee status"))?;
@@ -133,9 +146,21 @@ async fn update_status(
         ("section", json!(current.section), json!(s.section)),
         ("label", json!(current.label), json!(s.label)),
         ("color", json!(current.color), json!(s.color)),
-        ("archived", json!(current.archived_at.is_some()), json!(archived)),
+        (
+            "archived",
+            json!(current.archived_at.is_some()),
+            json!(archived),
+        ),
     ]);
-    audit::record(&state.db, Some(me.user_id), "employee_status", id, "update", changes).await?;
+    audit::record(
+        &state.db,
+        Some(me.user_id),
+        "employee_status",
+        id,
+        "update",
+        changes,
+    )
+    .await?;
     let row = employee_statuses::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("employee status"))?;

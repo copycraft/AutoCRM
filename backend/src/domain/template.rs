@@ -52,6 +52,10 @@ pub const VARIABLES: &[(&str, &str)] = &[
         "newsletter.confirm_url",
         "Hírlevél-feliratkozás megerősítő linkje",
     ),
+    // Resolved by the new-device sign-in alert (0049), the only letter that carries them.
+    ("login.device", "Bejelentkező eszköz"),
+    ("login.ip", "Bejelentkezés IP-címe"),
+    ("login.time", "Bejelentkezés időpontja"),
 ];
 
 pub fn is_known_variable(path: &str) -> bool {
@@ -254,17 +258,85 @@ fn paragraphs(text: &str) -> String {
 }
 
 fn markdown_fragment(md: &str) -> String {
-    use pulldown_cmark::{Options, Parser, html};
+    use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_STRIKETHROUGH);
     options.insert(Options::ENABLE_TASKLISTS);
-    let parser = Parser::new_ext(md, options);
+    // A bare https://… pasted into the text becomes a link, as mail apps would show it
+    // anyway — made here, so a newsletter's click on it is counted. Not inside an
+    // existing link, and not in code.
+    let mut events = Vec::new();
+    let mut in_link = 0usize;
+    for event in Parser::new_ext(md, options) {
+        match event {
+            Event::Start(Tag::Link { .. }) => {
+                in_link += 1;
+                events.push(event);
+            }
+            Event::End(TagEnd::Link) => {
+                in_link = in_link.saturating_sub(1);
+                events.push(event);
+            }
+            Event::Text(text) if in_link == 0 && text.contains("http") => {
+                for (piece, is_url) in split_urls(&text) {
+                    if is_url {
+                        events.push(Event::InlineHtml(
+                            format!("<a href=\"{0}\">{0}</a>", escape_html(piece)).into(),
+                        ));
+                    } else {
+                        events.push(Event::Text(piece.to_string().into()));
+                    }
+                }
+            }
+            other => events.push(other),
+        }
+    }
     let mut fragment = String::new();
-    html::push_html(&mut fragment, parser);
+    html::push_html(&mut fragment, events.into_iter());
     // pulldown-cmark emits bare tags; the layout carries the type, so scope its
     // descendants instead of rewriting every tag inline.
     fragment
+}
+
+/// Text cut into (piece, is_url): bare http(s) addresses apart from the words around them.
+/// Closing punctuation stays outside the address ("…/akcio." ends the sentence, not the URL).
+fn split_urls(text: &str) -> Vec<(&str, bool)> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(start) = rest
+        .find("https://")
+        .into_iter()
+        .chain(rest.find("http://"))
+        .min()
+    {
+        let (before, from) = rest.split_at(start);
+        let mut end = from
+            .find(|c: char| c.is_whitespace() || matches!(c, '<' | '>' | '"' | '\''))
+            .unwrap_or(from.len());
+        while end > 0 && from[..end].ends_with(['.', ',', ';', ':', '!', '?', ')']) {
+            end -= 1;
+        }
+        let (url, after) = from.split_at(end);
+        if !before.is_empty() {
+            out.push((before, false));
+        }
+        if url.len() > "https://".len() {
+            out.push((url, true));
+        } else {
+            out.push((url, false));
+        }
+        if after.len() == from.len() {
+            // Nothing consumed: stop rather than loop.
+            out.push((after, false));
+            return out;
+        }
+        rest = after;
+    }
+    if !rest.is_empty() {
+        out.push((rest, false));
+    }
+    out
 }
 
 /// Inline images: `doc:ID` references resolved to embedded attachments.
@@ -530,5 +602,26 @@ mod tests {
     #[test]
     fn subjects_are_single_line() {
         assert_eq!(single_line("a\r\nBcc: evil@x\nb"), "a Bcc: evil@x b");
+    }
+}
+
+#[cfg(test)]
+mod autolink_tests {
+    use super::*;
+
+    #[test]
+    fn bare_urls_become_links_but_not_inside_links() {
+        let html = markdown_fragment("Nézze meg: https://autotherm.hu/akcio?x=1&y=2.");
+        assert!(
+            html.contains(r#"<a href="https://autotherm.hu/akcio?x=1&amp;y=2">"#),
+            "{html}"
+        );
+        assert!(html.contains("</a>."), "the full stop stays text: {html}");
+        let linked = markdown_fragment("[itt](https://autotherm.hu)");
+        assert_eq!(linked.matches("<a ").count(), 1, "{linked}");
+        assert_eq!(
+            split_urls("a http://x.hu b"),
+            vec![("a ", false), ("http://x.hu", true), (" b", false)]
+        );
     }
 }

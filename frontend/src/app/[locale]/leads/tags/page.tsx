@@ -6,7 +6,8 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { LeadTagManager } from '@/components/leads/LeadTagManager';
 import { LostReasonEditor } from '@/components/leads/LostReasonEditor';
-import { useAuth } from '@/lib/auth/context';
+import { LeadSourceEditor } from '@/components/leads/LeadSourceEditor';
+import { canEditLeads, useAuth } from '@/lib/auth/context';
 
 export default function LeadTagsPage() {
   const t = useTranslations('leadTags');
@@ -18,7 +19,8 @@ export default function LeadTagsPage() {
       <Breadcrumbs items={[{ href: `/${locale}/leads`, label: tn('leads') }, { label: t('title') }]} />
       <PageHeader title={t('title')} />
       <LeadTagManager />
-      <LostReasonEditor editable={user?.role === 'admin' || user?.role === 'office'} />
+      <LeadSourceEditor editable={canEditLeads(user)} />
+      <LostReasonEditor editable={canEditLeads(user)} />
     </AppShell>
   );
 }

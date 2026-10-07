@@ -97,7 +97,7 @@ async fn status(State(state): State<AppState>, Auth(me): Auth) -> AppResult<Json
     let settings = config::settings(&state.db).await?;
     // Effective transport (admin settings row, else environment): showing the
     // startup env values while a database override is live would mislead.
-    let (email, _) = email::effective_email_config(&state.db, &state.config.email).await;
+    let (email, _) = email::effective_email_config(&state.db, &state.config).await;
     Ok(Json(AdminStatus {
         environment: format!("{:?}", state.config.env).to_lowercase(),
         email_mode: match email.transport {
@@ -262,7 +262,9 @@ async fn test_email(
             validate_transport(&merged, state.config.env)?;
             let password = match c.smtp_password.filter(|p| !p.trim().is_empty()) {
                 Some(p) => Some(p),
-                None => config::email_secret(&state.db).await?,
+                None => config::email_secret(&state.db)
+                    .await?
+                    .and_then(|stored| crate::service::secrets::open(&state.config, &stored)),
             };
             let transport = email::transport_from_parts(
                 merged.mode.as_deref(),
@@ -279,7 +281,7 @@ async fn test_email(
             (transport, merged.redirect_to)
         }
         None => {
-            let (effective, _) = email::effective_email_config(&state.db, env).await;
+            let (effective, _) = email::effective_email_config(&state.db, &state.config).await;
             (effective.transport, effective.redirect_to)
         }
     };
@@ -323,6 +325,8 @@ async fn test_email(
             body_text: body,
             attachments: vec![],
             automatic: false,
+            in_reply_to: None,
+            references: None,
         })
         .await;
     match result {

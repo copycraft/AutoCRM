@@ -1,4 +1,5 @@
 use chrono::{DateTime, NaiveDate, Utc};
+use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::PgExecutor;
 
@@ -11,7 +12,10 @@ pub struct Lead {
     pub contact_name: Option<String>,
     pub contact_email: Option<String>,
     pub contact_phone: Option<String>,
+    /// A key of `GET /lead-sources` (0048).
     pub source: Option<String>,
+    /// What the source alone does not say: which fair, who referred them, which domain.
+    pub source_detail: Option<String>,
     pub description: Option<String>,
     pub assigned_to: Option<i64>,
     /// V2.3: what we quoted, in minor units. Not a `quotes` table with versions — at 60
@@ -21,6 +25,12 @@ pub struct Lead {
     #[schema(value_type = Option<crate::domain::money::Currency>)]
     pub currency: Option<String>,
     pub quote_valid_until: Option<NaiveDate>,
+    /// An EUR quote's MNB rate (HUF per EUR), frozen when the quote is set or sent, so the
+    /// order it becomes is valued at the rate the customer was quoted at.
+    #[schema(value_type = Option<String>)]
+    pub quote_fx_rate: Option<Decimal>,
+    /// The day of that rate.
+    pub quote_fx_day: Option<NaiveDate>,
     pub created_by: Option<i64>,
     pub minicrm_id: Option<i64>,
     pub created_at: DateTime<Utc>,
@@ -36,6 +46,7 @@ pub struct LeadInput {
     pub contact_email: Option<String>,
     pub contact_phone: Option<String>,
     pub source: Option<String>,
+    pub source_detail: Option<String>,
     pub description: Option<String>,
     pub assigned_to: Option<i64>,
     pub quoted_value_minor: Option<i64>,
@@ -68,8 +79,8 @@ pub struct LeadSummary {
 pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Lead>> {
     sqlx::query_as!(
         Lead,
-        "SELECT id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,
-                assigned_to, quoted_value_minor, currency, quote_valid_until,
+        "SELECT id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, source_detail, description,
+                assigned_to, quoted_value_minor, currency, quote_valid_until, quote_fx_rate, quote_fx_day,
                 created_by, minicrm_id, created_at, updated_at
          FROM leads WHERE id = $1",
         id
@@ -82,8 +93,8 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Lead>
 pub async fn lock(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Lead>> {
     sqlx::query_as!(
         Lead,
-        "SELECT id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,
-                assigned_to, quoted_value_minor, currency, quote_valid_until,
+        "SELECT id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, source_detail, description,
+                assigned_to, quoted_value_minor, currency, quote_valid_until, quote_fx_rate, quote_fx_day,
                 created_by, minicrm_id, created_at, updated_at
          FROM leads WHERE id = $1 FOR UPDATE",
         id
@@ -105,10 +116,11 @@ pub async fn insert_by(
     sqlx::query_as!(
         Lead,
         "INSERT INTO leads (title, partner_id, contact_id, contact_name, contact_email, contact_phone, source,
-                            description, assigned_to, quoted_value_minor, currency, quote_valid_until, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-         RETURNING id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,
-                   assigned_to, quoted_value_minor, currency, quote_valid_until,
+                            description, assigned_to, quoted_value_minor, currency, quote_valid_until, created_by,
+                            source_detail)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         RETURNING id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, source_detail, description,
+                   assigned_to, quoted_value_minor, currency, quote_valid_until, quote_fx_rate, quote_fx_day,
                    created_by, minicrm_id, created_at, updated_at",
         l.title,
         l.partner_id,
@@ -122,7 +134,8 @@ pub async fn insert_by(
         l.quoted_value_minor,
         l.currency,
         l.quote_valid_until,
-        created_by
+        created_by,
+        l.source_detail
     )
     .fetch_one(db)
     .await
@@ -134,10 +147,10 @@ pub async fn update(db: impl PgExecutor<'_>, id: i64, l: &LeadInput) -> sqlx::Re
         "UPDATE leads
          SET title = $2, partner_id = $3, contact_id = $4, contact_name = $5, contact_email = $6, contact_phone = $7,
              source = $8, description = $9, assigned_to = $10, quoted_value_minor = $11, currency = $12,
-             quote_valid_until = $13
+             quote_valid_until = $13, source_detail = $14
          WHERE id = $1
-         RETURNING id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, description,
-                   assigned_to, quoted_value_minor, currency, quote_valid_until,
+         RETURNING id, title, partner_id, contact_id, contact_name, contact_email, contact_phone, source, source_detail, description,
+                   assigned_to, quoted_value_minor, currency, quote_valid_until, quote_fx_rate, quote_fx_day,
                    created_by, minicrm_id, created_at, updated_at",
         id,
         l.title,
@@ -151,10 +164,32 @@ pub async fn update(db: impl PgExecutor<'_>, id: i64, l: &LeadInput) -> sqlx::Re
         l.assigned_to,
         l.quoted_value_minor,
         l.currency,
-        l.quote_valid_until
+        l.quote_valid_until,
+        l.source_detail
     )
     .fetch_optional(db)
     .await
+}
+
+/// Freezes (or clears) the quote's exchange rate.
+pub async fn set_quote_fx(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    rate: Option<(Decimal, NaiveDate)>,
+) -> sqlx::Result<()> {
+    let (rate, day) = match rate {
+        Some((r, d)) => (Some(r), Some(d)),
+        None => (None, None),
+    };
+    sqlx::query!(
+        "UPDATE leads SET quote_fx_rate = $2, quote_fx_day = $3 WHERE id = $1",
+        id,
+        rate,
+        day
+    )
+    .execute(db)
+    .await?;
+    Ok(())
 }
 
 pub async fn set_assigned(

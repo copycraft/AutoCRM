@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.invoice_language FROM orders o JOIN partners p ON p.id = o.partner_id WHERE o.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "invoice_language",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "99898c3fc1d5b98f6fc63963c431fe584a4d1617214ede72ee6f2e63a68da0b9"
+}

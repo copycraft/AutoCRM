@@ -366,6 +366,22 @@ fun PartnerDetailScreen(
                                     listOfNotNull(detail.partner.city, detail.partner.addressLine)
                                         .joinToString(", ").ifBlank { null },
                                 )
+                                val address = listOfNotNull(
+                                    detail.partner.postalCode,
+                                    detail.partner.city,
+                                    detail.partner.addressLine,
+                                ).joinToString(" ")
+                                if (detail.partner.city != null || detail.partner.addressLine != null) {
+                                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                                    androidx.compose.material3.TextButton(
+                                        onClick = {
+                                            hu.autotherm.autocrm.util.openNavigation(
+                                                ctx,
+                                                "$address ${detail.partner.country}".trim(),
+                                            )
+                                        },
+                                    ) { Text("Útvonaltervezés") }
+                                }
                             }
                         }
                         if (detail.contacts.isNotEmpty() || canEdit) {

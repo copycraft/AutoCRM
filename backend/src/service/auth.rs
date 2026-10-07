@@ -13,7 +13,9 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 
+use crate::config::Config;
 use crate::domain::role::{Capability, Role};
+use crate::domain::totp;
 use crate::error::{AppError, AppResult};
 use crate::repo::sessions::{self, NewSession, SessionKind};
 use crate::repo::users::{self, User};
@@ -72,6 +74,8 @@ pub struct AuthUser {
     pub must_change_password: bool,
     /// Granted by an admin; unlocks the HR module on top of the role.
     pub hr_access: bool,
+    /// Capabilities an admin granted this user on top of the role.
+    pub permissions: Vec<Capability>,
 }
 
 impl AuthUser {
@@ -84,8 +88,26 @@ impl AuthUser {
     }
 
     pub fn can(&self, capability: Capability) -> bool {
-        self.role.can(capability) || (capability == Capability::AccessHr && self.hr_access)
+        self.role.can(capability)
+            || (capability == Capability::AccessHr && self.hr_access)
+            || (capability.grantable() && self.permissions.contains(&capability))
     }
+
+    /// Everything this user may do: the role's set plus the grants.
+    pub fn capabilities(&self) -> Vec<Capability> {
+        Capability::ALL
+            .into_iter()
+            .filter(|c| self.can(*c))
+            .collect()
+    }
+}
+
+/// Stored grant keys to capabilities; unknown or no-longer-grantable keys are ignored.
+pub fn parse_permissions(keys: &[String]) -> Vec<Capability> {
+    keys.iter()
+        .filter_map(|k| Capability::from_key(k))
+        .filter(|c| c.grantable())
+        .collect()
 }
 
 pub fn validate_new_password(password: &str) -> AppResult<()> {
@@ -152,6 +174,8 @@ pub struct LoginRequest {
     pub device_label: Option<String>,
     pub user_agent: Option<String>,
     pub ip: Option<String>,
+    /// The authenticator app's code, for an account with two-factor sign-in (0049).
+    pub totp_code: Option<String>,
 }
 
 pub struct LoginOutcome {
@@ -159,9 +183,94 @@ pub struct LoginOutcome {
     pub session_id: i64,
     pub expires_at: DateTime<Utc>,
     pub user: User,
+    /// The account had signed in before, but never from this device: the caller tells the
+    /// owner by email.
+    pub new_device: bool,
 }
 
-pub async fn login(db: &PgPool, req: LoginRequest) -> AppResult<LoginOutcome> {
+/// Checks a typed code against the account's secret and burns its time step. Errors are the
+/// login's: `totp_required` when no code came, `totp_invalid` for a wrong or reused one.
+pub async fn check_totp(
+    db: &PgPool,
+    config: &Config,
+    user_id: i64,
+    code: Option<&str>,
+) -> AppResult<()> {
+    let Some(state) = users::totp_state(db, user_id).await? else {
+        return Err(AppError::Unauthenticated);
+    };
+    if !state.enabled {
+        return Ok(());
+    }
+    let Some(code) = code.map(str::trim).filter(|c| !c.is_empty()) else {
+        return Err(AppError::rule(
+            "totp_required",
+            "this account signs in with a one-time code too",
+        ));
+    };
+    let secret = state
+        .secret
+        .as_deref()
+        .and_then(|s| crate::service::secrets::open(config, s))
+        .and_then(|b32| totp::base32_decode(&b32))
+        .ok_or_else(|| {
+            AppError::internal(format!("two-factor secret of user {user_id} is unreadable"))
+        })?;
+    let step = totp::verify(&secret, code, Utc::now().timestamp(), state.last_step);
+    match step {
+        Some(step) if users::use_totp_step(db, user_id, step).await? => Ok(()),
+        _ => {
+            users::record_failed_login(db, user_id).await?;
+            Err(AppError::rule(
+                "totp_invalid",
+                "the one-time code is wrong or was already used",
+            ))
+        }
+    }
+}
+
+/// Opens a session for a user whose identity is already proven (password and code, or
+/// Google). Reports whether the device is new to the account.
+pub async fn open_session(
+    db: &PgPool,
+    user_id: i64,
+    kind: SessionKind,
+    device_label: Option<&str>,
+    user_agent: Option<&str>,
+    ip: Option<&str>,
+) -> AppResult<LoginOutcome> {
+    let (signed_in_before, seen) =
+        sessions::device_seen(db, user_id, device_label, user_agent).await?;
+    let token = generate_token();
+    let hash = token_hash(&token);
+    let now = Utc::now();
+    let expires_at = session_expiry(kind, now, now);
+    let session_id = sessions::insert(
+        db,
+        NewSession {
+            user_id,
+            token_hash: &hash,
+            kind,
+            device_label,
+            user_agent,
+            ip,
+            expires_at,
+        },
+    )
+    .await?;
+    let user = users::find(db, user_id)
+        .await?
+        .ok_or(AppError::Unauthenticated)?;
+    Ok(LoginOutcome {
+        token,
+        session_id,
+        expires_at,
+        user,
+        new_device: signed_in_before && !seen,
+    })
+}
+
+pub async fn login(db: &PgPool, config: &Config, req: LoginRequest) -> AppResult<LoginOutcome> {
     let Some(creds) = users::find_credentials_by_email(db, &req.email).await? else {
         verify_password_async(req.password, dummy_hash().to_string()).await?;
         return Err(AppError::Unauthenticated);
@@ -185,34 +294,19 @@ pub async fn login(db: &PgPool, req: LoginRequest) -> AppResult<LoginOutcome> {
     if !creds.is_active {
         return Err(AppError::Unauthenticated);
     }
+    // The password was right; a wrong code counts as a failed login like a wrong password,
+    // so guessing codes runs into the same lock.
+    check_totp(db, config, creds.id, req.totp_code.as_deref()).await?;
     users::record_login_success(db, creds.id).await?;
-
-    let token = generate_token();
-    let hash = token_hash(&token);
-    let now = Utc::now();
-    let expires_at = session_expiry(req.kind, now, now);
-    let session_id = sessions::insert(
+    open_session(
         db,
-        NewSession {
-            user_id: creds.id,
-            token_hash: &hash,
-            kind: req.kind,
-            device_label: req.device_label.as_deref(),
-            user_agent: req.user_agent.as_deref(),
-            ip: req.ip.as_deref(),
-            expires_at,
-        },
+        creds.id,
+        req.kind,
+        req.device_label.as_deref(),
+        req.user_agent.as_deref(),
+        req.ip.as_deref(),
     )
-    .await?;
-    let user = users::find(db, creds.id)
-        .await?
-        .ok_or(AppError::Unauthenticated)?;
-    Ok(LoginOutcome {
-        token,
-        session_id,
-        expires_at,
-        user,
-    })
+    .await
 }
 
 pub async fn authenticate(db: &PgPool, token: &str) -> AppResult<AuthUser> {
@@ -243,6 +337,7 @@ pub async fn authenticate(db: &PgPool, token: &str) -> AppResult<AuthUser> {
         role: session.role,
         must_change_password: session.must_change_password,
         hr_access: session.hr_access,
+        permissions: parse_permissions(&session.permissions),
     })
 }
 
@@ -271,9 +366,63 @@ pub async fn change_password(
     Ok(())
 }
 
+/// A device as a person recognises it: the phone's own label, or "Chrome, Windows" from the
+/// browser string. Never empty.
+pub fn describe_device(device_label: Option<&str>, user_agent: Option<&str>) -> String {
+    if let Some(label) = device_label.map(str::trim).filter(|l| !l.is_empty()) {
+        return format!("{label} (AutoCRM mobilalkalmazás)");
+    }
+    let Some(ua) = user_agent.filter(|u| !u.trim().is_empty()) else {
+        return "ismeretlen eszköz".into();
+    };
+    let browser = if ua.contains("Edg/") {
+        "Edge"
+    } else if ua.contains("OPR/") || ua.contains("Opera") {
+        "Opera"
+    } else if ua.contains("Firefox/") {
+        "Firefox"
+    } else if ua.contains("Chrome/") || ua.contains("CriOS/") {
+        "Chrome"
+    } else if ua.contains("Safari/") {
+        "Safari"
+    } else if ua.contains("okhttp") {
+        "AutoCRM mobilalkalmazás"
+    } else {
+        "ismeretlen böngésző"
+    };
+    let os = if ua.contains("Android") {
+        "Android"
+    } else if ua.contains("iPhone") || ua.contains("iPad") {
+        "iOS"
+    } else if ua.contains("Windows") {
+        "Windows"
+    } else if ua.contains("Mac OS X") || ua.contains("Macintosh") {
+        "macOS"
+    } else if ua.contains("Linux") {
+        "Linux"
+    } else {
+        "ismeretlen rendszer"
+    };
+    format!("{browser}, {os}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn devices_read_like_people_say_them() {
+        let chrome = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36";
+        assert_eq!(describe_device(None, Some(chrome)), "Chrome, Windows");
+        let edge =
+            "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/129.0 Safari/537.36 Edg/129.0";
+        assert_eq!(describe_device(None, Some(edge)), "Edge, Windows");
+        assert_eq!(
+            describe_device(Some("Pixel 8"), Some("okhttp/4.12")),
+            "Pixel 8 (AutoCRM mobilalkalmazás)"
+        );
+        assert_eq!(describe_device(None, None), "ismeretlen eszköz");
+    }
 
     #[test]
     fn password_round_trip() {

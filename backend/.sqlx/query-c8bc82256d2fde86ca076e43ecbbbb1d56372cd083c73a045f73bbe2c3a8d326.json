@@ -1,0 +1,111 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users\n           SET display_name = coalesce($2, display_name),\n               role = coalesce($3, role),\n               is_active = coalesce($4, is_active),\n               hr_access = coalesce($5, hr_access),\n               permissions = coalesce($6, permissions)\n           WHERE id = $1\n           RETURNING id, email, display_name, role AS \"role: Role\", is_active, must_change_password, hr_access, permissions, totp_enabled_at IS NOT NULL AS \"two_factor!\", created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "role: Role",
+        "type_info": {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "office",
+                "designer",
+                "viewer"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "must_change_password",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "hr_access",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "permissions",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "two_factor!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "office",
+                "designer",
+                "viewer"
+              ]
+            }
+          }
+        },
+        "Bool",
+        "Bool",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "c8bc82256d2fde86ca076e43ecbbbb1d56372cd083c73a045f73bbe2c3a8d326"
+}

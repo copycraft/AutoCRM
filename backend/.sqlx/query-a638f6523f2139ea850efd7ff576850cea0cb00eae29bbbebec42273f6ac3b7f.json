@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET totp_last_step = $2\n         WHERE id = $1 AND (totp_last_step IS NULL OR totp_last_step < $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a638f6523f2139ea850efd7ff576850cea0cb00eae29bbbebec42273f6ac3b7f"
+}

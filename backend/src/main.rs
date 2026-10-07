@@ -153,6 +153,8 @@ async fn email_test(config: Config, to: String) -> anyhow::Result<()> {
             body_text: body,
             attachments: vec![],
             automatic: true,
+            in_reply_to: None,
+            references: None,
         })
         .await;
     match result {
@@ -178,6 +180,11 @@ async fn build_state(config: Config) -> anyhow::Result<AppState> {
 
 async fn serve(config: Config) -> anyhow::Result<()> {
     let state = build_state(config).await?;
+    // Secrets stored before 0049 were plain text; seal them once. Failing to is logged, not
+    // fatal: plain values keep working.
+    if let Err(e) = service::secrets::seal_legacy(&state.db, &state.config).await {
+        tracing::error!(error = %e, "sealing stored secrets failed");
+    }
     if let Some(redirect) = &state.config.email.redirect_to {
         tracing::warn!(%redirect, "EMAIL_REDIRECT_TO is set: every outgoing email is delivered to this address instead of its recipients");
     }

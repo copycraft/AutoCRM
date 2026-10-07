@@ -95,6 +95,9 @@ pub struct ProformaRequest {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// hu, en or de; absent: the sidecar's default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -390,9 +393,17 @@ impl NavSidecar {
         Self::json(response).await
     }
 
-    /// The invoice as a PDF, rendered from what NAV holds.
-    pub async fn invoice_pdf(&self, invoice_number: &str) -> NavResult<Vec<u8>> {
-        let path = format!("/invoices/{}/pdf", encode_segment(invoice_number));
+    /// The invoice as a PDF, rendered from what NAV holds, in `language` (hu, en, de) or
+    /// the sidecar's default.
+    pub async fn invoice_pdf(
+        &self,
+        invoice_number: &str,
+        language: Option<&str>,
+    ) -> NavResult<Vec<u8>> {
+        let mut path = format!("/invoices/{}/pdf", encode_segment(invoice_number));
+        if let Some(language) = language.filter(|l| matches!(*l, "hu" | "en" | "de")) {
+            path.push_str(&format!("?language={language}"));
+        }
         let response = self.send(reqwest::Method::GET, &path, None::<&()>).await?;
         let response = Self::check_status(response).await?;
         let bytes = response

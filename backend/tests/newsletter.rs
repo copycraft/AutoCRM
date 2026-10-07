@@ -27,6 +27,7 @@ fn lead_with_quote(contact_email: &str) -> LeadInput {
         contact_email: Some(contact_email.into()),
         contact_phone: None,
         source: None,
+        source_detail: None,
         description: None,
         assigned_to: None,
         quoted_value_minor: Some(127_000_000), // 1 270 000,00 Ft in fillér
@@ -258,6 +259,7 @@ async fn manual_markdown_compose_renders_html(pool: sqlx::PgPool) {
             hero: None,
             attachment_document_ids: vec![],
             embed_document_ids: vec![],
+            reply_to_inbound_id: None,
         },
     )
     .await
