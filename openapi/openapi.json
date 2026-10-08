@@ -19553,6 +19553,33 @@
               "null"
             ]
           },
+          "key_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Átvételi lap, read at the car. Only a `checkout` (átvétel) uses these: it writes them,\nwith `odometer`, `fuel_level` and a plate or VIN the order lacks, onto the order, so\nthe walkaround is the intake slip and leaving `intake` needs no second form."
+          },
+          "intake_condition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valuables_declared": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the valuables question was asked; `valuables` says what, and needs `true`."
+          },
+          "valuables": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "client_key": {
             "type": [
               "string",
@@ -36373,7 +36400,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The model family: read offline for the common European vans (Sprinter, Crafter,\nDucato, Vivaro…), or from the online lookup."
           },
           "source": {
             "type": "string",
