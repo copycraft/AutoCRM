@@ -35,15 +35,5 @@ UPDATE users SET permissions = '{comment}' WHERE email = 'nezo@demo.local';
 SQL
 
 
-# Something to show: leads, orders, finished walkarounds, employees with days off. Goes
-# through the API as the demo admin (signature uploads use the public FILES_HOST link, so
-# the tunnel must be up). A refusal is printed but does not stop the setup; --no-seed skips it.
-if [ "${1:-}" != "--no-seed" ] && [ "${2:-}" != "--no-seed" ]; then
-  until curl -fsS "http://127.0.0.1:${APP_PORT:-3000}/api/health" >/dev/null 2>&1 \
-     || curl -fsS "http://127.0.0.1:${APP_PORT:-3000}/hu/login" >/dev/null 2>&1; do sleep 2; done
-  docker run --rm --network host -v "$PWD/seed.mjs:/seed.mjs:ro" \
-    -e BASE_URL="http://127.0.0.1:${APP_PORT:-3000}" -e DEMO_PASSWORD="$DEMO_PASSWORD" \
-    node:20-alpine node /seed.mjs || echo "seed finished with problems (see above); the demo still works"
-fi
-
 echo "demo ready: https://${APP_HOST}"
+echo "showcase data (leads, orders, walkarounds, staff): ./seed.sh"

@@ -5,18 +5,36 @@
 // days off and sick leave.
 //
 // It goes through the public API as the demo admin, so every record passes the same rules
-// as one typed in by hand. Run by setup.sh; by hand:
+// as one typed in by hand. Run it next to the demo's .env, with the stack and tunnel up:
 //
-//   BASE_URL=http://localhost:3000 DEMO_PASSWORD=... node seed.mjs
+//   node seed.mjs
+//
+// DEMO_PASSWORD and APP_PORT come from ./.env (or the environment); BASE_URL overrides the
+// address (default http://127.0.0.1:APP_PORT). No node on the server?
+//
+//   docker run --rm --network host -v "$PWD:/d" -w /d node:20-alpine node seed.mjs
+//
+// Running it twice adds a second copy of everything; ./setup.sh starts clean.
 //
 // Photos are not seeded (a placeholder picture looks worse than none): the live átvétel on
 // the phone is where the photography is shown.
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
-const BASE = (process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+// ./.env, the one setup.sh reads: KEY=value lines; anything already in the environment wins.
+try {
+  for (const line of readFileSync(new URL('.env', import.meta.url), 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^(["'])(.*)\1$/, '$2');
+  }
+} catch {
+  // no .env beside the script: the environment has to carry it
+}
+
+const BASE = (process.env.BASE_URL ?? `http://127.0.0.1:${process.env.APP_PORT || 3000}`).replace(/\/$/, '');
 const PASSWORD = process.env.DEMO_PASSWORD;
-if (!PASSWORD) throw new Error('set DEMO_PASSWORD');
+if (!PASSWORD) throw new Error('set DEMO_PASSWORD (in ./.env or the environment)');
 
 let token = '';
 const failures = [];
