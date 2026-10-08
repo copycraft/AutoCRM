@@ -63,8 +63,9 @@ async function step(name, fn) {
   try {
     return await fn();
   } catch (e) {
-    failures.push(`${name}: ${e.message}`);
-    console.warn(`! ${name}: ${e.message}`);
+    const why = `${e.message}${e.cause ? ` (${e.cause.code ?? e.cause.message})` : ''}`;
+    failures.push(`${name}: ${why}`);
+    console.warn(`! ${name}: ${why}`);
     return undefined;
   }
 }
@@ -133,6 +134,25 @@ function signaturePng(seed) {
   ]);
 }
 
+/**
+ * The link is signed for the public FILES_HOST, which a server often cannot reach through
+ * its own tunnel. Storage is also published on FILES_PORT here, so the bytes go there with
+ * the signed Host header kept (the signature covers it); the public address is the fallback.
+ */
+async function putToStorage(link, headers, body) {
+  const signed = new URL(link);
+  const local = new URL(link);
+  local.protocol = 'http:';
+  local.hostname = new URL(BASE).hostname;
+  local.port = process.env.FILES_PORT || '9000';
+  try {
+    return await fetch(local, { method: 'PUT', headers: { ...headers, host: signed.host }, body });
+  } catch (e) {
+    console.warn(`  storage on ${local.host} not reachable (${e.cause?.code ?? e.message}); trying ${signed.host}`);
+    return fetch(signed, { method: 'PUT', headers, body });
+  }
+}
+
 /** The three-step upload (ticket, PUT, complete) for a document of an order. */
 async function uploadDocument(orderId, filename, bytes) {
   const ticket = await api('POST', `/orders/${orderId}/uploads`, {
@@ -143,11 +163,7 @@ async function uploadDocument(orderId, filename, bytes) {
     sha256: createHash('sha256').update(bytes).digest('hex'),
   });
   if (ticket.status === 'already_uploaded') return ticket.document_id;
-  const put = await fetch(ticket.upload.url, {
-    method: 'PUT',
-    headers: Object.fromEntries(ticket.upload.headers),
-    body: bytes,
-  });
+  const put = await putToStorage(ticket.upload.url, Object.fromEntries(ticket.upload.headers), bytes);
   if (!put.ok) throw new Error(`PUT to storage -> ${put.status}`);
   const done = await api('POST', '/uploads/complete', { ticket: ticket.ticket });
   return done.document.id;
