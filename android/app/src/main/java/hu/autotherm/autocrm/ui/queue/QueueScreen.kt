@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -97,6 +100,27 @@ fun QueueScreen(viewModel: QueueViewModel, onMenu: () -> Unit) {
     val lookups by viewModel.lookups.collectAsState()
     val blocked = items.count { it.state == PendingUpload.STATE_BLOCKED }
     val waiting = items.size - blocked
+    // A discarded photo is gone from the phone for good: asked first.
+    var discarding by androidx.compose.runtime.remember { mutableStateOf<Long?>(null) }
+    discarding?.let { id ->
+        hu.autotherm.autocrm.ui.common.DialogShell(
+            title = "Eldobod a fotót?",
+            onDismiss = { discarding = null },
+            actions = {
+                TextButton(onClick = { discarding = null }) { Text("Megtartom") }
+                hu.autotherm.autocrm.ui.common.PrimaryButton(
+                    text = "Eldobás",
+                    onClick = {
+                        viewModel.discard(id)
+                        discarding = null
+                        hu.autotherm.autocrm.ui.common.Toasts.show("Fotó eldobva")
+                    },
+                )
+            },
+        ) {
+            Text("A fotó nem kerül fel a szerverre, és a telefonról is törlődik.", style = MaterialTheme.typography.bodyLarge)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -140,6 +164,16 @@ fun QueueScreen(viewModel: QueueViewModel, onMenu: () -> Unit) {
                     items(items, key = { it.id }) { row ->
                         Card(Modifier.animateItem()) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                // Which photo it is, at a glance: "#2026-0142 · gyártás" names
+                                // a job, not the picture that is stuck.
+                                coil.compose.AsyncImage(
+                                    model = java.io.File(row.filePath),
+                                    contentDescription = null,
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.padding(end = 12.dp).size(52.dp)
+                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                                        .background(hu.autotherm.autocrm.ui.theme.Steel200),
+                                )
                                 Text(
                                     "${row.orderNumber} · ${CapturePrefs.label(row.category, lookups)}",
                                     style = MaterialTheme.typography.titleMedium,
@@ -172,7 +206,7 @@ fun QueueScreen(viewModel: QueueViewModel, onMenu: () -> Unit) {
                                 } else {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         TextButton(onClick = { viewModel.retry(row.id) }) { Text("Újra") }
-                                        TextButton(onClick = { viewModel.discard(row.id) }) { Text("Eldobás") }
+                                        TextButton(onClick = { discarding = row.id }) { Text("Eldobás") }
                                     }
                                 }
                             }

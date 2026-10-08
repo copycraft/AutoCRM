@@ -54,6 +54,8 @@ class YardViewModel(private val api: AutoCrmApi) : ViewModel() {
         val locations: List<YardLocation> = emptyList(),
         val error: String? = null,
         val message: String? = null,
+        /** Pull-to-refresh with the board kept on screen. */
+        val refreshing: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -61,31 +63,53 @@ class YardViewModel(private val api: AutoCrmApi) : ViewModel() {
 
     fun load(withBoard: Boolean = true) {
         viewModelScope.launch {
+            if (withBoard && _state.value.board != null) _state.value = _state.value.copy(refreshing = true)
             try {
                 if (withBoard) {
                     val board = api.yardBoard()
-                    _state.value = _state.value.copy(loading = false, board = board, locations = board.locations, error = null)
+                    _state.value = _state.value.copy(
+                        loading = false,
+                        refreshing = false,
+                        board = board,
+                        locations = board.locations,
+                        error = null,
+                    )
                 } else {
                     _state.value = _state.value.copy(loading = false, locations = api.yardLocations(), error = null)
                 }
             } catch (e: Throwable) {
-                _state.value = _state.value.copy(loading = false, error = describeError(e))
+                val hadBoard = _state.value.board != null
+                _state.value = _state.value.copy(loading = false, refreshing = false, error = describeError(e))
+                if (hadBoard) hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e))
             }
         }
     }
 
-    fun move(vehicleId: Long, locationId: Long?, orderId: Long?, reloadBoard: Boolean, onDone: () -> Unit = {}) {
+    /** [label] names the van in the confirmation ("ABC-123 → Műhely 2"). */
+    fun move(
+        vehicleId: Long,
+        locationId: Long?,
+        orderId: Long?,
+        reloadBoard: Boolean,
+        onDone: () -> Unit = {},
+        label: String? = null,
+    ) {
         viewModelScope.launch {
             try {
                 val r = api.moveVehicle(MoveBody(vehicleId, locationId, orderId))
-                _state.value = _state.value.copy(
-                    message = if (r.overCapacity) "Áthelyezve, de ez a hely már tele van." else "Áthelyezve.",
-                    error = null,
-                )
+                val where = locationId?.let { id -> _state.value.locations.firstOrNull { it.id == id }?.name }
+                    ?: if (locationId == null) "elvitték" else "áthelyezve"
+                val what = label?.let { "$it → " } ?: ""
+                if (r.overCapacity) {
+                    hu.autotherm.autocrm.ui.common.Toasts.error("$what$where — de ez a hely már tele van.")
+                } else {
+                    hu.autotherm.autocrm.ui.common.Toasts.show("$what$where")
+                }
+                _state.value = _state.value.copy(message = null, error = null)
                 onDone()
                 if (reloadBoard) load(true)
             } catch (e: Throwable) {
-                _state.value = _state.value.copy(error = describeError(e))
+                hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e), retry = { move(vehicleId, locationId, orderId, reloadBoard, onDone, label) })
             }
         }
     }
@@ -141,8 +165,8 @@ fun VehicleLocationCard(
             Text(
                 when {
                     here == null -> "Nincs elhelyezve"
-                    here.locationId == null -> "Elvitték · ${formatDateTime(here.movedAt).orEmpty()}"
-                    else -> "${here.locationName} · ${formatDateTime(here.movedAt).orEmpty()}" +
+                    here.locationId == null -> "Elvitték · ${hu.autotherm.autocrm.util.relativeTime(here.movedAt).orEmpty()}"
+                    else -> "${here.locationName} · ${hu.autotherm.autocrm.util.relativeTime(here.movedAt).orEmpty()}" +
                         (here.movedByName?.let { " · $it" } ?: "")
                 },
                 style = MaterialTheme.typography.bodyLarge,
@@ -163,7 +187,7 @@ fun VehicleLocationCard(
             current = current.firstOrNull { it.vehicleId == v.id }?.locationId,
             onPick = { loc ->
                 moving = null
-                vm.move(v.id, loc, orderId, reloadBoard = false, onDone = onMoved)
+                vm.move(v.id, loc, orderId, reloadBoard = false, onDone = onMoved, label = v.plate ?: v.vin)
             },
             onDismiss = { moving = null },
         )
@@ -171,6 +195,7 @@ fun VehicleLocationCard(
 }
 
 /** The yard from the phone: every place with what stands on it; tap a van to move it. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun YardScreen(canMove: Boolean, onOpenOrder: (Long) -> Unit, onMenu: () -> Unit) {
     val context = LocalContext.current
@@ -179,21 +204,46 @@ fun YardScreen(canMove: Boolean, onOpenOrder: (Long) -> Unit, onMenu: () -> Unit
     }
     val state by vm.state.collectAsState()
     var moving by remember { mutableStateOf<YardVehicle?>(null) }
+    // "Where is the white Ducato?" — typed, not scrolled for.
+    var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     LaunchedEffect(Unit) { vm.load() }
 
-    Scaffold(topBar = { ScreenTopBar(title = "Udvar", onMenu = onMenu, onRefresh = { vm.load() }) }) { padding ->
+    Scaffold(topBar = { ScreenTopBar(title = "Udvar", onMenu = onMenu, refreshing = state.refreshing, onRefresh = { vm.load() }) }) { padding ->
         val board = state.board
         when {
             state.loading -> ListSkeleton(Modifier.padding(padding).padding(16.dp))
             board == null -> ErrorState(state.error ?: "Nem tölthető be.", Modifier.padding(padding)) { vm.load() }
-            else -> LazyColumn(
-                Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp),
+            else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(
+                isRefreshing = state.refreshing,
+                onRefresh = { vm.load() },
+                modifier = Modifier.padding(padding),
+            ) {
+            LazyColumn(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                state.message?.let { msg -> item { Text(msg, style = MaterialTheme.typography.labelMedium) } }
-                val groups = listOf<Pair<YardLocation?, List<YardVehicle>>>(
-                    null to board.vehicles.filter { it.locationId == null && it.orderId != null },
-                ) + board.locations.map { l -> l to board.vehicles.filter { it.locationId == l.id } }
+                item {
+                    hu.autotherm.autocrm.ui.common.SearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = "Rendszám, munkaszám, ügyfél…",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                val needle = query.trim().lowercase().replace(" ", "").replace("-", "")
+                fun matches(v: YardVehicle) = needle.isEmpty() || listOfNotNull(v.plate, v.vin, v.orderNumber, v.partnerName)
+                    .any { it.lowercase().replace(" ", "").replace("-", "").contains(needle) }
+                val groups = (
+                    listOf<Pair<YardLocation?, List<YardVehicle>>>(
+                        null to board.vehicles.filter { it.locationId == null && it.orderId != null },
+                    ) + board.locations.map { l -> l to board.vehicles.filter { it.locationId == l.id } }
+                    )
+                    .map { (l, vans) -> l to vans.filter(::matches) }
+                    // While searching, only the places where something matched.
+                    .filter { needle.isEmpty() || it.second.isNotEmpty() }
+                if (needle.isNotEmpty() && groups.isEmpty()) {
+                    item { hu.autotherm.autocrm.ui.common.EmptyState("Nincs ilyen jármű az udvaron.") }
+                }
                 items(groups, key = { it.first?.id ?: -1L }) { (location, vans) ->
                     Card {
                         val full = location?.capacity != null && vans.size > location.capacity
@@ -206,7 +256,12 @@ fun YardScreen(canMove: Boolean, onOpenOrder: (Long) -> Unit, onMenu: () -> Unit
                         }
                         vans.forEach { v ->
                             Card(onClick = { if (canMove) moving = v else v.orderId?.let(onOpenOrder) }) {
-                                Text(v.plate ?: v.vin ?: "#${v.vehicleId}", style = MaterialTheme.typography.titleMedium)
+                                val plate = v.plate
+                                if (plate != null) {
+                                    hu.autotherm.autocrm.ui.common.PlateBadge(plate)
+                                } else {
+                                    Text(v.vin ?: "#${v.vehicleId}", style = MaterialTheme.typography.titleMedium)
+                                }
                                 Text(
                                     listOfNotNull(v.orderNumber?.let { "#$it" }, v.partnerName, v.stageLabel).joinToString(" · "),
                                     style = MaterialTheme.typography.labelMedium,
@@ -220,6 +275,7 @@ fun YardScreen(canMove: Boolean, onOpenOrder: (Long) -> Unit, onMenu: () -> Unit
                     }
                 }
             }
+            }
         }
     }
 
@@ -230,7 +286,7 @@ fun YardScreen(canMove: Boolean, onOpenOrder: (Long) -> Unit, onMenu: () -> Unit
             current = v.locationId,
             onPick = { loc ->
                 moving = null
-                vm.move(v.vehicleId, loc, v.orderId, reloadBoard = true)
+                vm.move(v.vehicleId, loc, v.orderId, reloadBoard = true, label = v.plate ?: v.vin)
             },
             onDismiss = { moving = null },
         )

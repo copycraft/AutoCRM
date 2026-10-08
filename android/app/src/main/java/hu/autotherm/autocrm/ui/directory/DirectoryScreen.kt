@@ -9,6 +9,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
@@ -87,6 +90,9 @@ class DirectoryViewModel(private val api: AutoCrmApi) : ViewModel() {
         val error: String? = null,
         val showCustomers: Boolean = true,
         val showSuppliers: Boolean = true,
+        /** The last page was full: more partners further down the alphabet. */
+        val hasMore: Boolean = false,
+        val loadingMore: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -149,9 +155,39 @@ class DirectoryViewModel(private val api: AutoCrmApi) : ViewModel() {
                 role = roleFilter(),
                 limit = PAGE_SIZE,
             )
-            _state.value = _state.value.copy(loading = false, refreshing = false, partners = partners)
+            _state.value = _state.value.copy(
+                loading = false,
+                refreshing = false,
+                partners = partners,
+                hasMore = partners.size >= PAGE_SIZE,
+            )
         } catch (e: Throwable) {
             _state.value = _state.value.copy(loading = false, refreshing = false, error = describeError(e))
+        }
+    }
+
+    /** The next page: the list used to stop at the first page, hiding the rest of the alphabet. */
+    fun loadMore() {
+        val s = _state.value
+        if (!s.hasMore || s.loading || s.refreshing || s.loadingMore) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(loadingMore = true)
+            try {
+                val next = api.partners(
+                    query = queryFlow.value.takeIf { it.isNotBlank() },
+                    role = roleFilter(),
+                    limit = PAGE_SIZE,
+                    offset = _state.value.partners.size,
+                )
+                _state.value = _state.value.copy(
+                    loadingMore = false,
+                    partners = (_state.value.partners + next).distinctBy { it.id },
+                    hasMore = next.size >= PAGE_SIZE,
+                )
+            } catch (e: Throwable) {
+                _state.value = _state.value.copy(loadingMore = false)
+                hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e), retry = ::loadMore)
+            }
         }
     }
 
@@ -201,9 +237,7 @@ fun DirectoryScreen(
         },
         floatingActionButton = {
             if (canEdit) {
-                FloatingActionButton(onClick = onNewPartner) {
-                    Icon(Icons.Filled.Add, contentDescription = "Új partner")
-                }
+                hu.autotherm.autocrm.ui.common.NewFab("Új partner", onNewPartner)
             }
         },
     ) { padding ->
@@ -236,8 +270,23 @@ fun DirectoryScreen(
                 state.loading -> ListSkeleton(Modifier.padding(top = 4.dp))
                 state.error != null && state.partners.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::retry)
-                state.partners.isEmpty() -> EmptyState("Nincs találat.")
-                else -> PullToRefreshBox(
+                state.partners.isEmpty() -> run {
+                    val q = query
+                    if (q.isNotBlank()) {
+                        EmptyState(
+                            "Nincs találat erre: „${q.trim()}”.",
+                            actionLabel = "Keresés törlése",
+                            onAction = { viewModel.setQuery("") },
+                        )
+                    } else {
+                        EmptyState(
+                            "Még nincs partner.",
+                            actionLabel = if (canEdit) "Új partner" else null,
+                            onAction = onNewPartner,
+                        )
+                    }
+                }
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = viewModel::refresh,
                 ) {
@@ -245,7 +294,23 @@ fun DirectoryScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(state.partners, key = { it.id }) { partner ->
+                        // A–Z headers while browsing (not while searching): a long phone book
+                        // is scanned by letter.
+                        val browsing = query.isBlank()
+                        state.partners.forEachIndexed { index, partner ->
+                            val letter = partner.name.trim().firstOrNull()?.uppercaseChar()
+                            val prev = state.partners.getOrNull(index - 1)?.name?.trim()?.firstOrNull()?.uppercaseChar()
+                            if (browsing && letter != null && letter != prev) {
+                                item(key = "letter-$letter-$index") {
+                                    Text(
+                                        letter.toString(),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = Steel500,
+                                        modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                                    )
+                                }
+                            }
+                            item(key = partner.id) {
                             val isOpen = partner.id in expanded
                             val cs = contacts[partner.id]
                             DirectoryRow(
@@ -268,6 +333,14 @@ fun DirectoryScreen(
                                 onOpen = { onOpenPartner(partner.id) },
                                 onEdit = { onEditPartner(partner.id) },
                             )
+                            }
+                        }
+                        if (state.hasMore) {
+                            item(key = "more") {
+                                // Reaching the end loads the next part of the alphabet.
+                                androidx.compose.runtime.LaunchedEffect(state.partners.size) { viewModel.loadMore() }
+                                hu.autotherm.autocrm.ui.common.RefreshingBar()
+                            }
                         }
                     }
                 }
@@ -297,11 +370,13 @@ private fun DirectoryRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f, fill = false)) {
-                Text(partner.name, style = MaterialTheme.typography.titleMedium)
+            hu.autotherm.autocrm.ui.common.InitialsAvatar(partner.name)
+            androidx.compose.foundation.layout.Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(partner.name, style = MaterialTheme.typography.titleMedium, maxLines = 2)
                 Text(
-                    listOfNotNull(partner.city, partner.phone).joinToString(" · ").ifBlank { "—" },
-                    style = MaterialTheme.typography.labelMedium,
+                    listOfNotNull(partner.city, hu.autotherm.autocrm.util.formatPhone(partner.phone)).joinToString(" · ").ifBlank { "—" },
+                    style = MaterialTheme.typography.bodySmall,
                     color = Steel500,
                 )
             }
@@ -348,15 +423,32 @@ private fun DirectoryRow(
                         Modifier.fillMaxWidth().padding(top = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        val uri = androidx.compose.ui.platform.LocalUriHandler.current
                         contacts.forEach { contact ->
-                            Column {
-                                Text(contact.name, style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    listOfNotNull(contact.position, contact.email, contact.phone)
-                                        .joinToString(" · ").ifBlank { "—" },
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = Steel500,
-                                )
+                            // A phone book row: call or write with one tap, no copying digits.
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(contact.name, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        listOfNotNull(contact.position, hu.autotherm.autocrm.util.formatPhone(contact.phone), contact.email)
+                                            .joinToString(" · ").ifBlank { "—" },
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Steel500,
+                                    )
+                                }
+                                contact.phone?.takeIf { it.isNotBlank() }?.let { phone ->
+                                    IconButton(onClick = {
+                                        val digits = phone.trim().let { (if (it.startsWith("+")) "+" else "") + it.filter(Char::isDigit) }
+                                        uri.openUri("tel:$digits")
+                                    }) {
+                                        Icon(androidx.compose.material.icons.Icons.Filled.Call, contentDescription = "Hívás: ${contact.name}", tint = hu.autotherm.autocrm.ui.theme.Cold)
+                                    }
+                                }
+                                contact.email?.takeIf { it.isNotBlank() }?.let { email ->
+                                    IconButton(onClick = { uri.openUri("mailto:${email.trim()}") }) {
+                                        Icon(androidx.compose.material.icons.Icons.Outlined.Email, contentDescription = "E-mail: ${contact.name}", tint = hu.autotherm.autocrm.ui.theme.Cold)
+                                    }
+                                }
                             }
                         }
                     }

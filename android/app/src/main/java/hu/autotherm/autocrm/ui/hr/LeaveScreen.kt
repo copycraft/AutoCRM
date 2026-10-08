@@ -189,7 +189,7 @@ fun LeaveScreen(viewModel: LeaveViewModel, onBack: () -> Unit) {
                     ErrorState(state.error!!, onRetry = viewModel::load)
                 state.people.isEmpty() -> EmptyState("Előbb vegyen fel munkatársat.")
                 state.absences.isEmpty() -> EmptyState("Nincs rögzített távollét ebben az időszakban.")
-                else -> PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -200,9 +200,17 @@ fun LeaveScreen(viewModel: LeaveViewModel, onBack: () -> Unit) {
                                     Column(Modifier.weight(1f)) {
                                         Text(a.employeeName, style = MaterialTheme.typography.titleMedium)
                                         Text(
-                                            "${formatDate(a.startDate)} – ${formatDate(a.endDate)} · ${a.workingDays} munkanap",
+                                            // A single day reads as one date, not "x – x".
+                                            (if (a.startDate == a.endDate) formatDate(a.startDate).orEmpty()
+                                            else "${formatDate(a.startDate)} – ${formatDate(a.endDate)}") +
+                                                " · ${a.workingDays} munkanap",
                                             style = MaterialTheme.typography.bodyMedium,
                                         )
+                                        // Who is out today is the question the list is opened for.
+                                        val today = java.time.LocalDate.now().toString()
+                                        if (a.startDate <= today && today <= a.endDate) {
+                                            StatusBadge("Ma távol", Tone.Signal)
+                                        }
                                         a.note?.let {
                                             Text(it, style = MaterialTheme.typography.labelMedium, color = Steel500)
                                         }
@@ -299,6 +307,28 @@ private fun AbsenceDialog(
                 KINDS.forEach { k ->
                     DropdownMenuItem(text = { Text(kindLabel(k)) }, onClick = { kind = k; kindMenu = false })
                 }
+            }
+        }
+        // The usual requests in one tap: a sick day today, a day off tomorrow, next week.
+        androidx.compose.foundation.layout.Row(
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+        ) {
+            val today = java.time.LocalDate.now()
+            val nextMonday = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
+            listOf(
+                "Ma" to (today to today),
+                "Holnap" to (today.plusDays(1) to today.plusDays(1)),
+                "Jövő hét" to (nextMonday to nextMonday.plusDays(4)),
+            ).forEach { (chip, range) ->
+                val (from, to) = range
+                androidx.compose.material3.FilterChip(
+                    selected = start == from.toString() && end == to.toString(),
+                    onClick = {
+                        start = from.toString()
+                        end = to.toString()
+                    },
+                    label = { Text(chip) },
+                )
             }
         }
         DateField(

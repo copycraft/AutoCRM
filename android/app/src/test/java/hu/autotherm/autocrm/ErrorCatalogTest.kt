@@ -48,7 +48,13 @@ class ErrorCatalogTest {
             catalog["currency_locked"],
             describeError(ApiException.Rule("currency_locked", "currency cannot change")),
         )
-        assertEquals("title is required", describeError(ApiException.Rule("validation", "title is required")))
+        // Validation reads from its detail, in Hungarian with the form's field name.
+        assertEquals(
+            "Megnevezés: kötelező kitölteni.",
+            describeError(ApiException.Rule("validation", "title is required")),
+        )
+        // A detail no rule recognises is shown as sent rather than hidden.
+        assertEquals("odd thing", describeError(ApiException.Rule("validation", "odd thing")))
         // A code from a newer server still says something rather than nothing.
         assertEquals("brand new", describeError(ApiException.Rule("brand_new_code", "brand new")))
     }

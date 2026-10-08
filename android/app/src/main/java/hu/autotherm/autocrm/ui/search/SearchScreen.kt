@@ -1,5 +1,10 @@
 package hu.autotherm.autocrm.ui.search
 
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +19,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -111,19 +118,64 @@ class SearchViewModel(private val api: AutoCrmApi) : ViewModel() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(viewModel: SearchViewModel, onMenu: () -> Unit, onOpen: (String) -> Unit) {
     val state by viewModel.state.collectAsState()
+    // The keyboard is up on arrival: this screen is only ever opened to type.
+    val focus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (state.query.isBlank()) runCatching { focus.requestFocus() }
+    }
+    // The last few searches that led somewhere, newest first, one tap to repeat.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = androidx.compose.runtime.remember {
+        context.getSharedPreferences("search", android.content.Context.MODE_PRIVATE)
+    }
+    var recent by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            prefs.getString("recent", null).orEmpty().lines().filter { it.isNotBlank() },
+        )
+    }
+    val open: (String) -> Unit = { route ->
+        val q = state.query.trim()
+        if (q.length >= 2) {
+            recent = (listOf(q) + recent.filter { !it.equals(q, ignoreCase = true) }).take(8)
+            prefs.edit().putString("recent", recent.joinToString("\n")).apply()
+        }
+        onOpen(route)
+    }
+    // Searched in a dead spot: asked again by itself once there is a network.
+    val online by hu.autotherm.autocrm.data.net.NetworkState.online.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(online) {
+        if (online && state.offline) viewModel.setQuery(state.query)
+    }
     Scaffold(topBar = { ScreenTopBar(title = "Keresés", onMenu = onMenu) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
             SearchField(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
                 label = "Rendszám, név, telefonszám, megrendelés…",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
             )
             when {
+                state.query.trim().length < 2 && recent.isNotEmpty() -> Column(
+                    Modifier.padding(top = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    hu.autotherm.autocrm.ui.common.FieldLabel("Legutóbbi keresések")
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        recent.forEach { q ->
+                            androidx.compose.material3.AssistChip(
+                                onClick = { viewModel.setQuery(q) },
+                                label = { Text(q) },
+                            )
+                        }
+                    }
+                }
                 state.query.trim().length < 2 ->
                     EmptyState("Írjon be legalább 2 karaktert. Több szó esetén mindegyiknek egyeznie kell.")
                 state.loading -> ListSkeleton()
@@ -148,12 +200,26 @@ fun SearchScreen(viewModel: SearchViewModel, onMenu: () -> Unit, onOpen: (String
                             if (hit == null) {
                                 SectionTitle(group)
                             } else {
-                                Card(onClick = { onOpen(hit.route) }) {
-                                    Text(hit.title, style = MaterialTheme.typography.titleMedium)
-                                    if (hit.sub.isNotBlank()) {
-                                        Text(hit.sub, style = MaterialTheme.typography.labelMedium, color = Steel500)
-                                    }
-                                }
+                                // An icon per kind: a job, a person and a letter look different
+                                // at a glance in a mixed result list.
+                                hu.autotherm.autocrm.ui.common.ListRow(
+                                    title = hit.title,
+                                    subtitle = hit.sub.ifBlank { null },
+                                    leading = {
+                                        androidx.compose.material3.Icon(
+                                            when (hit.group) {
+                                                "Munkák" -> androidx.compose.material.icons.Icons.Filled.Build
+                                                "Partnerek" -> androidx.compose.material.icons.Icons.Filled.Business
+                                                "Leadek" -> androidx.compose.material.icons.Icons.AutoMirrored.Filled.TrendingUp
+                                                "E-mailek" -> androidx.compose.material.icons.Icons.Filled.Email
+                                                else -> androidx.compose.material.icons.Icons.Filled.Person
+                                            },
+                                            contentDescription = null,
+                                            tint = hu.autotherm.autocrm.ui.theme.Cold,
+                                        )
+                                    },
+                                    onClick = { open(hit.route) },
+                                )
                             }
                         }
                     }

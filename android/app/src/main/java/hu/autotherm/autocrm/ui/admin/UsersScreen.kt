@@ -50,7 +50,7 @@ import kotlinx.serialization.json.buildJsonObject
 
 private val ROLES = listOf("admin", "office", "designer", "viewer")
 
-private fun roleLabel(role: String): String = when (role) {
+internal fun roleLabel(role: String): String = when (role) {
     "admin" -> "Adminisztrátor"
     "office" -> "Irodai"
     "designer" -> "Tervező"
@@ -142,7 +142,7 @@ fun UsersScreen(viewModel: UsersViewModel, myUserId: Long, onMenu: () -> Unit) {
                 state.error != null && state.users.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::load)
                 state.users.isEmpty() -> EmptyState("Még nincs felhasználó.")
-                else -> PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),

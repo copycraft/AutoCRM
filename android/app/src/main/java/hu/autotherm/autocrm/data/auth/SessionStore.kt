@@ -63,6 +63,12 @@ class SessionStore(private val context: Context) {
         val canChangeStage: Boolean get() = has("change_stages", "admin", "office", "designer")
         val canUploadMedia: Boolean get() = has("upload_media", "admin", "office", "designer")
         val canComment: Boolean get() = has("comment", "admin", "office", "designer")
+        // One flag per server capability a screen acts on, so a per-user grant (or its
+        // absence) shows the same buttons the API will accept.
+        val canEditLeads: Boolean get() = has("edit_leads", "admin", "office")
+        val canEditPartners: Boolean get() = has("edit_partners", "admin", "office")
+        val canSendEmail: Boolean get() = has("send_email", "admin", "office")
+        val canManageBlockers: Boolean get() = has("manage_blockers", "admin", "office", "designer")
         val isAdmin: Boolean get() = role == "admin"
     }
 

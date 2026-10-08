@@ -1,5 +1,8 @@
 package hu.autotherm.autocrm.ui.reports
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +28,7 @@ import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.api.StalledOrder
 import hu.autotherm.autocrm.data.api.WorkloadReport
 import hu.autotherm.autocrm.ui.common.Card
+import androidx.compose.foundation.layout.height
 import hu.autotherm.autocrm.ui.common.EmptyState
 import hu.autotherm.autocrm.ui.common.ErrorState
 import hu.autotherm.autocrm.ui.common.DetailSkeleton
@@ -132,7 +136,7 @@ fun ReportsScreen(
                 val placed = days.sumOf { it.placed }
                 val completed = days.sumOf { it.completed }
                 val avg = if (days.isNotEmpty()) days.sumOf { it.inWorkshop }.toDouble() / days.size else 0.0
-                PullToRefreshBox(
+                hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = viewModel::load,
                     modifier = Modifier.padding(padding),
@@ -156,12 +160,16 @@ fun ReportsScreen(
                                 }
                                 Card(Modifier.weight(1f)) {
                                     Text(
-                                        "%.1f".format(avg),
+                                        // Hungarian decimal comma: "4,3", not "4.3".
+                                        String.format(java.util.Locale("hu", "HU"), "%.1f", avg),
                                         style = MaterialTheme.typography.headlineMedium,
                                     )
                                     Text("Átlag bent", style = MaterialTheme.typography.labelMedium, color = Steel500)
                                 }
                             }
+                        }
+                        if (days.isNotEmpty()) {
+                            item { WorkloadChart(days) }
                         }
                         item { SectionTitle("Beragadt munkák", count = state.stalled.size.takeIf { it > 0 }) }
                         if (state.stalled.isEmpty()) {
@@ -191,6 +199,65 @@ fun ReportsScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Thirty days of the workshop at a glance: one bar per day for the vans inside, today on
+ * the right. The three totals above say how much; this says whether it is piling up.
+ */
+@Composable
+private fun WorkloadChart(days: List<hu.autotherm.autocrm.data.api.WorkloadDay>) {
+    val peak = days.maxOf { it.inWorkshop }.coerceAtLeast(1)
+    val barColor = hu.autotherm.autocrm.ui.theme.Cold
+    val todayColor = hu.autotherm.autocrm.ui.theme.Steel900
+    // Tap a bar: that day's numbers replace the summary line below the chart.
+    var picked by androidx.compose.runtime.remember(days) { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    val pickedColor = hu.autotherm.autocrm.ui.theme.Signal
+    Card {
+        SectionTitle("Bent lévő járművek naponta")
+        androidx.compose.foundation.Canvas(
+            Modifier.fillMaxWidth().height(96.dp).pointerInput(days) {
+                detectTapGestures { tap ->
+                    val slot = size.width.toFloat() / days.size
+                    val i = (tap.x / slot).toInt().coerceIn(0, days.lastIndex)
+                    picked = if (picked == i) null else i
+                }
+            },
+        ) {
+            val gap = 2.dp.toPx()
+            val w = (size.width - gap * (days.size - 1)) / days.size
+            days.forEachIndexed { i, d ->
+                val h = size.height * d.inWorkshop / peak
+                drawRoundRect(
+                    color = when (i) {
+                        picked -> pickedColor
+                        days.lastIndex -> todayColor
+                        else -> barColor
+                    },
+                    topLeft = androidx.compose.ui.geometry.Offset(i * (w + gap), size.height - h),
+                    size = androidx.compose.ui.geometry.Size(w, h.coerceAtLeast(1f)),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(w / 3, w / 3),
+                )
+            }
+        }
+        val day = picked?.let { days.getOrNull(it) }
+        if (day != null) {
+            Text(
+                "${hu.autotherm.autocrm.util.formatDate(day.date)}: ${day.inWorkshop} bent · ${day.placed} beérkezett · ${day.completed} elkészült",
+                style = MaterialTheme.typography.labelMedium,
+            )
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    hu.autotherm.autocrm.util.formatDate(days.first().date).orEmpty(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Steel500,
+                )
+                Text("csúcs: $peak · koppints egy napra", style = MaterialTheme.typography.labelSmall, color = Steel500)
+                Text("ma: ${days.last().inWorkshop}", style = MaterialTheme.typography.labelSmall, color = Steel500)
             }
         }
     }

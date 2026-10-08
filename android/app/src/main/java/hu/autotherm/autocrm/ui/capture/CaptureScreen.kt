@@ -39,7 +39,8 @@ class CaptureViewModel(private val api: AutoCrmApi) : ViewModel() {
 
     fun load(orderId: Long) {
         viewModelScope.launch {
-            _state.value = State(loading = true)
+            // A reload keeps what is shown (back from the camera): no skeleton flash.
+            _state.value = _state.value.copy(loading = _state.value.orderNumber.isBlank(), error = null)
             try {
                 val detail = api.order(orderId)
                 _state.value = State(
@@ -69,6 +70,8 @@ fun CaptureScreen(
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(orderId) { viewModel.load(orderId) }
+    // Back from the camera app: the counts and thumbnails catch up.
+    hu.autotherm.autocrm.ui.common.RefreshOnReturn { viewModel.load(orderId) }
 
     Scaffold(
         topBar = {

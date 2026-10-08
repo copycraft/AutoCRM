@@ -419,7 +419,7 @@ fun ServerInspectionDetail(
                     style = MaterialTheme.typography.titleLarge,
                 )
                 Text(
-                    "${detail.inspection.inspectorName} · ${detail.inspection.signedAt ?: detail.inspection.createdAt}",
+                    "${detail.inspection.inspectorName} · ${hu.autotherm.autocrm.util.formatDateTime(detail.inspection.signedAt ?: detail.inspection.createdAt).orEmpty()}",
                     style = MaterialTheme.typography.labelMedium,
                     color = Steel500,
                 )

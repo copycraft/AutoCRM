@@ -90,6 +90,10 @@ const MAKERS: &[(&str, &str)] = &[
     ("W0V", "Opel"),
     ("VF1", "Renault"),
     ("VF6", "Renault Trucks"),
+    ("VXE", "Opel / Vauxhall (Stellantis)"),
+    ("VXK", "Opel / Vauxhall (Stellantis)"),
+    ("VR1", "DS Automobiles"),
+    ("YAR", "Toyota (Stellantis-gyártás)"),
     ("VF3", "Peugeot"),
     ("VR3", "Peugeot"),
     ("VF7", "Citroën"),
@@ -155,9 +159,76 @@ pub struct VinInfo {
     pub model_year: Option<i32>,
     /// Filled by the online lookup only.
     pub make: Option<String>,
+    /// The model family: read offline for the common European vans (Sprinter, Crafter,
+    /// Ducato, Vivaro…), or from the online lookup.
     pub model: Option<String>,
     /// "offline", or "nhtsa" when the online lookup added to it.
     pub source: String,
+}
+
+/// The van and truck families this workshop sees most, read from where each maker puts
+/// the model in the VIN. A hint, not a type approval: the exact variant and engine are only
+/// in the maker's own records. (prefix to match from the start, family)
+const FAMILIES: &[(&str, &str)] = &[
+    // Mercedes-Benz: the model series sits in positions 4–6.
+    ("WDB906", "Sprinter (NCV3, 2006–2018)"),
+    ("WDA906", "Sprinter (NCV3, 2006–2018)"),
+    ("WDB907", "Sprinter (VS30, 2018–)"),
+    ("W1V907", "Sprinter (VS30, 2018–)"),
+    ("W1V910", "Sprinter (VS30, fronthajtású, 2018–)"),
+    ("WDB910", "Sprinter (VS30, fronthajtású, 2018–)"),
+    ("WDF639", "Vito / Viano (W639)"),
+    ("WDF447", "Vito (W447)"),
+    ("W1V447", "Vito (W447)"),
+    ("WDF415", "Citan (W415)"),
+    // Volkswagen: positions 7–8 after the ZZZ filler.
+    ("WV1ZZZ2E", "Crafter (2006–2016)"),
+    ("WV2ZZZ2E", "Crafter (2006–2016)"),
+    ("WV1ZZZSY", "Crafter (2017–)"),
+    ("WV1ZZZSZ", "Crafter (2017–)"),
+    ("WV2ZZZSY", "Crafter (2017–)"),
+    ("WV1ZZZ7H", "Transporter T5"),
+    ("WV2ZZZ7H", "Transporter T5"),
+    ("WV1ZZZ7J", "Transporter T6"),
+    ("WV2ZZZ7J", "Transporter T6"),
+    ("WV1ZZZST", "Transporter T6.1"),
+    ("WV1ZZZ2K", "Caddy (2K)"),
+    ("WV1ZZZSK", "Caddy (2020–)"),
+    // Fiat / Iveco.
+    ("ZFA250", "Ducato (2006–)"),
+    ("ZFA244", "Ducato (2002–2006)"),
+    ("ZFA263", "Doblò (2010–)"),
+    ("ZCFC", "Daily"),
+    // Stellantis vans: the K0 mid-size van (Expert / Jumpy / Vivaro-C / ProAce) carries a V
+    // in position 4, the large van (Boxer / Jumper) a Y.
+    ("VF3V", "Expert (K0, 2016–)"),
+    ("VF7V", "Jumpy (K0, 2016–)"),
+    ("VXEV", "Vivaro (Vivaro-C, K0 – mint Expert / Jumpy / ProAce, 2019–)"),
+    ("YARV", "ProAce (K0 – mint Expert / Jumpy / Vivaro)"),
+    ("VF3Y", "Boxer"),
+    ("VF7Y", "Jumper"),
+    ("VXEY", "Movano (Movano-C, mint Boxer / Jumper / Ducato, 2021–)"),
+    ("VXEE", "Combo (Combo-E, K9 – mint Partner / Berlingo)"),
+    ("VF37", "Partner / Rifter (K9)"),
+    ("VF7E", "Berlingo (K9)"),
+    // Renault.
+    ("VF1MA", "Master"),
+    ("VF1FL", "Trafic"),
+    ("VF1JL", "Trafic"),
+    // Ford Europe: the model in positions 7–8 after the XXX filler.
+    ("WF0XXXTTG", "Transit (2014–)"),
+    ("WF0XXXTTF", "Transit (2006–2014)"),
+    ("WF0XXXTTR", "Transit Custom"),
+    ("NM0XXXTTG", "Transit Custom (Ford Otosan)"),
+];
+
+pub fn family(vin: &str) -> Option<&'static str> {
+    FAMILIES
+        .iter()
+        .filter(|(prefix, _)| vin.starts_with(prefix))
+        // The longest prefix is the most specific.
+        .max_by_key(|(prefix, _)| prefix.len())
+        .map(|(_, name)| *name)
 }
 
 pub fn decode(vin: &str, max_year: i32) -> Option<VinInfo> {
@@ -168,7 +239,8 @@ pub fn decode(vin: &str, max_year: i32) -> Option<VinInfo> {
         region: region(&vin).map(str::to_string),
         model_year: model_year(&vin, max_year),
         make: None,
-        model: None,
+        // The family the VIN shows, when it is one we know; the online lookup can refine it.
+        model: family(&vin).map(str::to_string),
         source: "offline".into(),
         vin,
     })
@@ -202,6 +274,18 @@ mod tests {
         assert_eq!(model_year("WDB906635A1234567", 2027), Some(2010));
         assert_eq!(model_year("WDB90663591234567", 2027), Some(2009));
         assert_eq!(model_year("WDB906635T1234567", 2027), Some(2026));
+    }
+
+    #[test]
+    fn european_van_families_read_offline() {
+        // A real Vivaro-C: Stellantis' Opel code, the K0 van's V, model year L = 2020.
+        let info = decode("VXEVBYHRKL7007599", 2027).unwrap();
+        assert_eq!(info.manufacturer.as_deref(), Some("Opel / Vauxhall (Stellantis)"));
+        assert!(info.model.as_deref().unwrap().starts_with("Vivaro"));
+        assert_eq!(info.model_year, Some(2020));
+        assert_eq!(family("WDB9066351S123456"), Some("Sprinter (NCV3, 2006–2018)"));
+        assert_eq!(family("WV1ZZZSYZJ9012345"), Some("Crafter (2017–)"));
+        assert_eq!(family("ABC12345678901234"), None);
     }
 
     #[test]

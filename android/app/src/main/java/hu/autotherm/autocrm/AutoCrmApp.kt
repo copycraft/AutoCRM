@@ -54,6 +54,7 @@ class AutoCrmApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        hu.autotherm.autocrm.data.net.NetworkState.start(this)
         // Debug builds fail loudly on main-thread I/O. Without this, reading a response body
         // on the main thread reached a real phone before anyone noticed: the symptom was a
         // generic error on every screen, which reads like a server problem.

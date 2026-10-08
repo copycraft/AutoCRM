@@ -110,6 +110,7 @@ data class Order(
     @SerialName("number") val number: String,
     @SerialName("title") val title: String,
     @SerialName("partner_id") val partnerId: Long,
+    @SerialName("contact_id") val contactId: Long? = null,
     @SerialName("project_type_id") val projectTypeId: Long? = null,
     @SerialName("currency") val currency: String,
     @SerialName("valuation_date") val valuationDate: String,
@@ -280,6 +281,15 @@ data class TransitionOption(
 data class StageBody(
     @SerialName("stage") val stage: String,
     @SerialName("note") val note: String? = null,
+    /** Leads only: why it was lost, when moving to `lost` (an id from /lost-reasons). */
+    @SerialName("lost_reason_id") val lostReasonId: Long? = null,
+)
+
+@Serializable
+data class LostReason(
+    @SerialName("id") val id: Long,
+    @SerialName("label") val label: String,
+    @SerialName("archived_at") val archivedAt: String? = null,
 )
 
 @Serializable
@@ -402,6 +412,9 @@ data class EmailSummary(
 )
 
 @Serializable
+data class DownloadUrl(@SerialName("url") val url: String)
+
+@Serializable
 data class AttachmentRef(
     @SerialName("document_id") val documentId: Long,
     @SerialName("filename") val filename: String? = null,
@@ -446,6 +459,9 @@ data class Partner(
     @SerialName("address_line") val addressLine: String? = null,
     @SerialName("role") val role: String? = null,
     @SerialName("archived_at") val archivedAt: String? = null,
+    @SerialName("eu_tax_number") val euTaxNumber: String? = null,
+    @SerialName("website") val website: String? = null,
+    @SerialName("notes") val notes: String? = null,
 )
 
 @Serializable
@@ -482,6 +498,8 @@ data class Lead(
     @SerialName("id") val id: Long,
     @SerialName("title") val title: String,
     @SerialName("partner_id") val partnerId: Long? = null,
+    @SerialName("contact_id") val contactId: Long? = null,
+    @SerialName("assigned_to") val assignedTo: Long? = null,
     @SerialName("contact_name") val contactName: String? = null,
     @SerialName("contact_email") val contactEmail: String? = null,
     @SerialName("contact_phone") val contactPhone: String? = null,
@@ -528,9 +546,16 @@ data class PartnerBody(
     @SerialName("kind") val kind: String? = null,
     @SerialName("name") val name: String? = null,
     @SerialName("tax_number") val taxNumber: String? = null,
+    /** Community VAT number (DE123456789) for EU customers. */
+    @SerialName("eu_tax_number") val euTaxNumber: String? = null,
+    /** ISO two letters; the server defaults to HU. */
     @SerialName("country") val country: String? = null,
+    /** HUF or EUR; the server defaults to HUF. */
+    @SerialName("default_currency") val defaultCurrency: String? = null,
     @SerialName("email") val email: String? = null,
     @SerialName("phone") val phone: String? = null,
+    @SerialName("website") val website: String? = null,
+    @SerialName("postal_code") val postalCode: String? = null,
     @SerialName("city") val city: String? = null,
     @SerialName("address_line") val addressLine: String? = null,
     @SerialName("notes") val notes: String? = null,
@@ -550,6 +575,8 @@ data class ContactBody(
 data class LeadBody(
     @SerialName("title") val title: String? = null,
     @SerialName("partner_id") val partnerId: Long? = null,
+    @SerialName("contact_id") val contactId: Long? = null,
+    @SerialName("assigned_to") val assignedTo: Long? = null,
     @SerialName("contact_name") val contactName: String? = null,
     @SerialName("contact_email") val contactEmail: String? = null,
     @SerialName("contact_phone") val contactPhone: String? = null,
@@ -565,6 +592,8 @@ data class LeadBody(
 data class OrderBody(
     @SerialName("title") val title: String? = null,
     @SerialName("partner_id") val partnerId: Long? = null,
+    @SerialName("contact_id") val contactId: Long? = null,
+    @SerialName("assigned_to") val assignedTo: Long? = null,
     @SerialName("project_type_id") val projectTypeId: Long? = null,
     @SerialName("currency") val currency: String? = null,
     @SerialName("valuation_date") val valuationDate: String? = null,
@@ -582,6 +611,7 @@ data class TaskBody(
     @SerialName("entity_id") val entityId: Long,
     @SerialName("title") val title: String,
     @SerialName("due_date") val dueDate: String? = null,
+    @SerialName("assigned_to") val assignedTo: Long? = null,
 )
 
 @Serializable
@@ -622,6 +652,8 @@ data class AddItemBody(
 data class ComposeBody(
     @SerialName("order_id") val orderId: Long? = null,
     @SerialName("lead_id") val leadId: Long? = null,
+    /** About the partner itself (not one job): it lands on the partner's timeline. */
+    @SerialName("partner_id") val partnerId: Long? = null,
     @SerialName("to") val to: String,
     @SerialName("subject") val subject: String? = null,
     @SerialName("body") val body: String? = null,
@@ -1222,4 +1254,16 @@ data class MoveResult(
 @Serializable
 data class CoolingSerialBody(
     @SerialName("serial") val serial: String?,
+)
+
+/** What the VIN itself says (GET /vehicles/decode/{vin}). */
+@Serializable
+data class VinInfo(
+    @SerialName("vin") val vin: String,
+    @SerialName("check_digit_ok") val checkDigitOk: Boolean = false,
+    @SerialName("manufacturer") val manufacturer: String? = null,
+    @SerialName("region") val region: String? = null,
+    @SerialName("model_year") val modelYear: Int? = null,
+    @SerialName("make") val make: String? = null,
+    @SerialName("model") val model: String? = null,
 )

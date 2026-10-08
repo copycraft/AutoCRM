@@ -118,13 +118,7 @@ fun ChangePasswordScreen(
     var showPasswords by rememberSaveable { mutableStateOf(false) }
     val transformation = if (showPasswords) VisualTransformation.None else PasswordVisualTransformation()
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    hu.autotherm.autocrm.ui.common.CenteredScrollColumn {
         Text("Jelszócsere szükséges", style = MaterialTheme.typography.headlineMedium)
         Text(
             "Első belépéskor új jelszót kell megadnod.",
@@ -159,6 +153,14 @@ fun ChangePasswordScreen(
             onValueChange = { next = it },
             label = "Új jelszó (min. 12 karakter)",
             enabled = !state.busy,
+            // Said while typing, not after the server refuses it.
+            isError = next.isNotEmpty() && (next.length < 12 || next == current),
+            supporting = when {
+                next.isEmpty() -> null
+                next == current -> "Az új jelszó nem lehet ugyanaz, mint a jelenlegi."
+                next.length < 12 -> "Még ${12 - next.length} karakter kell (${next.length}/12)."
+                else -> "Megfelelő hosszúság."
+            },
             visualTransformation = transformation,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
@@ -179,7 +181,7 @@ fun ChangePasswordScreen(
         PrimaryButton(
             text = if (state.busy) "Mentés…" else "Jelszó módosítása",
             onClick = { viewModel.changePassword(current, next, onChanged) },
-            enabled = !state.busy && current.isNotBlank() && next.isNotBlank(),
+            enabled = !state.busy && current.isNotBlank() && next.length >= 12 && next != current,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(8.dp))

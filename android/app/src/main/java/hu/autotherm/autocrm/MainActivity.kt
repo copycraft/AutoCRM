@@ -1,5 +1,7 @@
 package hu.autotherm.autocrm
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -38,6 +40,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -58,6 +63,12 @@ import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.LocalParking
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import hu.autotherm.autocrm.ui.common.AppLock
 import hu.autotherm.autocrm.ui.common.AppLockGate
 import hu.autotherm.autocrm.ui.share.SharedFile
@@ -80,6 +91,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -350,6 +362,7 @@ private fun parentOf(route: String?): Destination = when {
     else -> Destination.Orders
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun AppScaffold(
     app: AutoCrmApp,
@@ -390,6 +403,22 @@ private fun AppScaffold(
         else runCatching { navController.navigate(route) }
         onRouteHandled()
     }
+    // The app opens on the tab it was left on: a fitter who lives in Fotózás starts there,
+    // the office in Munkák. Once per launch, and never over a notification or a share.
+    val tabPrefs = remember { context.getSharedPreferences("navigation", android.content.Context.MODE_PRIVATE) }
+    var tabRestored by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (tabRestored) return@LaunchedEffect
+        tabRestored = true
+        if (pendingRoute != null) return@LaunchedEffect
+        val last = tabPrefs.getString("last_tab", null) ?: return@LaunchedEffect
+        val allowed = when (last) {
+            Destination.Leads.route, Destination.Tasks.route -> true
+            Destination.Capture.route -> account.canUploadMedia
+            else -> false
+        }
+        if (allowed) runCatching { navController.navigateToTop(last) }
+    }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val outstanding by app.uploadQueue.outstanding.collectAsState(initial = 0)
@@ -412,13 +441,21 @@ private fun AppScaffold(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
+                // Fifteen entries do not fit a small phone: the menu scrolls, so the last
+                // ones (queue, settings, sign-out) are never cut off below the screen.
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                 Column(Modifier.padding(16.dp)) {
                     Text("AUTOTHERM", style = MaterialTheme.typography.titleLarge)
                     Text(
                         account.displayName,
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    Text(account.email, style = MaterialTheme.typography.labelMedium, color = Steel500)
+                    // Who is signed in, and as what: a shared workshop phone answers it here.
+                    Text(
+                        account.email + " · " + hu.autotherm.autocrm.ui.admin.roleLabel(account.role),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Steel500,
+                    )
                 }
                 HorizontalDivider()
                 val entry by navController.currentBackStackEntryAsState()
@@ -475,10 +512,39 @@ private fun AppScaffold(
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                 )
                 Spacer(Modifier.height(8.dp))
+                            }
             }
         },
     ) {
-        Column(Modifier.fillMaxSize()) {
+        // Edge-to-edge means Android does not shrink the window for the keyboard: the app
+        // does it here, once, so no screen has its fields hidden behind the keys. Screens
+        // with their own imePadding find the inset already consumed (no double gap).
+        Column(Modifier.fillMaxSize().imePadding()) {
+        // No network at all: said at once, before a save has to fail to find out.
+        val online by hu.autotherm.autocrm.data.net.NetworkState.online.collectAsState()
+        var lostSignal by remember { mutableStateOf(false) }
+        LaunchedEffect(online) {
+            if (!online) {
+                lostSignal = true
+            } else if (lostSignal) {
+                lostSignal = false
+                hu.autotherm.autocrm.ui.common.Toasts.show("Újra van kapcsolat")
+            }
+        }
+        if (!online && offlineSince == null) {
+            Row(
+                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer)
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Filled.CloudOff, contentDescription = null)
+                Text(
+                    "Nincs hálózat: mentés és frissítés a kapcsolat visszatértéig nem megy",
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
         // Shown while the screen below is read from the phone's copy, not the server.
         offlineSince?.let { since ->
             Row(
@@ -494,10 +560,11 @@ private fun AppScaffold(
                 )
             }
         }
+        Box(Modifier.weight(1f)) {
         NavHost(
             navController = navController,
             startDestination = Destination.Orders.route,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxSize(),
             // One motion language for the whole app: new screens slide in from the
             // right and fade, leaving screens hold still and fade. Fast enough to
             // feel instant on a shop floor (220ms), present enough to feel spatial.
@@ -516,11 +583,16 @@ private fun AppScaffold(
         ) {
             composable(Destination.Orders.route) {
                 OrderListScreen(
-                    viewModel = viewModel { OrderListViewModel(app.api) },
+                    viewModel = viewModel { OrderListViewModel(app.api, app.getSharedPreferences("lists", android.content.Context.MODE_PRIVATE)) },
                     onOpen = { id -> navController.navigate("order/$id") },
                     onMenu = openDrawer,
                     canEdit = canEdit,
                     onNewOrder = { navController.navigate("order/new/0") },
+                    onCapture = if (account.canUploadMedia) {
+                        { id -> navController.navigate("capture/$id") }
+                    } else {
+                        null
+                    },
                 )
             }
             composable(
@@ -551,6 +623,7 @@ private fun AppScaffold(
                         onOpenOrder = { other -> navController.navigate("order/$other") },
                         onBack = { navController.popBackStack() },
                         onEditOrder = { navController.navigate("order/$id/edit") },
+                        onOpenPartner = { pid -> navController.navigate("partner/$pid") },
                         onComposeEmail = { navController.navigate("email/new?orderId=$id") },
                         onInspections = { navController.navigate("inspections/$id") },
                     )
@@ -578,19 +651,15 @@ private fun AppScaffold(
                     partnerId = null,
                     viewModel = viewModel { OrderEditViewModel(app.api) },
                     onBack = { navController.popBackStack() },
-                    onSaved = {
-                        navController.navigate("order/$id") {
-                            popUpTo("order/{id}/edit") { inclusive = true }
-                        }
-                    },
+                    onSaved = { navController.backToDetail("order/$id") },
                 )
             }
             composable(Destination.Leads.route) {
                 LeadListScreen(
-                    viewModel = viewModel { LeadListViewModel(app.api) },
+                    viewModel = viewModel { LeadListViewModel(app.api, app.getSharedPreferences("lists", android.content.Context.MODE_PRIVATE)) },
                     onOpen = { id -> navController.navigate("lead/$id") },
                     onMenu = openDrawer,
-                    canEdit = canEdit,
+                    canEdit = account.canEditLeads,
                     onNewLead = { navController.navigate("lead/new/0") },
                 )
             }
@@ -618,7 +687,13 @@ private fun AppScaffold(
                     viewModel = viewModel { LeadDetailViewModel(app.api, app.lookupsCache, app.sessionStore) },
                     onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
                     onBack = { navController.popBackStack() },
-                    canEdit = canEdit,
+                    canEdit = account.canEditLeads,
+                    canConvert = account.canEditLeads && account.canEdit,
+                    onComposeEmail = if (account.canSendEmail) {
+                        { leadId -> navController.navigate("email/new?leadId=$leadId") }
+                    } else {
+                        null
+                    },
                     onEditLead = { navController.navigate("lead/$id/edit") },
                     onConverted = { orderId ->
                         navController.navigate("order/$orderId") {
@@ -634,17 +709,13 @@ private fun AppScaffold(
                     partnerId = null,
                     viewModel = viewModel { LeadEditViewModel(app.api) },
                     onBack = { navController.popBackStack() },
-                    onSaved = {
-                        navController.navigate("lead/$id") {
-                            popUpTo("lead/{id}/edit") { inclusive = true }
-                        }
-                    },
+                    onSaved = { navController.backToDetail("lead/$id") },
                 )
             }
             composable(Destination.Directory.route) {
                 DirectoryScreen(
                     viewModel = viewModel { DirectoryViewModel(app.api) },
-                    canEdit = canEdit,
+                    canEdit = account.canEditPartners,
                     onMenu = openDrawer,
                     onOpenPartner = { id -> navController.navigate("partner/$id") },
                     onNewPartner = { navController.navigate("partner/new") },
@@ -671,8 +742,17 @@ private fun AppScaffold(
                     onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
                     onOpenLead = { leadId -> navController.navigate("lead/$leadId") },
                     onBack = { navController.popBackStack() },
-                    canEdit = canEdit,
+                    canEdit = account.canEditPartners,
                     onEditPartner = { navController.navigate("partner/$id/edit") },
+                    onComposeEmail = if (account.canSendEmail) {
+                        { pid, to ->
+                            navController.navigate(
+                                "email/new?partnerId=$pid" + (to?.let { "&to=" + android.net.Uri.encode(it) } ?: ""),
+                            )
+                        }
+                    } else {
+                        null
+                    },
                     onNewOrder = { pid -> navController.navigate("order/new/$pid") },
                     onNewLead = { pid -> navController.navigate("lead/new/$pid") },
                 )
@@ -683,11 +763,7 @@ private fun AppScaffold(
                     partnerId = id,
                     viewModel = viewModel { PartnerEditViewModel(app.api) },
                     onBack = { navController.popBackStack() },
-                    onSaved = {
-                        navController.navigate("partner/$id") {
-                            popUpTo("partner/{id}/edit") { inclusive = true }
-                        }
-                    },
+                    onSaved = { navController.backToDetail("partner/$id") },
                 )
             }
             composable(Destination.Emails.route) {
@@ -695,12 +771,12 @@ private fun AppScaffold(
                     viewModel = viewModel { EmailListViewModel(app.api) },
                     onOpen = { id -> navController.navigate("email/$id") },
                     onMenu = openDrawer,
-                    canEdit = canEdit,
+                    canEdit = account.canSendEmail,
                     onCompose = { navController.navigate("email/new") },
                 )
             }
             composable(
-                "email/new?orderId={orderId}&leadId={leadId}",
+                "email/new?orderId={orderId}&leadId={leadId}&partnerId={partnerId}&to={to}&subject={subject}",
                 arguments = listOf(
                     navArgument("orderId") {
                         type = NavType.StringType
@@ -712,11 +788,30 @@ private fun AppScaffold(
                         nullable = true
                         defaultValue = null
                     },
+                    navArgument("partnerId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("to") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("subject") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
                 ),
             ) { entry ->
                 val orderId = entry.arguments?.getString("orderId")?.toLongOrNull()
                 val leadId = entry.arguments?.getString("leadId")?.toLongOrNull()
+                val partnerId = entry.arguments?.getString("partnerId")?.toLongOrNull()
                 EmailComposeScreen(
+                    partnerId = partnerId,
+                    initialTo = entry.arguments?.getString("to"),
+                    initialSubject = entry.arguments?.getString("subject"),
                     orderId = orderId,
                     leadId = leadId,
                     viewModel = viewModel { EmailComposeViewModel(app.api) },
@@ -734,6 +829,23 @@ private fun AppScaffold(
                     viewModel = viewModel { EmailDetailViewModel(app.api) },
                     onOpenOrder = { orderId -> navController.navigate("order/$orderId") },
                     onBack = { navController.popBackStack() },
+                    onFollowUp = if (account.canSendEmail) {
+                        { sent ->
+                            val subject = sent.subject.let { if (it.startsWith("Re:", ignoreCase = true)) it else "Re: $it" }
+                            val link = when {
+                                sent.orderId != null -> "orderId=${sent.orderId}&"
+                                sent.leadId != null -> "leadId=${sent.leadId}&"
+                                else -> ""
+                            }
+                            navController.navigate(
+                                "email/new?" + link +
+                                    "to=" + android.net.Uri.encode(sent.toAddress) +
+                                    "&subject=" + android.net.Uri.encode(subject),
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
             }
             composable(Destination.Tasks.route) {
@@ -881,11 +993,107 @@ private fun AppScaffold(
                 )
             }
         }
+        // Confirmations and refusals of what was just tapped, above the keyboard if open.
+        hu.autotherm.autocrm.ui.common.AppSnackbarHost(
+            Modifier.align(Alignment.BottomCenter).imePadding().padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+        }
+        // The four places a working day is spent, one thumb away; "Több" opens the full menu.
+        val barEntry by navController.currentBackStackEntryAsState()
+        val barRoute = barEntry?.destination?.route
+        LaunchedEffect(barRoute) {
+            if (barRoute in listOf(Destination.Orders.route, Destination.Leads.route, Destination.Capture.route, Destination.Tasks.route)) {
+                tabPrefs.edit().putString("last_tab", barRoute).apply()
+            }
+        }
+        // On the home list Back would close the app; a stray thumb on the edge should not.
+        var lastBack by remember { mutableStateOf(0L) }
+        androidx.activity.compose.BackHandler(
+            enabled = barRoute == Destination.Orders.route && drawerState.isClosed,
+        ) {
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastBack < 2000) {
+                (context as? android.app.Activity)?.finish()
+            } else {
+                lastBack = now
+                hu.autotherm.autocrm.ui.common.Toasts.show("Nyomd meg még egyszer a kilépéshez")
+            }
+        }
+        val barItems = listOfNotNull(
+            Destination.Orders,
+            Destination.Leads,
+            Destination.Capture.takeIf { account.canUploadMedia },
+            Destination.Tasks,
+        )
+        // While typing (a search, a comment) the tab bar steps aside for the keyboard.
+        val keyboardUp = androidx.compose.foundation.layout.WindowInsets.isImeVisible
+        if (barRoute != null && DESTINATIONS.any { it.route == barRoute } && !keyboardUp) {
+            NavigationBar(
+                containerColor = hu.autotherm.autocrm.ui.theme.Surface,
+                tonalElevation = 0.dp,
+            ) {
+                val current = parentOf(barRoute)
+                barItems.forEach { dest ->
+                    NavigationBarItem(
+                        selected = current == dest,
+                        onClick = {
+                            if (current != dest) {
+                                navController.navigateToTop(dest.route)
+                            } else {
+                                hu.autotherm.autocrm.ui.common.ScrollToTop.request(dest.route)
+                            }
+                        },
+                        icon = {
+                            if (dest is Destination.Tasks) {
+                                BadgedBox(badge = {}) { Icon(dest.icon, contentDescription = null) }
+                            } else {
+                                Icon(dest.icon, contentDescription = null)
+                            }
+                        },
+                        label = { Text(dest.label, maxLines = 1) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                        ),
+                    )
+                }
+                NavigationBarItem(
+                    selected = barItems.none { it == current },
+                    onClick = openDrawer,
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                if (unreadNotifications > 0 || outstanding > 0 || blocked > 0) Badge()
+                            },
+                        ) { Icon(Icons.Filled.Menu, contentDescription = null) }
+                    },
+                    label = { Text("Több") },
+                    colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                )
+            }
+        }
+        }
+    }
+}
+/**
+ * After an edit is saved: back to the record's detail screen when it is the one below the
+ * form (it refreshes itself on return), else open it in the form's place.
+ */
+private fun NavHostController.backToDetail(route: String) {
+    val below = previousBackStackEntry
+    val belowRoute = below?.destination?.route?.let { pattern ->
+        below.arguments?.getString("id")?.let { pattern.replace("{id}", it) }
+    }
+    if (belowRoute == route) {
+        popBackStack()
+    } else {
+        navigate(route) {
+            currentBackStackEntry?.destination?.route?.let { popUpTo(it) { inclusive = true } }
         }
     }
 }
 
-/** Drawer switching that does not stack twenty copies of a list on the back stack. */
 private fun NavHostController.navigateToTop(route: String) {
     navigate(route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }

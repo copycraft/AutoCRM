@@ -1,5 +1,6 @@
 package hu.autotherm.autocrm.ui.common
 
+import hu.autotherm.autocrm.ui.common.copyOnLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -69,6 +70,7 @@ class CommentsViewModel(private val api: AutoCrmApi) : ViewModel() {
                 api.createComment(CommentBody(entity, id, text, mentionedIds(text, _state.value.people)))
                 onSent()
                 _state.value = _state.value.copy(sending = false)
+                Toasts.show("Megjegyzés elküldve")
                 load(entity, id)
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(sending = false, error = describeError(e))
@@ -88,7 +90,9 @@ fun CommentsSection(entity: String, id: Long, canComment: Boolean) {
         CommentsViewModel((context.applicationContext as AutoCrmApp).api)
     }
     val state by vm.state.collectAsState()
-    var text by remember { mutableStateOf("") }
+    // Saveable: the section lives in a scrolling list, and a plain remember dropped a
+    // half-typed comment as soon as it scrolled off screen (or the phone rotated).
+    var text by androidx.compose.runtime.saveable.rememberSaveable(entity, id) { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
     LaunchedEffect(entity, id) { vm.load(entity, id) }
 
@@ -97,20 +101,33 @@ fun CommentsSection(entity: String, id: Long, canComment: Boolean) {
         if (!state.loading && state.comments.isEmpty()) {
             Text("Még nincs megjegyzés.", style = MaterialTheme.typography.bodyLarge, color = Steel500)
         }
+        val me by (context.applicationContext as AutoCrmApp).sessionStore.account.collectAsState(initial = null)
         state.comments.forEach { c ->
             Text(
-                "${c.authorName} · ${formatDateTime(c.createdAt).orEmpty()}" + if (c.editedAt != null) " (szerkesztve)" else "",
+                // "Te" for your own: the thread reads like a conversation.
+                "${if (c.createdBy == me?.userId) "Te" else c.authorName} · ${hu.autotherm.autocrm.util.relativeTime(c.createdAt).orEmpty()}" + if (c.editedAt != null) " (szerkesztve)" else "",
                 style = MaterialTheme.typography.labelMedium,
                 color = Steel500,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            Text(c.body, style = MaterialTheme.typography.bodyLarge)
+            // Press and hold to copy: a part number or an address out of a comment.
+            Text(c.body, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.copyOnLongPress(c.body))
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (canComment) {
             AutoCrmTextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = { v ->
+                    // Typing "@" at the start of a word opens the people list, as in any chat.
+                    val typedAt = v.length == text.length + 1 && v.endsWith("@") &&
+                        (v.length == 1 || v[v.length - 2].isWhitespace())
+                    if (typedAt && state.people.isNotEmpty()) {
+                        text = v.dropLast(1)
+                        picking = true
+                    } else {
+                        text = v
+                    }
+                },
                 label = "Új megjegyzés (@ megemlítés)",
                 singleLine = false,
                 modifier = Modifier.fillMaxWidth(),

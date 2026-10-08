@@ -1,6 +1,10 @@
 package hu.autotherm.autocrm.ui.orders
 
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import hu.autotherm.autocrm.ui.common.copyOnLongPress
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +15,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.HorizontalDivider
+import hu.autotherm.autocrm.ui.common.InitialsAvatar
+import hu.autotherm.autocrm.ui.common.PlateBadge
+import hu.autotherm.autocrm.ui.common.SecondaryButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -98,6 +111,12 @@ class OrderDetailViewModel(
         val tasks: List<Task> = emptyList(),
         val canEdit: Boolean = false,
         val canChangeStage: Boolean = false,
+        /** Who to ring about this job: its contact's number, else the customer's. */
+        val callNumber: String? = null,
+        val canManageBlockers: Boolean = false,
+        val canSendEmail: Boolean = false,
+        val canComment: Boolean = false,
+        val canUploadMedia: Boolean = false,
         val error: String? = null,
         /** Non-null while the stage dialog is open. */
         val stageDialog: List<TransitionOption>? = null,
@@ -105,6 +124,8 @@ class OrderDetailViewModel(
         val busy: Boolean = false,
         /** Write-dialog flags for the sections below. */
         val itemDialog: Boolean = false,
+        /** Bumped after "Még egy": the dialog starts over empty for the next line. */
+        val itemNonce: Int = 0,
         val itemBusy: Boolean = false,
         val itemError: String? = null,
         val blockerDialog: Boolean = false,
@@ -161,14 +182,30 @@ class OrderDetailViewModel(
                     tasks = tasksDeferred.await(),
                     canEdit = account?.canEdit == true,
                     canChangeStage = account?.canChangeStage == true,
+                    canManageBlockers = account?.canManageBlockers == true,
+                    canSendEmail = account?.canSendEmail == true,
+                    canComment = account?.canComment == true,
+                    canUploadMedia = account?.canUploadMedia == true,
                     lookups = lookupsDeferred.await(),
+                    callNumber = _state.value.callNumber,
                 )
+                // The number to ring comes from the partner record; fetched after the page
+                // is up so it never holds the job back.
+                launch {
+                    runCatching { api.partner(detail.order.partnerId) }.getOrNull()?.let { p ->
+                        val number = p.contacts.firstOrNull { it.id == detail.order.contactId }?.phone?.takeIf { it.isNotBlank() }
+                            ?: p.partner.phone?.takeIf { it.isNotBlank() }
+                        _state.value = _state.value.copy(callNumber = number)
+                    }
+                }
             } catch (e: Throwable) {
+                val hadRows = _state.value.detail != null
                 _state.value = _state.value.copy(
                     loading = false,
                     refreshing = false,
-                    error = describeError(e),
+                    error = if (hadRows) null else describeError(e),
                 )
+                if (hadRows) hu.autotherm.autocrm.ui.common.Toasts.error("Frissítés sikertelen: " + describeError(e), retry = { load(orderId) })
             }
         }
     }
@@ -198,7 +235,9 @@ class OrderDetailViewModel(
             _state.value = _state.value.copy(busy = true, stageError = null)
             try {
                 api.changeOrderStage(orderId, stage, note?.takeIf { it.isNotBlank() })
+                val label = _state.value.stageDialog?.firstOrNull { it.stageKey == stage }?.labelHu ?: stage
                 _state.value = _state.value.copy(busy = false, stageDialog = null)
+                hu.autotherm.autocrm.ui.common.Toasts.show("Új fázis: $label")
                 load(orderId)
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(
@@ -225,12 +264,24 @@ class OrderDetailViewModel(
         _state.value = _state.value.copy(itemDialog = false, itemError = null)
     }
 
-    fun addItem(orderId: Long, description: String, quantity: String, unitPriceMinor: Long) {
+    fun addItem(
+        orderId: Long,
+        description: String,
+        quantity: String,
+        unitPriceMinor: Long,
+        /** Keep the dialog open, emptied, for the next line of a longer quote. */
+        another: Boolean = false,
+    ) {
         viewModelScope.launch {
             _state.value = _state.value.copy(itemBusy = true, itemError = null)
             try {
                 api.addItem(orderId, AddItemBody(description, quantity, unitPriceMinor))
-                _state.value = _state.value.copy(itemBusy = false, itemDialog = false)
+                _state.value = _state.value.copy(
+                    itemBusy = false,
+                    itemDialog = another,
+                    itemNonce = _state.value.itemNonce + if (another) 1 else 0,
+                )
+                hu.autotherm.autocrm.ui.common.Toasts.show("Tétel hozzáadva")
                 load(orderId)
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(itemBusy = false, itemError = describeError(e))
@@ -238,13 +289,24 @@ class OrderDetailViewModel(
         }
     }
 
+    /**
+     * The line leaves the list at once; the server call follows. "Visszavonás" puts the same
+     * line back (as a new row at the end — the server has no undelete).
+     */
     fun deleteItem(orderId: Long, itemId: Long) {
+        val detail = _state.value.detail ?: return
+        val item = detail.items.firstOrNull { it.id == itemId } ?: return
+        _state.value = _state.value.copy(detail = detail.copy(items = detail.items.filter { it.id != itemId }))
         viewModelScope.launch {
             try {
                 api.deleteItem(itemId)
+                hu.autotherm.autocrm.ui.common.Toasts.show("Tétel törölve: ${item.description}", "Visszavonás") {
+                    addItem(orderId, item.description, item.quantity, item.unitPrice)
+                }
                 load(orderId)
             } catch (e: Throwable) {
-                _state.value = _state.value.copy(error = describeError(e))
+                hu.autotherm.autocrm.ui.common.Toasts.error("Nem sikerült törölni: " + describeError(e), retry = { deleteItem(orderId, itemId) })
+                load(orderId)
             }
         }
     }
@@ -265,6 +327,7 @@ class OrderDetailViewModel(
             try {
                 api.createBlocker(orderId, body)
                 _state.value = _state.value.copy(blockerBusy = false, blockerDialog = false)
+                hu.autotherm.autocrm.ui.common.Toasts.show("Akadály rögzítve")
                 load(orderId)
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(blockerBusy = false, blockerError = describeError(e))
@@ -287,6 +350,7 @@ class OrderDetailViewModel(
             try {
                 api.resolveBlocker(target.id, note?.takeIf { it.isNotBlank() })
                 _state.value = _state.value.copy(blockerBusy = false, resolveTarget = null)
+                hu.autotherm.autocrm.ui.common.Toasts.show("Akadály megoldva")
                 load(orderId)
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(blockerBusy = false, blockerError = describeError(e))
@@ -298,9 +362,10 @@ class OrderDetailViewModel(
         viewModelScope.launch {
             try {
                 api.reopenBlocker(blockerId)
+                hu.autotherm.autocrm.ui.common.Toasts.show("Akadály újranyitva")
                 load(orderId)
             } catch (e: Throwable) {
-                _state.value = _state.value.copy(error = describeError(e))
+                hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e), retry = { reopenBlocker(orderId, blockerId) })
             }
         }
     }
@@ -315,26 +380,36 @@ class OrderDetailViewModel(
         _state.value = _state.value.copy(taskDialog = false, taskError = null)
     }
 
-    fun createTask(orderId: Long, title: String, dueDate: String?) {
+    fun createTask(orderId: Long, title: String, dueDate: String?, assignedTo: Long?) {
         viewModelScope.launch {
             _state.value = _state.value.copy(taskBusy = true, taskError = null)
             try {
-                api.createTask(TaskBody("order", orderId, title, dueDate?.takeIf { it.isNotBlank() }))
-                _state.value = _state.value.copy(taskBusy = false, taskDialog = false)
-                load(orderId)
+                val created = api.createTask(TaskBody("order", orderId, title, dueDate?.takeIf { it.isNotBlank() }, assignedTo))
+                // Shown at once from the answer; no full reload for one new row.
+                _state.value = _state.value.copy(
+                    taskBusy = false,
+                    taskDialog = false,
+                    tasks = _state.value.tasks + created,
+                )
+                hu.autotherm.autocrm.ui.common.Toasts.show("Feladat létrehozva")
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(taskBusy = false, taskError = describeError(e))
             }
         }
     }
 
+    /** The tick shows at once; the server's answer replaces it, a refusal undoes it. */
     fun toggleTask(orderId: Long, task: Task) {
+        fun replace(with: Task) {
+            _state.value = _state.value.copy(tasks = _state.value.tasks.map { if (it.id == task.id) with else it })
+        }
+        replace(task.copy(doneAt = if (task.isDone) null else "pending"))
         viewModelScope.launch {
             try {
-                api.setTaskDone(task.id, !task.isDone)
-                load(orderId)
+                replace(api.setTaskDone(task.id, !task.isDone))
             } catch (e: Throwable) {
-                _state.value = _state.value.copy(error = describeError(e))
+                replace(task)
+                hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e), retry = { toggleTask(orderId, task) })
             }
         }
     }
@@ -355,6 +430,7 @@ class OrderDetailViewModel(
             try {
                 api.patchOrder(orderId, body)
                 _state.value = _state.value.copy(intakeBusy = false, intakeDialog = false)
+                hu.autotherm.autocrm.ui.common.Toasts.show("Átvételi lap mentve")
                 load(orderId)
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(intakeBusy = false, intakeError = describeError(e))
@@ -363,7 +439,7 @@ class OrderDetailViewModel(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun OrderDetailScreen(
     orderId: Long,
@@ -374,9 +450,12 @@ fun OrderDetailScreen(
     onEditOrder: (Long) -> Unit,
     onComposeEmail: (Long) -> Unit,
     onInspections: (Long) -> Unit,
+    /** The customer's page: their contacts and numbers, one tap from the job. */
+    onOpenPartner: ((Long) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(orderId) { viewModel.load(orderId) }
+    hu.autotherm.autocrm.ui.common.RefreshOnReturn { viewModel.load(orderId) }
 
     Scaffold(
         topBar = {
@@ -387,17 +466,15 @@ fun OrderDetailScreen(
                 refreshing = state.refreshing,
                 onRefresh = { viewModel.load(orderId) },
                 actions = {
-                    if (state.canEdit && state.detail != null) {
-                        TextButton(onClick = { onComposeEmail(orderId) }) {
-                            Text("Levél")
-                        }
-                        TextButton(onClick = { onEditOrder(orderId) }) {
-                            Text("Szerkesztés")
+                    // Icons, not three words fighting the title for a phone's width.
+                    if (state.canSendEmail && state.detail != null) {
+                        IconButton(onClick = { onComposeEmail(orderId) }) {
+                            Icon(Icons.Outlined.Email, contentDescription = "Levél")
                         }
                     }
-                    if (state.canChangeStage && state.detail != null) {
-                        TextButton(onClick = { viewModel.openStageDialog(orderId) }) {
-                            Text("Fázisváltás")
+                    if (state.canEdit && state.detail != null) {
+                        IconButton(onClick = { onEditOrder(orderId) }) {
+                            Icon(Icons.Outlined.Edit, contentDescription = "Szerkesztés")
                         }
                     }
                 },
@@ -414,65 +491,144 @@ fun OrderDetailScreen(
                 ErrorState("Nem található.", Modifier.padding(padding)) { viewModel.load(orderId) }
             else -> {
                 val detail = state.detail!!
-                PullToRefreshBox(
+                hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = { viewModel.load(orderId) },
                     modifier = Modifier.padding(padding),
                 ) {
+                    val detailList = androidx.compose.foundation.lazy.rememberLazyListState()
                     LazyColumn(
                         Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+                        state = detailList,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item {
+                            // One card answers "which van, whose, how far along, what is it worth".
                             Card {
-                                Text(
-                                    detail.order.vehiclePlate ?: "#${detail.order.number}",
-                                    style = MaterialTheme.typography.displaySmall,
-                                )
-                                Text(
-                                    detail.order.title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                )
-                                Text(
-                                    "${detail.partner.name} · ${detail.stage.labelHu} · ${detail.stage.daysInStage} napja",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = Steel500,
-                                )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        // Press and hold to copy, for the parts supplier or an e-mail.
+                                        detail.order.vehiclePlate?.let { plate ->
+                                            androidx.compose.foundation.layout.Box(Modifier.copyOnLongPress(plate)) { PlateBadge(plate) }
+                                        }
+                                        Text(
+                                            "#${detail.order.number}",
+                                            style = MonoSmall,
+                                            color = Steel500,
+                                            modifier = Modifier.copyOnLongPress(detail.order.number),
+                                        )
+                                    }
                                     StatusBadge(
                                         detail.stage.labelHu,
-                                        if (detail.stage.isTerminal) Tone.Done else Tone.Steel,
+                                        if (detail.stage.isTerminal) Tone.Done else Tone.Cold,
                                     )
-                                    val open = detail.blockers.count { it.resolvedAt == null }
-                                    if (open > 0) StatusBadge("$open akadály", Tone.Signal)
                                 }
-                            }
-                        }
-
-                        if (state.canChangeStage) {
-                            item {
-                                Button(
-                                    onClick = { viewModel.openStageDialog(orderId) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) { Text("Fázisváltás") }
+                                Text(detail.order.title, style = MaterialTheme.typography.headlineSmall)
+                                Row(
+                                    Modifier.fillMaxWidth().then(
+                                        if (onOpenPartner != null) {
+                                            Modifier.clickable { onOpenPartner(detail.partner.id) }
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    InitialsAvatar(detail.partner.name, size = 32.dp)
+                                    Column(Modifier.weight(1f)) {
+                                        Text(detail.partner.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                                        Text(
+                                            if (detail.stage.daysInStage == 0L) "Ma került ebbe a fázisba"
+                                            else "${detail.stage.daysInStage} napja ebben a fázisban",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Steel500,
+                                        )
+                                    }
+                                    // One tap to ring the customer about this van.
+                                    state.callNumber?.let { number ->
+                                        val uri = androidx.compose.ui.platform.LocalUriHandler.current
+                                        IconButton(onClick = {
+                                            val digits = number.trim().let { (if (it.startsWith("+")) "+" else "") + it.filter(Char::isDigit) }
+                                            uri.openUri("tel:$digits")
+                                        }) {
+                                            Icon(
+                                                androidx.compose.material.icons.Icons.Filled.Call,
+                                                contentDescription = "Hívás: " + (hu.autotherm.autocrm.util.formatPhone(number) ?: number),
+                                                tint = hu.autotherm.autocrm.ui.theme.Cold,
+                                            )
+                                        }
+                                    }
+                                    // Says the row leads somewhere: the customer's page.
+                                    if (onOpenPartner != null) {
+                                        Icon(
+                                            androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                            contentDescription = "Partner adatlapja",
+                                            tint = Steel500,
+                                        )
+                                    }
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Column {
+                                        Text("Érték", style = MaterialTheme.typography.labelMedium, color = Steel500)
+                                        Text(
+                                            formatMoney(detail.value.totalMinor, detail.value.currency),
+                                            style = MaterialTheme.typography.titleLarge,
+                                        )
+                                    }
+                                    detail.order.dueDate?.let { due ->
+                                        val late = !detail.stage.isTerminal && runCatching {
+                                            java.time.LocalDate.parse(due).isBefore(java.time.LocalDate.now())
+                                        }.getOrDefault(false)
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text("Határidő", style = MaterialTheme.typography.labelMedium, color = Steel500)
+                                            Text(
+                                                formatDate(due).orEmpty() +
+                                                    (hu.autotherm.autocrm.util.relativeDay(due)?.takeIf { !it.contains('.') }?.let { " ($it)" } ?: ""),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = if (late) Signal else MaterialTheme.colorScheme.onSurface,
+                                            )
+                                        }
+                                    }
+                                }
+                                val open = detail.blockers.count { it.resolvedAt == null }
+                                // V3: an order with no line items reports as zero and silently
+                                // undercounts every report it appears in. Say so where the work is.
+                                val warnings = listOfNotNull(
+                                    "$open nyitott akadály".takeIf { open > 0 },
+                                    "Nincs rögzített érték".takeIf { detail.value.totalMinor == 0L },
+                                    "Hiányzó árfolyam".takeIf { detail.value.totalHufMinor == null && detail.value.currency != "HUF" },
+                                )
+                                if (warnings.isNotEmpty()) {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        warnings.forEach { StatusBadge(it, Tone.Signal) }
+                                    }
+                                }
                             }
                         }
 
                         item {
-                            Card {
-                                SectionTitle("Érték")
-                                Text(
-                                    formatMoney(detail.value.totalMinor, detail.value.currency),
-                                    style = MaterialTheme.typography.headlineMedium,
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (state.canChangeStage) {
+                                    PrimaryButton(
+                                        text = "Fázisváltás",
+                                        onClick = { viewModel.openStageDialog(orderId) },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                                SecondaryButton(
+                                    text = "Átvétel-átadás",
+                                    onClick = { onInspections(orderId) },
+                                    modifier = Modifier.weight(1f),
                                 )
-                                // V3: an order with no line items reports as zero and silently
-                                // undercounts every report it appears in. Say so where the work is.
-                                if (detail.value.totalMinor == 0L) {
-                                    StatusBadge("Nincs rögzített érték", Tone.Signal)
-                                }
-                                if (detail.value.totalHufMinor == null && detail.value.currency != "HUF") {
-                                    StatusBadge("Hiányzó árfolyam", Tone.Signal)
-                                }
                             }
                         }
 
@@ -497,7 +653,6 @@ fun OrderDetailScreen(
                                     }
                                 }
                                 Info("VIN", detail.order.vehicleVin, mono = true)
-                                Info("Határidő", formatDate(detail.order.dueDate))
                             }
                         }
 
@@ -515,7 +670,7 @@ fun OrderDetailScreen(
                                         CoolingSerialRow(
                                             orderId = orderId,
                                             current = spec.coolingUnitSerial,
-                                            canEdit = state.canChangeStage,
+                                            canEdit = state.canUploadMedia,
                                             onSaved = { viewModel.load(orderId) },
                                         )
                                     } else {
@@ -610,27 +765,15 @@ fun OrderDetailScreen(
                             hu.autotherm.autocrm.ui.common.CommentsSection(
                                 entity = "order",
                                 id = orderId,
-                                canComment = state.canChangeStage,
+                                canComment = state.canComment,
                             )
                         }
 
-                        if (state.canChangeStage) {
+                        if (state.canUploadMedia) {
                             item {
                                 Card {
                                     hu.autotherm.autocrm.ui.common.VoiceNoteRecorder(orderId = orderId)
                                 }
-                            }
-                        }
-
-                        item {
-                            Card(onClick = { onInspections(orderId) }) {
-                                SectionTitle("Átvétel-átadás")
-                                Text(
-                                    "Átvétel és kiadás sérülésvizsgálattal, " +
-                                        "aláírással, csak telefonról.",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = Steel500,
-                                )
                             }
                         }
 
@@ -674,15 +817,34 @@ fun OrderDetailScreen(
                                     }
                                 }
                             }
+                            // The lines add up to something: say what, under the last one.
+                            if (detail.items.size > 1) {
+                                item(key = "items-total") {
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Text(
+                                            "${detail.items.size} tétel összesen (nettó)",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = Steel500,
+                                        )
+                                        Text(
+                                            formatMoney(detail.items.sumOf { it.lineTotalMinor }, detail.value.currency),
+                                            style = MaterialTheme.typography.titleMedium,
+                                        )
+                                    }
+                                }
+                            }
                         }
 
-                        if (detail.blockers.isNotEmpty() || state.canChangeStage) {
+                        if (detail.blockers.isNotEmpty() || state.canManageBlockers) {
                             item {
                                 SectionTitle(
                                     "Akadályok",
                                     count = detail.blockers.count { it.resolvedAt == null }.takeIf { it > 0 },
-                                    actionLabel = if (state.canChangeStage) "Új" else null,
-                                    onAction = if (state.canChangeStage) viewModel::openBlockerDialog else null,
+                                    actionLabel = if (state.canManageBlockers) "Új" else null,
+                                    onAction = if (state.canManageBlockers) viewModel::openBlockerDialog else null,
                                 )
                             }
                             items(detail.blockers, key = { it.id }) { blocker ->
@@ -705,17 +867,21 @@ fun OrderDetailScreen(
                                         listOfNotNull(
                                             blocker.responsiblePartnerName,
                                             blocker.responsibleEmail,
-                                            formatDate(blocker.dueDate)?.let { "határidő: $it" },
+                                            hu.autotherm.autocrm.util.relativeDay(blocker.dueDate)?.let { "határidő: $it" },
                                             blocker.nudgeCount.takeIf { it > 0 }?.let { "$it emlékeztető" },
                                         ).joinToString(" · ").ifBlank { "—" },
                                         style = MaterialTheme.typography.labelMedium,
                                         color = Steel500,
                                     )
+                                    // Chase the person it waits on: their address opens a letter.
+                                    blocker.responsibleEmail?.takeIf { it.isNotBlank() && blocker.resolvedAt == null }?.let { email ->
+                                        hu.autotherm.autocrm.ui.common.EmailInfo("Felelős", email)
+                                    }
                                     blocker.notes?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
                                     blocker.resolutionNote?.let {
                                         Text(it, style = MaterialTheme.typography.labelMedium, color = Steel500)
                                     }
-                                    if (state.canChangeStage) {
+                                    if (state.canManageBlockers) {
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             if (open) {
                                                 TextButton(onClick = { viewModel.openResolve(blocker) }) {
@@ -750,10 +916,13 @@ fun OrderDetailScreen(
                             }
                         } else {
                             items(state.tasks, key = { it.id }) { task ->
-                                TaskRow(
-                                    task = task,
-                                    onToggle = { viewModel.toggleTask(orderId, task) },
-                                )
+                                if (task.isDone) {
+                                    TaskRow(task = task, onToggle = { viewModel.toggleTask(orderId, task) })
+                                } else {
+                                    hu.autotherm.autocrm.ui.tasks.SwipeToDone(onDone = { viewModel.toggleTask(orderId, task) }) {
+                                        TaskRow(task = task, onToggle = { viewModel.toggleTask(orderId, task) })
+                                    }
+                                }
                             }
                         }
 
@@ -762,7 +931,7 @@ fun OrderDetailScreen(
                             items(state.notes, key = { it.id }) { note ->
                                 Card {
                                     Text(
-                                        "${note.authorName ?: "—"} · ${formatDateTime(note.occurredAt)}",
+                                        "${note.authorName ?: "—"} · ${hu.autotherm.autocrm.util.relativeTime(note.occurredAt)}",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = Steel500,
                                     )
@@ -789,6 +958,25 @@ fun OrderDetailScreen(
                             }
                         }
                     }
+                    // A long job page: once well down it, one tap back to the header.
+                    val scrolledDown by androidx.compose.runtime.remember {
+                        androidx.compose.runtime.derivedStateOf { detailList.firstVisibleItemIndex > 2 }
+                    }
+                    val topScope = androidx.compose.runtime.rememberCoroutineScope()
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = scrolledDown,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
+                        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
+                    ) {
+                        androidx.compose.material3.SmallFloatingActionButton(
+                            onClick = { topScope.launch { detailList.animateScrollToItem(0) } },
+                            containerColor = hu.autotherm.autocrm.ui.theme.Steel900,
+                            contentColor = hu.autotherm.autocrm.ui.theme.Surface,
+                        ) {
+                            Icon(androidx.compose.material.icons.Icons.Filled.KeyboardArrowUp, contentDescription = "Vissza a tetejére")
+                        }
+                    }
                 }
             }
         }
@@ -799,18 +987,22 @@ fun OrderDetailScreen(
             options = options,
             error = state.stageError,
             busy = state.busy,
+            currentLabel = state.detail?.stage?.labelHu,
             onDismiss = viewModel::closeStageDialog,
-            onConfirm = { stage, note -> viewModel.changeStage(orderId, stage, note) },
+            onConfirm = { stage, note, _ -> viewModel.changeStage(orderId, stage, note) },
         )
     }
     if (state.itemDialog) {
-        ItemDialog(
-            currency = state.detail?.order?.currency ?: "HUF",
-            busy = state.itemBusy,
-            error = state.itemError,
-            onDismiss = viewModel::closeItemDialog,
-            onConfirm = { desc, qty, price -> viewModel.addItem(orderId, desc, qty, price) },
-        )
+        androidx.compose.runtime.key(state.itemNonce) {
+            ItemDialog(
+                currency = state.detail?.order?.currency ?: "HUF",
+                busy = state.itemBusy,
+                error = state.itemError,
+                onDismiss = viewModel::closeItemDialog,
+                onConfirm = { desc, qty, price -> viewModel.addItem(orderId, desc, qty, price) },
+                onConfirmAndNext = { desc, qty, price -> viewModel.addItem(orderId, desc, qty, price, another = true) },
+            )
+        }
     }
     if (state.blockerDialog) {
         BlockerDialog(
@@ -834,7 +1026,7 @@ fun OrderDetailScreen(
             busy = state.taskBusy,
             error = state.taskError,
             onDismiss = viewModel::closeTaskDialog,
-            onConfirm = { title, due -> viewModel.createTask(orderId, title, due) },
+            onConfirm = { title, due, who -> viewModel.createTask(orderId, title, due, who) },
         )
     }
     if (state.intakeDialog && state.detail != null) {
@@ -856,21 +1048,38 @@ private fun ItemDialog(
     error: String?,
     onDismiss: () -> Unit,
     onConfirm: (description: String, quantity: String, unitPriceMinor: Long) -> Unit,
+    onConfirmAndNext: (description: String, quantity: String, unitPriceMinor: Long) -> Unit,
 ) {
     var description by rememberSaveable { mutableStateOf("") }
     var quantity by rememberSaveable { mutableStateOf("1") }
     var unitPrice by rememberSaveable { mutableStateOf("") }
-    val priceMinor = unitPrice.filter { it.isDigit() }.toLongOrNull()?.times(100)
+    // "2,5" and "12 500,50" as a fitter types them; a leading minus makes a discount line.
+    val qty = hu.autotherm.autocrm.util.parseQuantity(quantity.ifBlank { "1" })
+    val priceMinor = hu.autotherm.autocrm.util.parseSignedMajorToMinor(unitPrice)
+    val symbol = when (currency.uppercase()) { "HUF" -> "Ft"; "EUR" -> "€"; else -> currency }
+    val lineTotal = if (qty != null && priceMinor != null) {
+        runCatching {
+            java.math.BigDecimal(qty).multiply(java.math.BigDecimal(priceMinor))
+                .setScale(0, java.math.RoundingMode.HALF_UP).toLong()
+        }.getOrNull()
+    } else null
     DialogShell(
         title = "Új tétel",
         onDismiss = onDismiss,
         actions = {
             TextButton(onClick = onDismiss) { Text("Mégse") }
+            // Saves this line and opens an empty one: a quote is rarely a single line.
+            TextButton(
+                onClick = {
+                    if (priceMinor != null && qty != null) onConfirmAndNext(description.trim(), qty, priceMinor)
+                },
+                enabled = !busy && description.isNotBlank() && priceMinor != null && qty != null,
+            ) { Text("+ Még egy") }
             PrimaryButton(
                 text = if (busy) "Mentés…" else "Hozzáadás",
-                enabled = !busy && description.isNotBlank() && priceMinor != null,
+                enabled = !busy && description.isNotBlank() && priceMinor != null && qty != null,
                 onClick = {
-                    priceMinor?.let { onConfirm(description.trim(), quantity.trim().ifBlank { "1" }, it) }
+                    if (priceMinor != null && qty != null) onConfirm(description.trim(), qty, priceMinor)
                 },
             )
         },
@@ -879,21 +1088,48 @@ private fun ItemDialog(
             value = description,
             onValueChange = { description = it },
             label = "Megnevezés *",
+            keyboardOptions = KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences),
             modifier = Modifier.fillMaxWidth(),
         )
-        AutoCrmTextField(
-            value = quantity,
-            onValueChange = { quantity = it },
-            label = "Mennyiség",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        AutoCrmTextField(
-            value = unitPrice,
-            onValueChange = { unitPrice = it.filter { c -> c.isDigit() } },
-            label = "Egységár ($currency, Ft)",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AutoCrmTextField(
+                value = quantity,
+                onValueChange = { v -> quantity = v.filter { it.isDigit() || it == ',' || it == '.' } },
+                label = "Mennyiség",
+                isError = quantity.isNotBlank() && qty == null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(0.4f),
+            )
+            AutoCrmTextField(
+                value = unitPrice,
+                onValueChange = { v ->
+                    unitPrice = v.filterIndexed { i, c -> c.isDigit() || c == ',' || c == '.' || (i == 0 && c == '-') }
+                },
+                visualTransformation = hu.autotherm.autocrm.util.GroupedNumberTransformation,
+                label = "Egységár, nettó ($symbol) *",
+                isError = unitPrice.isNotBlank() && priceMinor == null,
+                // The last field: the keyboard's tick adds the line.
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
+                    if (!busy && description.isNotBlank() && priceMinor != null && qty != null) {
+                        onConfirm(description.trim(), qty, priceMinor)
+                    }
+                }),
+                modifier = Modifier.weight(0.6f),
+            )
+        }
+        Text(
+            when {
+                quantity.isNotBlank() && qty == null -> "A mennyiség pozitív szám, legfeljebb 3 tizedesjeggyel."
+                lineTotal != null -> "Sor összesen: ${formatMoney(lineTotal, currency)}" +
+                    if (lineTotal < 0) " (kedvezmény)" else ""
+                else -> "Kedvezményhez írj mínusz jelet az ár elé (pl. -5000)."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (quantity.isNotBlank() && qty == null) Signal else Steel500,
         )
         error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Signal) }
     }
@@ -938,10 +1174,20 @@ private fun BlockerDialog(
             label = "Mi akadt el? *",
             modifier = Modifier.fillMaxWidth(),
         )
+        // What usually holds a job up, one tap each.
+        hu.autotherm.autocrm.ui.common.QuickPicks(
+            options = listOf("Alkatrészre vár", "Ügyfél jóváhagyására vár", "Előlegre vár", "Járműre vár", "Gyártói anyagra vár"),
+            current = what,
+            onPick = { what = it },
+        )
+        val emailBad = email.isNotBlank() && !Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(email.trim())
         AutoCrmTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { email = it.trim() },
             label = "Felelős e-mail",
+            isError = emailBad,
+            supporting = if (emailBad) "Nem érvényes e-mail cím." else "Ide megy az emlékeztető, ha lejár.",
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             modifier = Modifier.fillMaxWidth(),
         )
         DateField(
@@ -949,6 +1195,7 @@ private fun BlockerDialog(
             onValueChange = { due = it },
             label = "Határidő",
             modifier = Modifier.fillMaxWidth(),
+            quickPicks = listOf("Holnap" to 1L, "3 nap" to 3L, "1 hét" to 7L),
         )
         AutoCrmTextField(
             value = notes,

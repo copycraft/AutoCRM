@@ -178,7 +178,47 @@ fun ShareScreen(
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     var chosen by remember { mutableStateOf<ShareTarget?>(null) }
+    // A tap on a search result picks it; the upload waits for a yes. One slip of the thumb
+    // used to send a customer's files to the wrong job.
+    var confirming by remember { mutableStateOf<ShareTarget?>(null) }
     LaunchedEffect(Unit) { viewModel.search("") }
+    confirming?.let { target ->
+        hu.autotherm.autocrm.ui.common.DialogShell(
+            title = "${files.size} fájl feltöltése?",
+            onDismiss = { confirming = null },
+            actions = {
+                androidx.compose.material3.TextButton(onClick = { confirming = null }) { Text("Mégse") }
+                PrimaryButton(
+                    text = "Feltöltés",
+                    onClick = {
+                        confirming = null
+                        chosen = target
+                        viewModel.upload(context, files, target)
+                    },
+                )
+            },
+        ) {
+            Text(
+                (if (target.kind == "lead") "Lead: " else "Munka: ") + target.title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            target.subtitle?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = Steel500)
+            }
+            Text(
+                files.groupingBy {
+                    when {
+                        it.mime?.startsWith("image/") == true -> "kép"
+                        it.mime == "application/pdf" -> "PDF"
+                        it.mime?.startsWith("video/") == true -> "videó"
+                        else -> "egyéb fájl"
+                    }
+                }.eachCount().entries.joinToString(", ") { (k, n) -> "$n $k" },
+                style = MaterialTheme.typography.bodySmall,
+                color = Steel500,
+            )
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -217,7 +257,7 @@ fun ShareScreen(
                 FilterChip(selected = state.kind == "order", onClick = { viewModel.setKind("order") }, label = { Text("Munka") })
                 FilterChip(selected = state.kind == "lead", onClick = { viewModel.setKind("lead") }, label = { Text("Lead") })
             }
-            AutoCrmTextField(
+            hu.autotherm.autocrm.ui.common.SearchField(
                 value = state.query,
                 onValueChange = viewModel::search,
                 label = if (state.kind == "order") "Munkaszám, rendszám, partner…" else "Lead neve, partner…",
@@ -226,6 +266,10 @@ fun ShareScreen(
             state.error?.let { Text(it, color = Signal) }
             if (state.uploading) {
                 Text("Feltöltés: ${state.done + state.failed} / ${files.size}", style = MaterialTheme.typography.bodyLarge)
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { (state.done + state.failed).toFloat() / files.size.coerceAtLeast(1) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             if (!state.searching && state.results.isEmpty()) {
                 EmptyState("Nincs találat.")
@@ -233,12 +277,7 @@ fun ShareScreen(
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(state.results, key = { "${it.kind}-${it.id}" }) { target ->
                     Card(
-                        onClick = {
-                            if (!state.uploading) {
-                                chosen = target
-                                viewModel.upload(context, files, target)
-                            }
-                        },
+                        onClick = { if (!state.uploading) confirming = target },
                     ) {
                         Text(target.title, style = MaterialTheme.typography.bodyLarge)
                         target.subtitle?.takeIf { it.isNotBlank() }?.let {

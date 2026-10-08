@@ -1,5 +1,7 @@
 package hu.autotherm.autocrm.ui.notifications
 
+import hu.autotherm.autocrm.ui.common.SectionTitle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,14 +57,16 @@ class NotificationsViewModel(private val api: AutoCrmApi) : ViewModel() {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
-    fun load() {
+    /** [silent]: the minute tick — no progress line, and a failure keeps the list as is. */
+    fun load(silent: Boolean = false) {
         viewModelScope.launch {
             val keep = _state.value.items.isNotEmpty()
-            _state.value = _state.value.copy(loading = !keep, refreshing = keep, error = null)
+            if (!silent) _state.value = _state.value.copy(loading = !keep, refreshing = keep, error = null)
             try {
                 val feed = api.notifications()
                 _state.value = State(loading = false, items = feed.items, unread = feed.unread)
             } catch (e: Throwable) {
+                if (silent) return@launch
                 _state.value = _state.value.copy(loading = false, refreshing = false, error = describeError(e))
             }
         }
@@ -71,18 +75,35 @@ class NotificationsViewModel(private val api: AutoCrmApi) : ViewModel() {
     /** Marks one read and returns the in-app route its link points at, if any. */
     fun open(item: NotificationItem, onRoute: (String) -> Unit) {
         if (item.readAt == null) {
+            // Read at once on screen; the server is told in the background.
+            _state.value = _state.value.copy(
+                items = _state.value.items.map { if (it.id == item.id) it.copy(readAt = "most") else it },
+                unread = (_state.value.unread - 1).coerceAtLeast(0L),
+            )
             viewModelScope.launch {
                 runCatching { api.markNotificationsRead(listOf(item.id)) }
-                load()
+                load(silent = true)
             }
         }
-        NotificationPlanner.routeForLink(item.link)?.let(onRoute)
+        val route = NotificationPlanner.routeForLink(item.link)
+        if (route != null) {
+            onRoute(route)
+        } else if (item.link != null) {
+            // A tap that does nothing reads as a broken app; say where it opens instead.
+            hu.autotherm.autocrm.ui.common.Toasts.show("Ez a webes felületen nyitható meg.")
+        }
     }
 
     fun markAllRead() {
+        // All read on screen at once; the server catches up in the background.
+        _state.value = _state.value.copy(
+            items = _state.value.items.map { if (it.readAt == null) it.copy(readAt = "most") else it },
+            unread = 0,
+        )
         viewModelScope.launch {
             runCatching { api.markAllNotificationsRead() }
-            load()
+                .onSuccess { hu.autotherm.autocrm.ui.common.Toasts.show("Minden értesítés olvasott") }
+            load(silent = true)
         }
     }
 }
@@ -96,6 +117,16 @@ fun NotificationsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(Unit) { viewModel.load() }
+    // While the feed is on screen it keeps itself current, and "5 perce" stays true.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    LaunchedEffect(owner) {
+        owner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                viewModel.load(silent = true)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -119,12 +150,27 @@ fun NotificationsScreen(
                 state.error != null && state.items.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::load)
                 state.items.isEmpty() -> EmptyState("Nincs értesítés.")
-                else -> PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(state.items, key = { it.id }) { n ->
+                        // Today, yesterday, earlier: a feed reads by day.
+                        val zone = java.time.ZoneId.of("Europe/Budapest")
+                        val today = java.time.LocalDate.now(zone)
+                        val groups = state.items.groupBy { item ->
+                            val day = runCatching { java.time.Instant.parse(item.createdAt).atZone(zone).toLocalDate() }.getOrNull()
+                            when (day) {
+                                today -> "Ma"
+                                today.minusDays(1) -> "Tegnap"
+                                else -> "Korábban"
+                            }
+                        }
+                        groups.forEach { (heading, dayItems) ->
+                            if (groups.size > 1) {
+                                item(key = "h-$heading") { SectionTitle(heading, count = dayItems.size) }
+                            }
+                            items(dayItems, key = { it.id }) { n ->
                             Card(
                                 modifier = Modifier.animateItem(),
                                 onClick = { viewModel.open(n, onRoute) },
@@ -140,11 +186,12 @@ fun NotificationsScreen(
                                 }
                                 n.body?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                                 Text(
-                                    formatDateTime(n.createdAt).orEmpty(),
+                                    hu.autotherm.autocrm.util.relativeTime(n.createdAt).orEmpty(),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = Steel500,
                                 )
                             }
+                        }
                         }
                     }
                 }

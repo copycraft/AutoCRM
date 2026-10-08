@@ -517,8 +517,82 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
         update { it.copy(phase = Phase.Summary) }
     }
 
+    /**
+     * System Back inside the walkaround: one step back, the way a fitter expects — out of
+     * the camera, from a damage to its zone, to the previous zone, from the summary to the
+     * last zone. False when there is no earlier step; the screen then leaves (the draft is
+     * saved either way, so leaving loses nothing).
+     */
+    fun back(): Boolean {
+        val s = _state.value
+        when {
+            s.review != null -> {
+                // "Not this one": the shot under review is dropped and the camera reopens.
+                retakePhoto()
+                return true
+            }
+            s.videoCapture != null -> {
+                cancelVideo()
+                return true
+            }
+            s.capture != null -> {
+                cancelCapture()
+                return true
+            }
+        }
+        val payload = s.payload ?: return false
+        val lastZone = (payload.templates.size - 1).coerceAtLeast(0)
+        fun toZone(index: Int) {
+            update { it.copy(payload = payload.copy(zoneIndex = index), phase = Phase.Zone) }
+            viewModelScope.launch { persist() }
+        }
+        return when (s.phase) {
+            is Phase.Damage -> {
+                damageDone()
+                true
+            }
+            is Phase.Zone -> {
+                if (payload.zoneIndex > 0) {
+                    toZone((payload.zoneIndex - 1).coerceAtMost(lastZone))
+                } else {
+                    update { it.copy(phase = Phase.Readings) }
+                }
+                true
+            }
+            is Phase.Comparison -> {
+                toZone(lastZone)
+                true
+            }
+            is Phase.Summary -> {
+                if (s.kind == "checkin") update { it.copy(phase = Phase.Comparison) } else toZone(lastZone)
+                true
+            }
+            is Phase.Signing -> {
+                update { it.copy(phase = Phase.Summary, error = null) }
+                true
+            }
+            else -> false
+        }
+    }
+
     fun gotoSigning() {
-        update { it.copy(phase = Phase.Signing, error = null) }
+        update { s ->
+            val payload = s.payload
+            // The names were typed at the start of the walk; the signature step starts
+            // with them filled in (still editable) instead of asking a second time.
+            val named = payload?.copy(
+                signatures = payload.signatures.map { sig ->
+                    when {
+                        sig.name.isNotBlank() -> sig
+                        sig.role == "inspector" -> sig.copy(name = payload.inspectorName.trim())
+                        sig.role == "customer" -> sig.copy(name = payload.driverName.trim())
+                        else -> sig
+                    }
+                },
+            )
+            s.copy(phase = Phase.Signing, error = null, payload = named ?: payload)
+        }
+        viewModelScope.launch { persist() }
     }
 
     // ── Check-in comparison ──

@@ -1,5 +1,6 @@
 package hu.autotherm.autocrm.ui.emails
 
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -65,10 +67,43 @@ class EmailListViewModel(private val api: AutoCrmApi) : ViewModel() {
         val refreshing: Boolean = false,
         val emails: List<EmailSummary> = emptyList(),
         val error: String? = null,
+        /** Searched by recipient or subject; the list used to show only the latest 50. */
+        val query: String = "",
+        val hasMore: Boolean = false,
+        val loadingMore: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    fun setQuery(q: String) {
+        _state.value = _state.value.copy(query = q)
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(300) // typing, not searching
+            load()
+        }
+    }
+
+    fun loadMore() {
+        val s = _state.value
+        if (!s.hasMore || s.loading || s.refreshing || s.loadingMore) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(loadingMore = true)
+            try {
+                val next = api.emails(limit = 50, offset = s.emails.size, query = s.query.trim().ifBlank { null })
+                _state.value = _state.value.copy(
+                    loadingMore = false,
+                    emails = (_state.value.emails + next).distinctBy { it.id },
+                    hasMore = next.size >= 50,
+                )
+            } catch (e: Throwable) {
+                _state.value = _state.value.copy(loadingMore = false)
+                hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e), retry = ::loadMore)
+            }
+        }
+    }
 
     fun load() {
         viewModelScope.launch {
@@ -79,7 +114,13 @@ class EmailListViewModel(private val api: AutoCrmApi) : ViewModel() {
                 error = null,
             )
             try {
-                _state.value = State(loading = false, emails = api.emails())
+                val rows = api.emails(query = _state.value.query.trim().ifBlank { null })
+                _state.value = _state.value.copy(
+                    loading = false,
+                    refreshing = false,
+                    emails = rows,
+                    hasMore = rows.size >= 50,
+                )
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(
                     loading = false,
@@ -133,19 +174,29 @@ fun EmailListScreen(
         },
         floatingActionButton = {
             if (canEdit) {
-                FloatingActionButton(onClick = onCompose) {
-                    Icon(Icons.Filled.Add, contentDescription = "Új e-mail")
-                }
+                // Says what it makes, like every other list in the app.
+                hu.autotherm.autocrm.ui.common.NewFab("Új levél", onCompose)
             }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
+            hu.autotherm.autocrm.ui.common.SearchField(
+                value = state.query,
+                onValueChange = viewModel::setQuery,
+                label = "Címzett vagy tárgy…",
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            )
             when {
                 state.loading -> ListSkeleton()
                 state.error != null && state.emails.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::load)
+                state.emails.isEmpty() && state.query.isNotBlank() -> EmptyState(
+                    "Nincs találat erre: „${state.query.trim()}”.",
+                    actionLabel = "Keresés törlése",
+                    onAction = { viewModel.setQuery("") },
+                )
                 state.emails.isEmpty() -> EmptyState("Nincs elküldött e-mail.")
-                else -> PullToRefreshBox(
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = viewModel::load,
                 ) {
@@ -166,15 +217,27 @@ fun EmailListScreen(
                                 Text(email.toAddress, style = MonoSmall, color = Steel500)
                                 Text(
                                     listOfNotNull(
-                                        formatDateTime(email.sentAt ?: email.queuedAt),
+                                        hu.autotherm.autocrm.util.relativeTime(email.sentAt ?: email.queuedAt),
                                         email.sentByName ?: if (email.isAutomatic) "automatikus" else null,
                                     ).joinToString(" · "),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = Steel500,
                                 )
+                                // A letter that did not go is the one thing on this list to act on.
                                 email.error?.let {
-                                    Text(it, style = MaterialTheme.typography.labelMedium, color = Steel500)
+                                    Text(
+                                        "Nem ment el: $it",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = hu.autotherm.autocrm.ui.theme.Signal,
+                                        maxLines = 2,
+                                    )
                                 }
+                            }
+                        }
+                        if (state.hasMore) {
+                            item(key = "more") {
+                                LaunchedEffect(state.emails.size) { viewModel.loadMore() }
+                                hu.autotherm.autocrm.ui.common.RefreshingBar()
                             }
                         }
                     }
@@ -227,6 +290,8 @@ fun EmailDetailScreen(
     viewModel: EmailDetailViewModel,
     onOpenOrder: (Long) -> Unit,
     onBack: () -> Unit,
+    /** Write to the same person again (a follow-up, or a resend after a failure). */
+    onFollowUp: ((hu.autotherm.autocrm.data.api.EmailMessage) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(emailId) { viewModel.load(emailId) }
@@ -238,6 +303,17 @@ fun EmailDetailScreen(
                 onBack = onBack,
                 refreshing = state.refreshing,
                 onRefresh = { viewModel.load(emailId) },
+                actions = {
+                    val email = state.email
+                    if (onFollowUp != null && email != null) {
+                        androidx.compose.material3.IconButton(onClick = { onFollowUp(email) }) {
+                            androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.AutoMirrored.Filled.Reply,
+                                contentDescription = "Új levél neki",
+                            )
+                        }
+                    }
+                },
             )
         },
     ) { padding ->
@@ -251,7 +327,7 @@ fun EmailDetailScreen(
                 ErrorState("Nem található.", Modifier.padding(padding)) { viewModel.load(emailId) }
             else -> {
                 val email = state.email!!
-                PullToRefreshBox(
+                hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = { viewModel.load(emailId) },
                     modifier = Modifier.padding(padding),
@@ -298,10 +374,33 @@ fun EmailDetailScreen(
                             item {
                                 Card {
                                     SectionTitle("Mellékletek", count = email.attachments.size)
+                                    // Tap to open: the quote PDF that went out is one tap away.
+                                    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+                                    val api = (androidx.compose.ui.platform.LocalContext.current.applicationContext as hu.autotherm.autocrm.AutoCrmApp).api
+                                    val scope = androidx.compose.runtime.rememberCoroutineScope()
                                     email.attachments.forEach { attachment ->
-                                        Text(
-                                            attachment.filename ?: "#${attachment.documentId}",
-                                            style = MaterialTheme.typography.bodyLarge,
+                                        hu.autotherm.autocrm.ui.common.ListRow(
+                                            title = attachment.filename ?: "#${attachment.documentId}",
+                                            subtitle = attachment.byteSize?.let { b ->
+                                                if (b >= 1_048_576) String.format(java.util.Locale("hu", "HU"), "%.1f MB", b / 1_048_576.0) else "${(b / 1024).coerceAtLeast(1)} kB"
+                                            },
+                                            leading = {
+                                                androidx.compose.material3.Icon(
+                                                    androidx.compose.material.icons.Icons.Filled.AttachFile,
+                                                    contentDescription = null,
+                                                    tint = Steel500,
+                                                )
+                                            },
+                                            onClick = {
+                                                scope.launch {
+                                                    try {
+                                                        uri.openUri(api.documentDownload(attachment.documentId).url)
+                                                    } catch (e: Throwable) {
+                                                        if (e is kotlinx.coroutines.CancellationException) throw e
+                                                        hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e))
+                                                    }
+                                                }
+                                            },
                                         )
                                     }
                                 }

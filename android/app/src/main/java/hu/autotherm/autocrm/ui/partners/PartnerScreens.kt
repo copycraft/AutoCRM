@@ -1,5 +1,6 @@
 package hu.autotherm.autocrm.ui.partners
 
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -69,7 +72,34 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 @OptIn(FlowPreview::class)
+private const val PARTNER_PAGE = 50
+
 class PartnerListViewModel(private val api: AutoCrmApi) : ViewModel() {
+
+    /** The next page, asked for when the end of the list scrolls into view. */
+    fun loadMore() {
+        val s = _state.value
+        if (!s.hasMore || s.loading || s.refreshing || s.loadingMore) return
+        viewModelScope.launch {
+            _state.value = _state.value.copy(loadingMore = true)
+            try {
+                val next = api.partners(
+                    query = queryFlow.value.takeIf { it.isNotBlank() },
+                    role = _state.value.role,
+                    limit = PARTNER_PAGE,
+                    offset = _state.value.partners.size,
+                )
+                _state.value = _state.value.copy(
+                    loadingMore = false,
+                    partners = (_state.value.partners + next).distinctBy { it.id },
+                    hasMore = next.size >= PARTNER_PAGE,
+                )
+            } catch (e: Throwable) {
+                _state.value = _state.value.copy(loadingMore = false)
+                hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e), retry = ::loadMore)
+            }
+        }
+    }
 
     data class State(
         val loading: Boolean = true,
@@ -79,6 +109,8 @@ class PartnerListViewModel(private val api: AutoCrmApi) : ViewModel() {
         val error: String? = null,
         /** null = everyone, "customer" / "supplier" = the V2.6 filter. */
         val role: String? = "customer",
+        val hasMore: Boolean = false,
+        val loadingMore: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -118,8 +150,14 @@ class PartnerListViewModel(private val api: AutoCrmApi) : ViewModel() {
             val partners = api.partners(
                 query = queryFlow.value.takeIf { it.isNotBlank() },
                 role = _state.value.role,
+                limit = PARTNER_PAGE,
             )
-            _state.value = _state.value.copy(loading = false, refreshing = false, partners = partners)
+            _state.value = _state.value.copy(
+                loading = false,
+                refreshing = false,
+                partners = partners,
+                hasMore = partners.size >= PARTNER_PAGE,
+            )
         } catch (e: Throwable) {
             _state.value = _state.value.copy(
                 loading = false,
@@ -143,7 +181,7 @@ fun PartnerListScreen(
         topBar = {
             ScreenTopBar(
                 title = "Ügyfelek",
-                subtitle = if (state.partners.isNotEmpty()) "${state.partners.size} tétel" else null,
+                subtitle = if (state.partners.isNotEmpty()) "${state.partners.size}${if (state.hasMore) "+" else ""} ügyfél" else null,
                 refreshing = state.refreshing,
                 onRefresh = viewModel::refresh,
             )
@@ -183,7 +221,7 @@ fun PartnerListScreen(
                 state.error != null && state.partners.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::retry)
                 state.partners.isEmpty() -> EmptyState("Nincs találat.")
-                else -> PullToRefreshBox(
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = viewModel::refresh,
                 ) {
@@ -192,19 +230,23 @@ fun PartnerListScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.partners, key = { it.id }) { partner ->
-                            Card(onClick = { onOpenPartner(partner.id) }) {
-                                Text(partner.name, style = MaterialTheme.typography.titleMedium)
-                                Text(
-                                    listOfNotNull(partner.city, partner.email, partner.phone).joinToString(" · ")
-                                        .ifBlank { "—" },
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = Steel500,
-                                )
-                                if (partner.role == "supplier" || partner.role == "both") {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        StatusBadge("Beszállító", Tone.Cold)
-                                    }
-                                }
+                            hu.autotherm.autocrm.ui.common.ListRow(
+                                title = partner.name,
+                                subtitle = listOfNotNull(partner.city, hu.autotherm.autocrm.util.formatPhone(partner.phone) ?: partner.email)
+                                    .joinToString(" · ").ifBlank { null },
+                                leading = { hu.autotherm.autocrm.ui.common.InitialsAvatar(partner.name) },
+                                trailing = if (partner.role == "supplier" || partner.role == "both") {
+                                    { StatusBadge("Beszállító", Tone.Cold) }
+                                } else {
+                                    null
+                                },
+                                onClick = { onOpenPartner(partner.id) },
+                            )
+                        }
+                        if (state.hasMore) {
+                            item(key = "more") {
+                                androidx.compose.runtime.LaunchedEffect(state.partners.size) { viewModel.loadMore() }
+                                hu.autotherm.autocrm.ui.common.RefreshingBar()
                             }
                         }
                     }
@@ -269,9 +311,22 @@ class PartnerDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
         viewModelScope.launch {
             _state.value = _state.value.copy(contactBusy = true, contactError = null)
             try {
-                if (dialog.id == 0L) api.createContact(partnerId, body)
-                else api.patchContact(dialog.id, body)
+                if (dialog.id == 0L) {
+                    api.createContact(partnerId, body)
+                } else {
+                    // Explicit nulls: a phone deleted in the dialog is deleted on the server.
+                    api.patchContact(
+                        dialog.id,
+                        hu.autotherm.autocrm.data.api.patchOf(
+                            "name" to body.name,
+                            "email" to body.email,
+                            "phone" to body.phone,
+                            "position" to body.position,
+                        ),
+                    )
+                }
                 _state.value = _state.value.copy(contactBusy = false, contactDialog = null)
+                hu.autotherm.autocrm.ui.common.Toasts.show("Kapcsolattartó mentve")
                 load(partnerId)
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(contactBusy = false, contactError = describeError(e))
@@ -292,21 +347,38 @@ fun PartnerDetailScreen(
     onEditPartner: (Long) -> Unit,
     onNewOrder: (Long) -> Unit,
     onNewLead: (Long) -> Unit,
+    /** Null when the user may not send e-mail; [to] picks one contact's address. */
+    onComposeEmail: ((partnerId: Long, to: String?) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(partnerId) { viewModel.load(partnerId) }
+    hu.autotherm.autocrm.ui.common.RefreshOnReturn { viewModel.load(partnerId) }
 
     Scaffold(
         topBar = {
             ScreenTopBar(
                 title = state.detail?.partner?.name ?: "Ügyfél",
-                subtitle = state.detail?.partner?.city,
+                // Where they are and how much is on: "Győr · 2 nyitott munka".
+                subtitle = state.detail?.let { d ->
+                    val open = d.orders.count { !it.stageIsTerminal }
+                    listOfNotNull(d.partner.city, if (open > 0) "$open nyitott munka" else null).joinToString(" · ").ifBlank { null }
+                },
                 onBack = onBack,
                 refreshing = state.refreshing,
                 onRefresh = { viewModel.load(partnerId) },
                 actions = {
+                    val hasAddress = state.detail?.let { d ->
+                        !d.partner.email.isNullOrBlank() || d.contacts.any { !it.email.isNullOrBlank() }
+                    } == true
+                    if (onComposeEmail != null && hasAddress) {
+                        IconButton(onClick = { onComposeEmail(partnerId, null) }) {
+                            Icon(androidx.compose.material.icons.Icons.Outlined.Email, contentDescription = "Levél")
+                        }
+                    }
                     if (canEdit) {
-                        TextButton(onClick = { onEditPartner(partnerId) }) { Text("Szerkesztés") }
+                        IconButton(onClick = { onEditPartner(partnerId) }) {
+                            Icon(androidx.compose.material.icons.Icons.Outlined.Edit, contentDescription = "Szerkesztés")
+                        }
                     }
                 },
             )
@@ -322,7 +394,7 @@ fun PartnerDetailScreen(
                 ErrorState("Nem található.", Modifier.padding(padding)) { viewModel.load(partnerId) }
             else -> {
                 val detail = state.detail!!
-                PullToRefreshBox(
+                hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = { viewModel.load(partnerId) },
                     modifier = Modifier.padding(padding),
@@ -405,18 +477,39 @@ fun PartnerDetailScreen(
                                             style = MaterialTheme.typography.titleMedium,
                                             modifier = Modifier.weight(1f, fill = false),
                                         )
-                                        if (canEdit) {
-                                            IconButton(onClick = { viewModel.openContactDialog(contact) }) {
-                                                Icon(
-                                                    Icons.Filled.Edit,
-                                                    contentDescription = "Szerkesztés",
-                                                    tint = Steel500,
-                                                )
+                                        // Call or write to this person directly, the reason this
+                                        // list is opened on a phone.
+                                        val uri = androidx.compose.ui.platform.LocalUriHandler.current
+                                        Row {
+                                            contact.phone?.takeIf { it.isNotBlank() }?.let { phone ->
+                                                IconButton(onClick = {
+                                                    val digits = phone.trim().let { (if (it.startsWith("+")) "+" else "") + it.filter(Char::isDigit) }
+                                                    uri.openUri("tel:$digits")
+                                                }) {
+                                                    Icon(Icons.Filled.Call, contentDescription = "Hívás: ${contact.name}", tint = hu.autotherm.autocrm.ui.theme.Cold)
+                                                }
+                                            }
+                                            contact.email?.takeIf { it.isNotBlank() }?.let { email ->
+                                                IconButton(onClick = {
+                                                    if (onComposeEmail != null) onComposeEmail(partnerId, email.trim())
+                                                    else uri.openUri("mailto:${email.trim()}")
+                                                }) {
+                                                    Icon(Icons.Outlined.Email, contentDescription = "E-mail: ${contact.name}", tint = hu.autotherm.autocrm.ui.theme.Cold)
+                                                }
+                                            }
+                                            if (canEdit) {
+                                                IconButton(onClick = { viewModel.openContactDialog(contact) }) {
+                                                    Icon(
+                                                        Icons.Filled.Edit,
+                                                        contentDescription = "Szerkesztés",
+                                                        tint = Steel500,
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                     Text(
-                                        listOfNotNull(contact.position, contact.email, contact.phone)
+                                        listOfNotNull(contact.position, hu.autotherm.autocrm.util.formatPhone(contact.phone), contact.email)
                                             .joinToString(" · ").ifBlank { "—" },
                                         style = MaterialTheme.typography.labelMedium,
                                         color = Steel500,
@@ -430,14 +523,25 @@ fun PartnerDetailScreen(
                                 Card { Text("Nincs megrendelés.", style = MaterialTheme.typography.bodyLarge, color = Steel500) }
                             }
                         } else {
-                            items(detail.orders, key = { it.id }) { order ->
+                            // Open jobs first: they are what a call about this customer is about.
+                            items(detail.orders.sortedBy { it.stageIsTerminal }, key = { it.id }) { order ->
                                 Card(onClick = { onOpenOrder(order.id) }) {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(order.number, style = MonoSmall)
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                        ) {
+                                            order.vehiclePlate?.let { hu.autotherm.autocrm.ui.common.PlateBadge(it) }
+                                            Text("#" + order.number, style = MonoSmall, color = Steel500)
+                                        }
                                         Text(formatMoney(order.totalMinor, order.currency), style = MonoSmall)
                                     }
-                                    Text(order.title, style = MaterialTheme.typography.bodyLarge)
-                                    StatusBadge(order.stageLabel, Tone.Steel)
+                                    Text(order.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
+                                    StatusBadge(order.stageLabel, if (order.stageIsTerminal) Tone.Done else Tone.Cold)
                                 }
                             }
                         }
@@ -449,10 +553,17 @@ fun PartnerDetailScreen(
                             }
                         } else {
                             items(detail.leads, key = { it.id }) { lead ->
-                                Card(onClick = { onOpenLead(lead.id) }) {
-                                    Text(lead.title, style = MaterialTheme.typography.bodyLarge)
-                                    StatusBadge(lead.stageLabel, Tone.Steel)
-                                }
+                                hu.autotherm.autocrm.ui.common.ListRow(
+                                    title = lead.title,
+                                    subtitle = listOfNotNull(
+                                        hu.autotherm.autocrm.util.relativeTime(lead.createdAt),
+                                        lead.orderNumber?.let { "megrendelés: #$it" },
+                                    ).joinToString(" · "),
+                                    trailing = {
+                                        StatusBadge(lead.stageLabel, if (lead.orderNumber != null) Tone.Done else Tone.Cold)
+                                    },
+                                    onClick = { onOpenLead(lead.id) },
+                                )
                             }
                         }
                         if (state.error != null) {
@@ -516,6 +627,9 @@ private fun ContactDialog(
             value = name,
             onValueChange = { name = it },
             label = "Név *",
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
         AutoCrmTextField(
@@ -524,16 +638,25 @@ private fun ContactDialog(
             label = "Beosztás",
             modifier = Modifier.fillMaxWidth(),
         )
+        val emailBad = email.isNotBlank() && !Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(email.trim())
         AutoCrmTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { email = it.trim() },
             label = "E-mail",
+            isError = emailBad,
+            supporting = if (emailBad) "Nem érvényes e-mail cím." else null,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
         AutoCrmTextField(
             value = phone,
             onValueChange = { phone = it },
             label = "Telefon",
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
         error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Signal) }

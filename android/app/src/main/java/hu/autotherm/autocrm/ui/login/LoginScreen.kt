@@ -1,5 +1,6 @@
 package hu.autotherm.autocrm.ui.login
 
+import androidx.compose.ui.focus.focusRequester
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -103,9 +104,9 @@ class LoginViewModel(
         is ApiException.Rule -> when (e.code) {
             "account_locked" -> "A fiók zárolva. Szólj az irodának."
             "totp_invalid" -> "Hibás vagy már felhasznált kód."
-            else -> e.detail ?: "Nem sikerült bejelentkezni."
+            else -> hu.autotherm.autocrm.ui.common.describeError(e)
         }
-        is ApiException.Network -> "Nincs kapcsolat a szerverrel."
+        is ApiException.Network, is ApiException.Server -> hu.autotherm.autocrm.ui.common.describeError(e)
         else -> e.message ?: "Nem sikerült bejelentkezni."
     }
 }
@@ -118,21 +119,40 @@ fun LoginScreen(
     onSignedIn: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
-    var email by rememberSaveable { mutableStateOf("") }
+    // The phone remembers who signed in last: after a session expires only the password
+    // is typed again, and the keyboard opens straight on it.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = androidx.compose.runtime.remember {
+        context.getSharedPreferences("login", android.content.Context.MODE_PRIVATE)
+    }
+    var email by rememberSaveable { mutableStateOf(prefs.getString("last_email", null).orEmpty()) }
+    val passwordFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (email.isNotBlank()) runCatching { passwordFocus.requestFocus() }
+    }
+    val signedIn: () -> Unit = {
+        prefs.edit().putString("last_email", email.trim()).apply()
+        hu.autotherm.autocrm.data.auth.SessionNotice.expired.value = false
+        onSignedIn()
+    }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var code by rememberSaveable { mutableStateOf("") }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    hu.autotherm.autocrm.ui.common.CenteredScrollColumn {
         Text("AUTOTHERM", style = MaterialTheme.typography.displaySmall)
         Text("AutoCRM · műhely", style = MaterialTheme.typography.bodyLarge, color = Steel500)
         Spacer(Modifier.height(32.dp))
+        val expired by hu.autotherm.autocrm.data.auth.SessionNotice.expired.collectAsState()
+        if (expired && state.error == null) {
+            Text(
+                "A munkamenet lejárt. Jelentkezz be újra — a feltöltésre váró fotók megmaradtak.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Steel500,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Spacer(Modifier.height(16.dp))
+        }
 
         AutoCrmTextField(
             value = email,
@@ -164,8 +184,8 @@ fun LoginScreen(
                 keyboardType = KeyboardType.Password,
                 imeAction = ImeAction.Done,
             ),
-            keyboardActions = KeyboardActions(onDone = { viewModel.signIn(email, password, code, onSignedIn) }),
-            modifier = Modifier.fillMaxWidth(),
+            keyboardActions = KeyboardActions(onDone = { viewModel.signIn(email, password, code, signedIn) }),
+            modifier = Modifier.fillMaxWidth().focusRequester(passwordFocus),
         )
 
         if (state.needsCode) {
@@ -179,7 +199,7 @@ fun LoginScreen(
                     keyboardType = KeyboardType.NumberPassword,
                     imeAction = ImeAction.Done,
                 ),
-                keyboardActions = KeyboardActions(onDone = { viewModel.signIn(email, password, code, onSignedIn) }),
+                keyboardActions = KeyboardActions(onDone = { viewModel.signIn(email, password, code, signedIn) }),
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
@@ -197,7 +217,7 @@ fun LoginScreen(
         Spacer(Modifier.height(24.dp))
         PrimaryButton(
             text = if (state.busy) "Bejelentkezés…" else "Bejelentkezés",
-            onClick = { viewModel.signIn(email, password, code, onSignedIn) },
+            onClick = { viewModel.signIn(email, password, code, signedIn) },
             enabled = !state.busy && email.isNotBlank() && password.isNotBlank() &&
                 (!state.needsCode || code.length == 6),
             modifier = Modifier.fillMaxWidth(),

@@ -119,11 +119,22 @@ class InspectionHomeViewModel(private val app: AutoCrmApp) : ViewModel() {
     fun discard(uuid: String) {
         viewModelScope.launch {
             InspectionSyncWorker.discard(app, uuid)
+            hu.autotherm.autocrm.ui.common.Toasts.show("Piszkozat eldobva")
         }
     }
 
     fun syncNow() {
         InspectionSyncWorker.enqueueNow(app.applicationContext)
+        hu.autotherm.autocrm.ui.common.Toasts.show("Feltöltés elindítva")
+    }
+
+    /** Back from a walkaround: the server history may have a new signed inspection. */
+    fun refreshHistory(orderId: Long) {
+        viewModelScope.launch {
+            runCatching { app.api.inspections(orderId) }.onSuccess { history ->
+                _state.value = _state.value.copy(history = history, error = null)
+            }
+        }
     }
 
     fun draftProgress(draft: InspectionDraft): String {
@@ -150,6 +161,30 @@ fun InspectionHomeScreen(
 ) {
     val state by viewModel.state.collectAsState()
     LaunchedEffect(orderId) { viewModel.load(orderId) }
+    hu.autotherm.autocrm.ui.common.RefreshOnReturn { viewModel.refreshHistory(orderId) }
+    // Discarding a walkaround throws away its photos and signatures: asked first.
+    var discarding by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    discarding?.let { uuid ->
+        hu.autotherm.autocrm.ui.common.DialogShell(
+            title = "Eldobod a piszkozatot?",
+            onDismiss = { discarding = null },
+            actions = {
+                androidx.compose.material3.TextButton(onClick = { discarding = null }) { Text("Megtartom") }
+                PrimaryButton(
+                    text = "Eldobás",
+                    onClick = {
+                        viewModel.discard(uuid)
+                        discarding = null
+                    },
+                )
+            },
+        ) {
+            Text(
+                "A telefonon lévő fotói, sérülései és aláírásai is törlődnek. Ez nem vonható vissza.",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -168,15 +203,19 @@ fun InspectionHomeScreen(
         ) {
             if (canInspect) {
                 item {
+                    // A walk already on the phone is continued, not started a second time
+                    // (two drafts of one check-out was a mess to untangle).
+                    val checkoutDraft = state.drafts.firstOrNull { it.kind == "checkout" }
+                    val checkinDraft = state.drafts.firstOrNull { it.kind == "checkin" }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = { onStart("checkout") },
+                            onClick = { checkoutDraft?.let { onResume(it.localUuid) } ?: onStart("checkout") },
                             modifier = Modifier.weight(1f),
-                        ) { Text("Átvétel indítása") }
+                        ) { Text(if (checkoutDraft != null) "Átvétel folytatása" else "Átvétel indítása") }
                         OutlinedButton(
-                            onClick = { onStart("checkin") },
+                            onClick = { checkinDraft?.let { onResume(it.localUuid) } ?: onStart("checkin") },
                             modifier = Modifier.weight(1f),
-                        ) { Text("Kiadás indítása") }
+                        ) { Text(if (checkinDraft != null) "Kiadás folytatása" else "Kiadás indítása") }
                     }
                 }
             }
@@ -200,10 +239,10 @@ fun InspectionHomeScreen(
                                     color = Steel500,
                                 )
                                 draft.error?.let {
-                                    Text(it, style = MaterialTheme.typography.labelMedium)
+                                    Text(it, style = MaterialTheme.typography.labelMedium, color = hu.autotherm.autocrm.ui.theme.Signal)
                                 }
                             }
-                            IconButton(onClick = { viewModel.discard(draft.localUuid) }) {
+                            IconButton(onClick = { discarding = draft.localUuid }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Eldobás", tint = Steel500)
                             }
                         }
@@ -232,7 +271,7 @@ fun InspectionHomeScreen(
                         )
                         Text(
                             "${inspection.inspectorName} · " +
-                                (inspection.signedAt ?: inspection.createdAt),
+                                (hu.autotherm.autocrm.util.formatDateTime(inspection.signedAt ?: inspection.createdAt) ?: ""),
                             style = MaterialTheme.typography.labelMedium,
                             color = Steel500,
                         )

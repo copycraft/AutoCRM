@@ -1,7 +1,9 @@
 package hu.autotherm.autocrm.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -11,6 +13,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import hu.autotherm.autocrm.R
 
@@ -82,6 +85,11 @@ private val AutoCrmLightColors = lightColorScheme(
     onPrimaryContainer = LightInk,
     secondary = Color(0xFF0F5C7A),
     onSecondary = LightSurface,
+    secondaryContainer = Color(0xFFDCEBF1),
+    onSecondaryContainer = Color(0xFF0B3F55),
+    surfaceContainer = LightSurface,
+    surfaceContainerLow = LightSurface,
+    surfaceContainerHigh = Color(0xFFF1F3F3),
     background = LightPanel,
     onBackground = LightInk,
     surface = LightSurface,
@@ -103,6 +111,11 @@ private fun autoCrmDarkColors(amoled: Boolean) = darkColorScheme(
     onPrimaryContainer = DarkInk,
     secondary = Color(0xFF5BA3C4),
     onSecondary = Color(0xFF101415),
+    secondaryContainer = Color(0xFF1C3A47),
+    onSecondaryContainer = Color(0xFFCDE6F1),
+    surfaceContainer = if (amoled) AmoledSurface else DarkSurface,
+    surfaceContainerLow = if (amoled) AmoledSurface else DarkSurface,
+    surfaceContainerHigh = if (amoled) AmoledLine else DarkLine,
     background = if (amoled) AmoledBg else DarkBg,
     onBackground = DarkInk,
     surface = if (amoled) AmoledSurface else DarkSurface,
@@ -137,15 +150,31 @@ private val Mono = FontFamily(
 
 val AutoCrmTypography = Typography(
     displaySmall = TextStyle(fontFamily = Plex, fontSize = 31.sp, lineHeight = 37.sp, fontWeight = FontWeight.SemiBold),
-    headlineMedium = TextStyle(fontFamily = Plex, fontSize = 25.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold),
-    titleLarge = TextStyle(fontFamily = Plex, fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
-    titleMedium = TextStyle(fontFamily = Plex, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium),
+    headlineMedium = TextStyle(fontFamily = Plex, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp),
+    headlineSmall = TextStyle(fontFamily = Plex, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp),
+    titleLarge = TextStyle(fontFamily = Plex, fontSize = 19.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold),
+    titleMedium = TextStyle(fontFamily = Plex, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
+    titleSmall = TextStyle(fontFamily = Plex, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
     bodyLarge = TextStyle(fontFamily = Plex, fontSize = 16.sp, lineHeight = 24.sp),
-    bodyMedium = TextStyle(fontFamily = Plex, fontSize = 16.sp, lineHeight = 24.sp),
-    labelLarge = TextStyle(fontFamily = Plex, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium),
-    labelMedium = TextStyle(fontFamily = Plex, fontSize = 13.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
-    labelSmall = TextStyle(fontFamily = Plex, fontSize = 13.sp, lineHeight = 20.sp),
+    bodyMedium = TextStyle(fontFamily = Plex, fontSize = 15.sp, lineHeight = 22.sp),
+    bodySmall = TextStyle(fontFamily = Plex, fontSize = 13.sp, lineHeight = 18.sp),
+    labelLarge = TextStyle(fontFamily = Plex, fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
+    labelMedium = TextStyle(fontFamily = Plex, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
+    labelSmall = TextStyle(fontFamily = Plex, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.3.sp),
 )
+
+/** Softer, larger corners than the web's 8 px: thumbs, not mouse pointers. */
+val AutoCrmShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp),
+)
+
+/** True while the dark palette is on (cards drop their shadow for a hairline there). */
+val isDarkTheme: Boolean
+    get() = ThemeFlags.dark
 
 /** Numbers that are compared by eye — plates, VINs, order numbers, money — are monospaced. */
 val MonoStyle = TextStyle(fontFamily = Mono, fontSize = 16.sp, lineHeight = 24.sp)
@@ -164,6 +193,7 @@ fun AutoCrmTheme(
     MaterialTheme(
         colorScheme = if (darkTheme) autoCrmDarkColors(amoled && darkTheme) else AutoCrmLightColors,
         typography = AutoCrmTypography,
+        shapes = AutoCrmShapes,
         content = content,
     )
 }

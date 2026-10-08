@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -94,12 +95,35 @@ private fun initials(name: String): String =
 fun EmployeeAvatar(name: String, photoUrl: String?, size: Dp, modifier: Modifier = Modifier) {
     val base = modifier.size(size).clip(CircleShape)
     if (photoUrl != null) {
+        // Tap the photo to see the face, not a 64 dp circle (a new starter's badge photo).
+        var enlarged by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
         AsyncImage(
             model = photoUrl,
-            contentDescription = null,
+            contentDescription = name,
             contentScale = ContentScale.Crop,
-            modifier = base,
+            modifier = base.clickable { enlarged = true },
         )
+        if (enlarged) {
+            androidx.compose.ui.window.Dialog(onDismissRequest = { enlarged = false }) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { enlarged = false },
+                ) {
+                    AsyncImage(
+                        model = photoUrl,
+                        contentDescription = name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
+                    )
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            }
+        }
     } else {
         Box(base.background(Steel200), contentAlignment = Alignment.Center) {
             Text(initials(name), style = MaterialTheme.typography.titleMedium, color = Steel500)
@@ -195,7 +219,7 @@ fun HrListScreen(
                 state.employees.isEmpty() -> EmptyState(
                     if (state.query.isBlank()) "Még nincs munkatárs rögzítve." else "Nincs találat.",
                 )
-                else -> PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -422,6 +446,10 @@ fun HrEditScreen(
                 value = state.fullName,
                 onValueChange = { v -> viewModel.set { it.copy(fullName = v) } },
                 label = "Név *",
+                // "Kovács Anna": every part of a name starts with a capital.
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+                ),
                 modifier = Modifier.fillMaxWidth(),
             )
             AutoCrmTextField(

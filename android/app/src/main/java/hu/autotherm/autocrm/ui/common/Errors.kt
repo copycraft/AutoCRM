@@ -23,8 +23,36 @@ fun describeError(e: Throwable): String = when (e) {
     else -> "${e::class.simpleName}: ${e.message ?: "ismeretlen hiba"}"
 }
 
+/**
+ * Why the server could not be reached, in terms of what to do next: wait for signal,
+ * wait for a restart, or check the address. "No connection" for all of them sent people
+ * hunting for Wi-Fi while the server was restarting.
+ */
+internal fun describeNetwork(cause: Throwable?, phoneOnline: Boolean): String = when {
+    !phoneOnline -> "Nincs hálózat a telefonon. Amint lesz, próbáld újra."
+    cause is java.net.SocketTimeoutException ->
+        "A szerver nem válaszolt időben (gyenge jel vagy lassú kapcsolat). Próbáld újra."
+    cause is java.net.UnknownHostException ->
+        "A szerver címe nem található. Van internet? Ha igen, ellenőrizd a szerver címét a beállításokban."
+    cause is java.net.ConnectException ->
+        "A szerver nem fogad kapcsolatot — lehet, hogy épp újraindul. Próbáld újra egy perc múlva."
+    cause is javax.net.ssl.SSLException ->
+        "Nem jött létre biztonságos kapcsolat a szerverrel (tanúsítvány vagy hálózati szűrő)."
+    else -> "Nincs kapcsolat a szerverrel. Próbáld újra."
+}
+
+/** A 5xx in words; the status stays at the end for whoever takes the support call. */
+internal fun describeServer(status: Int, detail: String?): String = when {
+    detail?.startsWith("unparseable response") == true ->
+        "A szerver váratlan választ adott. Frissítsd az alkalmazást; ha marad, szólj az irodának. ($status)"
+    status == 502 || status == 503 || status == 504 ->
+        "A szerver most nem érhető el (frissítés vagy újraindulás). Próbáld újra egy perc múlva. ($status)"
+    else -> "Hiba történt a szerveren. Próbáld újra; ha ismétlődik, szólj az irodának. ($status)"
+}
+
 private fun describeApi(e: ApiException): String = when (e) {
-    is ApiException.Network -> "Nincs kapcsolat a szerverrel."
+    is ApiException.Network ->
+        describeNetwork(e.cause, hu.autotherm.autocrm.data.net.NetworkState.online.value)
     is ApiException.Unauthenticated -> "A munkamenet lejárt. Jelentkezz be újra."
     is ApiException.Forbidden -> "Ehhez nincs jogosultságod."
     is ApiException.NotFound -> "Nem található."
@@ -32,10 +60,11 @@ private fun describeApi(e: ApiException): String = when (e) {
     // from the shared catalog so the phone and the web say the same thing. Fresh
     // server texts (see ServerErrorTexts) win over the built-in map below.
     is ApiException.Rule ->
-        if (e.code == "validation") e.detail ?: ERROR_TEXT.getValue("validation")
+        if (e.code == "validation") e.detail?.let(::huValidation) ?: ERROR_TEXT.getValue("validation")
         else ServerErrorTexts.texts[e.code] ?: ERROR_TEXT[e.code] ?: e.detail ?: e.code
-    is ApiException.Server -> "Szerverhiba (${e.status}): ${e.detail ?: "nincs részlet"}"
+    is ApiException.Server -> describeServer(e.status, e.detail)
 }
+
 
 
 

@@ -145,11 +145,7 @@ fun ServerSetupScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(Unit) { viewModel.prefill() }
 
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    hu.autotherm.autocrm.ui.common.CenteredScrollColumn {
         Text("AUTOTHERM", style = MaterialTheme.typography.headlineMedium)
         Text("Kiszolgáló beállítása", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))

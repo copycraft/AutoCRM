@@ -76,6 +76,18 @@ fun WalkaroundScreen(
             viewModel.open(uuid, orderId, kind)
         }
     }
+    // Back steps back through the walkaround (camera, damage, zone, summary) instead of
+    // dropping the fitter out of the whole inspection.
+    androidx.activity.compose.BackHandler {
+        if (!viewModel.back()) onExit()
+    }
+    // The fitter walks round the van with the phone in hand: the screen must not dim and
+    // lock between zones (and ask for the PIN with gloves on).
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
 
     // Full-screen camera or review take over everything while active.
     val review = state.review
@@ -187,12 +199,14 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
                     value = payload.inspectorName,
                     onValueChange = { v -> viewModel.setReadings { it.copy(inspectorName = v) } },
                     label = "Átadó / felvevő neve *",
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 AutoCrmTextField(
                     value = payload.driverName,
                     onValueChange = { v -> viewModel.setReadings { it.copy(driverName = v) } },
                     label = "Sofőr / ügyfél neve",
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 AutoCrmTextField(
@@ -219,6 +233,10 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
                         viewModel.setReadings { it.copy(odometer = v.filter { c -> c.isDigit() }) }
                     },
                     label = "Óraállás (km)",
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    ),
+                    visualTransformation = hu.autotherm.autocrm.util.GroupedNumberTransformation,
                     modifier = Modifier.fillMaxWidth(),
                     trailing = {
                         androidx.compose.material3.IconButton(onClick = viewModel::requestOdometerPhoto) {
@@ -269,6 +287,9 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
                         viewModel.setReadings { it.copy(batteryPct = v.filter { c -> c.isDigit() }.take(3)) }
                     },
                     label = "Akkumulátor (%) – elektromosnál",
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 AutoCrmTextField(

@@ -101,6 +101,11 @@ internal fun IntakeSlipDialog(
             value = mileage,
             onValueChange = { mileage = it.filter { c -> c.isDigit() } },
             label = "Km-óra állás *",
+            // Digits only: the number pad, and "184 320" shown grouped as it is typed.
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+            ),
+            visualTransformation = hu.autotherm.autocrm.util.GroupedNumberTransformation,
             modifier = Modifier.fillMaxWidth(),
         )
         Text("Üzemanyag", style = MaterialTheme.typography.labelMedium)
@@ -118,8 +123,11 @@ internal fun IntakeSlipDialog(
         }
         AutoCrmTextField(
             value = keys,
-            onValueChange = { keys = it.filter { c -> c.isDigit() } },
+            onValueChange = { keys = it.filter { c -> c.isDigit() }.take(2) },
             label = "Kulcsok száma",
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
         AutoCrmTextField(
@@ -127,6 +135,12 @@ internal fun IntakeSlipDialog(
             onValueChange = { condition = it },
             label = "Állapot",
             modifier = Modifier.fillMaxWidth(),
+        )
+        // Most vans arrive in one of three states; the details go in the photos.
+        hu.autotherm.autocrm.ui.common.QuickPicks(
+            options = listOf("Sérülésmentes", "Apróbb karcok", "Sérült – lásd a fotókat"),
+            current = condition,
+            onPick = { condition = it },
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(

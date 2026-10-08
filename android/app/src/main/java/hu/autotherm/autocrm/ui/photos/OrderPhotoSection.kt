@@ -76,6 +76,8 @@ class OrderPhotoViewModel(
         /** What may be picked: the attachable categories plus the stage's default (0048). */
         val choices: List<String> = listOf(CapturePrefs.CATEGORY_PRODUCTION),
         val pending: Int = 0,
+        /** The waiting photos' local files: shown at once, before the server has them. */
+        val pendingFiles: List<String> = emptyList(),
         val message: String? = null,
         val lookups: Lookups? = null,
     )
@@ -87,7 +89,7 @@ class OrderPhotoViewModel(
     fun observe(orderId: Long) {
         viewModelScope.launch {
             queue.forOrder(orderId).collect { rows ->
-                _state.value = _state.value.copy(pending = rows.size)
+                _state.value = _state.value.copy(pending = rows.size, pendingFiles = rows.map { it.filePath })
             }
         }
     }
@@ -230,6 +232,14 @@ fun OrderPhotoSection(
                 }
             }
         }
+
+        // Re-read when the server counts change or an upload finishes (pending drops).
+        PhotoStrip(
+            orderId = orderId,
+            revision = imageCounts to state.pending,
+            lookups = state.lookups,
+            pendingFiles = state.pendingFiles,
+        )
 
         if (state.pending > 0) {
             StatusBadge("${state.pending} feltöltésre vár", Tone.Cold)

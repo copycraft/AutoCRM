@@ -18,7 +18,11 @@ import androidx.compose.runtime.Composable
  * permission for it, and nothing is recorded or kept.
  */
 @Composable
-fun DictationButton(onText: (String) -> Unit, onUnavailable: () -> Unit = {}) {
+fun DictationButton(
+    onText: (String) -> Unit,
+    // A phone without a speech recogniser says so, rather than the mic doing nothing.
+    onUnavailable: () -> Unit = { Toasts.show("Ezen a telefonon nincs beszédfelismerés.") },
+) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data

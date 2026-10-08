@@ -207,10 +207,10 @@ fun OrderPickerScreen(
                     onClick = { onChoose(order.id) },
                 ) {
                     Text("Legutóbbi", style = MaterialTheme.typography.labelMedium, color = Steel500)
-                    Text(
-                        "${order.number} · ${order.plate ?: "—"}",
-                        style = MonoSmall.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize),
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        order.plate?.let { hu.autotherm.autocrm.ui.common.PlateBadge(it) }
+                        Text("#" + order.number, style = MonoSmall, color = Steel500)
+                    }
                     Text(order.title, style = MaterialTheme.typography.titleMedium)
                 }
             }
@@ -220,7 +220,7 @@ fun OrderPickerScreen(
                 state.error != null && state.orders.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::retry)
                 state.orders.isEmpty() -> EmptyState("Nincs találat.")
-                else -> PullToRefreshBox(
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = viewModel::retry,
                 ) {
@@ -233,17 +233,18 @@ fun OrderPickerScreen(
                                 modifier = Modifier.animateItem(),
                                 onClick = { viewModel.choose(order) { onChoose(order.id) } },
                             ) {
-                                Text(
-                                    "${order.number} · ${order.vehiclePlate ?: "—"}",
-                                    style = MonoSmall.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize),
-                                )
+                                // The plate is what the fitter is looking at on the van.
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    order.vehiclePlate?.let { hu.autotherm.autocrm.ui.common.PlateBadge(it) }
+                                    Text("#" + order.number, style = MonoSmall, color = Steel500)
+                                }
                                 Text(order.title, style = MaterialTheme.typography.titleMedium)
                                 Text(
                                     listOfNotNull(order.partnerName, order.vehicle).joinToString(" · "),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = Steel500,
                                 )
-                                StatusBadge(order.stageLabel, Tone.Steel)
+                                StatusBadge(order.stageLabel, Tone.Cold)
                             }
                         }
                     }

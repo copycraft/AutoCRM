@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -105,7 +106,7 @@ class TasksViewModel(private val api: AutoCrmApi) : ViewModel() {
                     tasks = _state.value.tasks.map { if (it.id == task.id) updated else it },
                 )
             } catch (e: Throwable) {
-                _state.value = _state.value.copy(error = describeError(e))
+                hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e), retry = { toggle(task) })
                 load()
             }
         }
@@ -116,8 +117,9 @@ class TasksViewModel(private val api: AutoCrmApi) : ViewModel() {
             try {
                 api.deleteTask(task.id)
                 _state.value = _state.value.copy(tasks = _state.value.tasks.filter { it.id != task.id })
+                hu.autotherm.autocrm.ui.common.Toasts.show("Feladat törölve")
             } catch (e: Throwable) {
-                _state.value = _state.value.copy(error = describeError(e))
+                hu.autotherm.autocrm.ui.common.Toasts.error(describeError(e), retry = { delete(task) })
             }
         }
     }
@@ -131,6 +133,9 @@ fun TasksScreen(
     onOpenTask: (entityType: String, entityId: Long) -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
+    val topScroll = hu.autotherm.autocrm.ui.common.rememberTopScrollableListState("tasks")
+    // Back from the job a task belongs to: what was done there shows here.
+    hu.autotherm.autocrm.ui.common.RefreshOnReturn { viewModel.load() }
     LaunchedEffect(Unit) { viewModel.load() }
 
     val open = state.tasks.filter { !it.isDone }
@@ -140,7 +145,13 @@ fun TasksScreen(
         topBar = {
             ScreenTopBar(
                 title = "Feladatok",
-                subtitle = if (open.isNotEmpty()) "${open.size} nyitott" else null,
+                subtitle = if (open.isNotEmpty()) {
+                    val today = java.time.LocalDate.now().toString()
+                    val late = open.count { it.dueDate != null && it.dueDate < today }
+                    "${open.size} nyitott" + if (late > 0) " · $late lejárt" else ""
+                } else {
+                    null
+                },
                 onMenu = onMenu,
                 refreshing = state.refreshing,
                 onRefresh = viewModel::load,
@@ -153,22 +164,31 @@ fun TasksScreen(
                 state.error != null && state.tasks.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::load)
                 state.tasks.isEmpty() -> EmptyState("Nincs feladat.")
-                else -> PullToRefreshBox(
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = viewModel::load,
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        state = topScroll,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(open, key = { it.id }) { task ->
-                            TaskRow(
-                                task = task,
-                                onToggle = { viewModel.toggle(task) },
-                                onDelete = { viewModel.delete(task) },
-                                onOpen = { onOpenTask(task.entityType, task.entityId) },
-                                modifier = Modifier.animateItem(),
-                            )
+                        // Grouped by what needs doing first; a short list needs no headings.
+                        val groups = taskGroups(open)
+                        groups.forEach { (heading, tasks) ->
+                            if (groups.size > 1 || heading == "Lejárt") {
+                                item(key = "h-$heading") { SectionTitle(heading, count = tasks.size) }
+                            }
+                            items(tasks, key = { it.id }) { task ->
+                                SwipeToDone(onDone = { viewModel.toggle(task) }, modifier = Modifier.animateItem()) {
+                                    TaskRow(
+                                        task = task,
+                                        onToggle = { viewModel.toggle(task) },
+                                        onDelete = { viewModel.delete(task) },
+                                        onOpen = { onOpenTask(task.entityType, task.entityId) },
+                                    )
+                                }
+                            }
                         }
                         if (done.isNotEmpty()) {
                             item { SectionTitle("Kész", count = done.size) }
@@ -204,14 +224,22 @@ fun TaskRow(
     onDelete: (() -> Unit)? = null,
     onOpen: (() -> Unit)? = null,
 ) {
-    Card(modifier) {
+    // The whole row opens the record; the checkbox and the bin keep their own taps.
+    Card(modifier, onClick = onOpen) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Checkbox(checked = task.isDone, onCheckedChange = { onToggle() })
-            Column(Modifier.weight(1f, fill = false)) {
+            val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+            Checkbox(
+                checked = task.isDone,
+                onCheckedChange = {
+                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                    onToggle()
+                },
+            )
+            Column(Modifier.weight(1f)) {
                 Text(
                     task.title,
                     style = MaterialTheme.typography.bodyLarge.copy(
@@ -219,12 +247,19 @@ fun TaskRow(
                     ),
                     color = if (task.isDone) Steel500 else MaterialTheme.colorScheme.onSurface,
                 )
+                val overdue = !task.isDone && task.dueDate?.let {
+                    runCatching { java.time.LocalDate.parse(it).isBefore(java.time.LocalDate.now()) }.getOrDefault(false)
+                } == true
                 val meta = listOfNotNull(
                     task.assignedName,
-                    task.dueDate?.let { formatDate(it)?.let { d -> "határidő: $d" } },
+                    task.dueDate?.let { hu.autotherm.autocrm.util.relativeDay(it)?.let { d -> (if (overdue) "lejárt: " else "határidő: ") + d } },
                 ).joinToString(" · ")
                 if (meta.isNotBlank()) {
-                    Text(meta, style = MaterialTheme.typography.labelMedium, color = Steel500)
+                    Text(
+                        meta,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (overdue) hu.autotherm.autocrm.ui.theme.Signal else Steel500,
+                    )
                 }
             }
             if (onDelete != null) {
@@ -233,22 +268,20 @@ fun TaskRow(
                 }
             }
         }
-        if (onOpen != null) {
-            TextButton(onClick = onOpen) { Text("Megnyitás") }
-        }
     }
 }
 
-/** Title + optional due date; the record link is fixed by the caller. */
+/** Title, optional due date and assignee; the record link is fixed by the caller. */
 @Composable
 fun TaskDialog(
     busy: Boolean,
     error: String?,
     onDismiss: () -> Unit,
-    onConfirm: (title: String, dueDate: String?) -> Unit,
+    onConfirm: (title: String, dueDate: String?, assignedTo: Long?) -> Unit,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     var due by rememberSaveable { mutableStateOf("") }
+    var assignee by rememberSaveable { mutableStateOf<Long?>(null) }
     DialogShell(
         title = "Új feladat",
         onDismiss = onDismiss,
@@ -257,7 +290,7 @@ fun TaskDialog(
             PrimaryButton(
                 text = if (busy) "Mentés…" else "Mentés",
                 enabled = !busy && title.isNotBlank(),
-                onClick = { onConfirm(title.trim(), due.trim().takeIf { it.isNotBlank() }) },
+                onClick = { onConfirm(title.trim(), due.trim().takeIf { it.isNotBlank() }, assignee) },
             )
         },
     ) {
@@ -267,12 +300,80 @@ fun TaskDialog(
             label = "Cím *",
             modifier = Modifier.fillMaxWidth(),
         )
+        hu.autotherm.autocrm.ui.common.QuickPicks(
+            options = listOf("Visszahívni az ügyfelet", "Árajánlatot küldeni", "Alkatrészt rendelni", "Számlát kiállítani"),
+            current = title,
+            onPick = { title = it },
+        )
         DateField(
             value = due,
             onValueChange = { due = it },
             label = "Határidő",
             modifier = Modifier.fillMaxWidth(),
         )
+        // The usual deadlines, one tap each instead of a calendar.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val today = java.time.LocalDate.now()
+            listOf("Ma" to today, "Holnap" to today.plusDays(1), "1 hét" to today.plusWeeks(1)).forEach { (label, date) ->
+                androidx.compose.material3.FilterChip(
+                    selected = due == date.toString(),
+                    onClick = { due = if (due == date.toString()) "" else date.toString() },
+                    label = { Text(label) },
+                )
+            }
+        }
+        hu.autotherm.autocrm.ui.common.AssigneeField(
+            selected = assignee,
+            onSelect = { assignee = it },
+            label = "Felelős (nem kötelező)",
+            modifier = Modifier.fillMaxWidth(),
+        )
         error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Signal) }
     }
+}
+
+/**
+ * Open tasks in the order they need attention: overdue, today, tomorrow, later (soonest
+ * first), then those with no deadline. Empty groups are left out.
+ */
+internal fun taskGroups(
+    open: List<Task>,
+    today: java.time.LocalDate = java.time.LocalDate.now(),
+): List<Pair<String, List<Task>>> {
+    fun day(t: Task) = t.dueDate?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+    val dated = open.filter { day(it) != null }.sortedBy { day(it) }
+    return listOf(
+        "Lejárt" to dated.filter { day(it)!!.isBefore(today) },
+        "Ma" to dated.filter { day(it) == today },
+        "Holnap" to dated.filter { day(it) == today.plusDays(1) },
+        "Később" to dated.filter { day(it)!!.isAfter(today.plusDays(1)) },
+        "Nincs határidő" to open.filter { day(it) == null },
+    ).filter { it.second.isNotEmpty() }
+}
+
+/** Swipe a row right to tick it off — the checkbox still works too. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToDone(onDone: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val swipe = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd) onDone()
+            false
+        },
+    )
+    androidx.compose.material3.SwipeToDismissBox(
+        state = swipe,
+        enableDismissFromEndToStart = false,
+        modifier = modifier,
+        backgroundContent = {
+            androidx.compose.foundation.layout.Box(
+                Modifier.fillMaxSize()
+                    .background(hu.autotherm.autocrm.ui.theme.Done.copy(alpha = 0.18f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .padding(horizontal = 20.dp),
+                contentAlignment = androidx.compose.ui.Alignment.CenterStart,
+            ) {
+                Text("✓ Kész", style = MaterialTheme.typography.titleMedium, color = hu.autotherm.autocrm.ui.theme.Done)
+            }
+        },
+    ) { content() }
 }

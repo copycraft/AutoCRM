@@ -138,6 +138,7 @@ class AutoCrmApi(
         // the upload queue is untouched and resumes after the next sign-in.
         if (raw.code == 401 && token != null) {
             sessionStore.clearIfToken(token)
+            hu.autotherm.autocrm.data.auth.SessionNotice.expired.value = true
             // The next person to sign in on this phone must not read this one's data.
             cache?.clear()
         }
@@ -362,11 +363,14 @@ class AutoCrmApi(
         openOnly: Boolean = false,
         limit: Int = 50,
         offset: Int = 0,
+        /** A server sort key (`due_date`, `-created_at`, `stage_entered_at`, …); null: its default. */
+        sort: String? = null,
     ): List<OrderSummary> {
         val u = url("/orders")
         if (!query.isNullOrBlank()) u.addQueryParameter("q", query)
         if (!stage.isNullOrBlank()) u.addQueryParameter("stage", stage)
         if (openOnly) u.addQueryParameter("open", "true")
+        if (!sort.isNullOrBlank()) u.addQueryParameter("sort", sort)
         u.addQueryParameter("limit", limit.toString())
         u.addQueryParameter("offset", offset.toString())
         return send(Request.Builder().url(u.build()).get(), Items.serializer(OrderSummary.serializer())).items
@@ -537,10 +541,16 @@ class AutoCrmApi(
 
     // ── Email ───────────────────────────────────────────────────────────────────────
 
-    suspend fun emails(limit: Int = 50): List<EmailSummary> {
+    suspend fun emails(limit: Int = 50, offset: Int = 0, query: String? = null): List<EmailSummary> {
         val u = url("/emails").addQueryParameter("limit", limit.toString())
+        if (offset > 0) u.addQueryParameter("offset", offset.toString())
+        if (!query.isNullOrBlank()) u.addQueryParameter("q", query)
         return send(Request.Builder().url(u.build()).get(), Items.serializer(EmailSummary.serializer())).items
     }
+
+    /** A presigned link to a document's file, valid for an hour: opened in the browser. */
+    suspend fun documentDownload(id: Long): DownloadUrl =
+        send(Request.Builder().url(url("/documents/$id/download").build()).get(), DownloadUrl.serializer())
 
     suspend fun email(id: Long): EmailMessage =
         send(Request.Builder().url(url("/emails/$id").build()).get(), EmailMessage.serializer())
@@ -553,11 +563,12 @@ class AutoCrmApi(
 
     // ── Partners and leads ──────────────────────────────────────────────────────────
 
-    suspend fun partners(query: String? = null, role: String? = null, limit: Int = 50): List<Partner> {
+    suspend fun partners(query: String? = null, role: String? = null, limit: Int = 50, offset: Int = 0): List<Partner> {
         val u = url("/partners")
         if (!query.isNullOrBlank()) u.addQueryParameter("q", query)
         if (!role.isNullOrBlank()) u.addQueryParameter("role", role)
         u.addQueryParameter("limit", limit.toString())
+        if (offset > 0) u.addQueryParameter("offset", offset.toString())
         return send(Request.Builder().url(u.build()).get(), Items.serializer(Partner.serializer())).items
     }
 
@@ -576,6 +587,28 @@ class AutoCrmApi(
             Partner.serializer(),
         )
 
+    /** PATCH with explicit nulls ([patchOf]): a cleared field is cleared on the server too. */
+    suspend fun patchPartner(id: Long, body: kotlinx.serialization.json.JsonObject): Partner =
+        send(
+            Request.Builder().url(url("/partners/$id").build())
+                .patch(body.toString().toRequestBody(jsonMedia)),
+            Partner.serializer(),
+        )
+
+    suspend fun patchContact(id: Long, body: kotlinx.serialization.json.JsonObject): Contact =
+        send(
+            Request.Builder().url(url("/contacts/$id").build())
+                .patch(body.toString().toRequestBody(jsonMedia)),
+            Contact.serializer(),
+        )
+
+    suspend fun patchLead(id: Long, body: kotlinx.serialization.json.JsonObject): Lead =
+        send(
+            Request.Builder().url(url("/leads/$id").build())
+                .patch(body.toString().toRequestBody(jsonMedia)),
+            Lead.serializer(),
+        )
+
     suspend fun createContact(partnerId: Long, body: ContactBody): Contact =
         send(
             Request.Builder().url(url("/partners/$partnerId/contacts").build()).post(body(body)),
@@ -588,11 +621,12 @@ class AutoCrmApi(
             Contact.serializer(),
         )
 
-    suspend fun leads(query: String? = null, openOnly: Boolean = false, limit: Int = 50): List<LeadSummary> {
+    suspend fun leads(query: String? = null, openOnly: Boolean = false, limit: Int = 50, offset: Int = 0): List<LeadSummary> {
         val u = url("/leads")
         if (!query.isNullOrBlank()) u.addQueryParameter("q", query)
         if (openOnly) u.addQueryParameter("open", "true")
         u.addQueryParameter("limit", limit.toString())
+        if (offset > 0) u.addQueryParameter("offset", offset.toString())
         return send(Request.Builder().url(u.build()).get(), Items.serializer(LeadSummary.serializer())).items
     }
 
@@ -617,11 +651,18 @@ class AutoCrmApi(
             Items.serializer(TransitionOption.serializer()),
         ).items
 
-    suspend fun changeLeadStage(id: Long, stage: String, note: String?) =
+    suspend fun changeLeadStage(id: Long, stage: String, note: String?, lostReasonId: Long? = null) =
         sendNoContent(
             Request.Builder().url(url("/leads/$id/stage").build())
-                .post(body(StageBody(stage = stage, note = note))),
+                .post(body(StageBody(stage = stage, note = note, lostReasonId = lostReasonId))),
         )
+
+    /** The live reasons a lead can be lost for, in the admin's order. */
+    suspend fun lostReasons(): List<LostReason> =
+        send(
+            Request.Builder().url(url("/lost-reasons").build()).get(),
+            Items.serializer(LostReason.serializer()),
+        ).items
 
     suspend fun convertLead(id: Long, body: OrderBody): Order =
         send(
@@ -738,6 +779,13 @@ class AutoCrmApi(
         )
 
     // ── 0048: tyres and clips on inspections ────────────────────────────────────────
+
+    /** What a VIN says: maker, region, model year (0049). */
+    suspend fun decodeVin(vin: String): VinInfo =
+        send(
+            Request.Builder().url(url("/vehicles/decode/${java.net.URLEncoder.encode(vin.trim(), "UTF-8")}").build()).get(),
+            VinInfo.serializer(),
+        )
 
     /** The cooling unit's serial number on the order's spec (0049). */
     suspend fun setCoolingSerial(orderId: Long, serial: String?): OrderSpec =
