@@ -253,6 +253,57 @@ pub async fn update(
     .await
 }
 
+/// What an átvétel walkaround reads off the car, to be written onto the order's intake
+/// slip (átvételi lap). `None` leaves a column alone.
+#[derive(Debug, Clone, Default)]
+pub struct IntakeSlip {
+    pub mileage_in: Option<i32>,
+    pub fuel_level: Option<String>,
+    pub key_count: Option<i32>,
+    pub intake_condition: Option<String>,
+    pub valuables_declared: Option<bool>,
+    pub valuables: Option<String>,
+    /// Only fills a plate or VIN the order does not have yet.
+    pub vehicle_plate: Option<String>,
+    pub vehicle_vin: Option<String>,
+}
+
+/// Writes a walkaround's readings onto the order. The readings taken at the car replace
+/// what the office typed in beforehand; the plate and VIN only fill blanks.
+pub async fn apply_intake_slip(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    s: &IntakeSlip,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE orders
+         SET mileage_in = COALESCE($2::int4, mileage_in),
+             fuel_level = COALESCE($3::text, fuel_level),
+             key_count = COALESCE($4::int4, key_count),
+             intake_condition = COALESCE($5::text, intake_condition),
+             valuables_declared = COALESCE($6::bool, valuables_declared),
+             valuables = CASE
+                 WHEN $6::bool IS NULL THEN valuables
+                 WHEN $6::bool THEN COALESCE($7::text, valuables)
+                 ELSE NULL END,
+             vehicle_plate = COALESCE(vehicle_plate, $8::text),
+             vehicle_vin = COALESCE(vehicle_vin, $9::text)
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(s.mileage_in)
+    .bind(&s.fuel_level)
+    .bind(s.key_count)
+    .bind(&s.intake_condition)
+    .bind(s.valuables_declared)
+    .bind(&s.valuables)
+    .bind(&s.vehicle_plate)
+    .bind(&s.vehicle_vin)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema, sqlx::FromRow)]
 pub struct OrderSummary {
     pub id: i64,

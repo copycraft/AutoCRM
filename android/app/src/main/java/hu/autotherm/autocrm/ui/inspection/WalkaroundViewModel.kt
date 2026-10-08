@@ -55,6 +55,23 @@ sealed class Phase {
     data class Done(val serverId: Long?) : Phase()
 }
 
+/** The zone key the plate photo is filed under (purpose `dashboard`, like the odometer shot). */
+internal const val PLATE_ZONE = "plate"
+
+/**
+ * What the opening readings still lack, in the order the form asks for it; null when the
+ * walk may start. An átvétel is also the átvételi lap, so it needs the odometer (the gate
+ * that lets the order leave intake) and a photo of the plate; a kiadás needs only the plate.
+ */
+internal fun readingsProblem(payload: DraftPayload, kind: String, hasPlatePhoto: Boolean): String? = when {
+    payload.inspectorName.isBlank() -> "az átadó neve kötelező"
+    payload.vehiclePlate.isBlank() -> "a rendszám kötelező"
+    kind == "checkout" && !hasPlatePhoto -> "készíts fotót a rendszámról"
+    kind == "checkout" && payload.odometer.isBlank() -> "az óraállás kötelező az átvételnél"
+    payload.keyCount.isNotBlank() && payload.keyCount.toIntOrNull() == null -> "a kulcsok száma nem szám"
+    else -> null
+}
+
 /** A clip being recorded for a zone (or the whole walkaround when [zoneKey] is null). */
 data class VideoRequest(
     val zoneKey: String?,
@@ -297,6 +314,36 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
 
     fun readingsDone() {
         update { it.copy(phase = Phase.Zone) }
+    }
+
+    // ── Plate (rendszám) ──
+
+    fun requestPlatePhoto() {
+        requestCapture(
+            "dashboard",
+            PLATE_ZONE,
+            "Rendszám – a rendszám legyen élesen a képen",
+        )
+    }
+
+    /** The plate shot the walk keeps as evidence of which vehicle this was. */
+    fun hasPlatePhoto(): Boolean =
+        _state.value.payload?.photos?.any { it.zoneKey == PLATE_ZONE } == true
+
+    /**
+     * "Körbejárás indítása": the walk starts only once it is known which vehicle it is and, for
+     * an átvétel, what the átvételi lap needs (odometer, plate photo). The server refuses a
+     * walk with no plate, and only at the very end; this asks while the car is in front of you.
+     */
+    fun startWalk() {
+        val s = _state.value
+        val p = s.payload ?: return
+        val problem = readingsProblem(p, s.kind, hasPlatePhoto())
+        if (problem != null) {
+            setError(problem)
+            return
+        }
+        readingsDone()
     }
 
     // ── Camera loop ──
@@ -685,6 +732,12 @@ class WalkaroundViewModel(private val app: AutoCrmApp) : ViewModel() {
     fun signNow() {
         val s = _state.value
         val payload = s.payload ?: return
+        // A draft from before the plate was asked for (or one whose order had none) can reach
+        // the end without it, and the server refuses the create: ask now, not after syncing.
+        readingsProblem(payload, s.kind, hasPlatePhoto())?.let { problem ->
+            update { it.copy(error = problem, phase = Phase.Readings) }
+            return
+        }
         val missingOverview = payload.templates
             .filter { !it.optional }
             .filter { zone ->

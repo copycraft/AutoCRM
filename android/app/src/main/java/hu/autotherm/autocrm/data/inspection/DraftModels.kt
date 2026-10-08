@@ -93,6 +93,11 @@ data class DraftPayload(
     @SerialName("battery_pct") val batteryPct: String = "",
     @SerialName("warning_lights") val warningLights: String = "",
     @SerialName("customer_comment") val customerComment: String = "",
+    // Átvételi lap fields, asked in an átvétel (checkout) only; see [IntakeSlip] on the server.
+    @SerialName("key_count") val keyCount: String = "",
+    @SerialName("intake_condition") val intakeCondition: String = "",
+    @SerialName("has_valuables") val hasValuables: Boolean = false,
+    @SerialName("valuables") val valuables: String = "",
     @SerialName("checkout_server_id") val checkoutServerId: Long? = null,
     @SerialName("templates") val templates: List<ZoneTemplate> = emptyList(),
     @SerialName("zone_index") val zoneIndex: Int = 0,

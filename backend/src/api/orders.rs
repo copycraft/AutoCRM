@@ -270,7 +270,7 @@ async fn required_form(
 /// the database would reject should come back as a field error, not a 500.
 const FUEL_LEVELS: [&str; 5] = ["E", "1/4", "1/2", "3/4", "F"];
 
-fn fuel_level(value: Option<String>) -> AppResult<Option<String>> {
+pub(super) fn fuel_level(value: Option<String>) -> AppResult<Option<String>> {
     match optional(value) {
         Some(v) if !FUEL_LEVELS.contains(&v.as_str()) => Err(AppError::validation(
             "fuel_level must be one of E, 1/4, 1/2, 3/4, F",
@@ -281,7 +281,7 @@ fn fuel_level(value: Option<String>) -> AppResult<Option<String>> {
 
 /// A description of what is in the car only means something next to a tick saying there
 /// is something in the car; the database enforces the same pairing.
-fn valuables(
+pub(super) fn valuables(
     declared: Option<bool>,
     text: Option<String>,
 ) -> AppResult<(Option<bool>, Option<String>)> {
@@ -295,7 +295,7 @@ fn valuables(
 }
 
 /// Keys are counted, so zero is a real answer and a negative one is a typo.
-fn key_count(value: Option<i32>) -> AppResult<Option<i32>> {
+pub(super) fn key_count(value: Option<i32>) -> AppResult<Option<i32>> {
     match value {
         Some(k) if k < 0 => Err(AppError::validation("key_count cannot be negative")),
         k => Ok(k),

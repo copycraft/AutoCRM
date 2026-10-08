@@ -48,6 +48,71 @@ pub async fn sync_vehicle(
     Ok(vehicle.map(|v| v.id))
 }
 
+/// An átvétel walkaround is the átvételi lap: what it read off the car (mileage, fuel, keys,
+/// condition, valuables, and a plate or VIN the order lacked) goes onto the order, so the
+/// stage gate and the printed job sheet need no second form. Recorded in the order's history.
+pub async fn apply_walkaround_intake(
+    conn: &mut PgConnection,
+    user_id: i64,
+    order: &Order,
+    slip: &orders::IntakeSlip,
+) -> AppResult<()> {
+    orders::apply_intake_slip(&mut *conn, order.id, slip).await?;
+    let plate = order.vehicle_plate.clone().or_else(|| slip.vehicle_plate.clone());
+    let vin = order.vehicle_vin.clone().or_else(|| slip.vehicle_vin.clone());
+    let vehicle = vehicles::upsert(
+        &mut *conn,
+        &vehicles::VehicleFields {
+            vin: vin.clone(),
+            plate: plate.clone(),
+            make: order.vehicle_make.clone(),
+            model: order.vehicle_model.clone(),
+            year: None,
+            partner_id: Some(order.partner_id),
+            notes: None,
+        },
+    )
+    .await?;
+    if let Some(v) = vehicle {
+        vehicles::attach(&mut *conn, order.id, v.id).await?;
+    }
+    let changes = audit::diff(&[
+        (
+            "mileage_in",
+            json!(order.mileage_in),
+            json!(slip.mileage_in.or(order.mileage_in)),
+        ),
+        (
+            "fuel_level",
+            json!(order.fuel_level),
+            json!(slip.fuel_level.clone().or_else(|| order.fuel_level.clone())),
+        ),
+        (
+            "key_count",
+            json!(order.key_count),
+            json!(slip.key_count.or(order.key_count)),
+        ),
+        (
+            "intake_condition",
+            json!(order.intake_condition),
+            json!(
+                slip.intake_condition
+                    .clone()
+                    .or_else(|| order.intake_condition.clone())
+            ),
+        ),
+        (
+            "valuables_declared",
+            json!(order.valuables_declared),
+            json!(slip.valuables_declared.or(order.valuables_declared)),
+        ),
+        ("vehicle_plate", json!(order.vehicle_plate), json!(plate)),
+        ("vehicle_vin", json!(order.vehicle_vin), json!(vin)),
+    ]);
+    audit::record(&mut *conn, Some(user_id), "order", order.id, "update", changes).await?;
+    Ok(())
+}
+
 /// Checks that referenced records exist and belong together. Foreign keys would catch
 /// a missing row too, but not "contact belongs to a different partner".
 pub async fn validate_references(conn: &mut PgConnection, f: &OrderFields) -> AppResult<()> {

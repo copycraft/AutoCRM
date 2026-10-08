@@ -837,6 +837,12 @@ data class InspectionBody(
     @SerialName("battery_pct") val batteryPct: Int? = null,
     @SerialName("warning_lights") val warningLights: String? = null,
     @SerialName("customer_comment") val customerComment: String? = null,
+    // Átvételi lap, read at the car: an átvétel (`checkout`) writes these, with the odometer
+    // and fuel level, onto the order, so the walkaround is the intake slip.
+    @SerialName("key_count") val keyCount: Int? = null,
+    @SerialName("intake_condition") val intakeCondition: String? = null,
+    @SerialName("valuables_declared") val valuablesDeclared: Boolean? = null,
+    @SerialName("valuables") val valuables: String? = null,
     // Idempotency key: the phone's stable local draft UUID. A retried create whose
     // first response was lost returns the already-created inspection (200) instead
     // of a second row or `checkout_open` (INSP-L10).

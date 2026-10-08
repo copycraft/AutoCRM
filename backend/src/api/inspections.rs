@@ -144,6 +144,18 @@ struct CreateBody {
     fuel_level: Option<String>,
     battery_pct: Option<i32>,
     warning_lights: Option<String>,
+    /// Átvételi lap, read at the car. Only a `checkout` (átvétel) uses these: it writes them,
+    /// with `odometer`, `fuel_level` and a plate or VIN the order lacks, onto the order, so
+    /// the walkaround is the intake slip and leaving `intake` needs no second form.
+    #[serde(default)]
+    key_count: Option<i32>,
+    #[serde(default)]
+    intake_condition: Option<String>,
+    /// Whether the valuables question was asked; `valuables` says what, and needs `true`.
+    #[serde(default)]
+    valuables_declared: Option<bool>,
+    #[serde(default)]
+    valuables: Option<String>,
     /// Optional idempotency key (1..100 chars), e.g. the phone's local draft UUID.
     /// A repeat create with the same key returns the inspection it already created
     /// (200) instead of a second row or `checkout_open`. Reusing a key for a
@@ -217,6 +229,30 @@ async fn create(
             return Err(AppError::validation("battery_pct must be 0..100"));
         }
     }
+    // An átvétel is also the átvételi lap: read and checked now, written to the order once
+    // the inspection exists.
+    let slip = if b.kind == "checkout" {
+        let (valuables_declared, valuables) =
+            super::orders::valuables(b.valuables_declared, b.valuables.take())?;
+        let upper = |v: &Option<String>| {
+            v.as_deref()
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(str::to_uppercase)
+        };
+        Some(orders::IntakeSlip {
+            mileage_in: b.odometer,
+            fuel_level: super::orders::fuel_level(b.fuel_level.clone())?,
+            key_count: super::orders::key_count(b.key_count)?,
+            intake_condition: super::optional(b.intake_condition.take()),
+            valuables_declared,
+            valuables,
+            vehicle_plate: upper(&b.vehicle_plate),
+            vehicle_vin: upper(&b.vehicle_vin),
+        })
+    } else {
+        None
+    };
     // A check-in is always compared: it links the latest signed check-out, and
     // there is no check-in without one.
     let checkout_id = if b.kind == "checkin" {
@@ -240,12 +276,12 @@ async fn create(
         vehicle_plate: b
             .vehicle_plate
             .filter(|p| !p.trim().is_empty())
-            .or(order.vehicle_plate)
+            .or_else(|| order.vehicle_plate.clone())
             .ok_or_else(|| AppError::validation("vehicle_plate is required"))?,
         vehicle_vin: b
             .vehicle_vin
             .filter(|v| !v.trim().is_empty())
-            .or(order.vehicle_vin),
+            .or_else(|| order.vehicle_vin.clone()),
         inspector_name,
         driver_name: super::optional(b.driver_name),
         location: super::optional(b.location),
@@ -279,6 +315,11 @@ async fn create(
         // Lost a race to a concurrent retry with the same key.
         replay_matches(&inspection, new.order_id, &new.kind)?;
         return Ok((StatusCode::OK, Json(inspection)));
+    }
+    if let Some(slip) = slip {
+        let mut conn = state.db.acquire().await?;
+        crate::service::orders::apply_walkaround_intake(&mut conn, me.user_id, &order, &slip)
+            .await?;
     }
     Ok((StatusCode::CREATED, Json(inspection)))
 }

@@ -193,6 +193,56 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
             }
         }
         item {
+            // Which vehicle this is: the plate is asked for (and photographed) here, at the
+            // car, because the order may not have one and the record is refused without it.
+            val platePhoto = payload.photos.any { it.zoneKey == PLATE_ZONE }
+            val isCheckout = state.kind == "checkout"
+            Card {
+                Text("Jármű", style = MaterialTheme.typography.titleLarge)
+                AutoCrmTextField(
+                    value = payload.vehiclePlate,
+                    onValueChange = { v ->
+                        viewModel.setReadings {
+                            it.copy(vehiclePlate = v.uppercase().filter { c -> c.isLetterOrDigit() || c == '-' || c == ' ' }.take(32))
+                        }
+                    },
+                    label = "Rendszám *",
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Characters,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    trailing = {
+                        androidx.compose.material3.IconButton(onClick = viewModel::requestPlatePhoto) {
+                            androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.Filled.PhotoCamera,
+                                contentDescription = "Rendszám fotózása",
+                            )
+                        }
+                    },
+                )
+                Text(
+                    if (platePhoto) "Rendszám fotó elkészült – a kamera ikonnal újra felvehető."
+                    else if (isCheckout) "Fotózd le a rendszámot is (kamera ikon) – az átvételhez kell."
+                    else "A rendszám fotózása a kamera ikonnal opcionális.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (platePhoto) Steel500 else if (isCheckout) MaterialTheme.colorScheme.error else Steel500,
+                )
+                AutoCrmTextField(
+                    value = payload.vehicleVin.orEmpty(),
+                    onValueChange = { v ->
+                        viewModel.setReadings {
+                            it.copy(vehicleVin = v.uppercase().filter { c -> c.isLetterOrDigit() }.take(32).ifBlank { null })
+                        }
+                    },
+                    label = "Alvázszám (VIN)",
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Characters,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        item {
             Card {
                 Text("${walkaroundKindLabel(state.kind, state.lookups)} adatai", style = MaterialTheme.typography.titleLarge)
                 AutoCrmTextField(
@@ -232,7 +282,7 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
                     onValueChange = { v ->
                         viewModel.setReadings { it.copy(odometer = v.filter { c -> c.isDigit() }) }
                     },
-                    label = "Óraállás (km)",
+                    label = if (state.kind == "checkout") "Óraállás (km) *" else "Óraállás (km)",
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
                     ),
@@ -301,6 +351,59 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
                 )
             }
         }
+        if (state.kind == "checkout") {
+            // The átvételi lap: written to the order when the átvétel is signed, so the order
+            // can leave intake without filling the slip in a second time.
+            item {
+                Card {
+                    Text("Átvételi lap", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Az átvétel lezárásakor a megrendelés átvételi lapjára kerül.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Steel500,
+                    )
+                    AutoCrmTextField(
+                        value = payload.keyCount,
+                        onValueChange = { v ->
+                            viewModel.setReadings { it.copy(keyCount = v.filter { c -> c.isDigit() }.take(2)) }
+                        },
+                        label = "Kulcsok száma",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AutoCrmTextField(
+                        value = payload.intakeCondition,
+                        onValueChange = { v -> viewModel.setReadings { it.copy(intakeCondition = v) } },
+                        label = "Állapot",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    hu.autotherm.autocrm.ui.common.QuickPicks(
+                        options = listOf("Sérülésmentes", "Apróbb karcok", "Sérült – lásd a fotókat"),
+                        current = payload.intakeCondition,
+                        onPick = { picked -> viewModel.setReadings { it.copy(intakeCondition = picked) } },
+                    )
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        androidx.compose.material3.Checkbox(
+                            checked = payload.hasValuables,
+                            onCheckedChange = { checked ->
+                                viewModel.setReadings { it.copy(hasValuables = checked) }
+                            },
+                        )
+                        Text("Van értéktárgy a járműben", style = MaterialTheme.typography.bodyLarge)
+                    }
+                    if (payload.hasValuables) {
+                        AutoCrmTextField(
+                            value = payload.valuables,
+                            onValueChange = { v -> viewModel.setReadings { it.copy(valuables = v) } },
+                            label = "Értéktárgyak",
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+        }
         item { TyresCard(viewModel) }
         item {
             state.error?.let {
@@ -308,13 +411,7 @@ private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Mo
             }
             PrimaryButton(
                 text = "Körbejárás indítása",
-                onClick = {
-                    if (payload.inspectorName.isBlank()) {
-                        viewModel.setError("az átadó neve kötelező")
-                    } else {
-                        viewModel.readingsDone()
-                    }
-                },
+                onClick = viewModel::startWalk,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

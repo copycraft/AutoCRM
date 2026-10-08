@@ -92,6 +92,11 @@ suspend fun syncDraft(app: AutoCrmApp, uuid: String): SyncResult {
                     fuelLevel = current.fuelLevel,
                     batteryPct = current.batteryPct.toIntOrNull(),
                     warningLights = current.warningLights.takeIf { it.isNotBlank() },
+                    // The átvételi lap rides on the átvétel; the server ignores it on a kiadás.
+                    keyCount = current.keyCount.toIntOrNull()?.takeIf { it >= 0 },
+                    intakeCondition = current.intakeCondition.takeIf { it.isNotBlank() },
+                    valuablesDeclared = if (draft.kind == "checkout") current.hasValuables else null,
+                    valuables = current.valuables.takeIf { current.hasValuables && it.isNotBlank() },
                     // The draft's stable local UUID: a retried create after a lost
                     // response replays to the same server row (INSP-L10).
                     clientKey = uuid,
