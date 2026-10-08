@@ -30,6 +30,10 @@ android {
         // chosen on that screen and stored on the device (ServerStore), because one APK has
         // to follow a phone from the workshop Wi-Fi to the office to a customer's site.
         buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl()}\"")
+
+        // Optional single-ABI build (-Pautocrm.abi=arm64-v8a). ML Kit's native libraries
+        // ship for four ABIs; a sideloaded phone APK needs one, at about a third the size.
+        (project.findProperty("autocrm.abi") as String?)?.let { ndk { abiFilters += it } }
     }
 
     // Release signing. `android/keystore.properties` (git-ignored; written by the root

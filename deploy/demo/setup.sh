@@ -36,4 +36,4 @@ SQL
 
 
 echo "demo ready: https://${APP_HOST}"
-echo "showcase data (leads, orders, walkarounds, staff): ./seed.sh"
+echo "showcase data (leads, orders, walkarounds, staff): node seed.mjs"
