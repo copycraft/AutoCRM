@@ -16,6 +16,7 @@ export function ShortcutHelpDialog({ open, onClose }: { open: boolean; onClose: 
     ['g d', t('scDashboard')],
     ['g e', t('scEmails')],
     ['g b', t('scBoard')],
+    ['g k', t('scKnowledge')],
     ['n', t('scNew')],
     ['?', t('scHelp')],
     ['Esc', t('scClose')],
@@ -110,6 +111,7 @@ export function useGlobalShortcuts(opts: { onHelp: () => void }) {
         else if (seq === 'e') go(`/${locale}/emails`);
         else if (seq === 'b') go(`/${locale}/board`);
         else if (seq === 'r') go(`/${locale}/reports`);
+        else if (seq === 'k') go(`/${locale}/tudastar`);
         return;
       }
       if (e.key === 'n') {

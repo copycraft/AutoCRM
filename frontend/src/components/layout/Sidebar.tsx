@@ -11,6 +11,7 @@ import {
   Receipt,
   Mail,
   BarChart3,
+  BookOpen,
 
   Settings,
   ShieldCheck,
@@ -48,6 +49,7 @@ const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: bo
   { href: '/yard', icon: ParkingSquare, key: 'yard' },
   { href: '/incidents', icon: ShieldAlert, key: 'incidents' },
   { href: '/reports', icon: BarChart3, key: 'reports' },
+  { href: '/tudastar', icon: BookOpen, key: 'knowledge' },
   { href: '/hr', icon: Users, key: 'hr', hr: true },
   { href: '/admin', icon: ShieldCheck, key: 'admin', admin: true },
   { href: '/settings', icon: Settings, key: 'settings', admin: true },
@@ -55,7 +57,7 @@ const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: bo
 ] as const;
 
 const SECTIONS: { label: string; items: string[] }[] = [
-  { label: 'Fő', items: ['dashboard', 'notifications', 'reports'] },
+  { label: 'Fő', items: ['dashboard', 'notifications', 'reports', 'knowledge'] },
   { label: 'Üzlet', items: ['business', 'orders', 'invoices', 'incoming'] },
   { label: 'Művelet', items: ['yard', 'incidents'] },
   { label: 'Rendszer', items: ['hr', 'admin', 'settings', 'privacy'] },

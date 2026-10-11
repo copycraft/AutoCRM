@@ -104,7 +104,8 @@
     "tabLeads": "Leadek",
     "tabEmails": "E-mailek",
     "tabTemplates": "Sablonok",
-    "privacy": "Adatkezelés"
+    "privacy": "Adatkezelés",
+    "knowledge": "Tudástár"
   },
   "auth": {
     "loginTitle": "Bejelentkezés az AutoCRM-be",
@@ -1030,6 +1031,7 @@
     "scDashboard": "Irányítópult",
     "scEmails": "E-mailek",
     "scBoard": "Kijelző",
+    "scKnowledge": "Tudástár",
     "scNew": "Új rögzítés a listán",
     "scHelp": "Ez a súgó",
     "scClose": "Bezárás",
@@ -2318,5 +2320,13 @@
     "coolingSerial": "Hűtőgép gyári száma",
     "save": "Mentés",
     "edit": "Szerkesztés"
+  },
+  "knowledge": {
+    "subtitle": "A napi munkához kellő leírások — nem fejlesztői dokumentáció.",
+    "searchPlaceholder": "Keresés a tudástárban…",
+    "noResults": "Nincs találat erre a keresésre.",
+    "contents": "Tartalom",
+    "related": "Kapcsolódó",
+    "backToList": "Vissza a cikkekhez"
   }
 }
