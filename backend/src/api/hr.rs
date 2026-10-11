@@ -1018,7 +1018,8 @@ async fn start_checklist(
                     "the last active admin cannot be switched off",
                 ));
             }
-            crate::repo::users::update(&mut *tx, user_id, None, None, Some(false), None, None).await?;
+            crate::repo::users::update(&mut *tx, user_id, None, None, Some(false), None, None)
+                .await?;
             crate::repo::sessions::revoke_all(&mut *tx, user_id, None).await?;
             user_deactivated = true;
         }

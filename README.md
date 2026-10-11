@@ -60,6 +60,7 @@ works without it.
 | `META_APP_SECRET` + `META_VERIFY_TOKEN` + `META_PAGE_TOKEN` | Facebook/Instagram lead ads filed as leads (`/api/webhooks/meta`) |
 | `META_PIXEL_ID` + `META_CAPI_TOKEN` | Won leads that came from Meta reported to its Conversions API |
 | `GOOGLE_ADS_EXPORT_KEY` | The Google Ads offline-conversion CSV of won leads with a `gclid` |
+| `APP_APK_PATH` (+ `APP_VERSION_CODE`, `APP_VERSION_NAME`) | The sideloaded Android app asks the server on launch whether there is a newer build, and installs it itself (`/mobile/app-version`, `/mobile/app.apk`). Unset: no update prompt |
 | `VIN_DECODER_ONLINE=true` | Make and model from NHTSA when a VIN is read (the offline reading always works) |
 | `NAV_SUPPLIER_BANK_ACCOUNT_EUR` | A separate account on EUR invoices and proformas |
 | `EMAIL_MODE=smtp` | Real delivery. Otherwise mail is dry-run: rows are written and bodies logged |

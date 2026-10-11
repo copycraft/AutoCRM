@@ -10,6 +10,12 @@
 #   AUTOCRM_PUBLIC_URL   Address phones use; prefilled in the APK's setup screen.
 #                        Default https://crm.autotherm.hu
 #   AUTOCRM_S3_URL       Object-storage origin for presigned image URLs (frontend).
+#   APP_VERSION_CODE     versionCode for the release APK. Default: one more than the value
+#                        currently in android/app/build.gradle.kts, so every build is newer
+#                        than the last one and the phones' self-update actually fires.
+#   APP_VERSION_NAME     Version shown in the update dialog. Default: the app's versionName.
+#   APP_CHANGELOG_HU     Release notes for the update dialog. Default: empty.
+#                        (One or two sentences per line. Kept short on purpose.)
 #   LINUX_BINARY=1       Also build a Linux x86_64 backend binary in Docker (needs a running
 #                        Docker daemon). The README deploys on Linux; the host binary is for
 #                        whatever machine runs this script.
@@ -99,6 +105,16 @@ fi
 if ! skipped android; then
   step "Android (signed release APK)"
   rm -rf "$OUT/android"; mkdir -p "$OUT/android"
+  APK_SHA="-"; APK_SIZE="-"; APK="none"
+  # versionCode is the only thing that decides whether a phone takes the update, so it is
+  # derived rather than remembered: current value in build.gradle.kts, plus one.
+  GRADLE_KTS="$ROOT/android/app/build.gradle.kts"
+  CURRENT_CODE="$(sed -n 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*\([0-9]\+\).*/\1/p' "$GRADLE_KTS" | head -1)"
+  : "${CURRENT_CODE:=1}"
+  APP_VERSION_CODE="${APP_VERSION_CODE:-$((CURRENT_CODE + 1))}"
+  APP_VERSION_NAME="${APP_VERSION_NAME:-$(sed -n 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$GRADLE_KTS" | head -1)}"
+  APP_VERSION_NAME="${APP_VERSION_NAME:-0.1.0}"
+  APP_CHANGELOG_HU="${APP_CHANGELOG_HU:-}"
   if [ -z "${JAVA_HOME:-}" ] && [ -d "$HOME/android-tools/jdk" ]; then
     export JAVA_HOME="$HOME/android-tools/jdk"
   fi
@@ -115,11 +131,16 @@ if ! skipped android; then
   fi
   (
     cd "$ROOT/android"
-    AUTOCRM_API_URL="$PUBLIC_URL" ./gradlew --no-daemon assembleRelease
+    AUTOCRM_API_URL="$PUBLIC_URL" ./gradlew --no-daemon assembleRelease \
+      -Pautocrm.versionCode="$APP_VERSION_CODE"
   )
   APK="$(find "$ROOT/android/app/build/outputs/apk/release" -name '*.apk' | head -1)"
   [ -n "$APK" ] || { echo "release APK not found" >&2; exit 1; }
   cp "$APK" "$OUT/android/autocrm.apk"
+  # The SHA-256 goes into DEPLOY.md: the server recomputes it for the version endpoint and
+  # the phone checks the download against it, so a mismatch must never be a surprise.
+  APK_SHA="$(sha256sum "$APK" | cut -d' ' -f1)"
+  APK_SIZE="$(wc -c < "$APK" | tr -d ' ')"
 fi
 
 # --- reference material --------------------------------------------------------------------
@@ -145,6 +166,42 @@ Built $(date -u +%Y-%m-%dT%H:%M:%SZ) from commit $(git -C "$ROOT" rev-parse --sh
 | \`android/autocrm.apk\` | Signed release APK, prefilled server \`$PUBLIC_URL\` | Install on the phones; the server can be changed on first run |
 | \`openapi/openapi.json\` | The API contract | |
 | \`docs/websiteleadsinstructions.md\` | Send this to the website developer | |
+
+## Phones update themselves
+
+The APKs are sideloaded, so there is no store to push updates through. The backend can
+serve the release instead: every phone asks \`/api/mobile/app-version\` when it opens, and a
+newer \`versionCode\` becomes a one-tap "Új verzió érhető el" dialog.
+
+To publish this build, put the APK next to the server binary and name the release in
+\`backend/.env\`:
+
+\`\`\`bash
+mkdir -p /var/lib/autocrm
+cp build/android/autocrm.apk /var/lib/autocrm/autocrm.apk
+\`\`\`
+
+\`\`\`
+APP_APK_PATH=/var/lib/autocrm/autocrm.apk
+APP_VERSION_CODE=$APP_VERSION_CODE
+APP_VERSION_NAME=$APP_VERSION_NAME
+APP_CHANGELOG_HU=...        # short Hungarian notes shown in the dialog
+APP_UPDATE_MANDATORY=false  # true only for a breaking API change
+\`\`\`
+
+Leave \`APP_APK_PATH\` unset and the endpoints answer 404 and the phones stay silent.
+One-time on each phone: allow AutoCRM to install packages (Settings → Apps → AutoCRM →
+"Install unknown apps"), which the dialog asks for when the update is ready.
+
+| This build | |
+|---|---|
+| versionCode | \`$APP_VERSION_CODE\` (was \`$CURRENT_CODE\`) |
+| versionName | \`$APP_VERSION_NAME\` |
+| size | $APK_SIZE bytes |
+| sha256 | \`$APK_SHA\` |
+
+The server hashes the APK on every version request and the phone checks the download
+against that digest; the digest above is for you, to compare after copying.
 
 Also needed on the server: PostgreSQL 16 and an S3-compatible object store (see \`docker-compose.yml\`
 and \`README.md\`). Set \`LEADS_API_KEY\` to enable the website lead endpoint

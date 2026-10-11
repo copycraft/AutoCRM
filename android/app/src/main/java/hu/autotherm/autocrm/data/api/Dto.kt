@@ -1359,3 +1359,22 @@ data class IncomingInvoice(
 
 @Serializable
 data class FileUrl(@SerialName("url") val url: String)
+
+// ── Android self-update (GET /mobile/app-version) ─────────────────────────────────────────
+// The release the phones should run. Sideloaded APKs have no Play Store to update them, so
+// the server publishes the next build and the app installs it itself.
+
+@Serializable
+data class AppVersion(
+    /** The app updates when this exceeds its own versionCode. */
+    @SerialName("version_code") val versionCode: Long,
+    @SerialName("version_name") val versionName: String,
+    /** Absolute path on the server, resolved against the phone's stored base URL. */
+    @SerialName("apk_url") val apkUrl: String,
+    /** Lowercase hex sha256; verified before the installer is ever shown. */
+    @SerialName("sha256") val sha256: String,
+    @SerialName("size_bytes") val sizeBytes: Long,
+    /** True when the server refuses to serve an old build: the app must not work on it. */
+    @SerialName("mandatory") val mandatory: Boolean = false,
+    @SerialName("changelog_hu") val changelogHu: String = "",
+)

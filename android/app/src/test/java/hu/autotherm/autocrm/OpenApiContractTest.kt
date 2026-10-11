@@ -284,6 +284,7 @@ class OpenApiContractTest {
             "/emails", "/emails/{id}",
             "/incoming-invoices", "/incoming-invoices/{id}",
             "/incoming-invoices/upload", "/incoming-invoices/{id}/file",
+            "/mobile/app-version", "/mobile/app.apk",
             "/inspections", "/inspections/{id}", "/inspections/{id}/photos",
             "/inspections/{id}/damages", "/inspections/{id}/signatures",
             "/inspections/{id}/sign", "/inspections/{id}/notes",
@@ -305,5 +306,16 @@ class OpenApiContractTest {
             "file_name", "file_type", "file_size", "bucket", "created_at", "updated_at",
         )
         assertHasFields("FileUrl", "url")
+    }
+
+    @Test
+    fun `the published android release still carries what the update dialog needs`() {
+        // Without the digest the phone cannot check what it downloaded; without the apk url
+        // it cannot fetch it. Both are load-bearing for self-update.
+        assertHasFields(
+            "AppVersion",
+            "version_code", "version_name", "apk_url", "sha256", "size_bytes",
+            "mandatory", "changelog_hu",
+        )
     }
 }

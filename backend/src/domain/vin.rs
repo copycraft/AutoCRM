@@ -203,11 +203,17 @@ const FAMILIES: &[(&str, &str)] = &[
     // in position 4, the large van (Boxer / Jumper) a Y.
     ("VF3V", "Expert (K0, 2016–)"),
     ("VF7V", "Jumpy (K0, 2016–)"),
-    ("VXEV", "Vivaro (Vivaro-C, K0 – mint Expert / Jumpy / ProAce, 2019–)"),
+    (
+        "VXEV",
+        "Vivaro (Vivaro-C, K0 – mint Expert / Jumpy / ProAce, 2019–)",
+    ),
     ("YARV", "ProAce (K0 – mint Expert / Jumpy / Vivaro)"),
     ("VF3Y", "Boxer"),
     ("VF7Y", "Jumper"),
-    ("VXEY", "Movano (Movano-C, mint Boxer / Jumper / Ducato, 2021–)"),
+    (
+        "VXEY",
+        "Movano (Movano-C, mint Boxer / Jumper / Ducato, 2021–)",
+    ),
     ("VXEE", "Combo (Combo-E, K9 – mint Partner / Berlingo)"),
     ("VF37", "Partner / Rifter (K9)"),
     ("VF7E", "Berlingo (K9)"),
@@ -280,10 +286,16 @@ mod tests {
     fn european_van_families_read_offline() {
         // A real Vivaro-C: Stellantis' Opel code, the K0 van's V, model year L = 2020.
         let info = decode("VXEVBYHRKL7007599", 2027).unwrap();
-        assert_eq!(info.manufacturer.as_deref(), Some("Opel / Vauxhall (Stellantis)"));
+        assert_eq!(
+            info.manufacturer.as_deref(),
+            Some("Opel / Vauxhall (Stellantis)")
+        );
         assert!(info.model.as_deref().unwrap().starts_with("Vivaro"));
         assert_eq!(info.model_year, Some(2020));
-        assert_eq!(family("WDB9066351S123456"), Some("Sprinter (NCV3, 2006–2018)"));
+        assert_eq!(
+            family("WDB9066351S123456"),
+            Some("Sprinter (NCV3, 2006–2018)")
+        );
         assert_eq!(family("WV1ZZZSYZJ9012345"), Some("Crafter (2017–)"));
         assert_eq!(family("ABC12345678901234"), None);
     }

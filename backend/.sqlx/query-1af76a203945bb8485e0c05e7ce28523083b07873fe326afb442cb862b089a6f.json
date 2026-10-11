@@ -1,0 +1,105 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE yard_layout_items\n            SET location_id = $2, label = $3, number = $4, x = $5, y = $6, width = $7,\n                height = $8, rotation = $9, parent_id = $10, color = $11, position = $12\n          WHERE id = $1\n         RETURNING id, kind, location_id, label, number, x, y, width, height, rotation,\n                   parent_id, color, position",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "location_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "x",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "y",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "width",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "height",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "rotation",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "parent_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "position",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int8",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "1af76a203945bb8485e0c05e7ce28523083b07873fe326afb442cb862b089a6f"
+}

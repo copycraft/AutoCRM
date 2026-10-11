@@ -218,6 +218,28 @@ pub struct Config {
     pub google_ads_conversion_name: String,
     /// Look VINs up at NHTSA's free decoder as well as offline (sends the VIN to the US).
     pub vin_online: bool,
+    /// The release APK the Android app updates itself from (`GET /mobile/app-version`,
+    /// `GET /mobile/app.apk`). None when APP_APK_PATH is unset: the version endpoint
+    /// answers 404 and the phones stay silent.
+    pub app_update: Option<AppUpdateConfig>,
+}
+
+/// The phone app's next release, served to the phones for one-click self-update.
+/// Sideloaded APKs get no Play Store updates; without this the shop floor runs stale
+/// builds until somebody walks around with a cable.
+#[derive(Debug, Clone)]
+pub struct AppUpdateConfig {
+    /// The signed release APK on this machine's disk (put there by `build.sh`).
+    pub apk_path: PathBuf,
+    /// Must match `versionCode` in the APK; the phone updates when this is newer
+    /// than what it runs.
+    pub version_code: i64,
+    /// Shown in the update dialog, e.g. "1.4.0".
+    pub version_name: String,
+    /// One or two sentences per line, shown in the update dialog. Empty: no notes.
+    pub changelog_hu: String,
+    /// True: the phone refuses to work until it is updated (breaking API changes).
+    pub mandatory: bool,
 }
 
 /// Google Workspace sign-in (OpenID Connect, authorization code flow).
@@ -652,6 +674,45 @@ impl Config {
             .optional("GOOGLE_ADS_CONVERSION_NAME")
             .unwrap_or_else(|| "Megrendeles".into());
         let vin_online = r.parsed("VIN_DECODER_ONLINE", false);
+        let app_update = match r.optional("APP_APK_PATH") {
+            None => None,
+            Some(path) => {
+                let path = PathBuf::from(path);
+                let version_code: Option<i64> =
+                    r.optional("APP_VERSION_CODE")
+                        .and_then(|v| match v.trim().parse::<i64>() {
+                            Ok(n) if n > 0 => Some(n),
+                            _ => {
+                                r.errors.push(format!(
+                                    "APP_VERSION_CODE must be a positive integer, got '{v}'"
+                                ));
+                                None
+                            }
+                        });
+                let version_name = r
+                    .optional("APP_VERSION_NAME")
+                    .filter(|v| !v.trim().is_empty());
+                if version_code.is_some() && version_name.is_none() {
+                    r.errors.push(
+                        "APP_APK_PATH needs APP_VERSION_CODE and APP_VERSION_NAME too".into(),
+                    );
+                }
+                if !path.exists() {
+                    r.errors
+                        .push(format!("APP_APK_PATH does not exist: '{}'", path.display()));
+                }
+                match (version_code, version_name) {
+                    (Some(version_code), Some(version_name)) => Some(AppUpdateConfig {
+                        apk_path: path,
+                        version_code,
+                        version_name,
+                        changelog_hu: r.optional("APP_CHANGELOG_HU").unwrap_or_default(),
+                        mandatory: r.parsed("APP_UPDATE_MANDATORY", false),
+                    }),
+                    _ => None,
+                }
+            }
+        };
         let leads_api_key = r.optional("LEADS_API_KEY");
         let leads_notify_to = match std::env::var("LEADS_NOTIFY_TO") {
             Err(_) => Some(DEFAULT_LEADS_NOTIFY_TO.to_string()),
@@ -715,6 +776,7 @@ impl Config {
             google_ads_export_key,
             google_ads_conversion_name,
             vin_online,
+            app_update,
         })
     }
 
@@ -773,6 +835,7 @@ pub fn test_config() -> Config {
         google_ads_export_key: None,
         google_ads_conversion_name: "Megrendeles".into(),
         vin_online: false,
+        app_update: None,
     }
 }
 

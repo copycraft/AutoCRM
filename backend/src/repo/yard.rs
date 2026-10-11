@@ -289,20 +289,30 @@ pub async fn layout_item(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Optio
     .await
 }
 
+/// The layout item's own columns, as one value.
+///
+/// A dozen positional arguments to `insert_layout_item` was a tuple of meaning: at the
+/// call site nothing said which `i32` was the width, and the compiler could not catch a
+/// swapped pair. One struct reads itself and stays readable when a column is added.
+#[derive(Debug, Clone)]
+pub struct ItemFields {
+    pub kind: String,
+    pub location_id: Option<i64>,
+    pub label: String,
+    pub number: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub rotation: i32,
+    pub parent_id: Option<i64>,
+    pub color: String,
+    pub position: i32,
+}
+
 pub async fn insert_layout_item(
     db: impl PgExecutor<'_>,
-    kind: &str,
-    location_id: Option<i64>,
-    label: &str,
-    number: &str,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    rotation: i32,
-    parent_id: Option<i64>,
-    color: &str,
-    position: i32,
+    f: &ItemFields,
 ) -> sqlx::Result<LayoutItem> {
     sqlx::query_as!(
         LayoutItem,
@@ -311,7 +321,8 @@ pub async fn insert_layout_item(
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING id, kind, location_id, label, number, x, y, width, height, rotation,
                    parent_id, color, position",
-        kind, location_id, label, number, x, y, width, height, rotation, parent_id, color, position
+        f.kind, f.location_id, f.label, f.number, f.x, f.y, f.width, f.height, f.rotation,
+        f.parent_id, f.color, f.position
     )
     .fetch_one(db)
     .await
@@ -320,17 +331,7 @@ pub async fn insert_layout_item(
 pub async fn update_layout_item(
     db: impl PgExecutor<'_>,
     id: i64,
-    location_id: Option<i64>,
-    label: &str,
-    number: &str,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    rotation: i32,
-    parent_id: Option<i64>,
-    color: &str,
-    position: i32,
+    f: &ItemFields,
 ) -> sqlx::Result<Option<LayoutItem>> {
     sqlx::query_as!(
         LayoutItem,
@@ -340,7 +341,18 @@ pub async fn update_layout_item(
           WHERE id = $1
          RETURNING id, kind, location_id, label, number, x, y, width, height, rotation,
                    parent_id, color, position",
-        id, location_id, label, number, x, y, width, height, rotation, parent_id, color, position
+        id,
+        f.location_id,
+        f.label,
+        f.number,
+        f.x,
+        f.y,
+        f.width,
+        f.height,
+        f.rotation,
+        f.parent_id,
+        f.color,
+        f.position
     )
     .fetch_optional(db)
     .await
@@ -374,7 +386,10 @@ pub async fn insert_revision(
     sqlx::query_scalar!(
         "INSERT INTO yard_revisions (parent_id, layout, note, created_by)
          VALUES ($1, $2, $3, $4) RETURNING id",
-        parent_id, layout, note, user_id
+        parent_id,
+        layout,
+        note,
+        user_id
     )
     .fetch_one(db)
     .await

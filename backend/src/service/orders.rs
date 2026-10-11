@@ -58,8 +58,14 @@ pub async fn apply_walkaround_intake(
     slip: &orders::IntakeSlip,
 ) -> AppResult<()> {
     orders::apply_intake_slip(&mut *conn, order.id, slip).await?;
-    let plate = order.vehicle_plate.clone().or_else(|| slip.vehicle_plate.clone());
-    let vin = order.vehicle_vin.clone().or_else(|| slip.vehicle_vin.clone());
+    let plate = order
+        .vehicle_plate
+        .clone()
+        .or_else(|| slip.vehicle_plate.clone());
+    let vin = order
+        .vehicle_vin
+        .clone()
+        .or_else(|| slip.vehicle_vin.clone());
     let vehicle = vehicles::upsert(
         &mut *conn,
         &vehicles::VehicleFields {
@@ -109,7 +115,15 @@ pub async fn apply_walkaround_intake(
         ("vehicle_plate", json!(order.vehicle_plate), json!(plate)),
         ("vehicle_vin", json!(order.vehicle_vin), json!(vin)),
     ]);
-    audit::record(&mut *conn, Some(user_id), "order", order.id, "update", changes).await?;
+    audit::record(
+        &mut *conn,
+        Some(user_id),
+        "order",
+        order.id,
+        "update",
+        changes,
+    )
+    .await?;
     Ok(())
 }
 

@@ -168,6 +168,9 @@ import hu.autotherm.autocrm.ui.reports.ReportsScreen
 import hu.autotherm.autocrm.ui.reports.ReportsViewModel
 import hu.autotherm.autocrm.ui.settings.AppearanceScreen
 import hu.autotherm.autocrm.ui.settings.AppearanceViewModel
+import hu.autotherm.autocrm.ui.update.ApkUpdater
+import hu.autotherm.autocrm.ui.update.UpdateGate
+import hu.autotherm.autocrm.ui.update.UpdateViewModel
 import hu.autotherm.autocrm.ui.server.ServerSetupScreen
 import hu.autotherm.autocrm.ui.server.ServerSetupViewModel
 import hu.autotherm.autocrm.ui.tasks.TasksScreen
@@ -247,6 +250,10 @@ class MainActivity : FragmentActivity() {
                 val account by app.sessionStore.account.collectAsState(initial = null)
                 var editingServer by rememberSaveable { mutableStateOf(false) }
 
+                // Sideloaded updates (0051). Outside the `when` on purpose: a build too old
+                // for the current API cannot sign in, so the dialog has to work on the
+                // login screen and on the server-setup screen too.
+                Box(Modifier.fillMaxSize()) {
                 when {
                     // Nothing can be asked of the user before the app knows where to ask it.
                     server == null || editingServer -> ServerSetupScreen(
@@ -296,6 +303,22 @@ class MainActivity : FragmentActivity() {
                             )
                         }
                     }
+                }
+                // Only once there is a server to ask: before the setup screen has saved an
+                // address there is nothing to check against.
+                if (server != null) {
+                    UpdateGate(
+                        viewModel = viewModel { UpdateViewModel(app.api, app) },
+                        onInstall = { apk ->
+                            ApkUpdater.openInstaller(this@MainActivity, apk)
+                        },
+                        onNeedPermission = {
+                            runCatching {
+                                startActivity(ApkUpdater.installPermissionSettings(this@MainActivity))
+                            }
+                        },
+                    )
+                }
                 }
             }
         }

@@ -18,6 +18,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -948,6 +949,59 @@ class AutoCrmApi(
             Request.Builder().url(url("/incoming-invoices/$id/file").build()).get(),
             FileUrl.serializer(),
         ).url
+
+    // ── Self-update ───────────────────────────────────────────────────────────
+
+    /**
+     * The release the phone should run, or null when the server publishes none.
+     *
+     * Deliberately not a 404 error: a server that has never been configured for updates
+     * answers 404, and that is the normal state, not a failure. It is also the only call in
+     * this client that runs before sign-in (a phone too old for the API has to be able to
+     * find the update), so it carries no token and must not touch the session handling in
+     * [execute] — it goes through [probe]-style plain HTTP instead.
+     */
+    suspend fun appVersion(): AppVersion? {
+        val response = withContext(Dispatchers.IO) {
+            http.newCall(
+                Request.Builder().url(url("/mobile/app-version").build()).get().build(),
+            ).execute()
+        }
+        val code = response.code
+        response.use {
+            if (code == 404) return null
+            if (!it.isSuccessful) throw ApiException.Server(code, "version check failed")
+            val body = it.body?.string().orEmpty()
+            _offlineSince.value = null
+            return runCatching { json.decodeFromString(AppVersion.serializer(), body) }
+                .getOrElse { e -> throw ApiException.Server(code, "unparseable version response: $e") }
+        }
+    }
+
+    /**
+     * Opens the release APK as a stream the caller must close. Not through [send]: the body
+     * is tens of megabytes of binary, not JSON, and the caller verifies the hash itself.
+     *
+     * Returns the stream rather than the [Response] so there is no way to hand it on and
+     * leak the connection; closing the stream closes the body. A failed response is closed
+     * here rather than being returned unread.
+     */
+    suspend fun openApk(path: String): java.io.InputStream {
+        val response = withContext(Dispatchers.IO) {
+            http.newCall(
+                Request.Builder()
+                    .url((serverStore.require() + path).toHttpUrl())
+                    .get()
+                    .build(),
+            ).execute()
+        }
+        if (!response.isSuccessful) {
+            val code = response.code
+            response.close()
+            throw ApiException.Server(code, "az APK letöltése nem sikerült ($code)")
+        }
+        return response.body!!.source().inputStream()
+    }
 }
 
 private val EMPTY: RequestBody = ByteArray(0).toRequestBody(null, 0, 0)

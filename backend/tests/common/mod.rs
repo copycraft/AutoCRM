@@ -87,6 +87,7 @@ pub fn config() -> Config {
         google_ads_export_key: None,
         google_ads_conversion_name: "Megrendeles".into(),
         vin_online: false,
+        app_update: None,
     }
 }
 

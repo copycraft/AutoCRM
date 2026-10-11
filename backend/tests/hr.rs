@@ -343,7 +343,14 @@ async fn admins_grant_single_capabilities_on_top_of_the_role(pool: PgPool) {
     let (viewer_id, viewer) = token_for(&pool, Role::Viewer).await;
     let partner = json!({ "kind": "business", "name": "Grant Kft." });
 
-    let (status, _) = call(&pool, "POST", "/api/partners", &viewer, Some(partner.clone())).await;
+    let (status, _) = call(
+        &pool,
+        "POST",
+        "/api/partners",
+        &viewer,
+        Some(partner.clone()),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
     let (status, user) = call(

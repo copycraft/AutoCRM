@@ -17,9 +17,7 @@ use crate::AppState;
 use crate::domain::lookups::YARD_KIND_KEYS;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
-use crate::repo::yard::{
-    self, LayoutItem, LayoutRevision, VehicleMove, YardLocation, YardVehicle,
-};
+use crate::repo::yard::{self, LayoutItem, LayoutRevision, VehicleMove, YardLocation, YardVehicle};
 use crate::repo::{audit, orders, vehicles};
 
 pub fn routes() -> OpenApiRouter<AppState> {
@@ -285,7 +283,10 @@ async fn vehicle_moves(
     get, path = "/yard/layout", tag = "yard",
     responses((status = 200, body = Items<LayoutItem>))
 )]
-async fn layout(State(state): State<AppState>, Auth(_): Auth) -> AppResult<Json<Items<LayoutItem>>> {
+async fn layout(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+) -> AppResult<Json<Items<LayoutItem>>> {
     Ok(Items::new(yard::layout_items(&state.db).await?))
 }
 
@@ -308,7 +309,11 @@ struct LayoutItemBody {
     position: Option<i32>,
 }
 
-fn validate_item(body: &LayoutItemBody, partial: bool, existing: Option<&LayoutItem>) -> AppResult<(String, Option<i64>, String, String, i32, i32, i32, i32, i32, Option<i64>, String, i32)> {
+fn validate_item(
+    body: &LayoutItemBody,
+    partial: bool,
+    existing: Option<&LayoutItem>,
+) -> AppResult<yard::ItemFields> {
     let err = |m: &str| Err(AppError::validation(m));
     let kind_owned = body.kind.clone();
     let kind = kind_owned.as_deref().unwrap_or("");
@@ -322,8 +327,14 @@ fn validate_item(body: &LayoutItemBody, partial: bool, existing: Option<&LayoutI
             None => return err("kind must be spot, building, or workshop_bay"),
         },
     };
-    let location_id = body.location_id.flatten().or_else(|| existing.and_then(|e| e.location_id));
-    let parent_id = body.parent_id.flatten().or_else(|| existing.and_then(|e| e.parent_id));
+    let location_id = body
+        .location_id
+        .flatten()
+        .or_else(|| existing.and_then(|e| e.location_id));
+    let parent_id = body
+        .parent_id
+        .flatten()
+        .or_else(|| existing.and_then(|e| e.parent_id));
     if kind == "spot" && location_id.is_none() {
         return err("spot requires location_id");
     }
@@ -339,13 +350,38 @@ fn validate_item(body: &LayoutItemBody, partial: bool, existing: Option<&LayoutI
     if width < 1 || height < 1 {
         return err("width and height must be at least 1");
     }
-    let label = body.label.clone().or_else(|| existing.map(|e| e.label.clone())).unwrap_or_default();
-    let number = body.number.clone().or_else(|| existing.map(|e| e.number.clone())).unwrap_or_default();
-    let color = body.color.clone().or_else(|| existing.map(|e| e.color.clone())).unwrap_or_else(|| "#6b7280".into());
+    let label = body
+        .label
+        .clone()
+        .or_else(|| existing.map(|e| e.label.clone()))
+        .unwrap_or_default();
+    let number = body
+        .number
+        .clone()
+        .or_else(|| existing.map(|e| e.number.clone()))
+        .unwrap_or_default();
+    let color = body
+        .color
+        .clone()
+        .or_else(|| existing.map(|e| e.color.clone()))
+        .unwrap_or_else(|| "#6b7280".into());
     let position = body.position.or(existing.map(|e| e.position)).unwrap_or(0);
     let x = body.x.or(existing.map(|e| e.x)).unwrap_or(0);
     let y = body.y.or(existing.map(|e| e.y)).unwrap_or(0);
-    Ok((kind, location_id, label, number, x, y, width, height, rotation, parent_id, color, position))
+    Ok(yard::ItemFields {
+        kind,
+        location_id,
+        label,
+        number,
+        x,
+        y,
+        width,
+        height,
+        rotation,
+        parent_id,
+        color,
+        position,
+    })
 }
 
 #[utoipa::path(
@@ -359,12 +395,8 @@ async fn save_layout(
     ApiJson(b): ApiJson<LayoutItemBody>,
 ) -> AppResult<(StatusCode, Json<LayoutItem>)> {
     me.require(Capability::ManageConfiguration)?;
-    let (kind, location_id, label, number, x, y, width, height, rotation, parent_id, color, position) =
-        validate_item(&b, false, None)?;
-    let created = yard::insert_layout_item(
-        &state.db, &kind, location_id, &label, &number, x, y, width, height, rotation, parent_id, &color, position,
-    )
-    .await?;
+    let fields = validate_item(&b, false, None)?;
+    let created = yard::insert_layout_item(&state.db, &fields).await?;
     Ok((StatusCode::CREATED, Json(created)))
 }
 
@@ -384,13 +416,10 @@ async fn update_layout_item(
     let existing = yard::layout_item(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("layout item"))?;
-    let (_kind, location_id, label, number, x, y, width, height, rotation, parent_id, color, position) =
-        validate_item(&b, true, Some(&existing))?;
-    let updated = yard::update_layout_item(
-        &state.db, id, location_id, &label, &number, x, y, width, height, rotation, parent_id, &color, position,
-    )
-    .await?
-    .ok_or(AppError::NotFound("layout item"))?;
+    let fields = validate_item(&b, true, Some(&existing))?;
+    let updated = yard::update_layout_item(&state.db, id, &fields)
+        .await?
+        .ok_or(AppError::NotFound("layout item"))?;
     Ok(Json(updated))
 }
 
@@ -418,7 +447,9 @@ struct RevisionsQuery {
     #[serde(default = "default_limit")]
     limit: i64,
 }
-fn default_limit() -> i64 { 50 }
+fn default_limit() -> i64 {
+    50
+}
 
 #[utoipa::path(
     get, path = "/yard/revisions", tag = "yard",
@@ -430,7 +461,9 @@ async fn revisions(
     Auth(_): Auth,
     ApiQuery(q): ApiQuery<RevisionsQuery>,
 ) -> AppResult<Json<Items<LayoutRevision>>> {
-    Ok(Items::new(yard::revisions(&state.db, q.limit.clamp(1, 200)).await?))
+    Ok(Items::new(
+        yard::revisions(&state.db, q.limit.clamp(1, 200)).await?,
+    ))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -454,31 +487,63 @@ async fn revert_revision(
         .await?
         .ok_or(AppError::NotFound("revision"))?;
     let items: serde_json::Value = target.layout;
-    let arr = items.as_array().ok_or_else(|| AppError::validation("revision layout is not an array"))?;
+    let arr = items
+        .as_array()
+        .ok_or_else(|| AppError::validation("revision layout is not an array"))?;
     let mut tx = state.db.begin().await?;
-    sqlx::query("DELETE FROM yard_layout_items").execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM yard_layout_items")
+        .execute(&mut *tx)
+        .await?;
     for item in arr {
         let get = |k: &str| item.get(k);
-        let kind = get("kind").and_then(|v| v.as_str()).ok_or_else(|| AppError::validation("item missing kind"))?;
+        let kind = get("kind")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AppError::validation("item missing kind"))?;
         let location_id = get("location_id").and_then(|v| v.as_i64());
-        let label = get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let number = get("number").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let label = get("label")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let number = get("number")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let x = get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
         let y = get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
         let width = get("width").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
         let height = get("height").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
         let rotation = get("rotation").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
         let parent_id = get("parent_id").and_then(|v| v.as_i64());
-        let color = get("color").and_then(|v| v.as_str()).unwrap_or("#6b7280").to_string();
+        let color = get("color")
+            .and_then(|v| v.as_str())
+            .unwrap_or("#6b7280")
+            .to_string();
         let position = get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
         yard::insert_layout_item(
-            &mut *tx, kind, location_id, &label, &number, x, y, width, height, rotation, parent_id, &color, position,
-        ).await?;
+            &mut *tx,
+            &yard::ItemFields {
+                kind: kind.to_string(),
+                location_id,
+                label,
+                number,
+                x,
+                y,
+                width,
+                height,
+                rotation,
+                parent_id,
+                color,
+                position,
+            },
+        )
+        .await?;
     }
     let note = super::optional(b.note);
     let note = note.unwrap_or_else(|| format!("Reverted to revision {}", b.revision_id));
     let id = yard::insert_revision(&mut *tx, Some(b.revision_id), items, &note, me.user_id).await?;
     tx.commit().await?;
-    let rev = yard::revision(&state.db, id).await?.ok_or(AppError::NotFound("revision"))?;
+    let rev = yard::revision(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("revision"))?;
     Ok((StatusCode::CREATED, Json(rev)))
 }

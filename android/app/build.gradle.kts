@@ -18,6 +18,12 @@ android {
         // phone on this shop floor that old.
         minSdk = 26
         targetSdk = 35
+        // Sideloaded builds update through the backend (`/mobile/app-version`), and the only
+        // thing that decides whether a phone takes an update is this number, compared
+        // against `APP_VERSION_CODE` on the server. `build.sh` reads this literal and builds
+        // with one more (see `applicationVariants` below), so a release is never published
+        // with the number the phones are already running. Keep it a plain literal: the
+        // release script parses this exact line.
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -95,6 +101,20 @@ fun apiBaseUrl(): String {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use(props::load)
     return props.getProperty("autocrm.apiUrl") ?: "https://crm.autotherm.hu"
+}
+
+/** `-Pautocrm.versionCode=N` (build.sh): the release number, one above the literal above. */
+val requestedVersionCode: Int? = (project.findProperty("autocrm.versionCode") as String?)?.toIntOrNull()
+
+// The release number travels per output, so the checked-in literal above never drifts and
+// `build.sh` decides what "the next version" is.
+androidComponents {
+    onVariants { variant ->
+        val code = requestedVersionCode
+        if (code != null) {
+            variant.outputs.forEach { it.versionCode.set(code) }
+        }
+    }
 }
 
 dependencies {

@@ -30,7 +30,8 @@ anyway).
 | **Sor** | The upload queue: what is waiting, what failed and why, retry or discard. |
 | **Beállítások** | Appearance: light, dark, or pure black. |
 
-A user who must change their password does that first, on the phone.
+A user who must change their password does that first, on the phone. An app update, if the
+server publishes one, is offered on any screen including the login screen.
 
 ## The upload queue
 
@@ -121,6 +122,39 @@ walkarounds are created only on the phone; the web shows them and records verdic
 - **At kiadás**, every damage is compared with the átvétel by zone: same zone and type
   suggests "pre-existing", and the inspector confirms, re-links or dismisses each one.
 
+## Updating the app on the phones
+
+Sideloaded APKs have no store to push them through, so the backend publishes the next
+build and the phones take it themselves. Without it, every change means walking around the
+workshop with a cable.
+
+- **On launch**, `GET /api/mobile/app-version` (`AutoCrmApi.appVersion`) asks what the
+  server publishes. A newer `versionCode` opens an "Új verzió érhető el" dialog with the
+  version, the size and the release notes. A server that publishes nothing answers 404, and
+  that is the normal state: no dialog, no network call anyone notices.
+- **The check runs before sign-in.** A build too old for the current API cannot log in, so
+  waiting for a session would strand exactly the phones that need the update.
+- **One tap from there.** The APK streams down (`ApkUpdater.download`) with progress, the
+  sha256 the server published is checked before anything is installed, and the system
+  installer opens. The user taps Install, exactly as when installing the first build.
+- **Silent install is not possible** and the app does not pretend otherwise: Android routes
+  every package change through the installer, and from Android 8 the app needs
+  `REQUEST_INSTALL_PACKAGES`. The dialog asks for that permission once — "Engedélyezés"
+  opens the Settings page for this app — and afterwards the update is a single tap.
+- **Safety is Android's, not ours.** The system refuses an APK signed with a different key
+  than the installed app, so a tampered download cannot take over the phone. The digest
+  check catches a truncated file before the installer is shown; a mismatch is never
+  installed, and a half-written download is never renamed into place.
+- **`APP_UPDATE_MANDATORY`** makes the dialog un-dismissable. For a breaking API change
+  only; a phone that cannot work on the old build has no way to get back on its own.
+
+Server side: `APP_APK_PATH`, `APP_VERSION_CODE`, `APP_VERSION_NAME`, `APP_CHANGELOG_HU`
+(README, backend section). `build.sh` derives `versionCode` from the value in
+`build.gradle.kts` (plus one) and writes the APK's sha256 into `DEPLOY.md`, so a published
+release and the number the phones compare against cannot drift apart unnoticed.
+
+`ApkUpdateTest` covers the digest, the verified download and the refusal paths.
+
 ## Offline reads
 
 Every read the phone makes is kept as the last good copy (`data/cache/ResponseCache.kt`) and
@@ -205,6 +239,7 @@ JVM tests only, no device. The ones worth knowing:
 - `ServerStoreTest`: what a thumb types becomes a usable base URL, or is refused.
 - `ScanPdfTest`, `IncomingInvoiceTest`: the invoice scanner geometry and binding, the
   wire shapes, the drawer gate and the amount math.
+- `ApkUpdateTest`: the self-update digest, the verified download, and the refusal paths.
 - `ResponseCacheTest`, `InspectionLogicTest`, `ZoneListsTest`, `NotificationPlannerTest`,
   `SessionExpiryTest` and the DTO tests cover offline reads, walkarounds, notifications,
   sign-out and the request bodies the server is picky about (an emptied field is an
