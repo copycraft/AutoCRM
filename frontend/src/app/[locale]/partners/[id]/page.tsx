@@ -26,6 +26,7 @@ import { RawImportPanel } from '@/components/migration/RawImportPanel';
 import { InvoiceLanguageSelect } from '@/components/partners/InvoiceLanguageSelect';
 import { useRecentRecords } from '@/hooks/useRecent';
 import { useEffect, useState } from 'react';
+import { useRouteId } from '@/hooks/useRouteId';
 
 function DetailRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
@@ -36,8 +37,11 @@ function DetailRow({ label, value, mono }: { label: string; value: React.ReactNo
   );
 }
 
-export default function PartnerDetailPage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default function PartnerDetailPage({ params }: { params: { id: string } | Promise<{ id: string }> }) {
+  const idRaw = useRouteId(params);
+  const resolving = idRaw === null;
+  const id = resolving ? NaN : Number(idRaw);
+  const badId = !resolving && !Number.isFinite(id);
   const t = useTranslations('partners');
   const tc = useTranslations('common');
   const tn = useTranslations('navigation');
@@ -54,7 +58,11 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
   const [confirmArchive, setConfirmArchive] = useState(false);
   const editable = canEditPartners(user);
 
-  const detail = useQuery({ queryKey: qk.partner(id), queryFn: () => partnersApi.get(id) });
+  const detail = useQuery({
+    queryKey: qk.partner(resolving || badId ? -1 : id),
+    queryFn: () => partnersApi.get(id),
+    enabled: !resolving && !badId,
+  });
   useEffect(() => {
     if (detail.data) {
       pushRecent({
@@ -91,8 +99,13 @@ export default function PartnerDetailPage({ params }: { params: { id: string } }
 
   return (
     <AppShell>
-      {detail.isLoading ? (
+      {resolving || detail.isLoading ? (
         <DetailSkeleton />
+      ) : badId ? (
+        <>
+          <PageHeader size="record" title={t('partnerDetails')} />
+          <ErrorState error={new Error('Bad partner id')} />
+        </>
       ) : detail.isError || !detail.data ? (
         <>
           <PageHeader size="record" title={t('partnerDetails')} />

@@ -59,21 +59,21 @@ const routes: Route[] = [
   { path: '/hu/partners/new', element: () => <PartnerNewPage />, expect: /Új partner/i },
   {
     path: '/hu/partners/[id]',
-    element: () => <PartnerDetailPage params={{ id: '7' }} />,
+    element: () => <PartnerDetailPage params={Promise.resolve({ id: '7' })} />,
     expect: /Müller/,
   },
   { path: '/hu/leads', element: () => <LeadsPage />, expect: /Három Sprinter/ },
   { path: '/hu/leads/new', element: () => <LeadNewPage />, expect: /Új lead/i },
   {
     path: '/hu/leads/[id]',
-    element: () => <LeadDetailPage params={{ id: '5' }} />,
+    element: () => <LeadDetailPage params={Promise.resolve({ id: '5' })} />,
     expect: /Három Sprinter/,
   },
   { path: '/hu/orders', element: () => <OrdersPage />, expect: /MC-1001/ },
   { path: '/hu/orders/new', element: () => <OrderNewPage />, expect: /Új megrendelés/i },
   {
     path: '/hu/orders/[id]',
-    element: () => <OrderDetailPage params={{ id: '3' }} />,
+    element: () => <OrderDetailPage params={Promise.resolve({ id: '3' })} />,
     expect: /MC-1001/,
   },
   { path: '/hu/blockers', element: () => BlockersPage({ params: Promise.resolve(locale) }), expect: /Akadályok/ },
@@ -81,7 +81,7 @@ const routes: Route[] = [
   { path: '/hu/emails', element: () => <EmailsPage />, expect: /fenyezo\.hu/ },
   {
     path: '/hu/emails/[id]',
-    element: () => <EmailDetailPage params={{ id: '61' }} />,
+    element: () => <EmailDetailPage params={Promise.resolve({ id: '61' })} />,
     expect: /fenyezo\.hu/,
   },
   {
@@ -120,7 +120,7 @@ describe.each(routes)('$path', (route) => {
 
 describe('the order detail tabs', () => {
   it('shows only the read view of the data tab, not the edit form as well', async () => {
-    renderPage(<OrderDetailPage params={{ id: '3' }} />);
+    renderPage(<OrderDetailPage params={Promise.resolve({ id: '3' })} />);
     await waitFor(() => expect(screen.getAllByText(/MC-1001/).length).toBeGreaterThan(0));
     // The unbraced ternary rendered both branches: the read-only grid and the
     // edit form appeared at once, with the source text between them.

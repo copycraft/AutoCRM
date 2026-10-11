@@ -57,6 +57,7 @@ import { DocumentsPanel } from '@/components/media/DocumentsPanel';
 import { CommentThread } from '@/components/comments/CommentThread';
 import { VehicleLocations } from '@/components/yard/YardBoard';
 import { OrderIncidents } from '@/components/incidents/Incidents';
+import { useRouteId } from '@/hooks/useRouteId';
 
 type Tab = 'data' | 'photos' | 'documents' | 'comments' | 'items' | 'invoices' | 'stages' | 'blockers' | 'audit';
 const TABS: Tab[] = ['data', 'photos', 'documents', 'comments', 'items', 'invoices', 'stages', 'blockers', 'audit'];
@@ -72,8 +73,11 @@ function Info({ label, value, mono }: { label: string; value: React.ReactNode; m
   );
 }
 
-export default function OrderDetailPage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default function OrderDetailPage({ params }: { params: { id: string } | Promise<{ id: string }> }) {
+  const idRaw = useRouteId(params);
+  const resolving = idRaw === null;
+  const id = resolving ? NaN : Number(idRaw);
+  const badId = !resolving && !Number.isFinite(id);
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const ts = useTranslations('spec');
@@ -99,7 +103,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const canStage = canChangeStage(user);
   const canMail = canSendEmail(user);
 
-  const detail = useQuery({ queryKey: qk.order(id), queryFn: () => ordersApi.get(id) });
+  const detail = useQuery({
+    queryKey: qk.order(resolving || badId ? -1 : id),
+    queryFn: () => ordersApi.get(id),
+    enabled: !resolving && !badId,
+  });
   const orderTitle = detail.data ? `#${detail.data.order.number} · ${detail.data.order.title}` : '';
   useEffect(() => {
     if (detail.data) {
@@ -118,8 +126,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   });
   // Always loaded: the traveller derives reached state from history.
   const history = useQuery({
-    queryKey: qk.orderStages(id),
+    queryKey: qk.orderStages(resolving || badId ? -1 : id),
     queryFn: () => ordersApi.stages(id),
+    enabled: !resolving && !badId,
   });
   const projectTypes = useQuery({
     queryKey: qk.projectTypes,
@@ -155,10 +164,18 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     },
   });
 
-  if (detail.isLoading) {
+  if (resolving || detail.isLoading) {
     return (
       <AppShell>
         <DetailSkeleton />
+      </AppShell>
+    );
+  }
+  if (badId) {
+    return (
+      <AppShell>
+        <PageHeader size="record" title={t('orderDetails')} />
+        <ErrorState error={new Error('Bad order id')} />
       </AppShell>
     );
   }

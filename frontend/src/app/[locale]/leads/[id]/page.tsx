@@ -34,6 +34,7 @@ import { CommentThread } from '@/components/comments/CommentThread';
 import { leadSourcesApi } from '@/lib/api/endpoints';
 import { canComment, canSendEmail, canUploadMedia } from '@/lib/auth/context';
 import { Conversation } from '@/components/leads/Conversation';
+import { useRouteId } from '@/hooks/useRouteId';
 
 /** A quote whose validity has passed. Plain YYYY-MM-DD compared against the Budapest
  * calendar date — a UTC date would flip the badge around midnight for "today". */
@@ -42,8 +43,11 @@ function expired(validUntil: string): boolean {
   return validUntil < budapest;
 }
 
-export default function LeadDetailPage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default function LeadDetailPage({ params }: { params: { id: string } | Promise<{ id: string }> }) {
+  const idRaw = useRouteId(params);
+  const resolving = idRaw === null;
+  const id = resolving ? NaN : Number(idRaw);
+  const badId = !resolving && !Number.isFinite(id);
   const t = useTranslations('leads');
   const ta = useTranslations('leadSources');
   const tc = useTranslations('common');
@@ -59,7 +63,11 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const [quotationOpen, setQuotationOpen] = useState(false);
   const editable = canEditLeads(user);
 
-  const detail = useQuery({ queryKey: qk.lead(id), queryFn: () => leadsApi.get(id) });
+  const detail = useQuery({
+    queryKey: qk.lead(resolving || badId ? -1 : id),
+    queryFn: () => leadsApi.get(id),
+    enabled: !resolving && !badId,
+  });
   const sources = useQuery({ queryKey: qk.leadSources(true), queryFn: () => leadSourcesApi.list(true) });
   const tm = useTranslations('media');
   const tcv = useTranslations('conversation');
@@ -106,8 +114,13 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
 
   return (
     <AppShell>
-      {detail.isLoading ? (
+      {resolving || detail.isLoading ? (
         <DetailSkeleton />
+      ) : badId ? (
+        <>
+          <PageHeader size="record" title={t('leadDetails')} />
+          <ErrorState error={new Error('Bad lead id')} />
+        </>
       ) : detail.isError || !detail.data ? (
         <>
           <PageHeader size="record" title={t('leadDetails')} />

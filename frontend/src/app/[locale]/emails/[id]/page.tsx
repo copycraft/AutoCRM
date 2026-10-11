@@ -16,7 +16,8 @@ import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
 import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
 import { emailApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { errorMessage } from '@/lib/api/errors';
+import { ApiError, errorMessage } from '@/lib/api/errors';
+import { useRouteId } from '@/hooks/useRouteId';
 import { canAdmin, useAuth } from '@/lib/auth/context';
 import { useToast } from '@/components/ui/Toasts';
 import type { EmailStatus } from '@/lib/api/types';
@@ -53,8 +54,14 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export default function EmailDetailPage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default function EmailDetailPage({ params }: { params: { id: string } | Promise<{ id: string }> }) {
+  // Next 16 passes route params as a promise to client components; tests and
+  // older callers pass them directly. useRouteId handles both (React 18 has
+  // no `use()` hook, so the promise unwraps in an effect).
+  const idRaw = useRouteId(params);
+  const resolving = idRaw === null;
+  const id = resolving ? NaN : Number(idRaw);
+  const badId = !resolving && !Number.isFinite(id);
   const t = useTranslations('emails');
   const tc = useTranslations('common');
   const tn = useTranslations('navigation');
@@ -68,7 +75,11 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
   const toast = useToast();
   const tq = useTranslations('qol');
 
-  const detail = useQuery({ queryKey: qk.email(id), queryFn: () => emailApi.get(id) });
+  const detail = useQuery({
+    queryKey: qk.email(resolving || badId ? -1 : id),
+    queryFn: () => emailApi.get(id),
+    enabled: !resolving && !badId,
+  });
   // GET /users is admin-only; non-admins see the raw id (backend gap).
   const usersQuery = useQuery({
     queryKey: qk.users,
@@ -121,9 +132,19 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
   const canRetry =
     !!m && canAdmin(user) && (m.status === 'failed' || m.status === 'needs_review');
 
+  if (badId) {
+    return (
+      <AppShell>
+        <PageHeader size="record" title={t('title')} />
+        <ErrorState error={new ApiError('not_found', 404, 'Bad email id')} />
+      </AppShell>
+    );
+  }
+  // The id promise has not resolved yet: same skeleton as a loading record.
+
   return (
     <AppShell>
-      {detail.isLoading ? (
+      {resolving || detail.isLoading ? (
         <DetailSkeleton />
       ) : detail.isError || !detail.data ? (
         <>

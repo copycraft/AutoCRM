@@ -5,6 +5,7 @@
 // Printable, so it can go to the customer as a PDF.
 
 import { useState } from 'react';
+import { useRouteId } from '@/hooks/useRouteId';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
@@ -22,16 +23,20 @@ function isoDay(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function StatementPage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default function StatementPage({ params }: { params: { id: string } | Promise<{ id: string }> }) {
+  const idRaw = useRouteId(params);
+  const resolving = idRaw === null;
+  const id = resolving ? NaN : Number(idRaw);
+  const badId = !resolving && !Number.isFinite(id);
   const t = useTranslations('statement');
   const locale = useLocale();
   const today = new Date();
   const [from, setFrom] = useState(isoDay(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())));
   const [to, setTo] = useState(isoDay(today));
   const q = useQuery({
-    queryKey: ['partners', id, 'statement', from, to],
+    queryKey: ['partners', resolving || badId ? -1 : id, 'statement', from, to],
     queryFn: () => paymentsApi.statement(id, { from, to }),
+    enabled: !resolving && !badId,
   });
 
   return (
@@ -53,8 +58,10 @@ export default function StatementPage({ params }: { params: { id: string } }) {
           </button>
         </div>
       </div>
-      {q.isLoading ? (
+      {resolving || q.isLoading ? (
         <DetailSkeleton />
+      ) : badId ? (
+        <ErrorState error={new Error('Bad partner id')} />
       ) : q.isError || !q.data ? (
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : (
