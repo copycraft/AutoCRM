@@ -470,6 +470,10 @@ export const zCreateBody = z.object({
     fuel_level: z.string().nullish(),
     battery_pct: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
     warning_lights: z.string().nullish(),
+    key_count: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    intake_condition: z.string().nullish(),
+    valuables_declared: z.boolean().nullish(),
+    valuables: z.string().nullish(),
     client_key: z.string().nullish()
 });
 
@@ -916,7 +920,7 @@ export const zErrorBody = z.object({
  * Clients layer this over their built-in map: the built-in map must stay for
  * cold start (a login failure happens before the first fetch), but every
  * reworded message and every new code reaches the clients with the next
- * lookups fetch — no app update.
+ * lookups fetch ÔÇö no app update.
  */
 export const zErrorTextEntry = z.object({
     code: z.string(),
@@ -1077,7 +1081,7 @@ export const zCompleted = z.union([
  * An image category with the two rules clients used to hard-code: whether the
  * bytes are evidence (`immutable`, the database refuses delete and re-filing)
  * and whether a person may file a photo by hand (`attachable`, production
- * only — intake and handover shots come from their own flows).
+ * only ÔÇö intake and handover shots come from their own flows).
  */
 export const zImageCategoryEntry = z.object({
     key: z.string(),
@@ -1378,7 +1382,7 @@ export const zInvoicePayment = z.object({
  *
  * `Submitting` is a real state, not a placeholder: NAV validates asynchronously, so there
  * is a period in which the report has been sent and no verdict exists. `Rejected` is
- * terminal for that document — the number is spent, and a corrected invoice is a new one.
+ * terminal for that document ÔÇö the number is spent, and a corrected invoice is a new one.
  */
 export const zInvoiceStatus = z.enum([
     'submitting',
@@ -2034,6 +2038,27 @@ export const zItemsKnownSupplier = z.object({
 /**
  * The list envelope: `{"items": [...]}`.
  */
+export const zItemsLayoutItem = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        kind: z.string(),
+        location_id: z.number().int().nullish(),
+        label: z.string(),
+        number: z.string(),
+        x: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        y: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        width: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        height: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        rotation: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        parent_id: z.number().int().nullish(),
+        color: z.string(),
+        position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' })
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
 export const zItemsLeadSource = z.object({
     items: z.array(z.object({
         key: z.string(),
@@ -2520,6 +2545,37 @@ export const zKnownSupplier = z.object({
     currency: z.string()
 });
 
+export const zLayoutItem = z.object({
+    id: z.number().int(),
+    kind: z.string(),
+    location_id: z.number().int().nullish(),
+    label: z.string(),
+    number: z.string(),
+    x: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    y: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    width: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    height: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    rotation: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    parent_id: z.number().int().nullish(),
+    color: z.string(),
+    position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' })
+});
+
+export const zLayoutItemBody = z.object({
+    kind: z.string().nullish(),
+    location_id: z.number().int().nullish(),
+    label: z.string().nullish(),
+    number: z.string().nullish(),
+    x: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    y: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    width: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    height: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    rotation: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
+    parent_id: z.number().int().nullish(),
+    color: z.string().nullish(),
+    position: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish()
+});
+
 export const zLead = z.object({
     id: z.number().int(),
     title: z.string(),
@@ -2917,9 +2973,9 @@ export const zNewDocument = z.object({
 /**
  * A newsletter blast: one row, everyone in BCC, nobody sees the list.
  *
- * Bodies are literal — a blast has no single partner or lead, so `{{variables}}` have
+ * Bodies are literal ÔÇö a blast has no single partner or lead, so `{{variables}}` have
  * nothing to resolve against, and any braces found refuse the send loudly rather than
- * mailing `{{MISSING:…}}` to hundreds of people. Unsubscribed and globally suppressed
+ * mailing `{{MISSING:ÔÇŽ}}` to hundreds of people. Unsubscribed and globally suppressed
  * addresses never make the BCC list.
  */
 export const zNewsletterRequest = z.object({
@@ -3530,7 +3586,7 @@ export const zPublicJob = z.object({
  * The price and validity lines appear when the lead carries them; the PDF is
  * authoritative either way, so a lead without a quoted price still sends. Anything the
  * office writes by hand goes through `{{variable}}` rendering first, then Markdown when
- * asked — the same pipeline as a manual letter.
+ * asked ÔÇö the same pipeline as a manual letter.
  */
 export const zQuotationRequest = z.object({
     subject: z.string().nullish(),
@@ -3620,6 +3676,11 @@ export const zRevenueRow = z.object({
 export const zRevenueByCountry = z.object({
     period: zPeriod,
     rows: z.array(zRevenueRow)
+});
+
+export const zRevertBody = z.object({
+    revision_id: z.number().int(),
+    note: z.string().nullish()
 });
 
 export const zRevokedSessions = z.object({
@@ -4472,6 +4533,33 @@ export const zUserSettings = z.object({
     page_size: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
     email_signature: z.string().nullish(),
     updated_at: z.string().datetime()
+});
+
+export const zValue = z.unknown();
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsLayoutRevision = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        parent_id: z.number().int().nullish(),
+        layout: zValue,
+        note: z.string(),
+        created_by: z.number().int().nullish(),
+        created_by_name: z.string().nullish(),
+        created_at: z.string().datetime()
+    }))
+});
+
+export const zLayoutRevision = z.object({
+    id: z.number().int(),
+    parent_id: z.number().int().nullish(),
+    layout: zValue,
+    note: z.string(),
+    created_by: z.number().int().nullish(),
+    created_by_name: z.string().nullish(),
+    created_at: z.string().datetime()
 });
 
 export const zVehicle = z.object({
@@ -6754,6 +6842,36 @@ export const zYardVehicleMovesPath = z.object({
 });
 
 export const zYardVehicleMovesResponse = zItemsVehicleMove;
+
+export const zYardLayoutResponse = zItemsLayoutItem;
+
+export const zYardSaveLayoutBody = zLayoutItemBody;
+
+export const zYardSaveLayoutResponse = zLayoutItem;
+
+export const zYardDeleteLayoutItemPath = z.object({
+    id: z.number().int()
+});
+
+export const zYardDeleteLayoutItemResponse = z.void();
+
+export const zYardUpdateLayoutItemBody = zLayoutItemBody;
+
+export const zYardUpdateLayoutItemPath = z.object({
+    id: z.number().int()
+});
+
+export const zYardUpdateLayoutItemResponse = zLayoutItem;
+
+export const zYardRevisionsQuery = z.object({
+    limit: z.number().int().optional()
+});
+
+export const zYardRevisionsResponse = zItemsLayoutRevision;
+
+export const zYardRevertRevisionBody = zRevertBody;
+
+export const zYardRevertRevisionResponse = zLayoutRevision;
 
 export const zIncidentsListQuery = z.object({
     status: z.string().optional(),

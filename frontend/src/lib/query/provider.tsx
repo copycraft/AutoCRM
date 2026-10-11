@@ -83,6 +83,8 @@ export const qk = {
   yardBoard: ['yard', 'board'],
   yardLocations: (archived = false) => ['yard', 'locations', archived],
   vehicleMoves: (vehicleId: number) => ['yard', 'moves', vehicleId],
+  yardLayout: ['yard', 'layout'],
+  yardRevisions: ['yard', 'revisions'],
   incidents: (params?: unknown) => ['incidents', params],
   stagePhotoCategories: ['stage-photo-categories'],
   documents: (orderId: number) => ['order', orderId, 'documents'],

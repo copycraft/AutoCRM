@@ -132,6 +132,11 @@ export type YardVehicle = Schemas['YardVehicle'];
 export type YardBoard = Schemas['Board'];
 export type VehicleMove = Schemas['VehicleMove'];
 export type CurrentLocation = Schemas['CurrentLocation'];
+export type LayoutItem = Schemas['LayoutItem'];
+export type LayoutRevision = Omit<Schemas['LayoutRevision'], 'layout'> & { layout?: unknown };
+export type Items_LayoutRevision = Omit<Schemas['Items_LayoutRevision'], 'items'> & {
+  items: LayoutRevision[];
+};
 export type Incident = Schemas['Incident'];
 export type IncidentBody = Schemas['IncidentBody'];
 export type ImageView = Schemas['ImageView'];

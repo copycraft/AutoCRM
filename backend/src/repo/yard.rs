@@ -1,8 +1,12 @@
 //! The yard (0048): the places a vehicle can stand, and the moves between them. Where a
 //! vehicle is now is its latest move (`vehicle_current_location`).
+//!
+//! The layout (0049): the 2D map. Items are spots, buildings and workshop bays placed
+//! on a grid; the board renders them, and the 3D view reads the same coordinates.
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use serde_json::Value as JsonValue;
 use sqlx::PgExecutor;
 use utoipa::ToSchema;
 
@@ -239,5 +243,167 @@ pub async fn current_of(
         vehicle_ids
     )
     .fetch_all(db)
+    .await
+}
+
+// --- Layout (0049) ---
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct LayoutItem {
+    pub id: i64,
+    /// `spot` | `building` | `workshop_bay`.
+    pub kind: String,
+    pub location_id: Option<i64>,
+    pub label: String,
+    pub number: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub rotation: i32,
+    pub parent_id: Option<i64>,
+    pub color: String,
+    pub position: i32,
+}
+
+pub async fn layout_items(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<LayoutItem>> {
+    sqlx::query_as!(
+        LayoutItem,
+        "SELECT id, kind, location_id, label, number, x, y, width, height, rotation,
+                parent_id, color, position
+           FROM yard_layout_items ORDER BY position, id"
+    )
+    .fetch_all(db)
+    .await
+}
+
+pub async fn layout_item(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<LayoutItem>> {
+    sqlx::query_as!(
+        LayoutItem,
+        "SELECT id, kind, location_id, label, number, x, y, width, height, rotation,
+                parent_id, color, position
+           FROM yard_layout_items WHERE id = $1",
+        id
+    )
+    .fetch_optional(db)
+    .await
+}
+
+pub async fn insert_layout_item(
+    db: impl PgExecutor<'_>,
+    kind: &str,
+    location_id: Option<i64>,
+    label: &str,
+    number: &str,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    rotation: i32,
+    parent_id: Option<i64>,
+    color: &str,
+    position: i32,
+) -> sqlx::Result<LayoutItem> {
+    sqlx::query_as!(
+        LayoutItem,
+        "INSERT INTO yard_layout_items
+            (kind, location_id, label, number, x, y, width, height, rotation, parent_id, color, position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         RETURNING id, kind, location_id, label, number, x, y, width, height, rotation,
+                   parent_id, color, position",
+        kind, location_id, label, number, x, y, width, height, rotation, parent_id, color, position
+    )
+    .fetch_one(db)
+    .await
+}
+
+pub async fn update_layout_item(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    location_id: Option<i64>,
+    label: &str,
+    number: &str,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    rotation: i32,
+    parent_id: Option<i64>,
+    color: &str,
+    position: i32,
+) -> sqlx::Result<Option<LayoutItem>> {
+    sqlx::query_as!(
+        LayoutItem,
+        "UPDATE yard_layout_items
+            SET location_id = $2, label = $3, number = $4, x = $5, y = $6, width = $7,
+                height = $8, rotation = $9, parent_id = $10, color = $11, position = $12
+          WHERE id = $1
+         RETURNING id, kind, location_id, label, number, x, y, width, height, rotation,
+                   parent_id, color, position",
+        id, location_id, label, number, x, y, width, height, rotation, parent_id, color, position
+    )
+    .fetch_optional(db)
+    .await
+}
+
+pub async fn delete_layout_item(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<bool> {
+    let r = sqlx::query!("DELETE FROM yard_layout_items WHERE id = $1", id)
+        .execute(db)
+        .await?;
+    Ok(r.rows_affected() > 0)
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct LayoutRevision {
+    pub id: i64,
+    pub parent_id: Option<i64>,
+    pub layout: JsonValue,
+    pub note: String,
+    pub created_by: Option<i64>,
+    pub created_by_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+pub async fn insert_revision(
+    db: impl PgExecutor<'_>,
+    parent_id: Option<i64>,
+    layout: JsonValue,
+    note: &str,
+    user_id: i64,
+) -> sqlx::Result<i64> {
+    sqlx::query_scalar!(
+        "INSERT INTO yard_revisions (parent_id, layout, note, created_by)
+         VALUES ($1, $2, $3, $4) RETURNING id",
+        parent_id, layout, note, user_id
+    )
+    .fetch_one(db)
+    .await
+}
+
+pub async fn revisions(db: impl PgExecutor<'_>, limit: i64) -> sqlx::Result<Vec<LayoutRevision>> {
+    sqlx::query_as!(
+        LayoutRevision,
+        r#"SELECT r.id, r.parent_id, r.layout, r.note, r.created_by,
+                  u.display_name AS "created_by_name?", r.created_at
+           FROM yard_revisions r
+           LEFT JOIN users u ON u.id = r.created_by
+           ORDER BY r.created_at DESC, r.id DESC LIMIT $1"#,
+        limit
+    )
+    .fetch_all(db)
+    .await
+}
+
+pub async fn revision(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<LayoutRevision>> {
+    sqlx::query_as!(
+        LayoutRevision,
+        r#"SELECT r.id, r.parent_id, r.layout, r.note, r.created_by,
+                  u.display_name AS "created_by_name?", r.created_at
+           FROM yard_revisions r
+           LEFT JOIN users u ON u.id = r.created_by
+           WHERE r.id = $1"#,
+        id
+    )
+    .fetch_optional(db)
     .await
 }

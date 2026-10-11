@@ -633,6 +633,20 @@ export const yardApi = {
     request(`/vehicles/${vehicleId}/moves`, s.zYardVehicleMovesResponse),
 };
 
+// ── Yard layout (0051) ──
+export const yardLayoutApi = {
+  list: (): Promise<S['Items_LayoutItem']> => request('/yard/layout', s.zYardLayoutResponse),
+  save: (body: S['LayoutItemBody']): Promise<S['LayoutItem']> =>
+    request('/yard/layout', s.zYardSaveLayoutResponse, { method: 'POST', body }),
+  update: (id: number, body: S['LayoutItemBody']): Promise<S['LayoutItem']> =>
+    request(`/yard/layout/${id}`, s.zYardUpdateLayoutItemResponse, { method: 'PATCH', body }),
+  remove: (id: number): Promise<void> => requestNoContent(`/yard/layout/${id}`, { method: 'DELETE' }),
+  revisions: (limit = 50): Promise<import('@/lib/api/types').Items_LayoutRevision> =>
+    request('/yard/revisions', s.zYardRevisionsResponse, { search: { limit } }),
+  revert: (body: S['RevertBody']): Promise<import('@/lib/api/types').LayoutRevision> =>
+    request('/yard/revert', s.zYardRevertRevisionResponse, { method: 'POST', body }),
+};
+
 // ── Internal incidents (0048) ──
 export const incidentsApi = {
   list: (search: QueryOf<'incidents_list'> = {}): Promise<S['Items_Incident']> =>

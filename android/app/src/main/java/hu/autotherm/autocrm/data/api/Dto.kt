@@ -1255,6 +1255,58 @@ data class MoveResult(
     @SerialName("over_capacity") val overCapacity: Boolean = false,
 )
 
+// ── 0051 yard layout ──
+
+@Serializable
+data class LayoutItem(
+    @SerialName("id") val id: Long,
+    @SerialName("kind") val kind: String,
+    @SerialName("location_id") val locationId: Long? = null,
+    @SerialName("label") val label: String = "",
+    @SerialName("number") val number: String = "",
+    @SerialName("x") val x: Int = 0,
+    @SerialName("y") val y: Int = 0,
+    @SerialName("width") val width: Int = 1,
+    @SerialName("height") val height: Int = 1,
+    @SerialName("rotation") val rotation: Int = 0,
+    @SerialName("parent_id") val parentId: Long? = null,
+    @SerialName("color") val color: String = "#6b7280",
+    @SerialName("position") val position: Int = 0,
+)
+
+@Serializable
+data class LayoutItemBody(
+    @SerialName("kind") val kind: String? = null,
+    @SerialName("location_id") val locationId: Long? = null,
+    @SerialName("label") val label: String? = null,
+    @SerialName("number") val number: String? = null,
+    @SerialName("x") val x: Int? = null,
+    @SerialName("y") val y: Int? = null,
+    @SerialName("width") val width: Int? = null,
+    @SerialName("height") val height: Int? = null,
+    @SerialName("rotation") val rotation: Int? = null,
+    @SerialName("parent_id") val parentId: Long? = null,
+    @SerialName("color") val color: String? = null,
+    @SerialName("position") val position: Int? = null,
+)
+
+@Serializable
+data class LayoutRevision(
+    @SerialName("id") val id: Long,
+    @SerialName("parent_id") val parentId: Long? = null,
+    @SerialName("layout") val layout: String? = null,
+    @SerialName("note") val note: String = "",
+    @SerialName("created_by") val createdBy: Long? = null,
+    @SerialName("created_by_name") val createdByName: String? = null,
+    @SerialName("created_at") val createdAt: String,
+)
+
+@Serializable
+data class RevertBody(
+    @SerialName("revision_id") val revisionId: Long,
+    @SerialName("note") val note: String? = null,
+)
+
 // ── 0049 ──────────────────────────────────────────────────────────────────────────
 
 @Serializable

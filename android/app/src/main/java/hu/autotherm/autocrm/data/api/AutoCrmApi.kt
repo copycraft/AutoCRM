@@ -840,6 +840,37 @@ class AutoCrmApi(
     suspend fun moveVehicle(body: MoveBody): MoveResult =
         send(Request.Builder().url(url("/yard/moves").build()).post(body(body)), MoveResult.serializer())
 
+    suspend fun yardLayout(): List<LayoutItem> =
+        send(
+            Request.Builder().url(url("/yard/layout").build()).get(),
+            Items.serializer(LayoutItem.serializer()),
+        ).items
+
+    suspend fun saveLayoutItem(item: LayoutItemBody): LayoutItem =
+        send(Request.Builder().url(url("/yard/layout").build()).post(body(item)), LayoutItem.serializer())
+
+    suspend fun updateLayoutItem(id: Long, item: LayoutItemBody): LayoutItem =
+        send(
+            Request.Builder().url(url("/yard/layout/$id").build()).patch(body(item)),
+            LayoutItem.serializer(),
+        )
+
+    suspend fun deleteLayoutItem(id: Long) {
+        send(Request.Builder().url(url("/yard/layout/$id").build()).delete(), Unit.serializer())
+    }
+
+    suspend fun yardRevisions(limit: Int = 50): List<LayoutRevision> =
+        send(
+            Request.Builder().url(url("/yard/revisions").addQueryParameter("limit", limit.toString())).build()).get(),
+            Items.serializer(LayoutRevision.serializer()),
+        ).items
+
+    suspend fun revertRevision(revisionId: Long, note: String?): LayoutRevision =
+        send(
+            Request.Builder().url(url("/yard/revert").build()).post(body(RevertBody(revisionId, note))),
+            LayoutRevision.serializer(),
+        )
+
     // ── Configuration ───────────────────────────────────────────────────────────────
 
     suspend fun stageDefinitions(entity: String): List<StageDefinition> {

@@ -1545,7 +1545,7 @@
           "configuration"
         ],
         "summary": "Every client-facing enumeration in one document: damage types, severities,\nverdicts, fuel levels, task entity types, currencies, invoice payment\nmethods, annulment codes, image categories and email composer starters.",
-        "description": "Any signed-in user may read it (like the zone lists): the phone fetches it\non the Átvétel-átadás screen and caches it for the yard, the web keeps it\nin react-query. Values and labels come from `domain::lookups`, next to the\nvalidation that accepts them — changing one is a server deploy, never an\napp update.",
+        "description": "Any signed-in user may read it (like the zone lists): the phone fetches it\non the ├ütv├ętel-├ítad├ís screen and caches it for the yard, the web keeps it\nin react-query. Values and labels come from `domain::lookups`, next to the\nvalidation that accepts them ÔÇö changing one is a server deploy, never an\napp update.",
         "operationId": "configuration_lookups",
         "responses": {
           "200": {
@@ -1686,7 +1686,7 @@
           {
             "name": "q",
             "in": "query",
-            "description": "Matches name, tax number, e-mail, city — and phone in any\n+36/06/0036 spacing variant.",
+            "description": "Matches name, tax number, e-mail, city ÔÇö and phone in any\n+36/06/0036 spacing variant.",
             "required": false,
             "schema": {
               "type": "string"
@@ -6162,7 +6162,7 @@
         "tags": [
           "media"
         ],
-        "summary": "V2.4: documents of a lead — the quotation, before any order exists.",
+        "summary": "V2.4: documents of a lead ÔÇö the quotation, before any order exists.",
         "operationId": "media_list_lead_documents",
         "parameters": [
           {
@@ -7418,7 +7418,7 @@
           {
             "name": "token",
             "in": "path",
-            "description": "The per-address token from an earlier mail. The page without a token asks for the\naddress instead — a BCC blast cannot carry personal links.",
+            "description": "The per-address token from an earlier mail. The page without a token asks for the\naddress instead ÔÇö a BCC blast cannot carry personal links.",
             "required": true,
             "schema": {
               "type": [
@@ -9208,7 +9208,7 @@
         "tags": [
           "email"
         ],
-        "summary": "A copy to edit: \"<name> (másolat)\", same area and folder, a fresh key. How the design\nsamples are meant to be used, and how a customer letter gets a German twin.",
+        "summary": "A copy to edit: \"<name> (m├ísolat)\", same area and folder, a fresh key. How the design\nsamples are meant to be used, and how a customer letter gets a German twin.",
         "operationId": "email_copy_template",
         "parameters": [
           {
@@ -11251,7 +11251,7 @@
         "tags": [
           "hr"
         ],
-        "summary": "Moves the employee to a status. Megszűnt jogviszony (a status that ends employment)\narchives them; any other brings an archived employee back.",
+        "summary": "Moves the employee to a status. Megsz┼▒nt jogviszony (a status that ends employment)\narchives them; any other brings an archived employee back.",
         "operationId": "hr_set_employee_status",
         "parameters": [
           {
@@ -11600,7 +11600,7 @@
         "tags": [
           "hr"
         ],
-        "summary": "The paper behind an absence — a doctor's certificate (orvosi igazolás) for sick leave:\nthe raw file as the body (PDF, JPEG, PNG or WebP, at most 25 MB). Replaces any earlier one.",
+        "summary": "The paper behind an absence ÔÇö a doctor's certificate (orvosi igazol├ís) for sick leave:\nthe raw file as the body (PDF, JPEG, PNG or WebP, at most 25 MB). Replaces any earlier one.",
         "operationId": "hr_upload_absence_file",
         "parameters": [
           {
@@ -12501,7 +12501,7 @@
         "tags": [
           "reports"
         ],
-        "summary": "Daily workshop load: placed, completed and in-workshop cars per business-tz day.\nRanges cap at 62 days — this feeds bar charts, not history exports.",
+        "summary": "Daily workshop load: placed, completed and in-workshop cars per business-tz day.\nRanges cap at 62 days ÔÇö this feeds bar charts, not history exports.",
         "operationId": "reports_workload",
         "parameters": [
           {
@@ -12798,7 +12798,7 @@
         "tags": [
           "reports"
         ],
-        "summary": "Leads → quotes → orders per source website (the domain the lead was tagged from).",
+        "summary": "Leads Ôćĺ quotes Ôćĺ orders per source website (the domain the lead was tagged from).",
         "operationId": "reports_website_conversion",
         "parameters": [
           {
@@ -14606,7 +14606,7 @@
         "tags": [
           "invoices"
         ],
-        "summary": "How many invoices are on each list, for the Számlázó sidebar.",
+        "summary": "How many invoices are on each list, for the Sz├íml├íz├│ sidebar.",
         "operationId": "invoices_bucket_counts",
         "responses": {
           "200": {
@@ -14647,7 +14647,7 @@
         "tags": [
           "invoices"
         ],
-        "summary": "Marks an issued invoice paid (Fizetve) or back to unpaid (Kiállítva). Cash invoices\nare paid on issue without this.",
+        "summary": "Marks an issued invoice paid (Fizetve) or back to unpaid (Ki├íll├ştva). Cash invoices\nare paid on issue without this.",
         "operationId": "invoices_mark_paid",
         "parameters": [
           {
@@ -15216,7 +15216,7 @@
           "invoices"
         ],
         "summary": "Fetch the PDF of an issued invoice again (INV-L9).",
-        "description": "For the invoice whose report NAV stored but whose file never arrived — a slow\nobject store at the wrong moment. Re-renders from what NAV holds and files it with\nthe order's documents. The letter queued at issue time is left alone: it may already\nhave gone out without the attachment, and re-sending mail is the office's call.",
+        "description": "For the invoice whose report NAV stored but whose file never arrived ÔÇö a slow\nobject store at the wrong moment. Re-renders from what NAV holds and files it with\nthe order's documents. The letter queued at issue time is left alone: it may already\nhave gone out without the attachment, and re-sending mail is the office's call.",
         "operationId": "invoices_refetch_pdf",
         "parameters": [
           {
@@ -15323,7 +15323,7 @@
         "tags": [
           "invoices"
         ],
-        "summary": "Render a proforma (díjbekérő) for an order.",
+        "summary": "Render a proforma (d├şjbek├ęr┼Ĺ) for an order.",
         "description": "Nothing is reported to NAV, no invoice status changes, and no invoice needs to exist:\na proforma is a request for payment, and usable from the day the order is priced.",
         "operationId": "invoices_create_proforma",
         "parameters": [
@@ -15552,7 +15552,7 @@
         "tags": [
           "invoices"
         ],
-        "summary": "A partner's statement of account (folyószámla-kivonat, egyenlegközlő): invoices and\nstornos issued in the period, older invoices still open, and the payments received.",
+        "summary": "A partner's statement of account (foly├│sz├ímla-kivonat, egyenlegk├Âzl┼Ĺ): invoices and\nstornos issued in the period, older invoices still open, and the payments received.",
         "operationId": "invoices_statement",
         "parameters": [
           {
@@ -16039,7 +16039,7 @@
         "tags": [
           "incoming_invoices"
         ],
-        "summary": "One supplier invoice: the raw file as the body (PDF, JPEG, PNG, WebP or XML, up to\n25 MB), its name in `?filename=`. It lands on Nyitott számla with nothing filled in.\nThe same file twice is refused, naming the invoice that already holds it.",
+        "summary": "One supplier invoice: the raw file as the body (PDF, JPEG, PNG, WebP or XML, up to\n25 MB), its name in `?filename=`. It lands on Nyitott sz├ímla with nothing filled in.\nThe same file twice is refused, naming the invoice that already holds it.",
         "operationId": "incoming_invoices_upload",
         "parameters": [
           {
@@ -16814,6 +16814,298 @@
         }
       }
     },
+    "/yard/layout": {
+      "get": {
+        "tags": [
+          "yard"
+        ],
+        "operationId": "yard_layout",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_LayoutItem"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "yard"
+        ],
+        "operationId": "yard_save_layout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutItemBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutItem"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/yard/layout/{id}": {
+      "delete": {
+        "tags": [
+          "yard"
+        ],
+        "operationId": "yard_delete_layout_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "yard"
+        ],
+        "operationId": "yard_update_layout_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutItemBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutItem"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/yard/revisions": {
+      "get": {
+        "tags": [
+          "yard"
+        ],
+        "operationId": "yard_revisions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_LayoutRevision"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/yard/revert": {
+      "post": {
+        "tags": [
+          "yard"
+        ],
+        "operationId": "yard_revert_revision",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevertBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutRevision"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/incidents": {
       "get": {
         "tags": [
@@ -17238,7 +17530,7 @@
         "tags": [
           "ads"
         ],
-        "summary": "Won leads that came from a Google Ads click, in Google's offline-conversion CSV format.\nSchedule it in Google Ads (Conversions → Uploads → Schedules → HTTPS) with this URL.",
+        "summary": "Won leads that came from a Google Ads click, in Google's offline-conversion CSV format.\nSchedule it in Google Ads (Conversions Ôćĺ Uploads Ôćĺ Schedules Ôćĺ HTTPS) with this URL.",
         "operationId": "ads_google_conversions",
         "parameters": [
           {
@@ -17588,7 +17880,7 @@
           },
           "reason": {
             "type": "string",
-            "description": "Why. NAV stores it and shows it in the Online Számla portal."
+            "description": "Why. NAV stores it and shows it in the Online Sz├ímla portal."
           }
         }
       },
@@ -17857,7 +18149,7 @@
               "string",
               "null"
             ],
-            "description": "\"attached\" or \"link\", filled in when the email is sent. \"embedded\" means the file\ntravels as an inline image under `content_id`, referenced from the HTML as\n`cid:…` rather than listed as an attachment."
+            "description": "\"attached\" or \"link\", filled in when the email is sent. \"embedded\" means the file\ntravels as an inline image under `content_id`, referenced from the HTML as\n`cid:ÔÇŽ` rather than listed as an attachment."
           },
           "content_id": {
             "type": [
@@ -18376,7 +18668,7 @@
           },
           "is_overdue": {
             "type": "boolean",
-            "description": "Past due date and still open, measured against the caller's business day\n(not UTC midnight — the whole point of this flag)."
+            "description": "Past due date and still open, measured against the caller's business day\n(not UTC midnight ÔÇö the whole point of this flag)."
           }
         }
       },
@@ -18438,7 +18730,7 @@
               "share_of_waiting": {
                 "type": "number",
                 "format": "double",
-                "description": "Fraction (0–1) of all blocker waiting time in the period."
+                "description": "Fraction (0ÔÇô1) of all blocker waiting time in the period."
               }
             }
           }
@@ -18507,7 +18799,7 @@
           "waiting_days": {
             "type": "number",
             "format": "double",
-            "description": "Sum of (resolved or now − created) across blockers, in days."
+            "description": "Sum of (resolved or now Ôłĺ created) across blockers, in days."
           }
         }
       },
@@ -18969,7 +19261,7 @@
           "due_days": {
             "type": "integer",
             "format": "int32",
-            "description": "Due this many days after the checklist is started (0–365)."
+            "description": "Due this many days after the checklist is started (0ÔÇô365)."
           },
           "position": {
             "type": [
@@ -19078,7 +19370,7 @@
               "type": "integer",
               "format": "int64"
             },
-            "description": "The users named in the text (`@Név`). Each is notified once."
+            "description": "The users named in the text (`@N├ęv`). Each is notified once."
           }
         }
       },
@@ -19220,7 +19512,7 @@
           },
           "body_markdown": {
             "type": "boolean",
-            "description": "The body is Markdown: rendered to HTML for sending, kept as written for the text\npart and the inbox. Templates stay plain text — Markdown and `{{variables}}` mix\nbadly when values contain asterisks, so a template plus this flag is refused."
+            "description": "The body is Markdown: rendered to HTML for sending, kept as written for the text\npart and the inbox. Templates stay plain text ÔÇö Markdown and `{{variables}}` mix\nbadly when values contain asterisks, so a template plus this flag is refused."
           },
           "hero": {
             "type": [
@@ -19453,7 +19745,7 @@
               "string",
               "null"
             ],
-            "description": "Out only: queued, sent, failed, …"
+            "description": "Out only: queued, sent, failed, ÔÇŽ"
           },
           "sent_by_name": {
             "type": [
@@ -19559,7 +19851,7 @@
               "null"
             ],
             "format": "int32",
-            "description": "Átvételi lap, read at the car. Only a `checkout` (átvétel) uses these: it writes them,\nwith `odometer`, `fuel_level` and a plate or VIN the order lacks, onto the order, so\nthe walkaround is the intake slip and leaving `intake` needs no second form."
+            "description": "├ütv├ęteli lap, read at the car. Only a `checkout` (├ítv├ętel) uses these: it writes them,\nwith `odometer`, `fuel_level` and a plate or VIN the order lacks, onto the order, so\nthe walkaround is the intake slip and leaving `intake` needs no second form."
           },
           "intake_condition": {
             "type": [
@@ -20201,7 +20493,7 @@
               "string",
               "null"
             ],
-            "description": "Who issued it — the ATP inspection body, the designer, the supplier."
+            "description": "Who issued it ÔÇö the ATP inspection body, the designer, the supplier."
           },
           "valid_from": {
             "type": [
@@ -21235,7 +21527,7 @@
           },
           "section": {
             "type": "string",
-            "description": "The heading it is listed under: Távollévő munkavállaló, Aktív munkavállaló..."
+            "description": "The heading it is listed under: T├ívoll├ęv┼Ĺ munkav├íllal├│, Akt├şv munkav├íllal├│..."
           },
           "label": {
             "type": "string"
@@ -21371,385 +21663,385 @@
           {
             "code": "unauthenticated",
             "en": "Authentication required.",
-            "hu": "Nincs bejelentkezve. Jelentkezzen be újra.",
+            "hu": "Nincs bejelentkezve. Jelentkezzen be ├║jra.",
             "retryable": false,
             "status": 401
           },
           {
             "code": "forbidden",
             "en": "You do not have permission to do this.",
-            "hu": "Nincs jogosultsága ehhez a művelethez.",
+            "hu": "Nincs jogosults├íga ehhez a m┼▒velethez.",
             "retryable": false,
             "status": 403
           },
           {
             "code": "not_found",
             "en": "Not found.",
-            "hu": "A kért adat nem található.",
+            "hu": "A k├ęrt adat nem tal├ílhat├│.",
             "retryable": false,
             "status": 404
           },
           {
             "code": "validation",
             "en": "Validation failed; the message names the field.",
-            "hu": "Érvényesítési hiba. Ellenőrizze a megadott adatokat.",
+            "hu": "├ërv├ęnyes├şt├ęsi hiba. Ellen┼Ĺrizze a megadott adatokat.",
             "retryable": false,
             "status": 400
           },
           {
             "code": "too_many_requests",
             "en": "Too many attempts; try again later.",
-            "hu": "Túl sok próbálkozás. Próbálja újra később.",
+            "hu": "T├║l sok pr├│b├ílkoz├ís. Pr├│b├ílja ├║jra k├ęs┼Ĺbb.",
             "retryable": true,
             "status": 429
           },
           {
             "code": "duplicate",
             "en": "A record with these values already exists.",
-            "hu": "Ilyen adat már létezik.",
+            "hu": "Ilyen adat m├ír l├ętezik.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "overlap",
             "en": "The employee already has leave in that period.",
-            "hu": "A munkatársnak ebben az időszakban már van rögzített távolléte.",
+            "hu": "A munkat├írsnak ebben az id┼Ĺszakban m├ír van r├Âgz├ştett t├ívoll├ęte.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "domain_taken",
             "en": "That domain already belongs to another tag.",
-            "hu": "Ez a domain már egy másik címkéhez tartozik.",
+            "hu": "Ez a domain m├ír egy m├ísik c├şmk├ęhez tartozik.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "assistant_unavailable",
             "en": "The assistant is not available (the language model is not running or not configured).",
-            "hu": "Az asszisztens most nem érhető el (a nyelvi modell nem fut vagy nincs beállítva).",
+            "hu": "Az asszisztens most nem ├ęrhet┼Ĺ el (a nyelvi modell nem fut vagy nincs be├íll├ştva).",
             "retryable": true,
             "status": 422
           },
           {
             "code": "template_in_use",
             "en": "An automatic email or a follow-up uses this template, so it cannot go to the bin.",
-            "hu": "Ezt a sablont automatikus levél vagy utánkövetés használja, ezért nem tehető a lomtárba.",
+            "hu": "Ezt a sablont automatikus lev├ęl vagy ut├ínk├Âvet├ęs haszn├ílja, ez├ęrt nem tehet┼Ĺ a lomt├írba.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "status_required",
             "en": "New or leaving employees land on this status, so it cannot be archived; rename it instead.",
-            "hu": "Erre az állapotra kerülnek az új vagy a távozó munkatársak, ezért nem archiválható; nevezze át inkább.",
+            "hu": "Erre az ├íllapotra ker├╝lnek az ├║j vagy a t├ívoz├│ munkat├írsak, ez├ęrt nem archiv├ílhat├│; nevezze ├ít ink├íbb.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "invalid_reference",
             "en": "A referenced record does not exist or is still in use.",
-            "hu": "Érvénytelen hivatkozás, vagy a hivatkozott adat még használatban van.",
+            "hu": "├ërv├ęnytelen hivatkoz├ís, vagy a hivatkozott adat m├ęg haszn├ílatban van.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "constraint_violation",
             "en": "A value violates a data rule.",
-            "hu": "Az adat sérti az adatbázis szabályait.",
+            "hu": "Az adat s├ęrti az adatb├ízis szab├ílyait.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "immutable",
             "en": "Write-once evidence; cannot be changed or deleted.",
-            "hu": "Ez bizonyítási célból védett adat, nem módosítható és nem törölhető.",
+            "hu": "Ez bizony├şt├ísi c├ęlb├│l v├ędett adat, nem m├│dos├şthat├│ ├ęs nem t├Âr├Âlhet┼Ĺ.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "internal",
             "en": "Internal error.",
-            "hu": "Szerverhiba. Próbálja újra később.",
+            "hu": "Szerverhiba. Pr├│b├ílja ├║jra k├ęs┼Ĺbb.",
             "retryable": true,
             "status": 500
           },
           {
             "code": "password_change_required",
             "en": "The password must be changed before anything else.",
-            "hu": "Első bejelentkezéskor kötelező jelszót változtatni.",
+            "hu": "Els┼Ĺ bejelentkez├ęskor k├Âtelez┼Ĺ jelsz├│t v├íltoztatni.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "wrong_password",
             "en": "The current password is incorrect.",
-            "hu": "Hibás a jelenlegi jelszó.",
+            "hu": "Hib├ís a jelenlegi jelsz├│.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "totp_required",
             "en": "This account also needs the authenticator app's one-time code.",
-            "hu": "Adja meg a hitelesítő alkalmazás hatjegyű kódját is.",
+            "hu": "Adja meg a hiteles├şt┼Ĺ alkalmaz├ís hatjegy┼▒ k├│dj├ít is.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "totp_invalid",
             "en": "The one-time code is wrong or was already used.",
-            "hu": "Hibás vagy már felhasznált egyszer használatos kód.",
+            "hu": "Hib├ís vagy m├ír felhaszn├ílt egyszer haszn├ílatos k├│d.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "last_admin",
             "en": "The last active admin cannot be deactivated.",
-            "hu": "Az utolsó aktív adminisztrátor nem tiltható le.",
+            "hu": "Az utols├│ akt├şv adminisztr├ítor nem tilthat├│ le.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "stage_gate",
             "en": "A stage gate is not met.",
-            "hu": "A megrendelés nem léphet tovább, mert egy szükséges feltétel még nem teljesült.",
+            "hu": "A megrendel├ęs nem l├ęphet tov├íbb, mert egy sz├╝ks├ęges felt├ętel m├ęg nem teljes├╝lt.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "note_required",
             "en": "Moving backwards requires a note.",
-            "hu": "A visszalépéshez indoklás szükséges.",
+            "hu": "A visszal├ęp├ęshez indokl├ís sz├╝ks├ęges.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "invalid_transition",
             "en": "This stage transition is not allowed.",
-            "hu": "Ez a fázisváltás nem engedélyezett.",
+            "hu": "Ez a f├ízisv├ílt├ís nem enged├ęlyezett.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "intake_slip_missing",
             "en": "Record the intake slip (odometer) first.",
-            "hu": "Az átvétel lezárásához előbb rögzítsd az átvételi lapot (km-óra).",
+            "hu": "Az ├ítv├ętel lez├ír├ís├íhoz el┼Ĺbb r├Âgz├ştsd az ├ítv├ęteli lapot (km-├│ra).",
             "retryable": false,
             "status": 422
           },
           {
             "code": "use_conversion",
             "en": "Use lead conversion to reach the won stage.",
-            "hu": "A megnyert fázishoz használja az átalakítás funkciót.",
+            "hu": "A megnyert f├ízishoz haszn├ílja az ├ítalak├şt├ís funkci├│t.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "lead_converted",
             "en": "The lead has already been converted.",
-            "hu": "Ez a lead már megrendeléssé lett alakítva.",
+            "hu": "Ez a lead m├ír megrendel├ęss├ę lett alak├ştva.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "stage_required",
             "en": "The won lead stage is required by conversion.",
-            "hu": "A megnyert lead-fázist az átalakítás használja, nem kapcsolható ki.",
+            "hu": "A megnyert lead-f├ízist az ├ítalak├şt├ís haszn├ílja, nem kapcsolhat├│ ki.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "currency_locked",
             "en": "Currency cannot change while the order has items.",
-            "hu": "A pénznem nem módosítható, amíg a megrendelésnek vannak tételei.",
+            "hu": "A p├ęnznem nem m├│dos├şthat├│, am├şg a megrendel├ęsnek vannak t├ętelei.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "already_resolved",
             "en": "The blocker is already resolved.",
-            "hu": "Ez az akadály már meg van oldva.",
+            "hu": "Ez az akad├íly m├ír meg van oldva.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "not_resolved",
             "en": "The blocker is not resolved.",
-            "hu": "Ez az akadály nincs megoldva, ezért nem nyitható újra.",
+            "hu": "Ez az akad├íly nincs megoldva, ez├ęrt nem nyithat├│ ├║jra.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "upload_missing",
             "en": "The upload was not found or has expired.",
-            "hu": "A feltöltés nem található vagy lejárt. Kezdje újra.",
+            "hu": "A felt├Âlt├ęs nem tal├ílhat├│ vagy lej├írt. Kezdje ├║jra.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "upload_mismatch",
             "en": "The uploaded file does not match what was announced.",
-            "hu": "A feltöltött fájl nem egyezik a bejelentettel.",
+            "hu": "A felt├Âlt├Âtt f├íjl nem egyezik a bejelentettel.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "invalid_ticket",
             "en": "Invalid or expired upload ticket.",
-            "hu": "Érvénytelen vagy lejárt feltöltési jegy.",
+            "hu": "├ërv├ęnytelen vagy lej├írt felt├Âlt├ęsi jegy.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "already_attached",
             "en": "The photo is already attached.",
-            "hu": "Ez a fotó már csatolva van.",
+            "hu": "Ez a fot├│ m├ír csatolva van.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "checkout_open",
             "en": "An open check-out (intake) already exists for this order.",
-            "hu": "Már van nyitott átvételi jegyzőkönyv. Előbb írassa alá vagy dobja el.",
+            "hu": "M├ír van nyitott ├ítv├ęteli jegyz┼Ĺk├Ânyv. El┼Ĺbb ├şrassa al├í vagy dobja el.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "checkout_required",
             "en": "Check-in (outgo) needs a signed check-out (intake) first.",
-            "hu": "A kiadáshoz előbb aláírt átvételi jegyzőkönyv kell.",
+            "hu": "A kiad├íshoz el┼Ĺbb al├í├şrt ├ítv├ęteli jegyz┼Ĺk├Ânyv kell.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "locked",
             "en": "The signed inspection is locked.",
-            "hu": "Az aláírt jegyzőkönyv már nem módosítható; utólagos megjegyzést lehet hozzáfűzni.",
+            "hu": "Az al├í├şrt jegyz┼Ĺk├Ânyv m├ír nem m├│dos├şthat├│; ut├│lagos megjegyz├ęst lehet hozz├íf┼▒zni.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "signatures_required",
             "en": "Both signatures are required.",
-            "hu": "A lezáráshoz mindkét aláírás szükséges.",
+            "hu": "A lez├ír├íshoz mindk├ęt al├í├şr├ís sz├╝ks├ęges.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "verdicts_pending",
             "en": "Every new damage needs a verdict first.",
-            "hu": "Előbb minden új sérülésnél dönteni kell.",
+            "hu": "El┼Ĺbb minden ├║j s├ęr├╝l├ęsn├ęl d├Ânteni kell.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "not_cancellable",
             "en": "The email can no longer be cancelled.",
-            "hu": "Ez az e-mail már nem vonható vissza.",
+            "hu": "Ez az e-mail m├ír nem vonhat├│ vissza.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "not_retryable",
             "en": "The email cannot be retried.",
-            "hu": "Ez a művelet nem próbálható újra.",
+            "hu": "Ez a m┼▒velet nem pr├│b├ílhat├│ ├║jra.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "not_failed",
             "en": "Only a failed job can be retried.",
-            "hu": "Csak véglegesen elakadt feladat indítható újra.",
+            "hu": "Csak v├ęglegesen elakadt feladat ind├şthat├│ ├║jra.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "invoicing_not_configured",
             "en": "Invoicing is not configured.",
-            "hu": "A számlázás nincs beállítva ezen a szerveren. Szóljon a rendszergazdának.",
+            "hu": "A sz├íml├íz├ís nincs be├íll├ştva ezen a szerveren. Sz├│ljon a rendszergazd├ínak.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "invoice_exists",
             "en": "A live invoice already exists.",
-            "hu": "Ehhez a megrendeléshez már tartozik élő számla. Előbb sztornózza.",
+            "hu": "Ehhez a megrendel├ęshez m├ír tartozik ├ęl┼Ĺ sz├ímla. El┼Ĺbb sztorn├│zza.",
             "retryable": false,
             "status": 409
           },
           {
             "code": "invoice_in_flight",
             "en": "The invoice is still being reported.",
-            "hu": "A számla bejelentése még folyamatban van a NAV felé. Várja meg a választ.",
+            "hu": "A sz├ímla bejelent├ęse m├ęg folyamatban van a NAV fel├ę. V├írja meg a v├ílaszt.",
             "retryable": true,
             "status": 409
           },
           {
             "code": "invoice_data_missing",
             "en": "Invoice data is missing.",
-            "hu": "A partnernél hiányzik egy számlázási adat. Pótolja, majd próbálja újra.",
+            "hu": "A partnern├ęl hi├ínyzik egy sz├íml├íz├ísi adat. P├│tolja, majd pr├│b├ílja ├║jra.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "fx_rate_missing",
             "en": "No exchange rate for the fulfilment date.",
-            "hu": "Nincs árfolyam a teljesítés napjára. Próbálja újra az árfolyam letöltése után.",
+            "hu": "Nincs ├írfolyam a teljes├şt├ęs napj├íra. Pr├│b├ílja ├║jra az ├írfolyam let├Âlt├ęse ut├ín.",
             "retryable": true,
             "status": 422
           },
           {
             "code": "not_stornoable",
             "en": "Only an issued invoice can be cancelled.",
-            "hu": "Csak kiállított számla sztornózható.",
+            "hu": "Csak ki├íll├ştott sz├ímla sztorn├│zhat├│.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "not_annullable",
             "en": "Only a reported invoice can be annulled.",
-            "hu": "Csak bejelentett számla érvényteleníthető technikailag.",
+            "hu": "Csak bejelentett sz├ímla ├ęrv├ęnytelen├şthet┼Ĺ technikailag.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "no_items",
             "en": "The order has no items to invoice.",
-            "hu": "A számlához legalább egy tétel kell a megrendelésen.",
+            "hu": "A sz├íml├íhoz legal├íbb egy t├ętel kell a megrendel├ęsen.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "nav_rejected",
             "en": "The tax authority rejected the invoice.",
-            "hu": "A NAV elutasította a számlát. A részleteket a számla adatlapja mutatja.",
+            "hu": "A NAV elutas├ştotta a sz├íml├ít. A r├ęszleteket a sz├ímla adatlapja mutatja.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "nav_unreachable",
             "en": "The invoicing service is unreachable.",
-            "hu": "A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később.",
+            "hu": "A sz├íml├íz├│ szolg├íltat├ís nem ├ęrhet┼Ĺ el. A megrendel├ęs nem s├ęr├╝lt; pr├│b├ílja ├║jra k├ęs┼Ĺbb.",
             "retryable": true,
             "status": 422
           },
           {
             "code": "overpayment",
             "en": "The payment is more than is still open on the invoice.",
-            "hu": "A befizetés több, mint a számlán még nyitott összeg.",
+            "hu": "A befizet├ęs t├Âbb, mint a sz├íml├ín m├ęg nyitott ├Âsszeg.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "not_issued",
             "en": "Only an issued invoice has a document to fetch.",
-            "hu": "Csak kiállított számlának van letölthető bizonylata.",
+            "hu": "Csak ki├íll├ştott sz├íml├ínak van let├Âlthet┼Ĺ bizonylata.",
             "retryable": false,
             "status": 422
           },
           {
             "code": "pdf_unavailable",
             "en": "The PDF cannot be fetched right now.",
-            "hu": "A PDF most nem tölthető le. Próbálja újra később.",
+            "hu": "A PDF most nem t├Âlthet┼Ĺ le. Pr├│b├ílja ├║jra k├ęs┼Ĺbb.",
             "retryable": true,
             "status": 422
           }
@@ -21774,7 +22066,7 @@
       },
       "ErrorTextEntry": {
         "type": "object",
-        "description": "The user-facing Hungarian text per error code, from the shared catalog in\n`crate::error` (the same table published in OpenAPI as `x-error-catalog`).\nClients layer this over their built-in map: the built-in map must stay for\ncold start (a login failure happens before the first fetch), but every\nreworded message and every new code reaches the clients with the next\nlookups fetch — no app update.",
+        "description": "The user-facing Hungarian text per error code, from the shared catalog in\n`crate::error` (the same table published in OpenAPI as `x-error-catalog`).\nClients layer this over their built-in map: the built-in map must stay for\ncold start (a login failure happens before the first fetch), but every\nreworded message and every new code reaches the clients with the next\nlookups fetch ÔÇö no app update.",
         "required": [
           "code",
           "text_hu"
@@ -22059,7 +22351,7 @@
           },
           "label": {
             "type": "string",
-            "description": "What the office calls it: \"1 hét\", \"1 hónap\"."
+            "description": "What the office calls it: \"1 h├ęt\", \"1 h├│nap\"."
           },
           "delay_days": {
             "type": "integer",
@@ -22370,7 +22662,7 @@
       },
       "ImageCategoryEntry": {
         "type": "object",
-        "description": "An image category with the two rules clients used to hard-code: whether the\nbytes are evidence (`immutable`, the database refuses delete and re-filing)\nand whether a person may file a photo by hand (`attachable`, production\nonly — intake and handover shots come from their own flows).",
+        "description": "An image category with the two rules clients used to hard-code: whether the\nbytes are evidence (`immutable`, the database refuses delete and re-filing)\nand whether a person may file a photo by hand (`attachable`, production\nonly ÔÇö intake and handover shots come from their own flows).",
         "required": [
           "key",
           "label_hu",
@@ -22556,7 +22848,7 @@
               "null"
             ],
             "format": "int64",
-            "description": "The kiadás damage it was opened from, when it was."
+            "description": "The kiad├ís damage it was opened from, when it was."
           },
           "title": {
             "type": "string"
@@ -22655,7 +22947,7 @@
               "null"
             ],
             "format": "int64",
-            "description": "The kiadás damage it is about. Its inspection must belong to the order."
+            "description": "The kiad├ís damage it is about. Its inspection must belong to the order."
           },
           "title": {
             "type": "string"
@@ -22813,7 +23105,7 @@
               "null"
             ],
             "format": "int64",
-            "description": "Minor units (fillér / eurocent)."
+            "description": "Minor units (fill├ęr / eurocent)."
           },
           "vat_amount": {
             "type": [
@@ -22998,7 +23290,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`invoice` | `proforma` (díjbekérő) | `receipt` (pénztárbizonylat)."
+            "description": "`invoice` | `proforma` (d├şjbek├ęr┼Ĺ) | `receipt` (p├ęnzt├írbizonylat)."
           },
           "supplier_name": {
             "type": "string"
@@ -23078,7 +23370,7 @@
           },
           "booking_only": {
             "type": "boolean",
-            "description": "Exists only in the books (Csak könyvelésben létező)."
+            "description": "Exists only in the books (Csak k├Ânyvel├ęsben l├ętez┼Ĺ)."
           },
           "notes": {
             "type": [
@@ -23742,7 +24034,7 @@
           "net_amount": {
             "type": "integer",
             "format": "int64",
-            "description": "Minor units (fillér / eurocent). Negative on a storno: it is the reversal."
+            "description": "Minor units (fill├ęr / eurocent). Negative on a storno: it is the reversal."
           },
           "vat_amount": {
             "type": "integer",
@@ -24011,7 +24303,7 @@
       },
       "InvoiceStatus": {
         "type": "string",
-        "description": "Where an invoice is in its life.\n\n`Submitting` is a real state, not a placeholder: NAV validates asynchronously, so there\nis a period in which the report has been sent and no verdict exists. `Rejected` is\nterminal for that document — the number is spent, and a corrected invoice is a new one.",
+        "description": "Where an invoice is in its life.\n\n`Submitting` is a real state, not a placeholder: NAV validates asynchronously, so there\nis a period in which the report has been sent and no verdict exists. `Rejected` is\nterminal for that document ÔÇö the number is spent, and a corrected invoice is a new one.",
         "enum": [
           "submitting",
           "issued",
@@ -24086,7 +24378,7 @@
           "unit_price": {
             "type": "integer",
             "format": "int64",
-            "description": "Minor units (fillér / eurocent). May be negative for discount lines."
+            "description": "Minor units (fill├ęr / eurocent). May be negative for discount lines."
           }
         }
       },
@@ -24104,7 +24396,7 @@
               "line_total_minor": {
                 "type": "integer",
                 "format": "int64",
-                "description": "Backend-computed: round(quantity × unit_price), half away from zero."
+                "description": "Backend-computed: round(quantity ├Ś unit_price), half away from zero."
               }
             }
           }
@@ -24745,7 +25037,7 @@
                 },
                 "is_overdue": {
                   "type": "boolean",
-                  "description": "Past due date and still open, measured against the caller's business day\n(not UTC midnight — the whole point of this flag)."
+                  "description": "Past due date and still open, measured against the caller's business day\n(not UTC midnight ÔÇö the whole point of this flag)."
                 }
               }
             }
@@ -25067,7 +25359,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "Out only: queued, sent, failed, …"
+                  "description": "Out only: queued, sent, failed, ÔÇŽ"
                 },
                 "sent_by_name": {
                   "type": [
@@ -25660,7 +25952,7 @@
                 },
                 "section": {
                   "type": "string",
-                  "description": "The heading it is listed under: Távollévő munkavállaló, Aktív munkavállaló..."
+                  "description": "The heading it is listed under: T├ívoll├ęv┼Ĺ munkav├íllal├│, Akt├şv munkav├íllal├│..."
                 },
                 "label": {
                   "type": "string"
@@ -25926,7 +26218,7 @@
                 },
                 "label": {
                   "type": "string",
-                  "description": "What the office calls it: \"1 hét\", \"1 hónap\"."
+                  "description": "What the office calls it: \"1 h├ęt\", \"1 h├│nap\"."
                 },
                 "delay_days": {
                   "type": "integer",
@@ -26103,7 +26395,7 @@
                     "null"
                   ],
                   "format": "int64",
-                  "description": "The kiadás damage it was opened from, when it was."
+                  "description": "The kiad├ís damage it was opened from, when it was."
                 },
                 "title": {
                   "type": "string"
@@ -26246,7 +26538,7 @@
                 },
                 "kind": {
                   "type": "string",
-                  "description": "`invoice` | `proforma` (díjbekérő) | `receipt` (pénztárbizonylat)."
+                  "description": "`invoice` | `proforma` (d├şjbek├ęr┼Ĺ) | `receipt` (p├ęnzt├írbizonylat)."
                 },
                 "supplier_name": {
                   "type": "string"
@@ -26326,7 +26618,7 @@
                 },
                 "booking_only": {
                   "type": "boolean",
-                  "description": "Exists only in the books (Csak könyvelésben létező)."
+                  "description": "Exists only in the books (Csak k├Ânyvel├ęsben l├ętez┼Ĺ)."
                 },
                 "notes": {
                   "type": [
@@ -26574,7 +26866,7 @@
                 "net_amount": {
                   "type": "integer",
                   "format": "int64",
-                  "description": "Minor units (fillér / eurocent). Negative on a storno: it is the reversal."
+                  "description": "Minor units (fill├ęr / eurocent). Negative on a storno: it is the reversal."
                 },
                 "vat_amount": {
                   "type": "integer",
@@ -26777,7 +27069,7 @@
                     "line_total_minor": {
                       "type": "integer",
                       "format": "int64",
-                      "description": "Backend-computed: round(quantity × unit_price), half away from zero."
+                      "description": "Backend-computed: round(quantity ├Ś unit_price), half away from zero."
                     }
                   }
                 }
@@ -26981,6 +27273,148 @@
                 },
                 "currency": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_LayoutItem": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "kind",
+                "label",
+                "number",
+                "x",
+                "y",
+                "width",
+                "height",
+                "rotation",
+                "color",
+                "position"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "`spot` | `building` | `workshop_bay`."
+                },
+                "location_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "x": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "y": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "width": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "height": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "rotation": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "parent_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "color": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_LayoutRevision": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "layout",
+                "note",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "parent_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "layout": {
+                  "$ref": "#/components/schemas/Value"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "created_by": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "created_by_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               }
             }
@@ -27449,7 +27883,7 @@
                 },
                 "section": {
                   "type": "string",
-                  "description": "The heading it is listed under: Listák, Értékesítés, Vevők, Nem vevők..."
+                  "description": "The heading it is listed under: List├ík, ├ërt├ękes├şt├ęs, Vev┼Ĺk, Nem vev┼Ĺk..."
                 },
                 "label": {
                   "type": "string"
@@ -27522,7 +27956,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "The MiniCRM user's name as text — those accounts do not exist in AutoCRM."
+                  "description": "The MiniCRM user's name as text ÔÇö those accounts do not exist in AutoCRM."
                 },
                 "body": {
                   "type": "string"
@@ -27838,7 +28272,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is\ntreated as a customer by the pickers — the paint shop turning up in the customer\nlist is a nuisance, a customer missing from it is a bug."
+                  "description": "V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is\ntreated as a customer by the pickers ÔÇö the paint shop turning up in the customer\nlist is a nuisance, a customer missing from it is a bug."
                 },
                 "invoice_language": {
                   "type": [
@@ -29062,7 +29496,7 @@
                 },
                 "kind": {
                   "type": "string",
-                  "description": "`checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the\nsecond, the vehicle leaving (kiadás)."
+                  "description": "`checkout` is the first walkaround, the vehicle arriving (├ítv├ętel); `checkin` is the\nsecond, the vehicle leaving (kiad├ís)."
                 },
                 "zone_key": {
                   "type": "string"
@@ -29290,6 +29724,210 @@
           }
         }
       },
+      "LayoutItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "number",
+          "x",
+          "y",
+          "width",
+          "height",
+          "rotation",
+          "color",
+          "position"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`spot` | `building` | `workshop_bay`."
+          },
+          "location_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "label": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "x": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "y": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rotation": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "parent_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "color": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "LayoutItemBody": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required on create, must not change on update."
+          },
+          "location_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "x": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "y": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "rotation": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "parent_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "LayoutRevision": {
+        "type": "object",
+        "required": [
+          "id",
+          "layout",
+          "note",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "parent_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/Value"
+          },
+          "note": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "Lead": {
         "type": "object",
         "required": [
@@ -29371,7 +30009,7 @@
               "null"
             ],
             "format": "int64",
-            "description": "V2.3: what we quoted, in minor units. Not a `quotes` table with versions — at 60\nleads a month that is more machinery than the business justifies. Changes are\nwritten to audit_log, so a revised price still leaves a trail."
+            "description": "V2.3: what we quoted, in minor units. Not a `quotes` table with versions ÔÇö at 60\nleads a month that is more machinery than the business justifies. Changes are\nwritten to audit_log, so a revised price still leaves a trail."
           },
           "currency": {
             "oneOf": [
@@ -29504,7 +30142,7 @@
               "null"
             ],
             "format": "int64",
-            "description": "V2.3: the quoted price in minor units (fillér / eurocent)."
+            "description": "V2.3: the quoted price in minor units (fill├ęr / eurocent)."
           },
           "currency": {
             "oneOf": [
@@ -30515,7 +31153,7 @@
       },
       "NewsletterRequest": {
         "type": "object",
-        "description": "A newsletter blast: one row, everyone in BCC, nobody sees the list.\n\nBodies are literal — a blast has no single partner or lead, so `{{variables}}` have\nnothing to resolve against, and any braces found refuse the send loudly rather than\nmailing `{{MISSING:…}}` to hundreds of people. Unsubscribed and globally suppressed\naddresses never make the BCC list.",
+        "description": "A newsletter blast: one row, everyone in BCC, nobody sees the list.\n\nBodies are literal ÔÇö a blast has no single partner or lead, so `{{variables}}` have\nnothing to resolve against, and any braces found refuse the send loudly rather than\nmailing `{{MISSING:ÔÇŽ}}` to hundreds of people. Unsubscribed and globally suppressed\naddresses never make the BCC list.",
         "required": [
           "subject",
           "body"
@@ -30543,7 +31181,7 @@
               "type": "integer",
               "format": "int64"
             },
-            "description": "Any company documents: a blast has no order or lead, so ownership is not\nchecked — the endpoint is office-only, and the list is company mail."
+            "description": "Any company documents: a blast has no order or lead, so ownership is not\nchecked ÔÇö the endpoint is office-only, and the list is company mail."
           },
           "embed_document_ids": {
             "type": "array",
@@ -30683,7 +31321,7 @@
           },
           "section": {
             "type": "string",
-            "description": "The heading it is listed under: Listák, Értékesítés, Vevők, Nem vevők..."
+            "description": "The heading it is listed under: List├ík, ├ërt├ękes├şt├ęs, Vev┼Ĺk, Nem vev┼Ĺk..."
           },
           "label": {
             "type": "string"
@@ -30937,7 +31575,7 @@
               "null"
             ],
             "format": "int32",
-            "description": "Intake slip (átvételi lap): odometer at takeover. Leaving `intake` requires it."
+            "description": "Intake slip (├ítv├ęteli lap): odometer at takeover. Leaving `intake` requires it."
           },
           "intake_condition": {
             "type": [
@@ -31122,7 +31760,7 @@
               "string",
               "null"
             ],
-            "description": "Intake slip: fuel gauge at takeover — `E`, `1/4`, `1/2`, `3/4` or `F`."
+            "description": "Intake slip: fuel gauge at takeover ÔÇö `E`, `1/4`, `1/2`, `3/4` or `F`."
           },
           "key_count": {
             "type": [
@@ -31137,7 +31775,7 @@
               "boolean",
               "null"
             ],
-            "description": "Intake slip: whether anyone answered the valuables question. Absent means nobody\ndid, which is not the same as `false` — \"we never asked\" is not a defence."
+            "description": "Intake slip: whether anyone answered the valuables question. Absent means nobody\ndid, which is not the same as `false` ÔÇö \"we never asked\" is not a defence."
           },
           "valuables": {
             "type": [
@@ -31446,7 +32084,7 @@
               "string",
               "null"
             ],
-            "description": "The MiniCRM user's name as text — those accounts do not exist in AutoCRM."
+            "description": "The MiniCRM user's name as text ÔÇö those accounts do not exist in AutoCRM."
           },
           "body": {
             "type": "string"
@@ -31520,7 +32158,7 @@
               "string",
               "null"
             ],
-            "description": "ATP classification (FNA, FRC, …). Free text until the real list is confirmed."
+            "description": "ATP classification (FNA, FRC, ÔÇŽ). Free text until the real list is confirmed."
           },
           "compartments": {
             "type": [
@@ -31955,7 +32593,7 @@
               "string",
               "null"
             ],
-            "description": "V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is\ntreated as a customer by the pickers — the paint shop turning up in the customer\nlist is a nuisance, a customer missing from it is a bug."
+            "description": "V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is\ntreated as a customer by the pickers ÔÇö the paint shop turning up in the customer\nlist is a nuisance, a customer missing from it is a bug."
           },
           "invoice_language": {
             "type": [
@@ -32658,7 +33296,7 @@
               "boolean",
               "null"
             ],
-            "description": "true moves it to the bin (Lomtár), false brings it back. A template that code or\na follow-up sends cannot go to the bin."
+            "description": "true moves it to the bin (Lomt├ír), false brings it back. A template that code or\na follow-up sends cannot go to the bin."
           }
         }
       },
@@ -33094,7 +33732,7 @@
       },
       "QuotationRequest": {
         "type": "object",
-        "description": "A quotation letter for a lead: the one letter that shouts. Hero band on top, the\nlead's quotation PDF attached, sent by the staff member as themselves.\n\nThe price and validity lines appear when the lead carries them; the PDF is\nauthoritative either way, so a lead without a quoted price still sends. Anything the\noffice writes by hand goes through `{{variable}}` rendering first, then Markdown when\nasked — the same pipeline as a manual letter.",
+        "description": "A quotation letter for a lead: the one letter that shouts. Hero band on top, the\nlead's quotation PDF attached, sent by the staff member as themselves.\n\nThe price and validity lines appear when the lead carries them; the PDF is\nauthoritative either way, so a lead without a quoted price still sends. Anything the\noffice writes by hand goes through `{{variable}}` rendering first, then Markdown when\nasked ÔÇö the same pipeline as a manual letter.",
         "properties": {
           "subject": {
             "type": [
@@ -33167,7 +33805,7 @@
               "object",
               "null"
             ],
-            "description": "The complete source record as MiniCRM returned it. Null for records created in\nAutoCRM — the screen shows nothing rather than an empty panel."
+            "description": "The complete source record as MiniCRM returned it. Null for records created in\nAutoCRM ÔÇö the screen shows nothing rather than an empty panel."
           }
         }
       },
@@ -33428,6 +34066,24 @@
           }
         }
       },
+      "RevertBody": {
+        "type": "object",
+        "required": [
+          "revision_id"
+        ],
+        "properties": {
+          "revision_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "RevokedSessions": {
         "type": "object",
         "required": [
@@ -33512,7 +34168,7 @@
           },
           "name": {
             "type": "string",
-            "description": "\"Nincs felelős\" for unassigned leads."
+            "description": "\"Nincs felel┼Ĺs\" for unassigned leads."
           },
           "leads": {
             "type": "integer",
@@ -35417,7 +36073,7 @@
               "null"
             ],
             "format": "double",
-            "description": "First stage entry → completion, in days."
+            "description": "First stage entry Ôćĺ completion, in days."
           },
           "avg_lead_days": {
             "type": [
@@ -35692,7 +36348,7 @@
         "properties": {
           "unsubscribed": {
             "type": "boolean",
-            "description": "For a token link: whether this click changed anything (a link clicked twice is\nnot an error). For a typed address: always true — \"if it was on the list, it is\noff now\" — so typing addresses cannot reveal who is subscribed."
+            "description": "For a token link: whether this click changed anything (a link clicked twice is\nnot an error). For a typed address: always true ÔÇö \"if it was on the list, it is\noff now\" ÔÇö so typing addresses cannot reveal who is subscribed."
           }
         }
       },
@@ -36072,6 +36728,7 @@
           }
         }
       },
+      "Value": {},
       "Vehicle": {
         "type": "object",
         "required": [
@@ -36401,7 +37058,7 @@
               "string",
               "null"
             ],
-            "description": "The model family: read offline for the common European vans (Sprinter, Crafter,\nDucato, Vivaro…), or from the online lookup."
+            "description": "The model family: read offline for the common European vans (Sprinter, Crafter,\nDucato, VivaroÔÇŽ), or from the online lookup."
           },
           "source": {
             "type": "string",
@@ -36896,7 +37553,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the\nsecond, the vehicle leaving (kiadás)."
+            "description": "`checkout` is the first walkaround, the vehicle arriving (├ítv├ętel); `checkin` is the\nsecond, the vehicle leaving (kiad├ís)."
           },
           "zone_key": {
             "type": "string"

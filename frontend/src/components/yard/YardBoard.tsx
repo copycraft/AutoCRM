@@ -20,6 +20,9 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils/format';
+import { YardCanvas } from './YardCanvas';
+import { Yard3D } from './Yard3D';
+import { YardRevisions } from './YardRevisions';
 import type { YardLocation, YardVehicle } from '@/lib/api/types';
 
 const DRAG_TYPE = 'application/x-autocrm-vehicle';
@@ -120,11 +123,13 @@ function Column({
 
 export function YardBoard({ canMove, canConfigure }: { canMove: boolean; canConfigure: boolean }) {
   const t = useTranslations('yard');
+  const t3 = useTranslations('yard3d');
   const ter = useTranslations('errors');
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: lookups } = useLookups();
   const [editing, setEditing] = useState(false);
+  const [view, setView] = useState<'2d' | '3d'>('2d');
   const board = useQuery({
     queryKey: qk.yardBoard,
     queryFn: () => yardApi.board(),
@@ -155,14 +160,38 @@ export function YardBoard({ canMove, canConfigure }: { canMove: boolean; canConf
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-metadata text-steel-500">{canMove ? t('dragHint') : t('readOnly')}</p>
-        {canConfigure && (
-          <button type="button" className="btn-secondary btn-sm" onClick={() => setEditing((e) => !e)}>
-            {editing ? t('doneEditing') : t('editPlaces')}
+        <div className="flex gap-1 rounded-lg border border-steel-200 p-0.5">
+          <button
+            type="button"
+            className={cn('rounded-md px-3 py-1 text-sm font-medium', view === '2d' ? 'bg-steel-900 text-white' : 'text-steel-600 hover:bg-steel-100')}
+            onClick={() => setView('2d')}
+          >
+            {t3('view2d')}
           </button>
-        )}
+          <button
+            type="button"
+            className={cn('rounded-md px-3 py-1 text-sm font-medium', view === '3d' ? 'bg-steel-900 text-white' : 'text-steel-600 hover:bg-steel-100')}
+            onClick={() => setView('3d')}
+          >
+            {t3('view3d')}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <p className="text-metadata text-steel-500">{canMove ? t('dragHint') : t('readOnly')}</p>
+          {canConfigure && (
+            <button type="button" className="btn-secondary btn-sm" onClick={() => setEditing((e) => !e)}>
+              {editing ? t('doneEditing') : t('editPlaces')}
+            </button>
+          )}
+        </div>
       </div>
       {editing && <LocationsEditor />}
+      {view === '2d' ? (
+        <YardCanvas canMove={canMove} canConfigure={canConfigure} />
+      ) : (
+        <Yard3D />
+      )}
+      {canConfigure && <YardRevisions />}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         <Column
           title={t('unplaced')}
