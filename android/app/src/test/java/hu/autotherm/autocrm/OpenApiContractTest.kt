@@ -282,6 +282,8 @@ class OpenApiContractTest {
             "/orders/{id}/uploads", "/uploads/complete",
             "/partners", "/partners/{id}", "/leads", "/leads/{id}",
             "/emails", "/emails/{id}",
+            "/incoming-invoices", "/incoming-invoices/{id}",
+            "/incoming-invoices/upload", "/incoming-invoices/{id}/file",
             "/inspections", "/inspections/{id}", "/inspections/{id}/photos",
             "/inspections/{id}/damages", "/inspections/{id}/signatures",
             "/inspections/{id}/sign", "/inspections/{id}/notes",
@@ -291,5 +293,17 @@ class OpenApiContractTest {
         for (path in required) {
             assertTrue("the API no longer serves $path", paths.containsKey(path))
         }
+    }
+
+    @Test
+    fun `incoming supplier invoices still carry what the phone scans and edits`() {
+        assertHasFields(
+            "IncomingInvoice",
+            "id", "kind", "supplier_name", "supplier_tax_number", "invoice_number",
+            "issue_date", "due_date", "currency", "net_amount", "vat_amount", "gross_amount",
+            "payment_method", "paid_amount", "paid_on", "booking_only", "notes",
+            "file_name", "file_type", "file_size", "bucket", "created_at", "updated_at",
+        )
+        assertHasFields("FileUrl", "url")
     }
 }

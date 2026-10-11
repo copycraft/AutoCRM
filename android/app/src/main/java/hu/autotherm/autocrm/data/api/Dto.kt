@@ -1325,3 +1325,37 @@ data class VinInfo(
     @SerialName("make") val make: String? = null,
     @SerialName("model") val model: String? = null,
 )
+
+// ── Incoming (supplier) invoices ──────────────────────────────────────────────
+// The phone reads the list and one record, uploads a scanned PDF as raw bytes,
+// and edits the figures read off the document. Billing stays desk work; this is
+// the capture end: scan at the supplier, fill in at the office.
+
+@Serializable
+data class IncomingInvoice(
+    @SerialName("id") val id: Long,
+    @SerialName("kind") val kind: String,
+    @SerialName("supplier_name") val supplierName: String,
+    @SerialName("supplier_tax_number") val supplierTaxNumber: String? = null,
+    @SerialName("invoice_number") val invoiceNumber: String? = null,
+    @SerialName("issue_date") val issueDate: String? = null,
+    @SerialName("due_date") val dueDate: String? = null,
+    @SerialName("currency") val currency: String,
+    @SerialName("net_amount") val netAmount: Long? = null,
+    @SerialName("vat_amount") val vatAmount: Long? = null,
+    @SerialName("gross_amount") val grossAmount: Long? = null,
+    @SerialName("payment_method") val paymentMethod: String,
+    @SerialName("paid_amount") val paidAmount: Long = 0,
+    @SerialName("paid_on") val paidOn: String? = null,
+    @SerialName("booking_only") val bookingOnly: Boolean = false,
+    @SerialName("notes") val notes: String? = null,
+    @SerialName("file_name") val fileName: String? = null,
+    @SerialName("file_type") val fileType: String? = null,
+    @SerialName("file_size") val fileSize: Long? = null,
+    @SerialName("bucket") val bucket: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+)
+
+@Serializable
+data class FileUrl(@SerialName("url") val url: String)

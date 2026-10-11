@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material.icons.filled.Menu
@@ -127,6 +128,12 @@ import hu.autotherm.autocrm.ui.emails.EmailDetailViewModel
 import hu.autotherm.autocrm.ui.emails.EmailListScreen
 import hu.autotherm.autocrm.ui.emails.EmailListViewModel
 import hu.autotherm.autocrm.ui.inspection.InspectionHomeScreen
+import hu.autotherm.autocrm.ui.incoming.IncomingDetailScreen
+import hu.autotherm.autocrm.ui.incoming.IncomingDetailViewModel
+import hu.autotherm.autocrm.ui.incoming.IncomingListScreen
+import hu.autotherm.autocrm.ui.incoming.IncomingListViewModel
+import hu.autotherm.autocrm.ui.incoming.ScanFlowScreen
+import hu.autotherm.autocrm.ui.incoming.ScanFlowViewModel
 import hu.autotherm.autocrm.ui.inspection.InspectionHomeViewModel
 import hu.autotherm.autocrm.ui.inspection.InspectionServerScreen
 import hu.autotherm.autocrm.ui.inspection.InspectionServerViewModel
@@ -310,6 +317,8 @@ private sealed class Destination(val route: String, val label: String, val icon:
     data object Leads : Destination("leads", "Leadek", Icons.AutoMirrored.Filled.TrendingUp)
     data object Directory : Destination("directory", "Névjegyzék", Icons.Filled.Contacts)
     data object Emails : Destination("emails", "E-mailek", Icons.Filled.Email)
+    /** Supplier invoices: scan the paper at the supplier, fill in the figures later. */
+    data object Incoming : Destination("incoming", "Bejövő számlák", Icons.Filled.Receipt)
     data object Tasks : Destination("tasks", "Feladatok", Icons.Filled.Checklist)
     data object Reports : Destination("reports", "Jelentések", Icons.Filled.BarChart)
     /** Where each vehicle stands in the yard and the bays (0048). */
@@ -331,6 +340,7 @@ private val DESTINATIONS = listOf(
     Destination.Leads,
     Destination.Directory,
     Destination.Emails,
+    Destination.Incoming,
     Destination.Tasks,
     Destination.Reports,
     Destination.Yard,
@@ -349,6 +359,7 @@ private fun parentOf(route: String?): Destination = when {
     route.startsWith("lead") -> Destination.Leads
     route.startsWith("partner") || route.startsWith("directory") -> Destination.Directory
     route.startsWith("email") -> Destination.Emails
+    route.startsWith("incoming") -> Destination.Incoming
     route.startsWith("task") -> Destination.Tasks
     route.startsWith("report") -> Destination.Reports
     route.startsWith("yard") -> Destination.Yard
@@ -465,6 +476,7 @@ private fun AppScaffold(
                 DESTINATIONS.filter { dest ->
                     when (dest) {
                         Destination.Capture -> account.canUploadMedia
+                        Destination.Incoming -> account.canIssueInvoices
                         Destination.Hr -> account.hrAccess
                         Destination.Users -> account.isAdmin
                         else -> true
@@ -845,6 +857,49 @@ private fun AppScaffold(
                         }
                     } else {
                         null
+                    },
+                )
+            }
+            // ── Incoming (supplier) invoices: the phone is the capture end ──
+            composable(Destination.Incoming.route) {
+                if (account.canIssueInvoices) IncomingListScreen(
+                    viewModel = viewModel { IncomingListViewModel(app.api) },
+                    onOpen = { id -> navController.navigate("incoming/$id") },
+                    onScan = { navController.navigate("incoming/scan") },
+                    onMenu = openDrawer,
+                )
+            }
+            composable("incoming/scan") {
+                if (account.canIssueInvoices) ScanFlowScreen(
+                    viewModel = viewModel { ScanFlowViewModel(app.api, app) },
+                    onBack = { navController.popBackStack() },
+                    onUploaded = { id ->
+                        navController.navigate("incoming/$id") {
+                            popUpTo("incoming/scan") { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable("incoming/{id}") { entry ->
+                val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+                if (account.canIssueInvoices) IncomingDetailScreen(
+                    invoiceId = id,
+                    viewModel = viewModel { IncomingDetailViewModel(app.api) },
+                    canEdit = true,
+                    onBack = { navController.popBackStack() },
+                    onDeleted = {
+                        navController.navigateToTop(Destination.Incoming.route)
+                    },
+                    onOpenUrl = { url ->
+                        runCatching {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                android.net.Uri.parse(url),
+                            ).addCategory(Intent.CATEGORY_BROWSABLE)
+                            context.startActivity(
+                                Intent.createChooser(intent, "Bizonylat megnyitása"),
+                            )
+                        }
                     },
                 )
             }

@@ -21,6 +21,7 @@ anyway).
 | **Leadek** | Leads with their quotation, source and stage history; stage changes, conversion to an order, new leads and editing. |
 | **Névjegyzék** | Partners with the customer/supplier filter, contacts (add, edit), their orders and leads. New partners and editing. |
 | **E-mailek** | The correspondence log, and a short manual letter about a record. |
+| **Bejövő számlák** (számlázási jog) | Supplier invoices: scan the paper into one PDF here, fill in the figures here or at the desk. |
 | **Feladatok** | My tasks, open first. |
 | **Jelentések** | Workshop load over the last 30 days and the stalled-jobs list. |
 | **Értesítések** | The notification feed (new website leads and the like). |
@@ -70,6 +71,29 @@ The category is sticky between visits. The one deliberate interruption: choosing
 (intake) raises a banner once an hour, because intake photos can never be deleted or
 re-filed (the database refuses both with a trigger), so silence there would be dangerous
 rather than efficient.
+
+## Supplier invoice scanning
+
+**Bejövő számlák** is the capture end of the supplier-invoice flow; the figures stay desk
+work. The office right (`IssueInvoices`) gates the whole screen, like every other
+capability gate: the server refuses these calls to everyone else anyway.
+
+- **Scan flow, not a scanner SDK.** The system camera photographs each page in order;
+  the page strip offers retake and drop; one button binds the pages into a single PDF
+  with the framework's `PdfDocument` (`ui/incoming/ScanPdf.kt`: downscale to a 2000 px
+  long edge honoring EXIF rotation, one A4 page per photo). No document-detection
+  model, no OpenCV, no PDF library — nothing native, so the single-ABI sideload build
+  is unaffected and the flow works fully offline.
+- **Upload is one call**: `POST /incoming-invoices/upload?filename=` with the raw PDF
+  bytes (the server sniffs `%PDF` itself and refuses a file it has seen, naming the
+  invoice that holds it). The page JPEGs are deleted once the PDF is bound; a PDF that
+  meets a dead signal stays under `pending/scans/` and is offered again with retry or
+  delete — uploading twice cannot duplicate the row.
+- **The record** is then edited on the phone (supplier, number, dates, gross, currency,
+  payment method, notes, paid mark) or at the desk; the file opens from its presigned
+  URL in the viewer. `ScanPdfTest` covers the page geometry and the PDF binding;
+  `IncomingInvoiceTest` the wire shapes, the drawer gate and the amount math;
+  `OpenApiContractTest` pins the `IncomingInvoice`/`FileUrl` fields and paths.
 
 ## Handover inspections
 
@@ -179,6 +203,8 @@ JVM tests only, no device. The ones worth knowing:
   code, regenerate them from the repository root with
   `node android/scripts/gen-error-text.js .`
 - `ServerStoreTest`: what a thumb types becomes a usable base URL, or is refused.
+- `ScanPdfTest`, `IncomingInvoiceTest`: the invoice scanner geometry and binding, the
+  wire shapes, the drawer gate and the amount math.
 - `ResponseCacheTest`, `InspectionLogicTest`, `ZoneListsTest`, `NotificationPlannerTest`,
   `SessionExpiryTest` and the DTO tests cover offline reads, walkarounds, notifications,
   sign-out and the request bodies the server is picky about (an emptied field is an
@@ -190,7 +216,8 @@ see anything.
 
 ## What is deliberately not here
 
-- **Billing.** Invoices, proformas and incoming invoices are desk work.
+- **Billing.** Invoices and proformas are desk work; supplier invoices are capture-only
+  on the phone (scan + figures, no buckets or bulk actions).
 - **Rich email.** Templates, quotation letters, attachments and newsletters belong on a
   desktop; the phone writes a short letter about a record.
 - **Configuration.** Settings, templates, zone lists, stages and user accounts are edited

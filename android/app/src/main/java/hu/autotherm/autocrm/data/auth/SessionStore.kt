@@ -68,6 +68,7 @@ class SessionStore(private val context: Context) {
         val canEditLeads: Boolean get() = has("edit_leads", "admin", "office")
         val canEditPartners: Boolean get() = has("edit_partners", "admin", "office")
         val canSendEmail: Boolean get() = has("send_email", "admin", "office")
+        val canIssueInvoices: Boolean get() = has("issue_invoices", "admin", "office")
         val canManageBlockers: Boolean get() = has("manage_blockers", "admin", "office", "designer")
         val isAdmin: Boolean get() = role == "admin"
     }

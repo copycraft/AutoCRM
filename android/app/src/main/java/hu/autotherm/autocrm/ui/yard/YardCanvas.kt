@@ -154,7 +154,7 @@ fun YardCanvas(
     }
 
     if (loading) return ListSkeleton(modifier)
-    if (error != null) return ErrorState(error!!, onRetry = { loading = true; error = null; load() }, modifier)
+    if (error != null) return ErrorState(error!!, modifier, onRetry = { loading = true; error = null; load() })
 
     val unplaced = vehicles.filter { it.locationId == null }
 
@@ -181,7 +181,7 @@ fun YardCanvas(
         }
 
         AppPullToRefresh(
-            refreshing = refreshing,
+            isRefreshing = refreshing,
             onRefresh = { refreshing = true; load() },
         ) {
             Canvas(
@@ -375,9 +375,7 @@ fun YardCanvas(
                                 v.plate ?: v.vin ?: "#${v.vehicleId}",
                                 style = MaterialTheme.typography.titleSmall,
                             )
-                            StatusBadge(tone = "steel") {
-                                Text(v.stageLabel ?: "—", style = MaterialTheme.typography.labelSmall)
-                            }
+                            StatusBadge(v.stageLabel ?: "—")
                         }
                     }
                 }

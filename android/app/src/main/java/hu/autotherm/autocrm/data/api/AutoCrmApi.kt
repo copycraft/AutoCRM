@@ -856,12 +856,12 @@ class AutoCrmApi(
         )
 
     suspend fun deleteLayoutItem(id: Long) {
-        send(Request.Builder().url(url("/yard/layout/$id").build()).delete(), Unit.serializer())
+        sendNoContent(Request.Builder().url(url("/yard/layout/$id").build()).delete())
     }
 
     suspend fun yardRevisions(limit: Int = 50): List<LayoutRevision> =
         send(
-            Request.Builder().url(url("/yard/revisions").addQueryParameter("limit", limit.toString())).build()).get(),
+            Request.Builder().url(url("/yard/revisions").addQueryParameter("limit", limit.toString()).build()).get(),
             Items.serializer(LayoutRevision.serializer()),
         ).items
 
@@ -891,6 +891,63 @@ class AutoCrmApi(
             Request.Builder().url(url("/config/lookups").build()).get(),
             Lookups.serializer(),
         )
+
+    // ── Incoming (supplier) invoices ──────────────────────────────────────────
+    // The phone is the capture end: a scanned PDF goes up as raw bytes, the figures
+    // are filled in later (here or at the desk). Uploading and editing need the
+    // office's invoicing right; the server refuses everyone else.
+
+    suspend fun incomingInvoices(
+        query: String? = null,
+        bucket: String? = null,
+        limit: Int = 50,
+        offset: Int = 0,
+    ): List<IncomingInvoice> {
+        val u = url("/incoming-invoices")
+            .addQueryParameter("limit", limit.toString())
+            .addQueryParameter("offset", offset.toString())
+        if (!query.isNullOrBlank()) u.addQueryParameter("q", query)
+        if (!bucket.isNullOrBlank()) u.addQueryParameter("bucket", bucket)
+        return send(
+            Request.Builder().url(u.build()).get(),
+            Items.serializer(IncomingInvoice.serializer()),
+        ).items
+    }
+
+    suspend fun incomingInvoice(id: Long): IncomingInvoice =
+        send(Request.Builder().url(url("/incoming-invoices/$id").build()).get(), IncomingInvoice.serializer())
+
+    /**
+     * One supplier file as the body (PDF, JPEG, PNG, WebP or XML, up to 25 MB), its
+     * name in `?filename=`. Answers 201 with the row, or 409 naming the invoice that
+     * already holds these exact bytes.
+     */
+    suspend fun uploadIncomingInvoice(bytes: ByteArray, filename: String, mime: String): IncomingInvoice =
+        send(
+            Request.Builder().url(
+                url("/incoming-invoices/upload").addQueryParameter("filename", filename).build(),
+            ).post(bytes.toRequestBody(mime.toMediaType())),
+            IncomingInvoice.serializer(),
+        )
+
+    /** Every field optional: absent keeps, explicit null clears ([patchOf]). */
+    suspend fun patchIncomingInvoice(id: Long, body: kotlinx.serialization.json.JsonObject): IncomingInvoice =
+        send(
+            Request.Builder().url(url("/incoming-invoices/$id").build())
+                .patch(body.toString().toRequestBody(jsonMedia)),
+            IncomingInvoice.serializer(),
+        )
+
+    suspend fun deleteIncomingInvoice(id: Long) {
+        sendNoContent(Request.Builder().url(url("/incoming-invoices/$id").build()).delete())
+    }
+
+    /** A presigned file URL, good for one hour; opened in the browser/viewer. */
+    suspend fun incomingFileUrl(id: Long): String =
+        send(
+            Request.Builder().url(url("/incoming-invoices/$id/file").build()).get(),
+            FileUrl.serializer(),
+        ).url
 }
 
 private val EMPTY: RequestBody = ByteArray(0).toRequestBody(null, 0, 0)
