@@ -90,6 +90,8 @@ pub fn config() -> Config {
         app_update: None,
         vies: Default::default(),
         vies_cache_max_age_days: 30,
+        vies_invoice_max_age_hours: 24,
+        vies_invoice_allow_override: false,
     }
 }
 

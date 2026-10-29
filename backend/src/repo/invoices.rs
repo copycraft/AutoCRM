@@ -779,3 +779,21 @@ pub async fn overdue(
     .fetch_all(db)
     .await
 }
+
+/// The VIES check a 0% EU invoice rests on (0055), or the reason it was issued without one.
+pub async fn set_vat_check(
+    db: impl PgExecutor<'_>,
+    invoice_id: i64,
+    vat_check_id: Option<i64>,
+    override_reason: Option<&str>,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE invoices SET vat_check_id = $2, vat_override_reason = $3 WHERE id = $1",
+        invoice_id,
+        vat_check_id,
+        override_reason
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}

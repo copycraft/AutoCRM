@@ -920,6 +920,9 @@ export const zErrorCode = z.enum([
     'not_stornoable',
     'not_annullable',
     'no_items',
+    'eu_vat_number_required',
+    'eu_vat_number_invalid',
+    'eu_vat_check_unavailable',
     'nav_rejected',
     'nav_unreachable',
     'overpayment',
@@ -1469,7 +1472,8 @@ export const zIssueRequest = z.object({
     delivery_date: z.string().date().nullish(),
     payment_date: z.string().date().nullish(),
     payment_method: z.string().nullish(),
-    send_email: z.boolean().optional()
+    send_email: z.boolean().optional(),
+    vat_override_reason: z.string().nullish()
 });
 
 export const zItemBody = z.object({

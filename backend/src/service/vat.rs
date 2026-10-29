@@ -267,3 +267,108 @@ pub async fn sweep(db: &sqlx::PgPool, config: &Config, p: &SweepPayload) -> AppR
     }
     Ok(report)
 }
+
+/// What the invoice gate found: the check the invoice rests on, and the reason when the
+/// user issued it anyway while VIES was down.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvoiceGate {
+    pub vat_check_id: Option<i64>,
+    pub override_reason: Option<String>,
+}
+
+/// Whether an invoice is an EU-business 0% one (intra-EU supply / reverse charge): the
+/// buyer is a business in another member state and no VAT is charged. AutoCRM has no
+/// separate VAT treatment field; this combination is what stands for one.
+pub fn needs_vies(partner: &crate::repo::partners::Partner, vat_rate: rust_decimal::Decimal) -> bool {
+    let country = partner.country.trim().to_ascii_uppercase();
+    let vies_country = if country == "GR" { "EL".to_string() } else { country };
+    partner.kind == crate::domain::partner::PartnerKind::Business
+        && vat_rate.is_zero()
+        && vies_country != "HU"
+        && crate::integrations::vies::normalize::MEMBER_STATES.contains(&vies_country.as_str())
+}
+
+/// Before a 0% invoice to an EU business is issued: the buyer's EU VAT number must have a
+/// VALID VIES answer no older than `VIES_INVOICE_MAX_AGE_HOURS`, asked for now when there
+/// is none. INVALID always blocks; UNAVAILABLE blocks unless overrides are allowed and the
+/// user wrote down why. `Ok(None)`: the gate does not apply.
+pub async fn invoice_gate(
+    db: &sqlx::PgPool,
+    config: &Config,
+    partner: &crate::repo::partners::Partner,
+    vat_rate: rust_decimal::Decimal,
+    override_reason: Option<&str>,
+    user_id: i64,
+) -> AppResult<Option<InvoiceGate>> {
+    if !needs_vies(partner, vat_rate) {
+        return Ok(None);
+    }
+    let Some(input) = partner.eu_tax_number.as_deref().filter(|n| !n.trim().is_empty()) else {
+        return Err(AppError::rule(
+            "eu_vat_number_required",
+            format!("partner '{}' has no EU VAT number; a 0% EU invoice needs one", partner.name),
+        ));
+    };
+    let vat = normalize_vat(input, Some(&partner.country)).map_err(|_| {
+        AppError::rule(
+            "eu_vat_number_invalid",
+            format!("the EU VAT number '{input}' of partner '{}' is malformed", partner.name),
+        )
+    })?;
+
+    let since = Utc::now() - chrono::TimeDelta::hours(config.vies_invoice_max_age_hours.max(0));
+    let fresh = vat_checks::latest_verdict(db, &vat.country_code, &vat.vat_number, since).await?;
+    let (status, check_id, code) = match fresh {
+        Some(row) => (
+            if row.status == "VALID" { VatCheckStatus::Valid } else { VatCheckStatus::Invalid },
+            Some(row.id),
+            row.error_code,
+        ),
+        None => {
+            let r = check(
+                db,
+                config,
+                CheckRequest {
+                    input,
+                    default_country: Some(&partner.country),
+                    partner_id: Some(partner.id),
+                    force: true,
+                    created_by: user_id.to_string(),
+                    interactive: true,
+                    bulk: false,
+                },
+            )
+            .await?
+            .map_err(|_| AppError::rule("eu_vat_number_invalid", "the buyer's EU VAT number is malformed"))?;
+            (r.status, r.check_id, r.error_code)
+        }
+    };
+
+    match status {
+        VatCheckStatus::Valid => Ok(Some(InvoiceGate { vat_check_id: check_id, override_reason: None })),
+        VatCheckStatus::Invalid => Err(AppError::rule(
+            "eu_vat_number_invalid",
+            format!("VIES says {} is not a valid EU VAT number", vat.formatted),
+        )),
+        _ => {
+            let reason = override_reason.map(str::trim).filter(|r| !r.is_empty());
+            match reason {
+                Some(reason) if config.vies_invoice_allow_override => {
+                    tracing::warn!(user_id, number = %vat.formatted, reason, "0% EU invoice issued without a VIES verdict (override)");
+                    Ok(Some(InvoiceGate {
+                        vat_check_id: check_id,
+                        override_reason: Some(reason.to_string()),
+                    }))
+                }
+                _ => Err(AppError::rule(
+                    "eu_vat_check_unavailable",
+                    format!(
+                        "VIES could not confirm {} ({}); try again later",
+                        vat.formatted,
+                        code.as_deref().unwrap_or("no answer")
+                    ),
+                )),
+            }
+        }
+    }
+}

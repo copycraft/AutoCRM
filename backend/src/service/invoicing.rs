@@ -82,6 +82,10 @@ pub struct IssueRequest {
     /// Send the customer the invoice once NAV has stored it.
     #[serde(default = "default_true")]
     pub send_email: bool,
+    /// A 0% invoice to an EU business while VIES cannot confirm the buyer's number: why it
+    /// is issued anyway. Only honoured with `VIES_INVOICE_ALLOW_OVERRIDE=true`.
+    #[serde(default)]
+    pub vat_override_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, utoipa::ToSchema)]
@@ -365,6 +369,27 @@ pub async fn create_invoice(
         .payment_date
         .unwrap_or(issue_date + chrono::TimeDelta::days(nav.payment_days));
 
+    // A 0% invoice to an EU business needs a fresh VALID VIES answer on the buyer. Asked
+    // before the transaction: VIES may take seconds, and the order stays unlocked meanwhile.
+    let gated_partner = match orders::find(&state.db, order_id).await? {
+        Some(order) => partners::find(&state.db, order.partner_id).await?,
+        None => None,
+    };
+    let gate = match &gated_partner {
+        Some(p) => {
+            crate::service::vat::invoice_gate(
+                &state.db,
+                &state.config,
+                p,
+                vat_rate,
+                req.vat_override_reason.as_deref(),
+                user.user_id,
+            )
+            .await?
+        }
+        None => None,
+    };
+
     let mut tx = state.db.begin().await?;
     // Locked, not just read: the one-live-invoice check below is only a guarantee if two
     // concurrent requests for the same order cannot both pass it before either inserts.
@@ -412,6 +437,17 @@ pub async fn create_invoice(
         .await?
         .ok_or(AppError::NotFound("partner"))?;
     customer_party(&partner)?;
+    // The buyer (or their number) changed while VIES was asked: that verdict is not
+    // about this invoice.
+    let same_buyer = gated_partner.as_ref().is_some_and(|p| {
+        p.id == partner.id && p.country == partner.country && p.eu_tax_number == partner.eu_tax_number
+    });
+    if crate::service::vat::needs_vies(&partner, vat_rate) && (!same_buyer || gate.is_none()) {
+        return Err(AppError::rule(
+            "eu_vat_check_unavailable",
+            "the order's partner changed while its EU VAT number was being checked; try again",
+        ));
+    }
     exchange_rate(&mut tx, currency, issue_date).await?;
 
     let number = invoices::next_number(&mut tx, &nav.invoice_prefix, issue_date.year()).await?;
@@ -437,6 +473,10 @@ pub async fn create_invoice(
     for (line, _) in &snapshot.lines {
         insert_line(&mut tx, invoice.id, line).await?;
     }
+    if let Some(gate) = &gate {
+        invoices::set_vat_check(&mut *tx, invoice.id, gate.vat_check_id, gate.override_reason.as_deref())
+            .await?;
+    }
 
     audit::record(
         &mut *tx,
@@ -449,6 +489,8 @@ pub async fn create_invoice(
             "number": invoice.number,
             "gross": invoice.gross_amount,
             "currency": invoice.currency,
+            "vat_check_id": gate.as_ref().and_then(|g| g.vat_check_id),
+            "vat_override_reason": gate.as_ref().and_then(|g| g.override_reason.clone()),
         }),
     )
     .await?;

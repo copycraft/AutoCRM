@@ -442,6 +442,27 @@ pub const ERROR_CODES: &[ErrorCode] = &[
         "The order has no items to invoice.",
     ),
     code(
+        "eu_vat_number_required",
+        422,
+        false,
+        "Uniós cégnek 0%-os ÁFA-val csak közösségi adószámmal lehet számlázni. Adja meg a partner EU adószámát.",
+        "A 0% EU invoice needs the buyer's EU VAT number.",
+    ),
+    code(
+        "eu_vat_number_invalid",
+        422,
+        false,
+        "A vevő EU adószáma a VIES szerint nem érvényes, így 0%-os uniós számla nem állítható ki.",
+        "The buyer's EU VAT number is not valid in VIES.",
+    ),
+    code(
+        "eu_vat_check_unavailable",
+        422,
+        true,
+        "A VIES most nem tudta megerősíteni a vevő EU adószámát. Próbálja újra később.",
+        "VIES could not confirm the buyer's EU VAT number.",
+    ),
+    code(
         "nav_rejected",
         422,
         false,

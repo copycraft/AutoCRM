@@ -5728,7 +5728,7 @@ export interface components {
          * @description Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.
          * @enum {string}
          */
-        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "domain_taken" | "assistant_unavailable" | "template_in_use" | "status_required" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "totp_required" | "totp_invalid" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "nav_rejected" | "nav_unreachable" | "overpayment" | "not_issued" | "pdf_unavailable";
+        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "domain_taken" | "assistant_unavailable" | "template_in_use" | "status_required" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "totp_required" | "totp_invalid" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "eu_vat_number_required" | "eu_vat_number_invalid" | "eu_vat_check_unavailable" | "nav_rejected" | "nav_unreachable" | "overpayment" | "not_issued" | "pdf_unavailable";
         ErrorDetail: {
             /** @description Stable machine-readable code, e.g. `validation`, `stage_gate`, `currency_locked`. */
             code: string;
@@ -6496,6 +6496,11 @@ export interface components {
             payment_method?: string | null;
             /** @description Send the customer the invoice once NAV has stored it. */
             send_email?: boolean;
+            /**
+             * @description A 0% invoice to an EU business while VIES cannot confirm the buyer's number: why it
+             *     is issued anyway. Only honoured with `VIES_INVOICE_ALLOW_OVERRIDE=true`.
+             */
+            vat_override_reason?: string | null;
         };
         ItemBody: {
             description: string;

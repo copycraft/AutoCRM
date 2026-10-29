@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE invoices SET vat_check_id = $2, vat_override_reason = $3 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "898e40ba17f99c5c80e60c53e9e3a95a4ca4c3c21e2dffccc7e29fd79c3ec779"
+}

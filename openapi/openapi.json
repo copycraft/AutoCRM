@@ -21989,6 +21989,9 @@
           "not_stornoable",
           "not_annullable",
           "no_items",
+          "eu_vat_number_required",
+          "eu_vat_number_invalid",
+          "eu_vat_check_unavailable",
           "nav_rejected",
           "nav_unreachable",
           "overpayment",
@@ -22344,6 +22347,27 @@
             "en": "The order has no items to invoice.",
             "hu": "A számlához legalább egy tétel kell a megrendelésen.",
             "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "eu_vat_number_required",
+            "en": "A 0% EU invoice needs the buyer's EU VAT number.",
+            "hu": "Uniós cégnek 0%-os ÁFA-val csak közösségi adószámmal lehet számlázni. Adja meg a partner EU adószámát.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "eu_vat_number_invalid",
+            "en": "The buyer's EU VAT number is not valid in VIES.",
+            "hu": "A vevő EU adószáma a VIES szerint nem érvényes, így 0%-os uniós számla nem állítható ki.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "eu_vat_check_unavailable",
+            "en": "VIES could not confirm the buyer's EU VAT number.",
+            "hu": "A VIES most nem tudta megerősíteni a vevő EU adószámát. Próbálja újra később.",
+            "retryable": true,
             "status": 422
           },
           {
@@ -24693,6 +24717,13 @@
           "send_email": {
             "type": "boolean",
             "description": "Send the customer the invoice once NAV has stored it."
+          },
+          "vat_override_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A 0% invoice to an EU business while VIES cannot confirm the buyer's number: why it\nis issued anyway. Only honoured with `VIES_INVOICE_ALLOW_OVERRIDE=true`."
           }
         }
       },

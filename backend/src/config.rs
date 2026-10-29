@@ -227,6 +227,10 @@ pub struct Config {
     /// A VALID/INVALID verdict younger than this answers an interactive check without
     /// asking VIES again.
     pub vies_cache_max_age_days: i64,
+    /// A 0% invoice to an EU business needs a VALID VIES check at most this old.
+    pub vies_invoice_max_age_hours: i64,
+    /// Lets a user issue that invoice anyway while VIES is down, with a written reason.
+    pub vies_invoice_allow_override: bool,
 }
 
 /// The phone app's next release, served to the phones for one-click self-update.
@@ -647,6 +651,8 @@ impl Config {
             bulk_interval: std::time::Duration::from_millis(500),
         };
         let vies_cache_max_age_days = r.parsed("VIES_CACHE_MAX_AGE_DAYS", 30i64);
+        let vies_invoice_max_age_hours = r.parsed("VIES_INVOICE_MAX_AGE_HOURS", 24i64);
+        let vies_invoice_allow_override = r.parsed("VIES_INVOICE_ALLOW_OVERRIDE", false);
         let tsa = r.optional("TSA_URL").map(|url| TsaConfig {
             url,
             username: r.optional("TSA_USERNAME"),
@@ -796,6 +802,8 @@ impl Config {
             tsa,
             vies,
             vies_cache_max_age_days,
+            vies_invoice_max_age_hours,
+            vies_invoice_allow_override,
             heic_converter,
             secrets_key,
             google,
@@ -857,6 +865,8 @@ pub fn test_config() -> Config {
         tsa: None,
         vies: Default::default(),
         vies_cache_max_age_days: 30,
+        vies_invoice_max_age_hours: 24,
+        vies_invoice_allow_override: false,
         heic_converter: String::new(),
         secrets_key: None,
         google: None,
