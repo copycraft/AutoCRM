@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.vat_formatted AS \"number!\", p.country, p.vat_unavailable_since\n           FROM partners p\n           WHERE p.vat_status = 'VALID' AND p.vat_formatted IS NOT NULL AND p.archived_at IS NULL\n             AND p.vat_checked_at < $2 AND p.id > $1\n             AND (EXISTS (SELECT 1 FROM orders o WHERE o.partner_id = p.id\n                                                   AND o.updated_at > now() - interval '12 months')\n                  OR EXISTS (SELECT 1 FROM leads l WHERE l.partner_id = p.id\n                                                     AND l.updated_at > now() - interval '12 months'))\n           ORDER BY p.id LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "number!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "country",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "vat_unavailable_since",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "a85dc3aa5dcf0673ce63647930a4362300f1c7cc6d8f175a8fc1f39d5b961684"
+}

@@ -65,6 +65,26 @@ pub async fn application_arrived(
     Ok(n)
 }
 
+/// The monthly VIES re-check found a partner's EU VAT number no longer valid: reverse
+/// charge and intra-EU supply to them are off until someone sorts it out.
+pub async fn vat_number_invalidated(
+    db: &PgPool,
+    partner: &crate::repo::partners::Partner,
+    formatted: &str,
+) -> AppResult<u64> {
+    let n = notifications::broadcast(
+        db,
+        LEAD_AUDIENCE,
+        "vat_invalid",
+        "Érvénytelenné vált EU adószám",
+        Some(&format!("{}: {formatted} a VIES szerint már nem érvényes", short(&partner.name, 80))),
+        Some(&format!("/partners/{}", partner.id)),
+    )
+    .await?;
+    notifications::purge_older_than_days(db, KEEP_DAYS).await?;
+    Ok(n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

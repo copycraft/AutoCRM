@@ -52,6 +52,9 @@ pub mod kinds {
     pub const NAV_SUBMIT_INVOICE: &str = "nav_submit_invoice";
     /// Technically annul a data report.
     pub const NAV_ANNUL_INVOICE: &str = "nav_annul_invoice";
+    /// EU VAT numbers asked of VIES again, in batches: UNAVAILABLE answers every 15
+    /// minutes, valid numbers monthly, and imported numbers once (service::vat::sweep).
+    pub const VAT_SWEEP: &str = "vat_sweep";
 }
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -296,6 +299,22 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
             crate::service::ads::send_conversion(state, p.lead_id, p.order_id).await?;
             Ok(Outcome::Done)
         }
+        kinds::VAT_SWEEP => {
+            let p: crate::service::vat::SweepPayload = payload(job)?;
+            let report = crate::service::vat::sweep(&state.db, &state.config, &p).await?;
+            tracing::info!(
+                mode = ?p.mode,
+                checked = report.checked,
+                flagged = report.flagged,
+                invalidated = report.invalidated,
+                skipped = report.skipped,
+                "VAT sweep batch done"
+            );
+            if let Some(next) = report.next {
+                jobs::enqueue(&state.db, kinds::VAT_SWEEP, serde_json::to_value(next)?, None, None).await?;
+            }
+            Ok(Outcome::Done)
+        }
         other => Err(anyhow!("unknown job kind '{other}'")),
     }
 }
@@ -409,6 +428,25 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
             ),
             kinds::READ_MAILBOX,
             json!({}),
+        )
+        .await?;
+    }
+    // EU VAT numbers VIES could not answer for are asked again every quarter hour.
+    let minute = local_now.format("%M").to_string().parse::<u32>().unwrap_or(0);
+    once(
+        state,
+        &format!("{}:unavailable:{}:{}", kinds::VAT_SWEEP, local_now.format("%Y-%m-%dT%H"), minute / 15),
+        kinds::VAT_SWEEP,
+        json!({ "mode": "unavailable" }),
+    )
+    .await?;
+    // Once a month, at night: are the valid numbers of active partners still valid?
+    if time >= NaiveTime::from_hms_opt(3, 0, 0).expect("valid time") {
+        once(
+            state,
+            &format!("{}:revalidate:{}", kinds::VAT_SWEEP, local_now.format("%Y-%m")),
+            kinds::VAT_SWEEP,
+            json!({ "mode": "revalidate", "checked_before": Utc::now() }),
         )
         .await?;
     }

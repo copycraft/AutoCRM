@@ -75,6 +75,7 @@ async fn check(
             force: b.force,
             created_by: me.user_id.to_string(),
             interactive: true,
+            bulk: false,
         },
     )
     .await?;

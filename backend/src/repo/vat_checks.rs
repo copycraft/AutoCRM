@@ -138,8 +138,16 @@ pub async fn set_partner_status(
     check: &VatCheck,
     formatted: &str,
 ) -> sqlx::Result<bool> {
+    // An UNAVAILABLE streak on the same number keeps its start (the 24-hour re-check
+    // window, 0054); any real answer, or another number, ends it.
     let done = sqlx::query!(
-        "UPDATE partners SET vat_formatted = $2, vat_status = $3, vat_checked_at = $4, vat_last_check_id = $5
+        "UPDATE partners SET
+             vat_unavailable_since = CASE
+                 WHEN $3 <> 'UNAVAILABLE' THEN NULL
+                 WHEN vat_status = 'UNAVAILABLE' AND vat_formatted = $2 THEN vat_unavailable_since
+                 ELSE $4 END,
+             vat_needs_manual_check = false,
+             vat_formatted = $2, vat_status = $3, vat_checked_at = $4, vat_last_check_id = $5
          WHERE id = $1",
         partner_id,
         formatted,
@@ -150,4 +158,92 @@ pub async fn set_partner_status(
     .execute(db)
     .await?;
     Ok(done.rows_affected() == 1)
+}
+
+/// A partner a sweep job works on.
+#[derive(Debug, Clone)]
+pub struct SweepPartner {
+    pub id: i64,
+    /// The number to check: the last checked one, or `eu_tax_number` for the backfill.
+    pub number: String,
+    pub country: String,
+    pub vat_unavailable_since: Option<DateTime<Utc>>,
+}
+
+/// Partners whose last answer was UNAVAILABLE and nobody has been asked to look at yet.
+pub async fn unavailable_partners(
+    db: impl PgExecutor<'_>,
+    after_id: i64,
+    limit: i64,
+) -> sqlx::Result<Vec<SweepPartner>> {
+    sqlx::query_as!(
+        SweepPartner,
+        r#"SELECT id, vat_formatted AS "number!", country, vat_unavailable_since
+           FROM partners
+           WHERE vat_status = 'UNAVAILABLE' AND NOT vat_needs_manual_check
+             AND vat_formatted IS NOT NULL AND archived_at IS NULL AND id > $1
+           ORDER BY id LIMIT $2"#,
+        after_id,
+        limit
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// VIES kept failing for a day: a person has to check this one.
+pub async fn flag_manual_check(db: impl PgExecutor<'_>, partner_id: i64) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE partners SET vat_needs_manual_check = true WHERE id = $1",
+        partner_id
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// VALID partners last checked before `checked_before` with an order or enquiry touched in
+/// the last 12 months.
+pub async fn revalidation_due(
+    db: impl PgExecutor<'_>,
+    after_id: i64,
+    checked_before: DateTime<Utc>,
+    limit: i64,
+) -> sqlx::Result<Vec<SweepPartner>> {
+    sqlx::query_as!(
+        SweepPartner,
+        r#"SELECT p.id, p.vat_formatted AS "number!", p.country, p.vat_unavailable_since
+           FROM partners p
+           WHERE p.vat_status = 'VALID' AND p.vat_formatted IS NOT NULL AND p.archived_at IS NULL
+             AND p.vat_checked_at < $2 AND p.id > $1
+             AND (EXISTS (SELECT 1 FROM orders o WHERE o.partner_id = p.id
+                                                   AND o.updated_at > now() - interval '12 months')
+                  OR EXISTS (SELECT 1 FROM leads l WHERE l.partner_id = p.id
+                                                     AND l.updated_at > now() - interval '12 months'))
+           ORDER BY p.id LIMIT $3"#,
+        after_id,
+        checked_before,
+        limit
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// Partners with an EU VAT number that were never checked (the MiniCRM import backfill).
+pub async fn never_checked(
+    db: impl PgExecutor<'_>,
+    after_id: i64,
+    limit: i64,
+) -> sqlx::Result<Vec<SweepPartner>> {
+    sqlx::query_as!(
+        SweepPartner,
+        r#"SELECT id, eu_tax_number AS "number!", country, vat_unavailable_since
+           FROM partners
+           WHERE vat_status IS NULL AND eu_tax_number IS NOT NULL AND btrim(eu_tax_number) <> ''
+             AND archived_at IS NULL AND id > $1
+           ORDER BY id LIMIT $2"#,
+        after_id,
+        limit
+    )
+    .fetch_all(db)
+    .await
 }

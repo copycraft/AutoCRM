@@ -563,6 +563,17 @@ pub async fn run(
     }
     load_notes(state, raw_dir, &mut summary).await?;
     load_files(state, mapping, data_dir, &mut summary).await?;
+    // Every imported EU VAT number is checked against VIES once, by the worker, throttled
+    // (created_by = 'migration'). A repeated import queues it again; numbers already
+    // checked are skipped.
+    crate::repo::jobs::enqueue(
+        &state.db,
+        crate::jobs::kinds::VAT_SWEEP,
+        serde_json::json!({ "mode": "backfill" }),
+        None,
+        None,
+    )
+    .await?;
     Ok(summary)
 }
 

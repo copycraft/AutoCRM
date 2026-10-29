@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE partners SET\n             vat_unavailable_since = CASE\n                 WHEN $3 <> 'UNAVAILABLE' THEN NULL\n                 WHEN vat_status = 'UNAVAILABLE' AND vat_formatted = $2 THEN vat_unavailable_since\n                 ELSE $4 END,\n             vat_needs_manual_check = false,\n             vat_formatted = $2, vat_status = $3, vat_checked_at = $4, vat_last_check_id = $5\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6209ee1d41275705fb8fcb4363876a595bf2921adae8dd4d0ef7f8308bcf53c5"
+}

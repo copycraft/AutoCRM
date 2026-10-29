@@ -55,6 +55,8 @@ pub struct CheckRequest<'a> {
     /// A user id, `system` or `migration`.
     pub created_by: String,
     pub interactive: bool,
+    /// Part of a job working through many numbers (calls spaced 500 ms apart).
+    pub bulk: bool,
 }
 
 /// `Err(result)` is FORMAT_INVALID: VIES was not asked and nothing was stored.
@@ -85,7 +87,7 @@ pub async fn check(
     }
 
     let outcome = client(&config.vies)
-        .check(&vat, CheckOptions { interactive: req.interactive })
+        .check(&vat, CheckOptions { interactive: req.interactive, bulk: req.bulk })
         .await;
     let mut hints = vat.hints.clone();
     hints.extend(outcome.hints.iter().cloned());
@@ -162,4 +164,106 @@ fn cached_result(vat: &NormalizedVat, row: &VatCheck) -> VatCheckResult {
 /// VIES's own availability report (cached 5 min). None when VIES can't be reached.
 pub async fn status(config: &Config) -> Option<Arc<ViesStatus>> {
     client(&config.vies).status().await
+}
+
+/// Partners per sweep job; the next batch is a new job, so a long sweep never meets the
+/// worker's job timeout (at most ~40 × (0.5 s spacing + VIES's few seconds)).
+pub const SWEEP_BATCH: i64 = 40;
+
+/// How long UNAVAILABLE answers are re-asked before a person is asked to look.
+const UNAVAILABLE_GIVE_UP: chrono::TimeDelta = chrono::TimeDelta::hours(24);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SweepMode {
+    /// Every 15 minutes: ask again about numbers VIES could not answer for.
+    Unavailable,
+    /// Monthly: are the valid numbers of active partners still valid?
+    Revalidate,
+    /// After the MiniCRM import: check every imported EU VAT number once.
+    Backfill,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SweepPayload {
+    pub mode: SweepMode,
+    /// Partners up to this id are done.
+    #[serde(default)]
+    pub after_id: i64,
+    /// Revalidate: numbers checked before this (the sweep's start).
+    #[serde(default)]
+    pub checked_before: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Default)]
+pub struct SweepReport {
+    pub checked: usize,
+    /// UNAVAILABLE for a day: flagged for a manual re-check.
+    pub flagged: usize,
+    /// VALID until now, INVALID today.
+    pub invalidated: usize,
+    /// Malformed numbers the backfill skipped.
+    pub skipped: usize,
+    /// The next batch, when this one was full.
+    pub next: Option<SweepPayload>,
+}
+
+/// One batch of a sweep.
+pub async fn sweep(db: &sqlx::PgPool, config: &Config, p: &SweepPayload) -> AppResult<SweepReport> {
+    let batch = match p.mode {
+        SweepMode::Unavailable => vat_checks::unavailable_partners(db, p.after_id, SWEEP_BATCH).await?,
+        SweepMode::Revalidate => {
+            let before = p.checked_before.unwrap_or_else(Utc::now);
+            vat_checks::revalidation_due(db, p.after_id, before, SWEEP_BATCH).await?
+        }
+        SweepMode::Backfill => vat_checks::never_checked(db, p.after_id, SWEEP_BATCH).await?,
+    };
+    let mut report = SweepReport::default();
+    for partner in &batch {
+        if p.mode == SweepMode::Unavailable
+            && partner
+                .vat_unavailable_since
+                .is_some_and(|since| Utc::now() - since >= UNAVAILABLE_GIVE_UP)
+        {
+            vat_checks::flag_manual_check(db, partner.id).await?;
+            tracing::warn!(partner_id = partner.id, number = %partner.number, "VIES unavailable for a day; needs a manual re-check");
+            report.flagged += 1;
+            continue;
+        }
+        let result = check(
+            db,
+            config,
+            CheckRequest {
+                input: &partner.number,
+                default_country: Some(&partner.country),
+                partner_id: Some(partner.id),
+                // The backfill may reuse a fresh verdict on the same number; re-checks
+                // exist to ask again.
+                force: p.mode != SweepMode::Backfill,
+                created_by: if p.mode == SweepMode::Backfill { "migration" } else { "system" }.into(),
+                interactive: false,
+                bulk: true,
+            },
+        )
+        .await?;
+        match result {
+            Ok(r) => {
+                report.checked += 1;
+                if p.mode == SweepMode::Revalidate && r.status == VatCheckStatus::Invalid {
+                    report.invalidated += 1;
+                    if let Some(found) = crate::repo::partners::find(db, partner.id).await? {
+                        crate::service::notifications::vat_number_invalidated(db, &found, &r.formatted).await?;
+                    }
+                }
+            }
+            Err(_) => report.skipped += 1,
+        }
+    }
+    if batch.len() as i64 == SWEEP_BATCH {
+        report.next = Some(SweepPayload {
+            after_id: batch.last().map_or(p.after_id, |b| b.id),
+            ..p.clone()
+        });
+    }
+    Ok(report)
 }

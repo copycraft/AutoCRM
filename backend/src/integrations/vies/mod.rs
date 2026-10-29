@@ -63,6 +63,8 @@ pub struct ViesConfig {
     pub max_attempts: u32,
     /// First backoff step (1 s); doubles per retry, plus up to half of it as jitter.
     pub backoff_base: Duration,
+    /// Bulk jobs (re-checks, backfill) leave at least this long between calls (500 ms).
+    pub bulk_interval: Duration,
 }
 
 impl Default for ViesConfig {
@@ -75,6 +77,7 @@ impl Default for ViesConfig {
             http_timeout: Duration::from_millis(15_000),
             max_attempts: 3,
             backoff_base: Duration::from_secs(1),
+            bulk_interval: Duration::from_millis(500),
         }
     }
 }
@@ -296,6 +299,8 @@ fn classify(code: &str) -> Class {
 pub struct CheckOptions {
     /// User-triggered: the whole check must finish within 25 s.
     pub interactive: bool,
+    /// A job working through many numbers: calls are spaced by `bulk_interval`.
+    pub bulk: bool,
 }
 
 type InFlight = Shared<BoxFuture<'static, Arc<CheckOutcome>>>;
@@ -307,6 +312,8 @@ struct Inner<T> {
     per_country: Mutex<HashMap<String, Arc<Semaphore>>>,
     in_flight: Mutex<HashMap<String, InFlight>>,
     status: Mutex<Option<(Instant, Arc<ViesStatus>)>>,
+    /// When the last bulk call went out.
+    bulk_last: tokio::sync::Mutex<Option<Instant>>,
 }
 
 /// Cheap to clone; share one per process so the concurrency caps hold.
@@ -337,6 +344,7 @@ impl<T: Transport> ViesClient<T> {
                 per_country: Mutex::new(HashMap::new()),
                 in_flight: Mutex::new(HashMap::new()),
                 status: Mutex::new(None),
+                bulk_last: tokio::sync::Mutex::new(None),
             }),
         }
     }
@@ -461,6 +469,17 @@ impl<T: Transport> ViesClient<T> {
                 requester_member_state_code: requester.as_ref().map(|(c, _)| c.clone()),
                 requester_number: requester.as_ref().map(|(_, n)| n.clone()),
             };
+            if options.bulk {
+                // Spaced across every bulk caller in the process, retries included.
+                let mut last = self.inner.bulk_last.lock().await;
+                if let Some(at) = *last {
+                    let ready = at + config.bulk_interval;
+                    if let Some(wait) = ready.checked_duration_since(Instant::now()) {
+                        tokio::time::sleep(wait).await;
+                    }
+                }
+                *last = Some(Instant::now());
+            }
             attempts += 1;
             let attempt_started = Instant::now();
             let response = {

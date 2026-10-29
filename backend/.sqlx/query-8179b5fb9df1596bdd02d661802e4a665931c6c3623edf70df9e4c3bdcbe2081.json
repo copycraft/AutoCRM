@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, eu_tax_number AS \"number!\", country, vat_unavailable_since\n           FROM partners\n           WHERE vat_status IS NULL AND eu_tax_number IS NOT NULL AND btrim(eu_tax_number) <> ''\n             AND archived_at IS NULL AND id > $1\n           ORDER BY id LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "number!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "country",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "vat_unavailable_since",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "8179b5fb9df1596bdd02d661802e4a665931c6c3623edf70df9e4c3bdcbe2081"
+}

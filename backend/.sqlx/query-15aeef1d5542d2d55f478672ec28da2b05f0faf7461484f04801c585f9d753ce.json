@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE partners SET vat_needs_manual_check = true WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "15aeef1d5542d2d55f478672ec28da2b05f0faf7461484f04801c585f9d753ce"
+}

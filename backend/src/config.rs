@@ -644,6 +644,7 @@ impl Config {
             ),
             max_attempts: r.parsed("VIES_MAX_ATTEMPTS", 3u32).max(1),
             backoff_base: std::time::Duration::from_secs(1),
+            bulk_interval: std::time::Duration::from_millis(500),
         };
         let vies_cache_max_age_days = r.parsed("VIES_CACHE_MAX_AGE_DAYS", 30i64);
         let tsa = r.optional("TSA_URL").map(|url| TsaConfig {
