@@ -16,6 +16,7 @@ pub mod orders;
 pub mod reminders;
 pub mod secrets;
 pub mod stages;
+pub mod vat;
 pub mod weekly_report;
 
 use chrono::{NaiveDate, Utc};

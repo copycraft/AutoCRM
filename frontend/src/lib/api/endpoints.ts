@@ -3,6 +3,7 @@
 // output and the declared return type disagree, this file does not compile.
 
 import { request, requestNoContent } from './client';
+import { ApiError } from './errors';
 import * as s from './zod/zod.gen';
 import type { components } from './schema.gen';
 import type { QueryOf, StageEntity } from './types';
@@ -765,4 +766,21 @@ export const salesReportsApi = {
     request('/reports/weekly/recipients', s.zReportsGetWeeklyRecipientsResponse),
   saveWeeklyRecipients: (recipients: string[]): Promise<S['WeeklyRecipients']> =>
     request('/reports/weekly/recipients', s.zReportsPutWeeklyRecipientsResponse, { method: 'PUT', body: { recipients } }),
+};
+
+// ── VAT numbers (VIES) ──
+export const vatApi = {
+  /** `null`: the number is malformed (422) and VIES was not asked. */
+  check: async (body: S['VatCheckBody']): Promise<S['VatCheckResult'] | null> => {
+    try {
+      return await request('/vat/check', s.zPartnersCheckResponse, { method: 'POST', body });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 422) return null;
+      throw e;
+    }
+  },
+  history: (partnerId: number): Promise<S['Items_VatCheck']> =>
+    request('/vat/checks', s.zPartnersHistoryResponse, {
+      search: { subject_type: 'partner', subject_id: partnerId },
+    }),
 };

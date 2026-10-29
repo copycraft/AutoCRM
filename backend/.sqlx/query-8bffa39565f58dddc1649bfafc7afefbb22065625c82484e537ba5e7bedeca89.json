@@ -1,0 +1,137 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, subject_type, subject_id, source, input_raw, country_code AS \"country_code!\",\n                  vat_number, hu_domestic_tax_number, status, error_code, name, address, request_identifier,\n                  request_date, requester, attempts, duration_ms, hints, created_by, created_at\n           FROM vat_checks\n           WHERE subject_type = $1 AND subject_id = $2\n           ORDER BY created_at DESC, id DESC\n           LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "subject_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "subject_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "source",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "input_raw",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "country_code!",
+        "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "vat_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "hu_domestic_tax_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "error_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "address",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "request_identifier",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "request_date",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "requester",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "attempts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "duration_ms",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "hints",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8bffa39565f58dddc1649bfafc7afefbb22065625c82484e537ba5e7bedeca89"
+}

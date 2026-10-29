@@ -17673,6 +17673,169 @@
           {}
         ]
       }
+    },
+    "/vat/check": {
+      "post": {
+        "tags": [
+          "partners"
+        ],
+        "operationId": "partners_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VatCheckBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Any VIES verdict, including INVALID, UNAVAILABLE and ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VatCheckResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "FORMAT_INVALID: VIES was not asked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VatCheckResult"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vat/status": {
+      "get": {
+        "tags": [
+          "partners"
+        ],
+        "operationId": "partners_status",
+        "responses": {
+          "200": {
+            "description": "VIES's availability, overall and per member state (cached 5 minutes)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViesStatus"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "VIES could not be reached"
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vat/checks": {
+      "get": {
+        "tags": [
+          "partners"
+        ],
+        "operationId": "partners_history",
+        "parameters": [
+          {
+            "name": "subject_type",
+            "in": "query",
+            "description": "Only `partner` for now.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_VatCheck"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -17838,6 +18001,29 @@
             "type": "string"
           },
           "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AddressParts": {
+        "type": "object",
+        "properties": {
+          "postal_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address_line": {
             "type": [
               "string",
               "null"
@@ -19908,6 +20094,21 @@
               "null"
             ],
             "description": "As printed on the unit's plate (or read from its barcode); null clears it."
+          }
+        }
+      },
+      "CountryStatus": {
+        "type": "object",
+        "required": [
+          "country_code",
+          "availability"
+        ],
+        "properties": {
+          "country_code": {
+            "type": "string"
+          },
+          "availability": {
+            "type": "string"
           }
         }
       },
@@ -29379,6 +29580,133 @@
           }
         }
       },
+      "Items_VatCheck": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "source",
+                "input_raw",
+                "country_code",
+                "vat_number",
+                "status",
+                "attempts",
+                "duration_ms",
+                "hints",
+                "created_by",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "subject_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "subject_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "input_raw": {
+                  "type": "string"
+                },
+                "country_code": {
+                  "type": "string"
+                },
+                "vat_number": {
+                  "type": "string"
+                },
+                "hu_domestic_tax_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "error_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "address": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "request_identifier": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "VIES's consultation number: proof we checked this number on this date."
+                },
+                "request_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "requester": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "attempts": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "duration_ms": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "hints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "created_by": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_Vehicle": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -36864,6 +37192,280 @@
         }
       },
       "Value": {},
+      "VatCheck": {
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "input_raw",
+          "country_code",
+          "vat_number",
+          "status",
+          "attempts",
+          "duration_ms",
+          "hints",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "input_raw": {
+            "type": "string"
+          },
+          "country_code": {
+            "type": "string"
+          },
+          "vat_number": {
+            "type": "string"
+          },
+          "hu_domestic_tax_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_identifier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "VIES's consultation number: proof we checked this number on this date."
+          },
+          "request_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "requester": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VatCheckBody": {
+        "type": "object",
+        "required": [
+          "input"
+        ],
+        "properties": {
+          "input": {
+            "type": "string",
+            "description": "What the user typed: `HU12345678`, `12345678-2-06`, `DE 123.456.789`..."
+          },
+          "default_country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The record's country (ISO or VIES code), used when the input has no prefix."
+          },
+          "subject": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VatSubject",
+                "description": "When given, the verdict is filed on that record."
+              }
+            ]
+          },
+          "force": {
+            "type": "boolean",
+            "description": "Ask VIES even when a recent verdict is on file."
+          }
+        }
+      },
+      "VatCheckResult": {
+        "type": "object",
+        "description": "The API shape (spec §5).",
+        "required": [
+          "status",
+          "source",
+          "country_code",
+          "vat_number",
+          "formatted",
+          "checked_at",
+          "cached",
+          "hints"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/VatCheckStatus"
+          },
+          "source": {
+            "type": "string"
+          },
+          "country_code": {
+            "type": "string"
+          },
+          "vat_number": {
+            "type": "string"
+          },
+          "formatted": {
+            "type": "string"
+          },
+          "hu_domestic_tax_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address_parts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AddressParts",
+                "description": "`address` split into the partner fields (best effort; see vies::address)."
+              }
+            ]
+          },
+          "request_identifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cached": {
+            "type": "boolean"
+          },
+          "check_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "hints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VatCheckStatus": {
+        "type": "string",
+        "enum": [
+          "VALID",
+          "INVALID",
+          "UNAVAILABLE",
+          "ERROR",
+          "FORMAT_INVALID"
+        ]
+      },
+      "VatSubject": {
+        "type": "object",
+        "required": [
+          "type",
+          "id"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Only `partner` for now."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "Vehicle": {
         "type": "object",
         "required": [
@@ -37147,6 +37749,23 @@
           }
         }
       },
+      "ViesStatus": {
+        "type": "object",
+        "required": [
+          "vow"
+        ],
+        "properties": {
+          "vow": {
+            "$ref": "#/components/schemas/VowStatus"
+          },
+          "countries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountryStatus"
+            }
+          }
+        }
+      },
       "VinInfo": {
         "type": "object",
         "required": [
@@ -37266,6 +37885,17 @@
             "type": "integer",
             "format": "int64",
             "description": "Orders excluded from the normalised sum because no rate was available."
+          }
+        }
+      },
+      "VowStatus": {
+        "type": "object",
+        "required": [
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean"
           }
         }
       },

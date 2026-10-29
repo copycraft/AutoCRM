@@ -10,6 +10,7 @@ import { useLookups } from '@/hooks/useLookups';
 import { useDirtyGuard } from '@/hooks/useDirtyGuard';
 import { useFormDraft } from '@/hooks/useFormDraft';
 import type { CreatePartner, Partner, PartnerKind, PatchPartner } from '@/lib/api/types';
+import { VatNumberField } from '@/components/partners/VatNumberField';
 
 const schema = z.object({
   kind: z.enum(['business', 'person']),
@@ -119,13 +120,14 @@ export function PartnerForm({
   const { data: lookups } = useLookups();
   const currencies = lookups?.currencies ?? [];
   const emptyPartner = toForm(undefined, initialKind);
+  const form = useForm<PartnerFormValues>({ resolver: zodResolver(schema), defaultValues: toForm(initial, initialKind) });
   const {
     register,
     handleSubmit,
     watch,
     reset,
     formState: { errors, isSubmitting, isDirty, isSubmitSuccessful },
-  } = useForm<PartnerFormValues>({ resolver: zodResolver(schema), defaultValues: toForm(initial, initialKind) });
+  } = form;
   const draft = useFormDraft({
     key: draftKey && !initial ? draftKey : null,
     watch,
@@ -166,6 +168,9 @@ export function PartnerForm({
         </div>
       )}
       <div className="card-content grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="md:col-span-2">
+          <VatNumberField form={form} partnerId={initial?.id} />
+        </div>
         <div>
           <label className="label" htmlFor="kind">{t('kindLabel')}</label>
           <select id="kind" className="input" {...register('kind')}>
@@ -181,10 +186,6 @@ export function PartnerForm({
         <div>
           <label className="label" htmlFor="tax_number">{t('taxNumber')}</label>
           <input id="tax_number" className="input font-mono" placeholder="12345678-1-23" {...register('tax_number')} />
-        </div>
-        <div>
-          <label className="label" htmlFor="eu_tax_number">{t('euTaxNumber')}</label>
-          <input id="eu_tax_number" className="input font-mono" {...register('eu_tax_number')} />
         </div>
         <div>
           <label className="label" htmlFor="country">{t('country')}</label>

@@ -48,6 +48,7 @@ pub mod tasks;
 pub mod templates;
 pub mod timeline;
 pub mod users;
+pub mod vat_checks;
 pub mod vehicles;
 pub mod yard;
 

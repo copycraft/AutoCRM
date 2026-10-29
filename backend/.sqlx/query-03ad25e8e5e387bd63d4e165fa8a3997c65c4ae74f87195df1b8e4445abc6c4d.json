@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE partners SET vat_formatted = $2, vat_status = $3, vat_checked_at = $4, vat_last_check_id = $5\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "03ad25e8e5e387bd63d4e165fa8a3997c65c4ae74f87195df1b8e4445abc6c4d"
+}

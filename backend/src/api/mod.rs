@@ -40,6 +40,7 @@ pub mod search;
 pub mod tasks;
 pub mod timeline;
 pub mod users;
+pub mod vat;
 pub mod vehicles;
 pub mod yard;
 
@@ -103,6 +104,7 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(incidents::routes())
         // 0049
         .merge(ads::routes())
+        .merge(vat::routes())
 }
 
 pub fn router(state: AppState) -> Router {

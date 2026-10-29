@@ -432,9 +432,9 @@ export interface paths {
          *     verdicts, fuel levels, task entity types, currencies, invoice payment
          *     methods, annulment codes, image categories and email composer starters.
          * @description Any signed-in user may read it (like the zone lists): the phone fetches it
-         *     on the ├ütv├ętel-├ítad├ís screen and caches it for the yard, the web keeps it
+         *     on the Átvétel-átadás screen and caches it for the yard, the web keeps it
          *     in react-query. Values and labels come from `domain::lookups`, next to the
-         *     validation that accepts them ÔÇö changing one is a server deploy, never an
+         *     validation that accepts them — changing one is a server deploy, never an
          *     app update.
          */
         get: operations["configuration_lookups"];
@@ -1488,7 +1488,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** V2.4: documents of a lead ÔÇö the quotation, before any order exists. */
+        /** V2.4: documents of a lead — the quotation, before any order exists. */
         get: operations["media_list_lead_documents"];
         put?: never;
         post?: never;
@@ -1736,6 +1736,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["mobile_order_picker"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mobile/app-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["mobile_app_version"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mobile/app.apk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["mobile_app_apk"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2300,7 +2332,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * A copy to edit: "<name> (m├ísolat)", same area and folder, a fresh key. How the design
+         * A copy to edit: "<name> (másolat)", same area and folder, a fresh key. How the design
          *     samples are meant to be used, and how a customer letter gets a German twin.
          */
         post: operations["email_copy_template"];
@@ -2752,7 +2784,7 @@ export interface paths {
         };
         get?: never;
         /**
-         * Moves the employee to a status. Megsz┼▒nt jogviszony (a status that ends employment)
+         * Moves the employee to a status. Megszűnt jogviszony (a status that ends employment)
          *     archives them; any other brings an archived employee back.
          */
         put: operations["hr_set_employee_status"];
@@ -2855,7 +2887,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * The paper behind an absence ÔÇö a doctor's certificate (orvosi igazol├ís) for sick leave:
+         * The paper behind an absence — a doctor's certificate (orvosi igazolás) for sick leave:
          *     the raw file as the body (PDF, JPEG, PNG or WebP, at most 25 MB). Replaces any earlier one.
          */
         post: operations["hr_upload_absence_file"];
@@ -3067,7 +3099,7 @@ export interface paths {
         };
         /**
          * Daily workshop load: placed, completed and in-workshop cars per business-tz day.
-         *     Ranges cap at 62 days ÔÇö this feeds bar charts, not history exports.
+         *     Ranges cap at 62 days — this feeds bar charts, not history exports.
          */
         get: operations["reports_workload"];
         put?: never;
@@ -3153,7 +3185,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Leads Ôćĺ quotes Ôćĺ orders per source website (the domain the lead was tagged from). */
+        /** Leads → quotes → orders per source website (the domain the lead was tagged from). */
         get: operations["reports_website_conversion"];
         put?: never;
         post?: never;
@@ -3630,7 +3662,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** How many invoices are on each list, for the Sz├íml├íz├│ sidebar. */
+        /** How many invoices are on each list, for the Számlázó sidebar. */
         get: operations["invoices_bucket_counts"];
         put?: never;
         post?: never;
@@ -3650,7 +3682,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Marks an issued invoice paid (Fizetve) or back to unpaid (Ki├íll├ştva). Cash invoices
+         * Marks an issued invoice paid (Fizetve) or back to unpaid (Kiállítva). Cash invoices
          *     are paid on issue without this.
          */
         post: operations["invoices_mark_paid"];
@@ -3808,7 +3840,7 @@ export interface paths {
         put?: never;
         /**
          * Fetch the PDF of an issued invoice again (INV-L9).
-         * @description For the invoice whose report NAV stored but whose file never arrived ÔÇö a slow
+         * @description For the invoice whose report NAV stored but whose file never arrived — a slow
          *     object store at the wrong moment. Re-renders from what NAV holds and files it with
          *     the order's documents. The letter queued at issue time is left alone: it may already
          *     have gone out without the attachment, and re-sending mail is the office's call.
@@ -3830,7 +3862,7 @@ export interface paths {
         get: operations["invoices_list_proformas"];
         put?: never;
         /**
-         * Render a proforma (d├şjbek├ęr┼Ĺ) for an order.
+         * Render a proforma (díjbekérő) for an order.
          * @description Nothing is reported to NAV, no invoice status changes, and no invoice needs to exist:
          *     a proforma is a request for payment, and usable from the day the order is priced.
          */
@@ -3881,7 +3913,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * A partner's statement of account (foly├│sz├ímla-kivonat, egyenlegk├Âzl┼Ĺ): invoices and
+         * A partner's statement of account (folyószámla-kivonat, egyenlegközlő): invoices and
          *     stornos issued in the period, older invoices still open, and the payments received.
          */
         get: operations["invoices_statement"];
@@ -4001,7 +4033,7 @@ export interface paths {
         put?: never;
         /**
          * One supplier invoice: the raw file as the body (PDF, JPEG, PNG, WebP or XML, up to
-         *     25 MB), its name in `?filename=`. It lands on Nyitott sz├ímla with nothing filled in.
+         *     25 MB), its name in `?filename=`. It lands on Nyitott számla with nothing filled in.
          *     The same file twice is refused, naming the invoice that already holds it.
          */
         post: operations["incoming_invoices_upload"];
@@ -4321,9 +4353,57 @@ export interface paths {
         };
         /**
          * Won leads that came from a Google Ads click, in Google's offline-conversion CSV format.
-         *     Schedule it in Google Ads (Conversions Ôćĺ Uploads Ôćĺ Schedules Ôćĺ HTTPS) with this URL.
+         *     Schedule it in Google Ads (Conversions → Uploads → Schedules → HTTPS) with this URL.
          */
         get: operations["ads_google_conversions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vat/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["partners_check"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vat/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["partners_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/vat/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["partners_history"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4396,6 +4476,11 @@ export interface components {
             email: string;
             reason?: string | null;
         };
+        AddressParts: {
+            postal_code?: string | null;
+            city?: string | null;
+            address_line?: string | null;
+        };
         AdminStatus: {
             environment: string;
             /** @description `dry_run` or `smtp`. */
@@ -4433,8 +4518,34 @@ export interface components {
         AnnulRequest: {
             /** @description One of NAV's codes; `ERRATIC_DATA` is the usual one. */
             code: string;
-            /** @description Why. NAV stores it and shows it in the Online Sz├ímla portal. */
+            /** @description Why. NAV stores it and shows it in the Online Számla portal. */
             reason: string;
+        };
+        /**
+         * @description What the phone's update dialog shows. Public on purpose: a phone with an expired
+         *     session and a stale build must still learn that it is stale.
+         */
+        AppVersion: {
+            /**
+             * Format: int64
+             * @description The phone updates when this exceeds its own `versionCode`.
+             */
+            version_code: number;
+            /** @description Shown in the dialog, e.g. "1.4.0". */
+            version_name: string;
+            /**
+             * @description Where the APK downloads from: absolute path on this server, so the phone can
+             *     resolve it against its stored base URL like every other call it makes.
+             */
+            apk_url: string;
+            /** @description Lowercase hex sha256 of the APK; the phone verifies before installing. */
+            sha256: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description True: the phone refuses to work until it is updated. */
+            mandatory: boolean;
+            /** @description Short Hungarian release notes, one or two sentences per line. May be empty. */
+            changelog_hu: string;
         };
         Application: {
             /** Format: int64 */
@@ -4515,7 +4626,7 @@ export interface components {
             /**
              * @description "attached" or "link", filled in when the email is sent. "embedded" means the file
              *     travels as an inline image under `content_id`, referenced from the HTML as
-             *     `cid:ÔÇŽ` rather than listed as an attachment.
+             *     `cid:…` rather than listed as an attachment.
              */
             mode?: string | null;
             /** @description Content-ID without brackets (`doc-42`); only set together with mode "embedded". */
@@ -4684,7 +4795,7 @@ export interface components {
             updated_at: string;
             /**
              * @description Past due date and still open, measured against the caller's business day
-             *     (not UTC midnight ÔÇö the whole point of this flag).
+             *     (not UTC midnight — the whole point of this flag).
              */
             is_overdue: boolean;
         };
@@ -4702,7 +4813,7 @@ export interface components {
         BlockerLoadEntry: components["schemas"]["BlockerLoadRow"] & {
             /**
              * Format: double
-             * @description Fraction (0ÔÇô1) of all blocker waiting time in the period.
+             * @description Fraction (0–1) of all blocker waiting time in the period.
              */
             share_of_waiting: number;
         };
@@ -4726,7 +4837,7 @@ export interface components {
             nudges: number;
             /**
              * Format: double
-             * @description Sum of (resolved or now Ôłĺ created) across blockers, in days.
+             * @description Sum of (resolved or now − created) across blockers, in days.
              */
             waiting_days: number;
         };
@@ -4880,7 +4991,7 @@ export interface components {
             title: string;
             /**
              * Format: int32
-             * @description Due this many days after the checklist is started (0ÔÇô365).
+             * @description Due this many days after the checklist is started (0–365).
              */
             due_days?: number;
             /**
@@ -4918,7 +5029,7 @@ export interface components {
             /** Format: int64 */
             entity_id: number;
             body: string;
-            /** @description The users named in the text (`@N├ęv`). Each is notified once. */
+            /** @description The users named in the text (`@Név`). Each is notified once. */
             mention_ids?: number[];
         };
         Comparison: {
@@ -4959,7 +5070,7 @@ export interface components {
             body?: string | null;
             /**
              * @description The body is Markdown: rendered to HTML for sending, kept as written for the text
-             *     part and the inbox. Templates stay plain text ÔÇö Markdown and `{{variables}}` mix
+             *     part and the inbox. Templates stay plain text — Markdown and `{{variables}}` mix
              *     badly when values contain asterisks, so a template plus this flag is refused.
              */
             body_markdown?: boolean;
@@ -5037,7 +5148,7 @@ export interface components {
             to_address?: string | null;
             subject: string;
             body_text: string;
-            /** @description Out only: queued, sent, failed, ÔÇŽ */
+            /** @description Out only: queued, sent, failed, … */
             status?: string | null;
             /** @description Out only: who wrote it; None for automatic mail. */
             sent_by_name?: string | null;
@@ -5050,6 +5161,10 @@ export interface components {
         CoolingSerialBody: {
             /** @description As printed on the unit's plate (or read from its barcode); null clears it. */
             serial?: string | null;
+        };
+        CountryStatus: {
+            country_code: string;
+            availability: string;
         };
         CreateBody: {
             /** Format: int64 */
@@ -5069,7 +5184,7 @@ export interface components {
             warning_lights?: string | null;
             /**
              * Format: int32
-             * @description ├ütv├ęteli lap, read at the car. Only a `checkout` (├ítv├ętel) uses these: it writes them,
+             * @description Átvételi lap, read at the car. Only a `checkout` (átvétel) uses these: it writes them,
              *     with `odometer`, `fuel_level` and a plate or VIN the order lacks, onto the order, so
              *     the walkaround is the intake slip and leaving `intake` needs no second form.
              */
@@ -5274,7 +5389,7 @@ export interface components {
         /** @enum {string} */
         DocumentKind: "design" | "cad" | "certificate" | "invoice" | "proforma" | "other" | "video";
         DocumentPatch: {
-            /** @description Who issued it ÔÇö the ATP inspection body, the designer, the supplier. */
+            /** @description Who issued it — the ATP inspection body, the designer, the supplier. */
             issuer?: string | null;
             /** Format: date */
             valid_from?: string | null;
@@ -5575,7 +5690,7 @@ export interface components {
         EmployeeStatus: {
             /** Format: int64 */
             id: number;
-            /** @description The heading it is listed under: T├ívoll├ęv┼Ĺ munkav├íllal├│, Akt├şv munkav├íllal├│... */
+            /** @description The heading it is listed under: Távollévő munkavállaló, Aktív munkavállaló... */
             section: string;
             label: string;
             /** @description `#rrggbb`. */
@@ -5626,7 +5741,7 @@ export interface components {
          *     Clients layer this over their built-in map: the built-in map must stay for
          *     cold start (a login failure happens before the first fetch), but every
          *     reworded message and every new code reaches the clients with the next
-         *     lookups fetch ÔÇö no app update.
+         *     lookups fetch — no app update.
          */
         ErrorTextEntry: {
             code: string;
@@ -5726,7 +5841,7 @@ export interface components {
         FollowupStep: {
             /** Format: int64 */
             id: number;
-            /** @description What the office calls it: "1 h├ęt", "1 h├│nap". */
+            /** @description What the office calls it: "1 hét", "1 hónap". */
             label: string;
             /**
              * Format: int32
@@ -5839,7 +5954,7 @@ export interface components {
          * @description An image category with the two rules clients used to hard-code: whether the
          *     bytes are evidence (`immutable`, the database refuses delete and re-filing)
          *     and whether a person may file a photo by hand (`attachable`, production
-         *     only ÔÇö intake and handover shots come from their own flows).
+         *     only — intake and handover shots come from their own flows).
          */
         ImageCategoryEntry: {
             key: string;
@@ -5897,7 +6012,7 @@ export interface components {
             inspection_id?: number | null;
             /**
              * Format: int64
-             * @description The kiad├ís damage it was opened from, when it was.
+             * @description The kiadás damage it was opened from, when it was.
              */
             damage_id?: number | null;
             title: string;
@@ -5926,7 +6041,7 @@ export interface components {
             order_id: number;
             /**
              * Format: int64
-             * @description The kiad├ís damage it is about. Its inspection must belong to the order.
+             * @description The kiadás damage it is about. Its inspection must belong to the order.
              */
             damage_id?: number | null;
             title: string;
@@ -5970,7 +6085,7 @@ export interface components {
             currency?: string | null;
             /**
              * Format: int64
-             * @description Minor units (fill├ęr / eurocent).
+             * @description Minor units (fillér / eurocent).
              */
             net_amount?: number | null;
             /** Format: int64 */
@@ -6018,7 +6133,7 @@ export interface components {
         IncomingInvoice: {
             /** Format: int64 */
             id: number;
-            /** @description `invoice` | `proforma` (d├şjbek├ęr┼Ĺ) | `receipt` (p├ęnzt├írbizonylat). */
+            /** @description `invoice` | `proforma` (díjbekérő) | `receipt` (pénztárbizonylat). */
             kind: string;
             supplier_name: string;
             supplier_tax_number?: string | null;
@@ -6045,7 +6160,7 @@ export interface components {
             paid_amount: number;
             /** Format: date */
             paid_on?: string | null;
-            /** @description Exists only in the books (Csak k├Ânyvel├ęsben l├ętez┼Ĺ). */
+            /** @description Exists only in the books (Csak könyvelésben létező). */
             booking_only: boolean;
             notes?: string | null;
             file_name?: string | null;
@@ -6250,7 +6365,7 @@ export interface components {
             payment_method: string;
             /**
              * Format: int64
-             * @description Minor units (fill├ęr / eurocent). Negative on a storno: it is the reversal.
+             * @description Minor units (fillér / eurocent). Negative on a storno: it is the reversal.
              */
             net_amount: number;
             /** Format: int64 */
@@ -6347,7 +6462,7 @@ export interface components {
          *
          *     `Submitting` is a real state, not a placeholder: NAV validates asynchronously, so there
          *     is a period in which the report has been sent and no verdict exists. `Rejected` is
-         *     terminal for that document ÔÇö the number is spent, and a corrected invoice is a new one.
+         *     terminal for that document — the number is spent, and a corrected invoice is a new one.
          * @enum {string}
          */
         InvoiceStatus: "submitting" | "issued" | "rejected" | "stornoed" | "annulled";
@@ -6388,14 +6503,14 @@ export interface components {
             quantity: string;
             /**
              * Format: int64
-             * @description Minor units (fill├ęr / eurocent). May be negative for discount lines.
+             * @description Minor units (fillér / eurocent). May be negative for discount lines.
              */
             unit_price: number;
         };
         ItemView: components["schemas"]["OrderItem"] & {
             /**
              * Format: int64
-             * @description Backend-computed: round(quantity ├Ś unit_price), half away from zero.
+             * @description Backend-computed: round(quantity × unit_price), half away from zero.
              */
             line_total_minor: number;
         };
@@ -6604,7 +6719,7 @@ export interface components {
                 updated_at: string;
                 /**
                  * @description Past due date and still open, measured against the caller's business day
-                 *     (not UTC midnight ÔÇö the whole point of this flag).
+                 *     (not UTC midnight — the whole point of this flag).
                  */
                 is_overdue: boolean;
             }[];
@@ -6704,7 +6819,7 @@ export interface components {
                 to_address?: string | null;
                 subject: string;
                 body_text: string;
-                /** @description Out only: queued, sent, failed, ÔÇŽ */
+                /** @description Out only: queued, sent, failed, … */
                 status?: string | null;
                 /** @description Out only: who wrote it; None for automatic mail. */
                 sent_by_name?: string | null;
@@ -6901,7 +7016,7 @@ export interface components {
             items: {
                 /** Format: int64 */
                 id: number;
-                /** @description The heading it is listed under: T├ívoll├ęv┼Ĺ munkav├íllal├│, Akt├şv munkav├íllal├│... */
+                /** @description The heading it is listed under: Távollévő munkavállaló, Aktív munkavállaló... */
                 section: string;
                 label: string;
                 /** @description `#rrggbb`. */
@@ -6986,7 +7101,7 @@ export interface components {
             items: {
                 /** Format: int64 */
                 id: number;
-                /** @description What the office calls it: "1 h├ęt", "1 h├│nap". */
+                /** @description What the office calls it: "1 hét", "1 hónap". */
                 label: string;
                 /**
                  * Format: int32
@@ -7040,7 +7155,7 @@ export interface components {
                 inspection_id?: number | null;
                 /**
                  * Format: int64
-                 * @description The kiad├ís damage it was opened from, when it was.
+                 * @description The kiadás damage it was opened from, when it was.
                  */
                 damage_id?: number | null;
                 title: string;
@@ -7078,7 +7193,7 @@ export interface components {
             items: {
                 /** Format: int64 */
                 id: number;
-                /** @description `invoice` | `proforma` (d├şjbek├ęr┼Ĺ) | `receipt` (p├ęnzt├írbizonylat). */
+                /** @description `invoice` | `proforma` (díjbekérő) | `receipt` (pénztárbizonylat). */
                 kind: string;
                 supplier_name: string;
                 supplier_tax_number?: string | null;
@@ -7105,7 +7220,7 @@ export interface components {
                 paid_amount: number;
                 /** Format: date */
                 paid_on?: string | null;
-                /** @description Exists only in the books (Csak k├Ânyvel├ęsben l├ętez┼Ĺ). */
+                /** @description Exists only in the books (Csak könyvelésben létező). */
                 booking_only: boolean;
                 notes?: string | null;
                 file_name?: string | null;
@@ -7180,7 +7295,7 @@ export interface components {
                 payment_method: string;
                 /**
                  * Format: int64
-                 * @description Minor units (fill├ęr / eurocent). Negative on a storno: it is the reversal.
+                 * @description Minor units (fillér / eurocent). Negative on a storno: it is the reversal.
                  */
                 net_amount: number;
                 /** Format: int64 */
@@ -7247,7 +7362,7 @@ export interface components {
             items: (components["schemas"]["OrderItem"] & {
                 /**
                  * Format: int64
-                 * @description Backend-computed: round(quantity ├Ś unit_price), half away from zero.
+                 * @description Backend-computed: round(quantity × unit_price), half away from zero.
                  */
                 line_total_minor: number;
             })[];
@@ -7505,7 +7620,7 @@ export interface components {
             items: {
                 /** Format: int64 */
                 id: number;
-                /** @description The heading it is listed under: List├ík, ├ërt├ękes├şt├ęs, Vev┼Ĺk, Nem vev┼Ĺk... */
+                /** @description The heading it is listed under: Listák, Értékesítés, Vevők, Nem vevők... */
                 section: string;
                 label: string;
                 /** @description `#rrggbb`. */
@@ -7536,7 +7651,7 @@ export interface components {
                  * @description Provenance: the MiniCRM to-do this came from.
                  */
                 minicrm_id?: number | null;
-                /** @description The MiniCRM user's name as text ÔÇö those accounts do not exist in AutoCRM. */
+                /** @description The MiniCRM user's name as text — those accounts do not exist in AutoCRM. */
                 author_name?: string | null;
                 body: string;
                 /** Format: date-time */
@@ -7627,7 +7742,7 @@ export interface components {
                 notes?: string | null;
                 /**
                  * @description V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is
-                 *     treated as a customer by the pickers ÔÇö the paint shop turning up in the customer
+                 *     treated as a customer by the pickers — the paint shop turning up in the customer
                  *     list is a nuisance, a customer missing from it is a bug.
                  */
                 role?: string | null;
@@ -7939,6 +8054,38 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_VatCheck: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                subject_type?: string | null;
+                /** Format: int64 */
+                subject_id?: number | null;
+                source: string;
+                input_raw: string;
+                country_code: string;
+                vat_number: string;
+                hu_domestic_tax_number?: string | null;
+                status: string;
+                error_code?: string | null;
+                name?: string | null;
+                address?: string | null;
+                /** @description VIES's consultation number: proof we checked this number on this date. */
+                request_identifier?: string | null;
+                /** Format: date-time */
+                request_date?: string | null;
+                requester?: string | null;
+                /** Format: int32 */
+                attempts: number;
+                /** Format: int32 */
+                duration_ms: number;
+                hints: string[];
+                created_by: string;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_Vehicle: {
             items: {
                 /** Format: int64 */
@@ -8016,8 +8163,8 @@ export interface components {
                  */
                 project_type_id?: number | null;
                 /**
-                 * @description `checkout` is the first walkaround, the vehicle arriving (├ítv├ętel); `checkin` is the
-                 *     second, the vehicle leaving (kiad├ís).
+                 * @description `checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the
+                 *     second, the vehicle leaving (kiadás).
                  */
                 kind: string;
                 zone_key: string;
@@ -8178,7 +8325,7 @@ export interface components {
             assigned_to?: number | null;
             /**
              * Format: int64
-             * @description V2.3: what we quoted, in minor units. Not a `quotes` table with versions ÔÇö at 60
+             * @description V2.3: what we quoted, in minor units. Not a `quotes` table with versions — at 60
              *     leads a month that is more machinery than the business justifies. Changes are
              *     written to audit_log, so a revised price still leaves a trail.
              */
@@ -8227,7 +8374,7 @@ export interface components {
             assigned_to?: number | null;
             /**
              * Format: int64
-             * @description V2.3: the quoted price in minor units (fill├ęr / eurocent).
+             * @description V2.3: the quoted price in minor units (fillér / eurocent).
              */
             quoted_value_minor?: number | null;
             currency?: null | components["schemas"]["Currency"];
@@ -8544,9 +8691,9 @@ export interface components {
         /**
          * @description A newsletter blast: one row, everyone in BCC, nobody sees the list.
          *
-         *     Bodies are literal ÔÇö a blast has no single partner or lead, so `{{variables}}` have
+         *     Bodies are literal — a blast has no single partner or lead, so `{{variables}}` have
          *     nothing to resolve against, and any braces found refuse the send loudly rather than
-         *     mailing `{{MISSING:ÔÇŽ}}` to hundreds of people. Unsubscribed and globally suppressed
+         *     mailing `{{MISSING:…}}` to hundreds of people. Unsubscribed and globally suppressed
          *     addresses never make the BCC list.
          */
         NewsletterRequest: {
@@ -8557,7 +8704,7 @@ export interface components {
             hero?: string | null;
             /**
              * @description Any company documents: a blast has no order or lead, so ownership is not
-             *     checked ÔÇö the endpoint is office-only, and the list is company mail.
+             *     checked — the endpoint is office-only, and the list is company mail.
              */
             attachment_document_ids?: number[];
             /** @description Documents shown inline via `![alt](doc:ID)`, sent as `cid:doc-ID` parts. */
@@ -8599,7 +8746,7 @@ export interface components {
         NewsletterTag: {
             /** Format: int64 */
             id: number;
-            /** @description The heading it is listed under: List├ík, ├ërt├ękes├şt├ęs, Vev┼Ĺk, Nem vev┼Ĺk... */
+            /** @description The heading it is listed under: Listák, Értékesítés, Vevők, Nem vevők... */
             section: string;
             label: string;
             /** @description `#rrggbb`. */
@@ -8683,7 +8830,7 @@ export interface components {
             relation?: string | null;
             /**
              * Format: int32
-             * @description Intake slip (├ítv├ęteli lap): odometer at takeover. Leaving `intake` requires it.
+             * @description Intake slip (átvételi lap): odometer at takeover. Leaving `intake` requires it.
              */
             mileage_in?: number | null;
             /** @description Intake slip: visible condition notes at takeover. */
@@ -8748,7 +8895,7 @@ export interface components {
             mileage_in?: number | null;
             /** @description Intake slip: visible condition notes at takeover. */
             intake_condition?: string | null;
-            /** @description Intake slip: fuel gauge at takeover ÔÇö `E`, `1/4`, `1/2`, `3/4` or `F`. */
+            /** @description Intake slip: fuel gauge at takeover — `E`, `1/4`, `1/2`, `3/4` or `F`. */
             fuel_level?: string | null;
             /**
              * Format: int32
@@ -8757,7 +8904,7 @@ export interface components {
             key_count?: number | null;
             /**
              * @description Intake slip: whether anyone answered the valuables question. Absent means nobody
-             *     did, which is not the same as `false` ÔÇö "we never asked" is not a defence.
+             *     did, which is not the same as `false` — "we never asked" is not a defence.
              */
             valuables_declared?: boolean | null;
             /**
@@ -8855,7 +9002,7 @@ export interface components {
              * @description Provenance: the MiniCRM to-do this came from.
              */
             minicrm_id?: number | null;
-            /** @description The MiniCRM user's name as text ÔÇö those accounts do not exist in AutoCRM. */
+            /** @description The MiniCRM user's name as text — those accounts do not exist in AutoCRM. */
             author_name?: string | null;
             body: string;
             /** Format: date-time */
@@ -8876,7 +9023,7 @@ export interface components {
             insulation_mm?: number | null;
             cooling_unit_make?: string | null;
             cooling_unit_model?: string | null;
-            /** @description ATP classification (FNA, FRC, ÔÇŽ). Free text until the real list is confirmed. */
+            /** @description ATP classification (FNA, FRC, …). Free text until the real list is confirmed. */
             atp_class?: string | null;
             /** Format: int32 */
             compartments?: number | null;
@@ -9005,7 +9152,7 @@ export interface components {
             notes?: string | null;
             /**
              * @description V2.6: 'customer' | 'supplier' | 'both'. Null means not yet classified and is
-             *     treated as a customer by the pickers ÔÇö the paint shop turning up in the customer
+             *     treated as a customer by the pickers — the paint shop turning up in the customer
              *     list is a nuisance, a customer missing from it is a bug.
              */
             role?: string | null;
@@ -9177,7 +9324,7 @@ export interface components {
             category?: string | null;
             folder?: string | null;
             /**
-             * @description true moves it to the bin (Lomt├ír), false brings it back. A template that code or
+             * @description true moves it to the bin (Lomtár), false brings it back. A template that code or
              *     a follow-up sends cannot go to the bin.
              */
             archived?: boolean | null;
@@ -9325,7 +9472,7 @@ export interface components {
          *     The price and validity lines appear when the lead carries them; the PDF is
          *     authoritative either way, so a lead without a quoted price still sends. Anything the
          *     office writes by hand goes through `{{variable}}` rendering first, then Markdown when
-         *     asked ÔÇö the same pipeline as a manual letter.
+         *     asked — the same pipeline as a manual letter.
          */
         QuotationRequest: {
             subject?: string | null;
@@ -9354,7 +9501,7 @@ export interface components {
             minicrm_id?: number | null;
             /**
              * @description The complete source record as MiniCRM returned it. Null for records created in
-             *     AutoCRM ÔÇö the screen shows nothing rather than an empty panel.
+             *     AutoCRM — the screen shows nothing rather than an empty panel.
              */
             raw_import?: Record<string, unknown> | null;
         };
@@ -9471,7 +9618,7 @@ export interface components {
         SalespersonRow: {
             /** Format: int64 */
             user_id?: number | null;
-            /** @description "Nincs felel┼Ĺs" for unassigned leads. */
+            /** @description "Nincs felelős" for unassigned leads. */
             name: string;
             /** Format: int64 */
             leads: number;
@@ -10101,7 +10248,7 @@ export interface components {
             completed: number;
             /**
              * Format: double
-             * @description First stage entry Ôćĺ completion, in days.
+             * @description First stage entry → completion, in days.
              */
             median_lead_days?: number | null;
             /** Format: double */
@@ -10218,8 +10365,8 @@ export interface components {
         Unsubscribed: {
             /**
              * @description For a token link: whether this click changed anything (a link clicked twice is
-             *     not an error). For a typed address: always true ÔÇö "if it was on the list, it is
-             *     off now" ÔÇö so typing addresses cannot reveal who is subscribed.
+             *     not an error). For a typed address: always true — "if it was on the list, it is
+             *     off now" — so typing addresses cannot reveal who is subscribed.
              */
             unsubscribed: boolean;
         };
@@ -10327,6 +10474,73 @@ export interface components {
             updated_at: string;
         };
         Value: unknown;
+        VatCheck: {
+            /** Format: int64 */
+            id: number;
+            subject_type?: string | null;
+            /** Format: int64 */
+            subject_id?: number | null;
+            source: string;
+            input_raw: string;
+            country_code: string;
+            vat_number: string;
+            hu_domestic_tax_number?: string | null;
+            status: string;
+            error_code?: string | null;
+            name?: string | null;
+            address?: string | null;
+            /** @description VIES's consultation number: proof we checked this number on this date. */
+            request_identifier?: string | null;
+            /** Format: date-time */
+            request_date?: string | null;
+            requester?: string | null;
+            /** Format: int32 */
+            attempts: number;
+            /** Format: int32 */
+            duration_ms: number;
+            hints: string[];
+            created_by: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        VatCheckBody: {
+            /** @description What the user typed: `HU12345678`, `12345678-2-06`, `DE 123.456.789`... */
+            input: string;
+            /** @description The record's country (ISO or VIES code), used when the input has no prefix. */
+            default_country?: string | null;
+            subject?: null | components["schemas"]["VatSubject"];
+            /** @description Ask VIES even when a recent verdict is on file. */
+            force?: boolean;
+        };
+        /** @description The API shape (spec §5). */
+        VatCheckResult: {
+            status: components["schemas"]["VatCheckStatus"];
+            source: string;
+            country_code: string;
+            vat_number: string;
+            formatted: string;
+            hu_domestic_tax_number?: string | null;
+            name?: string | null;
+            address?: string | null;
+            address_parts?: null | components["schemas"]["AddressParts"];
+            request_identifier?: string | null;
+            request_date?: string | null;
+            /** Format: date-time */
+            checked_at: string;
+            error_code?: string | null;
+            cached: boolean;
+            /** Format: int64 */
+            check_id?: number | null;
+            hints: string[];
+        };
+        /** @enum {string} */
+        VatCheckStatus: "VALID" | "INVALID" | "UNAVAILABLE" | "ERROR" | "FORMAT_INVALID";
+        VatSubject: {
+            /** @description Only `partner` for now. */
+            type: string;
+            /** Format: int64 */
+            id: number;
+        };
         Vehicle: {
             /** Format: int64 */
             id: number;
@@ -10406,6 +10620,10 @@ export interface components {
             /** Format: date-time */
             taken_at: string;
         };
+        ViesStatus: {
+            vow: components["schemas"]["VowStatus"];
+            countries?: components["schemas"]["CountryStatus"][];
+        };
         VinInfo: {
             vin: string;
             /** @description The North American check digit matches. European makers often do not use it. */
@@ -10418,7 +10636,7 @@ export interface components {
             make?: string | null;
             /**
              * @description The model family: read offline for the common European vans (Sprinter, Crafter,
-             *     Ducato, VivaroÔÇŽ), or from the online lookup.
+             *     Ducato, Vivaro…), or from the online lookup.
              */
             model?: string | null;
             /** @description "offline", or "nhtsa" when the online lookup added to it. */
@@ -10449,6 +10667,9 @@ export interface components {
              * @description Orders excluded from the normalised sum because no rate was available.
              */
             missing_fx: number;
+        };
+        VowStatus: {
+            available: boolean;
         };
         WebsiteConversion: {
             period: components["schemas"]["Period"];
@@ -10597,8 +10818,8 @@ export interface components {
              */
             project_type_id?: number | null;
             /**
-             * @description `checkout` is the first walkaround, the vehicle arriving (├ítv├ętel); `checkin` is the
-             *     second, the vehicle leaving (kiad├ís).
+             * @description `checkout` is the first walkaround, the vehicle arriving (átvétel); `checkin` is the
+             *     second, the vehicle leaving (kiadás).
              */
             kind: string;
             zone_key: string;
@@ -12037,7 +12258,7 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description Matches name, tax number, e-mail, city ÔÇö and phone in any
+                 * @description Matches name, tax number, e-mail, city — and phone in any
                  *     +36/06/0036 spacing variant.
                  */
                 q?: string;
@@ -16073,6 +16294,96 @@ export interface operations {
             };
         };
     };
+    mobile_app_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The release the phones should run; `Cache-Control: private, max-age=300` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersion"];
+                };
+            };
+            /** @description No release configured (APP_APK_PATH unset) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    mobile_app_apk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The signed release APK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.android.package-archive": number[];
+                };
+            };
+            /** @description No release configured (APP_APK_PATH unset) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     newsletter_subscriptions: {
         parameters: {
             query?: never;
@@ -16284,7 +16595,7 @@ export interface operations {
             path: {
                 /**
                  * @description The per-address token from an earlier mail. The page without a token asks for the
-                 *     address instead ÔÇö a BCC blast cannot carry personal links.
+                 *     address instead — a BCC blast cannot carry personal links.
                  */
                 token: string | null;
                 email: string | null;
@@ -24026,6 +24337,143 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    partners_check: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VatCheckBody"];
+            };
+        };
+        responses: {
+            /** @description Any VIES verdict, including INVALID, UNAVAILABLE and ERROR */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatCheckResult"];
+                };
+            };
+            /** @description FORMAT_INVALID: VIES was not asked */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VatCheckResult"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    partners_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description VIES's availability, overall and per member state (cached 5 minutes) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViesStatus"];
+                };
+            };
+            /** @description VIES could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    partners_history: {
+        parameters: {
+            query: {
+                /** @description Only `partner` for now. */
+                subject_type: string;
+                subject_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_VatCheck"];
+                };
             };
             /** @description Client error; see `error.code` */
             "4XX": {

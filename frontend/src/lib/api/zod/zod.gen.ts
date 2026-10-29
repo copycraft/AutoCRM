@@ -27,6 +27,12 @@ export const zAddSuppression = z.object({
     reason: z.string().nullish()
 });
 
+export const zAddressParts = z.object({
+    postal_code: z.string().nullish(),
+    city: z.string().nullish(),
+    address_line: z.string().nullish()
+});
+
 export const zAdminStatus = z.object({
     environment: z.string(),
     email_mode: z.string(),
@@ -58,6 +64,20 @@ export const zAnnotationsBody = z.object({
 export const zAnnulRequest = z.object({
     code: z.string(),
     reason: z.string()
+});
+
+/**
+ * What the phone's update dialog shows. Public on purpose: a phone with an expired
+ * session and a stale build must still learn that it is stale.
+ */
+export const zAppVersion = z.object({
+    version_code: z.number().int(),
+    version_name: z.string(),
+    apk_url: z.string(),
+    sha256: z.string(),
+    size_bytes: z.number().int(),
+    mandatory: z.boolean(),
+    changelog_hu: z.string()
 });
 
 export const zApplication = z.object({
@@ -456,6 +476,11 @@ export const zConversationItem = z.object({
 
 export const zCoolingSerialBody = z.object({
     serial: z.string().nullish()
+});
+
+export const zCountryStatus = z.object({
+    country_code: z.string(),
+    availability: z.string()
 });
 
 export const zCreateBody = z.object({
@@ -920,7 +945,7 @@ export const zErrorBody = z.object({
  * Clients layer this over their built-in map: the built-in map must stay for
  * cold start (a login failure happens before the first fetch), but every
  * reworded message and every new code reaches the clients with the next
- * lookups fetch ÔÇö no app update.
+ * lookups fetch — no app update.
  */
 export const zErrorTextEntry = z.object({
     code: z.string(),
@@ -1081,7 +1106,7 @@ export const zCompleted = z.union([
  * An image category with the two rules clients used to hard-code: whether the
  * bytes are evidence (`immutable`, the database refuses delete and re-filing)
  * and whether a person may file a photo by hand (`attachable`, production
- * only ÔÇö intake and handover shots come from their own flows).
+ * only — intake and handover shots come from their own flows).
  */
 export const zImageCategoryEntry = z.object({
     key: z.string(),
@@ -1382,7 +1407,7 @@ export const zInvoicePayment = z.object({
  *
  * `Submitting` is a real state, not a placeholder: NAV validates asynchronously, so there
  * is a period in which the report has been sent and no verdict exists. `Rejected` is
- * terminal for that document ÔÇö the number is spent, and a corrected invoice is a new one.
+ * terminal for that document — the number is spent, and a corrected invoice is a new one.
  */
 export const zInvoiceStatus = z.enum([
     'submitting',
@@ -2430,6 +2455,34 @@ export const zItemsTransitionOption = z.object({
 /**
  * The list envelope: `{"items": [...]}`.
  */
+export const zItemsVatCheck = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        subject_type: z.string().nullish(),
+        subject_id: z.number().int().nullish(),
+        source: z.string(),
+        input_raw: z.string(),
+        country_code: z.string(),
+        vat_number: z.string(),
+        hu_domestic_tax_number: z.string().nullish(),
+        status: z.string(),
+        error_code: z.string().nullish(),
+        name: z.string().nullish(),
+        address: z.string().nullish(),
+        request_identifier: z.string().nullish(),
+        request_date: z.string().datetime().nullish(),
+        requester: z.string().nullish(),
+        attempts: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        duration_ms: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+        hints: z.array(z.string()),
+        created_by: z.string(),
+        created_at: z.string().datetime()
+    }))
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
 export const zItemsVehicle = z.object({
     items: z.array(z.object({
         id: z.number().int(),
@@ -2973,9 +3026,9 @@ export const zNewDocument = z.object({
 /**
  * A newsletter blast: one row, everyone in BCC, nobody sees the list.
  *
- * Bodies are literal ÔÇö a blast has no single partner or lead, so `{{variables}}` have
+ * Bodies are literal — a blast has no single partner or lead, so `{{variables}}` have
  * nothing to resolve against, and any braces found refuse the send loudly rather than
- * mailing `{{MISSING:ÔÇŽ}}` to hundreds of people. Unsubscribed and globally suppressed
+ * mailing `{{MISSING:…}}` to hundreds of people. Unsubscribed and globally suppressed
  * addresses never make the BCC list.
  */
 export const zNewsletterRequest = z.object({
@@ -3586,7 +3639,7 @@ export const zPublicJob = z.object({
  * The price and validity lines appear when the lead carries them; the PDF is
  * authoritative either way, so a lead without a quoted price still sends. Anything the
  * office writes by hand goes through `{{variable}}` rendering first, then Markdown when
- * asked ÔÇö the same pipeline as a manual letter.
+ * asked — the same pipeline as a manual letter.
  */
 export const zQuotationRequest = z.object({
     subject: z.string().nullish(),
@@ -4562,6 +4615,71 @@ export const zLayoutRevision = z.object({
     created_at: z.string().datetime()
 });
 
+export const zVatCheck = z.object({
+    id: z.number().int(),
+    subject_type: z.string().nullish(),
+    subject_id: z.number().int().nullish(),
+    source: z.string(),
+    input_raw: z.string(),
+    country_code: z.string(),
+    vat_number: z.string(),
+    hu_domestic_tax_number: z.string().nullish(),
+    status: z.string(),
+    error_code: z.string().nullish(),
+    name: z.string().nullish(),
+    address: z.string().nullish(),
+    request_identifier: z.string().nullish(),
+    request_date: z.string().datetime().nullish(),
+    requester: z.string().nullish(),
+    attempts: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    duration_ms: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
+    hints: z.array(z.string()),
+    created_by: z.string(),
+    created_at: z.string().datetime()
+});
+
+export const zVatCheckStatus = z.enum([
+    'VALID',
+    'INVALID',
+    'UNAVAILABLE',
+    'ERROR',
+    'FORMAT_INVALID'
+]);
+
+/**
+ * The API shape (spec §5).
+ */
+export const zVatCheckResult = z.object({
+    status: zVatCheckStatus,
+    source: z.string(),
+    country_code: z.string(),
+    vat_number: z.string(),
+    formatted: z.string(),
+    hu_domestic_tax_number: z.string().nullish(),
+    name: z.string().nullish(),
+    address: z.string().nullish(),
+    address_parts: zAddressParts.nullish(),
+    request_identifier: z.string().nullish(),
+    request_date: z.string().nullish(),
+    checked_at: z.string().datetime(),
+    error_code: z.string().nullish(),
+    cached: z.boolean(),
+    check_id: z.number().int().nullish(),
+    hints: z.array(z.string())
+});
+
+export const zVatSubject = z.object({
+    type: z.string(),
+    id: z.number().int()
+});
+
+export const zVatCheckBody = z.object({
+    input: z.string(),
+    default_country: z.string().nullish(),
+    subject: zVatSubject.nullish(),
+    force: z.boolean().optional()
+});
+
 export const zVehicle = z.object({
     id: z.number().int(),
     vin: z.string().nullish(),
@@ -4670,6 +4788,15 @@ export const zVolumeReport = z.object({
     group: z.string(),
     rows: z.array(zVolumeRow),
     totals: zVolumeRow
+});
+
+export const zVowStatus = z.object({
+    available: z.boolean()
+});
+
+export const zViesStatus = z.object({
+    vow: zVowStatus,
+    countries: z.array(zCountryStatus).optional()
 });
 
 export const zWebsiteConversion = z.object({
@@ -5689,6 +5816,16 @@ export const zMobileOrderPickerQuery = z.object({
  * Compact order picker; `Cache-Control: private, max-age=60`
  */
 export const zMobileOrderPickerResponse = zItemsPickerOrder;
+
+/**
+ * The release the phones should run; `Cache-Control: private, max-age=300`
+ */
+export const zMobileAppVersionResponse = zAppVersion;
+
+/**
+ * The signed release APK
+ */
+export const zMobileAppApkResponse = z.array(z.number().int().gte(0).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }));
 
 export const zNewsletterSubscriptionsResponse = zItemsSubscription;
 
@@ -6925,3 +7062,22 @@ export const zAdsGoogleConversionsQuery = z.object({
 });
 
 export const zAdsGoogleConversionsResponse = z.string();
+
+export const zPartnersCheckBody = zVatCheckBody;
+
+/**
+ * Any VIES verdict, including INVALID, UNAVAILABLE and ERROR
+ */
+export const zPartnersCheckResponse = zVatCheckResult;
+
+/**
+ * VIES's availability, overall and per member state (cached 5 minutes)
+ */
+export const zPartnersStatusResponse = zViesStatus;
+
+export const zPartnersHistoryQuery = z.object({
+    subject_type: z.string(),
+    subject_id: z.number().int()
+});
+
+export const zPartnersHistoryResponse = zItemsVatCheck;

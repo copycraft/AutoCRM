@@ -222,6 +222,11 @@ pub struct Config {
     /// `GET /mobile/app.apk`). None when APP_APK_PATH is unset: the version endpoint
     /// answers 404 and the phones stay silent.
     pub app_update: Option<AppUpdateConfig>,
+    /// EU VIES VAT-number validation. Always on: it needs no account.
+    pub vies: crate::integrations::vies::ViesConfig,
+    /// A VALID/INVALID verdict younger than this answers an interactive check without
+    /// asking VIES again.
+    pub vies_cache_max_age_days: i64,
 }
 
 /// The phone app's next release, served to the phones for one-click self-update.
@@ -622,6 +627,25 @@ impl Config {
                 None
             }
         };
+        let vies = crate::integrations::vies::ViesConfig {
+            base_url: r
+                .optional("VIES_BASE_URL")
+                .unwrap_or_else(|| crate::integrations::vies::DEFAULT_BASE_URL.into())
+                .trim_end_matches('/')
+                .to_string(),
+            use_test_service: r.parsed("VIES_USE_TEST_SERVICE", false),
+            requester_country: r
+                .optional("VIES_REQUESTER_COUNTRY")
+                .unwrap_or_else(|| "HU".into())
+                .to_ascii_uppercase(),
+            requester_number: r.optional("VIES_REQUESTER_NUMBER"),
+            http_timeout: std::time::Duration::from_millis(
+                r.parsed("VIES_HTTP_TIMEOUT_MS", 15_000u64),
+            ),
+            max_attempts: r.parsed("VIES_MAX_ATTEMPTS", 3u32).max(1),
+            backoff_base: std::time::Duration::from_secs(1),
+        };
+        let vies_cache_max_age_days = r.parsed("VIES_CACHE_MAX_AGE_DAYS", 30i64);
         let tsa = r.optional("TSA_URL").map(|url| TsaConfig {
             url,
             username: r.optional("TSA_USERNAME"),
@@ -769,6 +793,8 @@ impl Config {
             ai,
             imap,
             tsa,
+            vies,
+            vies_cache_max_age_days,
             heic_converter,
             secrets_key,
             google,
@@ -828,6 +854,8 @@ pub fn test_config() -> Config {
         ai: None,
         imap: None,
         tsa: None,
+        vies: Default::default(),
+        vies_cache_max_age_days: 30,
         heic_converter: String::new(),
         secrets_key: None,
         google: None,

@@ -88,6 +88,8 @@ pub fn config() -> Config {
         google_ads_conversion_name: "Megrendeles".into(),
         vin_online: false,
         app_update: None,
+        vies: Default::default(),
+        vies_cache_max_age_days: 30,
     }
 }
 
