@@ -194,8 +194,9 @@ export default function IncomingInvoicesPage() {
           </ul>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <aside className="card self-start p-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_15rem]">
+          {/* The status list sits on the right, as on every list; on a phone it comes first. */}
+          <aside className="card self-start p-3 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
             <BucketList
               title={tn('incoming')}
               groups={groups}
@@ -209,7 +210,7 @@ export default function IncomingInvoicesPage() {
             />
           </aside>
 
-          <div className="min-w-0 space-y-3">
+          <div className="min-w-0 space-y-3 lg:col-start-1 lg:row-start-1">
             <div className="flex items-center gap-2">
               <input
                 className="input"

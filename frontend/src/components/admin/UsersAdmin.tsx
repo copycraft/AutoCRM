@@ -5,7 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Plus } from 'lucide-react';
-import { accountApi, usersApi } from '@/lib/api/endpoints';
+import { accountApi, modulesApi, usersApi } from '@/lib/api/endpoints';
+import { DepartmentChip } from '@/components/orders/ModulesSection';
 import { qk } from '@/lib/query/provider';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import { canAdmin, useAuth } from '@/lib/auth/context';
@@ -15,55 +16,27 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/Toasts';
-import type { Capability, Role, User } from '@/lib/api/types';
+import type { Capability, Department, Membership, Role, User } from '@/lib/api/types';
+import { RolesGrid } from './RolesGrid';
+import { GRANTABLE, ROLES } from './roles';
 
-const ROLES: Role[] = ['admin', 'office', 'designer', 'viewer'];
-
-/** What an admin can grant one user on top of the role, mirroring Capability::grantable. */
-const GRANTABLE: Capability[] = [
-  'edit_partners',
-  'edit_leads',
-  'edit_orders',
-  'change_stages',
-  'manage_blockers',
-  'upload_media',
-  'delete_media',
-  'view_original_images',
-  'comment',
-  'send_email',
-  'issue_invoices',
-  'annul_invoices',
-  'manage_configuration',
-  'manage_settings',
-  'operate_system',
-];
-
-/** The role's defaults, mirroring Role::can in domain/role.rs. */
-const ROLE_DEFAULTS: Record<Role, Capability[]> = {
-  admin: GRANTABLE,
-  office: [
-    'edit_partners',
-    'edit_leads',
-    'edit_orders',
-    'delete_media',
-    'view_original_images',
-    'send_email',
-    'issue_invoices',
-    'change_stages',
-    'manage_blockers',
-    'upload_media',
-    'comment',
-  ],
-  designer: ['change_stages', 'manage_blockers', 'upload_media', 'comment'],
-  viewer: [],
-};
+/** Each role's set as the admin's grid has it now (server: role_permissions). */
+function useRoleGrid(): Map<Role, Set<Capability>> {
+  const roles = useQuery({ queryKey: ['roles'], queryFn: () => usersApi.roles() });
+  return new Map((roles.data?.items ?? []).map((r) => [r.role, new Set(r.capabilities)]));
+}
 
 /** Gate: the backend refuses everyone else too, this only spares them a request and a 403. */
 export function UsersAdmin() {
   const { user, isLoading } = useAuth();
   if (isLoading) return <LoadingState />;
   if (!canAdmin(user)) return <ErrorState error={new ApiError('forbidden', 403, 'forbidden')} />;
-  return <UserTable meId={user!.id} />;
+  return (
+    <>
+      <UserTable meId={user!.id} />
+      <RolesGrid />
+    </>
+  );
 }
 
 function UserTable({ meId }: { meId: number }) {
@@ -75,6 +48,12 @@ function UserTable({ meId }: { meId: number }) {
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState<User | null>(null);
   const [granting, setGranting] = useState<User | null>(null);
+  const [seating, setSeating] = useState<User | null>(null);
+  const tmod = useTranslations('modules');
+  const departments = useQuery({ queryKey: ['departments'], queryFn: () => modulesApi.departments() });
+  const memberships = useQuery({ queryKey: ['department-members'], queryFn: () => modulesApi.memberships() });
+  const deptById = new Map((departments.data?.items ?? []).map((d) => [d.id, d]));
+  const seatsOf = (userId: number) => (memberships.data?.items ?? []).filter((m) => m.user_id === userId);
 
   const query = useQuery({ queryKey: qk.users, queryFn: () => usersApi.list() });
 
@@ -135,6 +114,7 @@ function UserTable({ meId }: { meId: number }) {
                 <th className="px-4 py-2 font-medium">{t('role')}</th>
                 <th className="px-4 py-2 font-medium">{t('active')}</th>
                 <th className="px-4 py-2 font-medium">{t('hrAccess')}</th>
+                <th className="px-4 py-2 font-medium">{tmod('membership')}</th>
                 <th className="px-4 py-2 font-medium">
                   <span className="sr-only">{tc('actions')}</span>
                 </th>
@@ -192,6 +172,29 @@ function UserTable({ meId }: { meId: number }) {
                         />
                       )}
                     </td>
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        className="flex flex-wrap items-center gap-1 text-left"
+                        aria-label={`${tmod('membership')}: ${u.display_name}`}
+                        onClick={() => setSeating(u)}
+                      >
+                        {seatsOf(u.id).length === 0 ? (
+                          <span className="text-metadata text-steel-500 underline">{tmod('add')}</span>
+                        ) : (
+                          seatsOf(u.id).map((m) => {
+                            const d = deptById.get(m.department_id);
+                            return d ? (
+                              <DepartmentChip
+                                key={m.department_id}
+                                name={m.is_head ? `${d.name} · ${tmod('head')}` : d.name}
+                                color={d.color}
+                              />
+                            ) : null;
+                          })
+                        )}
+                      </button>
+                    </td>
                     <td className="px-4 py-2 text-right">
                       {u.role !== 'admin' && (
                         <button className="btn-ghost btn-sm" onClick={() => setGranting(u)}>
@@ -232,6 +235,14 @@ function UserTable({ meId }: { meId: number }) {
       {creating && <CreateUserDialog onClose={() => setCreating(false)} />}
       {resetting && <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />}
       {granting && <PermissionsDialog user={granting} onClose={() => setGranting(null)} />}
+      {seating && (
+        <DepartmentsDialog
+          user={seating}
+          departments={departments.data?.items ?? []}
+          seats={seatsOf(seating.id)}
+          onClose={() => setSeating(null)}
+        />
+      )}
     </div>
   );
 }
@@ -325,7 +336,7 @@ function PermissionsDialog({ user, onClose }: { user: User; onClose: () => void 
   const qc = useQueryClient();
   const toast = useToast();
   const [granted, setGranted] = useState<Set<string>>(new Set(user.permissions));
-  const fromRole = new Set<Capability>(ROLE_DEFAULTS[user.role]);
+  const fromRole = useRoleGrid().get(user.role) ?? new Set<Capability>();
 
   const save = useMutation({
     mutationFn: () =>
@@ -375,6 +386,88 @@ function PermissionsDialog({ user, onClose }: { user: User; onClose: () => void 
             </li>
           );
         })}
+      </ul>
+    </FormDialog>
+  );
+}
+
+/** Which departments a person works in (they may write those departments' technical
+ * content) and which they head (told when work is released to the department). */
+function DepartmentsDialog({
+  user,
+  departments,
+  seats,
+  onClose,
+}: {
+  user: User;
+  departments: Department[];
+  seats: Membership[];
+  onClose: () => void;
+}) {
+  const tmod = useTranslations('modules');
+  const tc = useTranslations('common');
+  const ter = useTranslations('errors');
+  const qc = useQueryClient();
+  const toast = useToast();
+  // department id → head?
+  const [chosen, setChosen] = useState<Map<number, boolean>>(
+    () => new Map(seats.map((m) => [m.department_id, m.is_head])),
+  );
+  const save = useMutation({
+    mutationFn: () =>
+      modulesApi.setUserDepartments(user.id, {
+        departments: [...chosen].map(([department_id, is_head]) => ({ department_id, is_head })),
+      }),
+    onSuccess: () => {
+      toast.success(tmod('saved'));
+      void qc.invalidateQueries({ queryKey: ['department-members'] });
+      onClose();
+    },
+  });
+  const toggle = (id: number, member: boolean, head: boolean) => {
+    const next = new Map(chosen);
+    if (member) next.set(id, head);
+    else next.delete(id);
+    setChosen(next);
+  };
+
+  return (
+    <FormDialog
+      title={`${tmod('membership')}: ${user.display_name}`}
+      description={tmod('membershipHint')}
+      error={save.error ? errorMessage(save.error, ter, ter('unknownError')) : null}
+      busy={save.isPending}
+      canSubmit
+      submitLabel={tc('save')}
+      onSubmit={() => save.mutate()}
+      onClose={onClose}
+    >
+      <ul className="space-y-2">
+        {departments
+          .filter((d) => d.is_active || chosen.has(d.id))
+          .map((d) => {
+            const member = chosen.has(d.id);
+            const head = chosen.get(d.id) ?? false;
+            return (
+              <li key={d.id} className="flex flex-wrap items-center gap-4">
+                <span className="w-32">
+                  <DepartmentChip name={d.name} color={d.color} />
+                </span>
+                <label className="flex items-center gap-2 text-body">
+                  <input type="checkbox" checked={member} onChange={(e) => toggle(d.id, e.target.checked, head)} />
+                  {tmod('member')}
+                </label>
+                <label className="flex items-center gap-2 text-body">
+                  <input
+                    type="checkbox"
+                    checked={head}
+                    onChange={(e) => toggle(d.id, member || e.target.checked, e.target.checked)}
+                  />
+                  {tmod('head')}
+                </label>
+              </li>
+            );
+          })}
       </ul>
     </FormDialog>
   );

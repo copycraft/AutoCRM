@@ -182,37 +182,6 @@ pub fn order_relations() -> Vec<LookupItem> {
     .collect()
 }
 
-/// The cooling build-spec defrost mode. Validated in `api::orders`; the select
-/// on the order form comes from here.
-pub const DEFROST_KEYS: &[&str] = &["automatic", "manual", "hot_gas"];
-
-pub fn defrost_modes() -> Vec<LookupItem> {
-    [
-        ("automatic", "Automatikus"),
-        ("manual", "Kézi"),
-        ("hot_gas", "Forrógázas"),
-    ]
-    .into_iter()
-    .map(|(key, label_hu)| item(key, label_hu))
-    .collect()
-}
-
-/// The heating build-spec fuel. Validated in `api::orders` and by the
-/// `order_specs_fuel_check` CHECK; the select on the order form comes from here.
-pub const HEATING_FUEL_KEYS: &[&str] = &["diesel", "electric", "lpg", "engine_coolant"];
-
-pub fn heating_fuels() -> Vec<LookupItem> {
-    [
-        ("diesel", "Dízel"),
-        ("electric", "Elektromos"),
-        ("lpg", "LPG"),
-        ("engine_coolant", "Motorhűtőfolyadék"),
-    ]
-    .into_iter()
-    .map(|(key, label_hu)| item(key, label_hu))
-    .collect()
-}
-
 /// Records a task may be pinned to; `POST /tasks` refuses anything else.
 pub const TASK_ENTITY_KEYS: &[&str] = &["order", "lead", "partner", "employee"];
 
@@ -315,39 +284,22 @@ pub struct EmailThemeEntry {
 }
 
 pub fn email_themes() -> Vec<EmailThemeEntry> {
-    vec![
-        EmailThemeEntry {
-            key: "quotation".to_string(),
-            label_hu: "Árajánlat".to_string(),
-            subject: "Árajánlatunk".to_string(),
-            hero: "Megjött az Autotherm árajánlatod!".to_string(),
-            body: [
-                "Tisztelt Címzett!",
-                "",
-                "Köszönjük érdeklődését. Árajánlatunkat mellékelten küldjük.",
-                "",
-                "**Ajánlott ár:** …",
-                "",
-                "Kérdés esetén állunk rendelkezésére.",
-            ]
-            .join("\n"),
-        },
-        EmailThemeEntry {
-            key: "promo".to_string(),
-            label_hu: "Akció".to_string(),
-            subject: "Autotherm akció".to_string(),
-            hero: String::new(),
-            body: [
-                "# Újdonság",
-                "",
-                "Rövid bevezető ide.",
-                "",
-                "- pont 1",
-                "- pont 2",
-            ]
-            .join("\n"),
-        },
-    ]
+    // No quotation starter: quotations go out from a person's own mailbox, not from here.
+    vec![EmailThemeEntry {
+        key: "promo".to_string(),
+        label_hu: "Akció".to_string(),
+        subject: "Autotherm akció".to_string(),
+        hero: String::new(),
+        body: [
+            "# Újdonság",
+            "",
+            "Rövid bevezető ide.",
+            "",
+            "- pont 1",
+            "- pont 2",
+        ]
+        .join("\n"),
+    }]
 }
 
 // ── Error texts ─────────────────────────────────────────────────────────────────
@@ -388,8 +340,6 @@ pub struct Lookups {
     pub tyre_conditions: Vec<LookupItem>,
     pub yard_kinds: Vec<LookupItem>,
     pub fuel_levels: Vec<LookupItem>,
-    pub heating_fuels: Vec<LookupItem>,
-    pub defrost_modes: Vec<LookupItem>,
     pub order_relations: Vec<LookupItem>,
     pub task_entity_types: Vec<LookupItem>,
     pub currencies: Vec<LookupItem>,
@@ -411,8 +361,6 @@ impl Lookups {
             tyre_conditions: tyre_conditions(),
             yard_kinds: yard_kinds(),
             fuel_levels: fuel_levels(),
-            heating_fuels: heating_fuels(),
-            defrost_modes: defrost_modes(),
             order_relations: order_relations(),
             task_entity_types: task_entity_types(),
             currencies: currencies(),
@@ -444,8 +392,6 @@ mod tests {
         assert_eq!(keys(&tyre_conditions()), TYRE_CONDITION_KEYS);
         assert_eq!(keys(&yard_kinds()), YARD_KIND_KEYS);
         assert_eq!(keys(&fuel_levels()), FUEL_LEVEL_KEYS);
-        assert_eq!(keys(&heating_fuels()), HEATING_FUEL_KEYS);
-        assert_eq!(keys(&defrost_modes()), DEFROST_KEYS);
         assert_eq!(keys(&order_relations()), ORDER_RELATION_KEYS);
         assert_eq!(keys(&task_entity_types()), TASK_ENTITY_KEYS);
         assert_eq!(
@@ -476,8 +422,6 @@ mod tests {
             all.tyre_conditions,
             all.yard_kinds,
             all.fuel_levels,
-            all.heating_fuels,
-            all.defrost_modes,
             all.order_relations,
             all.task_entity_types,
             all.currencies,

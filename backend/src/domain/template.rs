@@ -56,6 +56,11 @@ pub const VARIABLES: &[(&str, &str)] = &[
     ("login.device", "Bejelentkező eszköz"),
     ("login.ip", "Bejelentkezés IP-címe"),
     ("login.time", "Bejelentkezés időpontja"),
+    // Resolved by the department letter (0059), the only one that carries them.
+    ("module.department", "Részleg neve"),
+    ("module.event", "Kiadva vagy módosult"),
+    ("module.content", "A részleg műszaki tartalma"),
+    ("module.url", "A projekt műszaki tartalma a CRM-ben"),
 ];
 
 pub fn is_known_variable(path: &str) -> bool {
@@ -204,8 +209,8 @@ pub fn escape_html(s: &str) -> String {
 /// The HTML part is derived from the rendered plain text: blank lines separate paragraphs,
 /// single newlines become <br>. Everything is escaped, values included.
 ///
-/// The paragraphs sit in a branded, email-client-safe layout: tables and inline styles only
-/// (no <style> blocks, no external assets — those get stripped or blocked). The document
+/// The paragraphs sit in a branded, email-client-safe layout: tables and inline styles (a
+/// small <style> only as a bonus), and no remote assets — the logo travels inline. The document
 /// still ends with `</body></html>` and the content starts right after a `<body ...>` tag,
 /// because the redirect banner and the download links are spliced into those spots later.
 pub fn text_to_html(text: &str) -> String {
@@ -218,9 +223,8 @@ pub fn email_html(text: &str) -> String {
     layout(None, &paragraphs(text))
 }
 
-/// Same, with a shout across the top: the quotation letter's "MEGJÖTT AZ ÁRAJÁNLATOD".
-/// Reserved for the one letter per relationship that deserves it; everything shouting
-/// means nothing is heard.
+/// Same, with a title above the text (navy on white, a brand-blue rule above it), for a
+/// newsletter or a hand-written letter that wants a headline.
 pub fn email_html_hero(hero: &str, text: &str) -> String {
     layout(Some(hero), &paragraphs(text))
 }
@@ -234,8 +238,7 @@ pub fn markdown_to_html(md: &str) -> String {
     layout(None, &markdown_fragment(md))
 }
 
-/// Markdown with the hero band, for the quotation letter when the office writes that one
-/// by hand too.
+/// Markdown with the title above it.
 pub fn markdown_to_html_hero(hero: &str, md: &str) -> String {
     layout(Some(hero), &markdown_fragment(md))
 }
@@ -249,7 +252,7 @@ fn paragraphs(text: &str) -> String {
             continue;
         }
         body.push_str(
-            "<p style=\"margin:0 0 12px 0;font-size:14px;line-height:1.6;color:#292524;\">",
+            "<p style=\"margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1e293b;\">",
         );
         body.push_str(&escape_html(paragraph).replace('\n', "<br>\n"));
         body.push_str("</p>\n");
@@ -406,42 +409,102 @@ pub fn resolve_embed_refs(
     Ok((html, text))
 }
 
+/// The logo in every letter's header: hutoautok.hu's own mark, white on the site's navy and
+/// flattened onto it, so a client that drops background colours still shows it. It travels
+/// with the letter as an inline part (no remote image for Outlook to block); the web app
+/// serves the same file at [`LOGO_PREVIEW_SRC`] for previews.
+pub const LOGO_PNG: &[u8] = include_bytes!("../../assets/email/autotherm-logo.png");
+/// The inline part's Content-ID, and the `src` the layout points at it.
+pub const LOGO_CID: &str = "autotherm-logo";
+pub const LOGO_SRC: &str = "cid:autotherm-logo";
+/// Where a browser finds the logo: `frontend/public/email/autotherm-logo.png`.
+pub const LOGO_PREVIEW_SRC: &str = "/email/autotherm-logo.png";
+
+/// Inside the letter's white card, right after the content. The download links and the
+/// unsubscribe line go here (see [`append_to_content`]), so they read as part of the letter.
+pub const CONTENT_END: &str = "<!--content-end-->";
+
+/// Puts `fragment` at the end of the letter's content: before [`CONTENT_END`] in a letter
+/// laid out here, else before `</body></html>`, else at the very end.
+pub fn append_to_content(html: &str, fragment: &str) -> String {
+    for anchor in [CONTENT_END, "</body></html>"] {
+        if let Some(at) = html.find(anchor) {
+            let mut out = String::with_capacity(html.len() + fragment.len());
+            out.push_str(&html[..at]);
+            out.push_str(fragment);
+            out.push_str(&html[at..]);
+            return out;
+        }
+    }
+    format!("{html}{fragment}")
+}
+
+// hutoautok.hu's palette: navy ink, the brand blue, cool greys.
+const INK: &str = "#0b1526";
+const BRAND: &str = "#3d6eee";
+const PAGE: &str = "#eef2f7";
+const TEXT: &str = "#1e293b";
+const BORDER: &str = "#dbe2ec";
+const FONT: &str = "Raleway,Arial,Helvetica,sans-serif";
+
+/// The company card at the bottom of every letter, as on hutoautok.hu's own footer.
+const FOOTER: &str = "<div style=\"font-size:13px;font-weight:bold;color:#ffffff;\">Autotherm Kft.</div>\n\
+<div style=\"font-size:12px;line-height:1.6;color:#aab6c8;margin-top:2px;\">\
+Hűtőautók és járműfelépítmények gyártása 1992 óta.</div>\n\
+<div style=\"font-size:12px;line-height:1.8;color:#aab6c8;margin-top:10px;\">\
+6728 Szeged, Napos út 3.<br>\n\
+<a href=\"tel:+36209102050\" style=\"color:#ffffff;text-decoration:none;\">+36 20 910 20 50</a>\
+&nbsp;&middot; <a href=\"mailto:autotherm@autotherm.hu\" style=\"color:#ffffff;text-decoration:none;\">\
+autotherm@autotherm.hu</a>\
+&nbsp;&middot; <a href=\"https://hutoautok.hu\" style=\"color:#8fb0f7;text-decoration:none;\">hutoautok.hu</a>\
+</div>";
+
+/// The letter: navy header with the logo and a brand-blue rule, an optional title on the
+/// white card, the content, and the company footer. Tables and inline styles carry it; the
+/// small `<style>` only dresses Markdown's bare tags where a client honours it.
 fn layout(hero: Option<&str>, content: &str) -> String {
-    let hero_row = match hero {
-        Some(title) => format!(
-            "<tr><td style=\"background-color:#b91c1c;padding:26px 28px;text-align:center;\">\n\
-             <div style=\"font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:bold;\
-             letter-spacing:1px;color:#ffffff;\">{}</div>\n\
-             </td></tr>",
-            escape_html(title)
+    let (hero_row, content_top) = match hero {
+        Some(title) => (
+            format!(
+                "<tr><td style=\"padding:30px 32px 0 32px;font-family:{FONT};\">\n\
+                 <div style=\"width:40px;height:3px;line-height:3px;font-size:0;\
+                 background-color:{BRAND};margin:0 0 14px 0;\">&nbsp;</div>\n\
+                 <div style=\"font-size:24px;line-height:1.25;font-weight:800;color:{INK};\">{}</div>\n\
+                 </td></tr>",
+                escape_html(title)
+            ),
+            18,
         ),
-        None => String::new(),
+        None => (String::new(), 30),
     };
     format!(
         "<!doctype html><html lang=\"hu\"><head><meta charset=\"utf-8\">\
-<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>\n\
-<body style=\"margin:0;padding:0;background-color:#f0eeea;\">\n\
+<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
+<meta name=\"color-scheme\" content=\"light\"><meta name=\"supported-color-schemes\" content=\"light\">\
+<style>.autotherm-body h1,.autotherm-body h2,.autotherm-body h3{{color:{INK};line-height:1.3;\
+margin:0 0 12px 0;}}.autotherm-body h1{{font-size:22px;}}.autotherm-body h2{{font-size:18px;}}\
+.autotherm-body p{{margin:0 0 14px 0;}}.autotherm-body a{{color:#274fe2;}}\
+.autotherm-body table{{border-collapse:collapse;}}.autotherm-body td,.autotherm-body th\
+{{border:1px solid {BORDER};padding:6px 10px;}}</style></head>\n\
+<body style=\"margin:0;padding:0;background-color:{PAGE};\">\n\
 <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" \
-style=\"background-color:#f0eeea;padding:24px 12px;\"><tr><td align=\"center\">\n\
+style=\"background-color:{PAGE};padding:28px 12px;\"><tr><td align=\"center\">\n\
 <table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" \
-style=\"width:100%;max-width:600px;background-color:#ffffff;border-radius:10px;overflow:hidden;\
-border:1px solid #e2e0da;\"><tr><td \
-style=\"background-color:#1c1917;padding:20px 28px;\">\n\
-<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;\
-letter-spacing:3px;color:#ffffff;\">AUTOTHERM</div>\n\
-<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#d6d0c7;\
-margin-top:4px;\">Hűtős felépítmények &middot; automata értesítés</div>\n\
-</td></tr>{hero_row}<tr><td class=\"autotherm-body\" \
-style=\"padding:24px 28px;font-family:Arial,Helvetica,sans-serif;font-size:14px;\
-line-height:1.6;color:#292524;\">\n\
-{content}</td></tr><tr><td \
-style=\"background-color:#f7f6f3;padding:14px 28px;border-top:1px solid #e2e0da;\">\n\
-<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;\
-color:#8a847a;\">Ezt a levelet az Autotherm CRM küldte automatikusan. \
-Kérdés esetén válaszoljon erre a levélre — megkeresését munkatársunk olvassa.</div>\n\
+style=\"width:100%;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;\
+border:1px solid {BORDER};\">\n\
+<tr><td style=\"background-color:{INK};padding:26px 32px 24px 32px;\">\n\
+<img src=\"{LOGO_SRC}\" width=\"240\" height=\"21\" alt=\"AUTOTHERM\" style=\"display:block;\
+border:0;outline:none;width:240px;height:21px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;\
+font-size:20px;font-weight:bold;letter-spacing:3px;\">\n\
+</td></tr>\n\
+<tr><td style=\"background-color:{BRAND};height:3px;line-height:3px;font-size:0;\">&nbsp;</td></tr>\n\
+{hero_row}<tr><td class=\"autotherm-body\" \
+style=\"padding:{content_top}px 32px 28px 32px;font-family:{FONT};font-size:15px;\
+line-height:1.65;color:{TEXT};\">\n\
+{content}{CONTENT_END}</td></tr>\n\
+<tr><td style=\"background-color:{INK};padding:22px 32px;font-family:{FONT};\">\n\
+{FOOTER}\n\
 </td></tr></table>\n\
-<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#a8a29e;\
-margin-top:12px;\">Autotherm Kft.</div>\n\
 </td></tr></table>\n\
 </body></html>"
     )
@@ -556,8 +619,10 @@ mod tests {
         assert!(md.unresolved.is_empty());
         let html = markdown_to_html(&md.output);
         assert!(html.contains("<strong>Kedves</strong>"), "{html}");
-        assert!(!html.contains("<a "), "{html}");
-        assert!(!html.contains("<em>"), "{html}");
+        // The company footer has links of its own; the letter's text must have none.
+        let content = &html[..html.find(CONTENT_END).unwrap()];
+        assert!(!content.contains("<a "), "{html}");
+        assert!(!content.contains("<em>"), "{html}");
         assert!(
             html.contains("&lt;a href=\"https://evil.example\"&gt;Fizessen&lt;/a&gt; [itt](https://evil.example) *Kft* &amp; Tsa!"),
             "{html}"
@@ -571,10 +636,32 @@ mod tests {
     }
 
     #[test]
-    fn hero_band_shouts_once() {
-        let html = email_html_hero("MEGJÖTT AZ ÁRAJÁNLATOD", "Kedves János!");
-        assert!(html.contains("MEGJÖTT AZ ÁRAJÁNLATOD"), "{html}");
-        assert!(html.contains("background-color:#b91c1c"), "{html}");
+    fn every_letter_carries_the_logo_footer_and_a_content_end() {
+        let html = text_to_html("Szia");
+        assert!(html.contains("src=\"cid:autotherm-logo\""), "{html}");
+        assert!(html.contains("6728 Szeged, Napos út 3."), "{html}");
+        assert!(!html.contains("automata"), "{html}");
+        let with = append_to_content(&html, "<p>link</p>");
+        let link = with.find("<p>link</p>").unwrap();
+        assert!(
+            link < with.find("Autotherm Kft.").unwrap(),
+            "inside the card: {with}"
+        );
+        assert!(link > with.find("Szia").unwrap());
+        // A letter not laid out here still gets it before the end.
+        assert_eq!(
+            append_to_content("<html><body>x</body></html>", "y"),
+            "<html><body>xy</body></html>"
+        );
+        assert!(LOGO_PNG.starts_with(b"\x89PNG"));
+    }
+
+    #[test]
+    fn hero_is_a_title_in_the_site_theme() {
+        let html = email_html_hero("Téli akció", "Kedves János!");
+        assert!(html.contains("Téli akció"), "{html}");
+        assert!(html.contains("color:#0b1526"), "{html}");
+        assert!(!html.contains("#b91c1c"), "the red band is gone: {html}");
         assert!(html.contains("Kedves János!"), "{html}");
     }
 

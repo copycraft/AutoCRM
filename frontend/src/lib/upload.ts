@@ -4,7 +4,8 @@
 // already on the record is recognised by its hash instead of stored twice.
 //
 // The object store must allow the web app's origin to PUT (CORS). MinIO does by default;
-// on AWS S3 or Backblaze add a CORS rule for PUT from the app's address.
+// on AWS S3 or Backblaze add a CORS rule for PUT from the app's address. With files on the
+// NFS share the PUT goes to this app's own /api/files, so there is nothing to allow.
 
 import { mediaApi } from '@/lib/api/endpoints';
 import type { components } from '@/lib/api/schema.gen';

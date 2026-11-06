@@ -298,6 +298,7 @@ async fn payments_add_up_to_paid_and_the_statement_shows_what_is_open(pool: PgPo
         must_change_password: false,
         hr_access: false,
         permissions: vec![],
+        role_grid: None,
     };
     let order = common::order(&pool, &user, "HUF", vec![]).await;
     let invoice = issued_invoice(&pool, order.id, 10_000_000, "HUF", -5).await;

@@ -340,6 +340,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every role with what it may see and do. */
+        get: operations["users_list_roles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roles/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set what a role may see and do. Not the admin role, and not the capabilities only an
+         *     admin can have (user management, HR's own flag).
+         */
+        put: operations["users_set_role"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stage-definitions": {
         parameters: {
             query?: never;
@@ -882,11 +919,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Send the quotation letter for a lead: hero band on top, the lead's quotation PDF
-         *     attached, from the staff member as themselves. Writing to a stranger's money needs a
-         *     person behind it, so this is `SendEmail` (office), not an automatic trigger.
+         * Record a quotation the sales manager made and sent from their own mailbox: the lead's
+         *     uploaded PDF becomes its `quote` document, the price and validity are set, and the
+         *     follow-up letters are scheduled from the day it went out. The CRM does not send it.
          */
-        post: operations["leads_quotation"];
+        post: operations["leads_record_quotation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1035,8 +1072,8 @@ export interface paths {
         };
         get?: never;
         /**
-         * The cooling unit's serial number, typically scanned off its plate on the phone. Only on
-         *     an order whose project type takes a cooling spec.
+         * The cooling unit's serial number, typically scanned off its plate on the phone: the
+         *     `cooling_unit_serial` answer. Only on an order that is asked the cooling questions.
          */
         put: operations["orders_set_cooling_serial"];
         post?: never;
@@ -1098,26 +1135,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/orders/{id}/spec": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["orders_get_spec"];
-        /**
-         * Replaces the build spec. The form comes from the order's project type, never from the
-         *     request: a cooling order cannot be given a heating spec by sending one.
-         */
-        put: operations["orders_put_spec"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/orders/{id}/items": {
         parameters: {
             query?: never;
@@ -1148,6 +1165,145 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["orders_update_item"];
+        trace?: never;
+    };
+    "/orders/{id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a new project as a copy of this one, for a repeat order: the data row, items, spec,
+         *     each department's technical content and its drawings and photos, all editable after.
+         *     Plate, VIN and everything about the earlier job itself stay behind.
+         */
+        post: operations["orders_copy_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/questionnaire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The sections and their questions, in display order, switched-off ones included. */
+        get: operations["configuration_get_questionnaire"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/questionnaire/sections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["configuration_create_section"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/questionnaire/sections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["configuration_update_section"];
+        trace?: never;
+    };
+    "/config/questionnaire/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["configuration_create_question"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/config/questionnaire/questions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["configuration_update_question"];
+        trace?: never;
+    };
+    "/leads/{id}/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * A lead's project type and questionnaire answers, filled while selling. Saving never
+         *     demands completeness; converting the lead does.
+         */
+        put: operations["leads_put_lead_spec"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replaces an order's questionnaire answers, asked for the order's project type. */
+        put: operations["orders_put_order_spec"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/blockers": {
@@ -3042,6 +3198,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/hr/jobs/{id}/ads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["hr_list_ads"];
+        put?: never;
+        post: operations["hr_create_ad"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hr/job-ads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["hr_update_ad"];
+        trace?: never;
+    };
+    "/public/jobs/{slug}/visit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Count a visit to a listing's page: a number per day, by ad and channel. Nothing about
+         *     the visitor is kept.
+         */
+        post: operations["recruitment_record_visit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/volume": {
         parameters: {
             query?: never;
@@ -3327,6 +3535,54 @@ export interface paths {
             cookie?: never;
         };
         get: operations["search_global"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leads/stage-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["leads_lead_stage_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/stage-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orders_order_stage_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/emails/status-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["email_status_counts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3762,6 +4018,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/invoice-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every invoice waiting in the Számlázó to be looked over and issued, oldest first. */
+        get: operations["invoices_list_drafts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/invoice-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The order's invoice draft, if one is waiting in the Számlázó. */
+        get: operations["invoices_get_draft"];
+        /**
+         * Send the order to the Számlázó, or change the terms its draft will be issued with.
+         *     The lines are the order's items and are edited there; only the invoice's own terms live
+         *     here. Omitted terms take their default when the invoice is issued.
+         */
+        put: operations["invoices_put_draft"];
+        post?: never;
+        /** Take the order back out of the Számlázó without issuing. */
+        delete: operations["invoices_delete_draft"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/invoice-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The invoice the order would get if issued now with these terms: lines, totals, both
+         *     parties, and whatever would stop the issue. Nothing is numbered or reported.
+         */
+        post: operations["invoices_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/invoices/{id}": {
         parameters: {
             query?: never;
@@ -3920,6 +4236,163 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every department, active or not, in their order. */
+        get: operations["modules_list_departments"];
+        put?: never;
+        post: operations["modules_create_department"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["modules_update_department"];
+        trace?: never;
+    };
+    "/departments/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who works in which department, and who heads it. */
+        get: operations["modules_list_memberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/departments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the departments one person works in, and which of them they head. */
+        put: operations["modules_set_user_departments"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["modules_list_modules"];
+        put?: never;
+        /** Start a department's part of the order's technical content (or get the one it has). */
+        post: operations["modules_create_module"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/modules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a department's part from the order. Office only: it may be what a department
+         *     is building from.
+         */
+        delete: operations["modules_delete_module"];
+        options?: never;
+        head?: never;
+        patch: operations["modules_update_module"];
+        trace?: never;
+    };
+    "/modules/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hand the module to its department: the heads get a notification and a letter. Released
+         *     and written to since, it goes out again as a change.
+         */
+        post: operations["modules_release_module"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/modules/{id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Put one of the order's drawings or photos on the module's sheet. */
+        post: operations["modules_add_module_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/modules/{id}/files/{file_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["modules_remove_module_file"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4569,6 +5042,13 @@ export interface components {
             notes?: string | null;
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: int64
+             * @description The job ad the applicant came through (0064); see `GET /hr/jobs/{id}/ads`.
+             */
+            ad_id?: number | null;
+            /** @description `paid`, `organic`, `social`, `email`, `referral` or `direct`; null before 0064. */
+            channel?: string | null;
         };
         ApplicationPatch: {
             /** @description `null` or blank clears the notes. */
@@ -4587,6 +5067,16 @@ export interface components {
             resume: number[];
             /** @description Honeypot: real visitors leave it empty; a filled one is silently dropped. */
             company?: string | null;
+            /**
+             * Format: int64
+             * @description Where the visitor came from (0064): the `ad` and `utm_*` parameters of the page's
+             *     own URL, and the referrer.
+             */
+            ad?: number | null;
+            utm_source?: string | null;
+            utm_medium?: string | null;
+            utm_campaign?: string | null;
+            referrer?: string | null;
         };
         AssistantReply: {
             reply: string;
@@ -4926,12 +5416,13 @@ export interface components {
             cancelled: boolean;
         };
         /**
-         * @description Every authenticated user may read orders, partners, leads, images and reports.
-         *     Capabilities cover everything beyond reading. The role gives a default set; an admin can
-         *     grant any [`Capability::grantable`] one to a single user on top of it (`users.permissions`).
+         * @description Every authenticated user may read orders (without their prices), partners (without
+         *     their contact details), images and production reports. Capabilities cover the rest.
+         *     The role gives a default set; an admin can change a role's set in the grid, or grant
+         *     any [`Capability::grantable`] one to a single user on top of it (`users.permissions`).
          * @enum {string}
          */
-        Capability: "manage_users" | "manage_settings" | "manage_configuration" | "operate_system" | "edit_partners" | "edit_leads" | "edit_orders" | "change_stages" | "manage_blockers" | "upload_media" | "delete_media" | "view_original_images" | "send_email" | "issue_invoices" | "annul_invoices" | "access_hr" | "comment";
+        Capability: "manage_users" | "manage_settings" | "manage_configuration" | "operate_system" | "edit_partners" | "edit_leads" | "edit_orders" | "change_stages" | "manage_blockers" | "upload_media" | "delete_media" | "view_original_images" | "send_email" | "issue_invoices" | "annul_invoices" | "access_hr" | "comment" | "view_prices" | "view_invoices" | "view_incoming_invoices" | "view_sales" | "view_contacts" | "view_business_reports" | "view_all_modules" | "handle_handovers";
         /**
          * @description One document in the invoice's chain at NAV.
          *
@@ -4961,6 +5452,15 @@ export interface components {
              * @description Leads now in the `won` stage.
              */
             won: number;
+        };
+        /** @description Visits and applications that came through no ad of ours, by channel. */
+        ChannelStats: {
+            /** @description `paid`, `organic`, `social`, `email`, `referral` or `direct`. */
+            channel: string;
+            /** Format: int64 */
+            visits: number;
+            /** Format: int64 */
+            applications: number;
         };
         ChatBody: {
             /** @description The conversation so far, oldest first; the last one is the user's question. */
@@ -5162,6 +5662,24 @@ export interface components {
             /** @description As printed on the unit's plate (or read from its barcode); null clears it. */
             serial?: string | null;
         };
+        /** @description What to take from the earlier project. Everything is taken unless switched off. */
+        CopyRequest: {
+            /** @description The new project's title; the earlier one's when omitted. */
+            title?: string | null;
+            items?: boolean;
+            spec?: boolean;
+            /** @description Each department's technical content, as drafts to be released again. */
+            modules?: boolean;
+            /** @description Drawings, CAD files and other documents, and the photos the modules use. */
+            files?: boolean;
+        };
+        CopyResult: {
+            order: components["schemas"]["Order"];
+            copied_documents: number;
+            copied_images: number;
+            /** @description Files that could not be copied, by name. The project exists either way. */
+            failed_files: string[];
+        };
         CountryStatus: {
             country_code: string;
             availability: string;
@@ -5235,11 +5753,38 @@ export interface components {
             label_hu: string;
             /** Format: int32 */
             position: number;
+        };
+        CreateQuestion: {
+            /** Format: int64 */
+            section_id: number;
+            /** @description The answer's name; lowercase letters, digits and underscores. Fixed once created. */
+            key: string;
+            label: string;
+            help?: string | null;
             /**
-             * @description `heating` | `cooling` | omitted. Decides which build-spec section the order form
-             *     shows for this type; omitted means the type has no build spec.
+             * @description `yes_no` | `number` | `text` | `long_text` | `choice` | `multi_choice`. Fixed once
+             *     created.
              */
-            spec_form?: string | null;
+            kind: string;
+            unit?: string | null;
+            options?: string[];
+            /** Format: double */
+            min_value?: number | null;
+            /** Format: double */
+            max_value?: number | null;
+            required?: boolean;
+            /** Format: int32 */
+            position?: number | null;
+        };
+        CreateSection: {
+            key: string;
+            title: string;
+            /** Format: int32 */
+            position?: number | null;
+            /** @description The key of the yes/no question whose "yes" opens the section; omitted: always asked. */
+            shown_when?: string | null;
+            /** @description The project types the section is asked for; omitted or empty: every type. */
+            project_type_ids?: number[];
         };
         CreateStage: {
             entity: components["schemas"]["StageEntity"];
@@ -5329,6 +5874,29 @@ export interface components {
             y?: number | null;
             view?: string | null;
         };
+        Department: {
+            /** Format: int64 */
+            id: number;
+            key: string;
+            name: string;
+            /** @description `#rrggbb`: the colour of the department's module everywhere it shows. */
+            color: string;
+            /** Format: int32 */
+            position: number;
+            is_active: boolean;
+        };
+        DepartmentPatch: {
+            name?: string | null;
+            color?: string | null;
+            /** Format: int32 */
+            position?: number | null;
+            is_active?: boolean | null;
+        };
+        DepartmentSeat: {
+            /** Format: int64 */
+            department_id: number;
+            is_head?: boolean;
+        };
         Document: {
             /** Format: int64 */
             id: number;
@@ -5387,7 +5955,7 @@ export interface components {
             url: string;
         };
         /** @enum {string} */
-        DocumentKind: "design" | "cad" | "certificate" | "invoice" | "proforma" | "other" | "video";
+        DocumentKind: "design" | "cad" | "certificate" | "invoice" | "proforma" | "other" | "video" | "quote";
         DocumentPatch: {
             /** @description Who issued it — the ATP inspection body, the designer, the supplier. */
             issuer?: string | null;
@@ -5415,6 +5983,23 @@ export interface components {
         DownloadUrl: {
             /** @description Presigned, expires after one hour. */
             url: string;
+        };
+        /** @description A draft as the billing desk lists it: which job, for whom, and what the items add up to. */
+        DraftSummary: {
+            /** Format: int64 */
+            order_id: number;
+            order_number: string;
+            order_title: string;
+            partner_name: string;
+            currency: components["schemas"]["Currency"];
+            /**
+             * Format: int64
+             * @description The order's items, net, in minor units.
+             */
+            net_minor: number;
+            created_by_name?: string | null;
+            /** Format: date-time */
+            updated_at: string;
         };
         DurationReport: {
             period: components["schemas"]["Period"];
@@ -5728,7 +6313,7 @@ export interface components {
          * @description Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.
          * @enum {string}
          */
-        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "domain_taken" | "assistant_unavailable" | "template_in_use" | "status_required" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "totp_required" | "totp_invalid" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "eu_vat_number_required" | "eu_vat_number_invalid" | "eu_vat_check_unavailable" | "nav_rejected" | "nav_unreachable" | "overpayment" | "not_issued" | "pdf_unavailable";
+        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "domain_taken" | "assistant_unavailable" | "template_in_use" | "status_required" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "totp_required" | "totp_invalid" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "eu_vat_number_required" | "eu_vat_number_invalid" | "eu_vat_check_unavailable" | "nav_rejected" | "nav_unreachable" | "overpayment" | "spec_incomplete" | "not_issued" | "pdf_unavailable";
         ErrorDetail: {
             /** @description Stable machine-readable code, e.g. `validation`, `stage_gate`, `currency_locked`. */
             code: string;
@@ -6411,6 +6996,35 @@ export interface components {
              */
             document_filename?: string | null;
         };
+        InvoiceDraft: {
+            /** Format: int64 */
+            order_id: number;
+            /** @description The fraction (0.27); null: the configured default at issue time. */
+            vat_rate?: string | null;
+            /**
+             * Format: date
+             * @description Null: the day it is issued.
+             */
+            issue_date?: string | null;
+            /**
+             * Format: date
+             * @description Null: the issue date.
+             */
+            delivery_date?: string | null;
+            /**
+             * Format: date
+             * @description Null: the issue date plus the configured payment days.
+             */
+            payment_date?: string | null;
+            /** @description `TRANSFER` or `CASH`; null: transfer. */
+            payment_method?: string | null;
+            /** Format: int64 */
+            created_by?: number | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
         /** @enum {string} */
         InvoiceKind: "invoice" | "storno";
         InvoiceLanguageBody: {
@@ -6456,6 +7070,38 @@ export interface components {
             created_by_name?: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        /**
+         * @description The invoice the order would get if it were issued now with these terms. Nothing is
+         *     numbered, written or reported; the totals come from the same arithmetic the issue uses.
+         */
+        InvoicePreview: {
+            /** Format: int64 */
+            order_id: number;
+            order_number: string;
+            currency: components["schemas"]["Currency"];
+            vat_rate: string;
+            /** Format: date */
+            issue_date: string;
+            /** Format: date */
+            delivery_date: string;
+            /** Format: date */
+            payment_date: string;
+            /** @description `TRANSFER` or `CASH`. */
+            payment_method: string;
+            supplier: components["schemas"]["PreviewParty"];
+            customer: components["schemas"]["PreviewParty"];
+            lines: components["schemas"]["PreviewLine"][];
+            /** Format: int64 */
+            net_minor: number;
+            /** Format: int64 */
+            vat_minor: number;
+            /** Format: int64 */
+            gross_minor: number;
+            /** @description What would stop the issue, in words that say what to fix. Empty: ready to issue. */
+            problems: string[];
+            /** @description Worth knowing before issuing, but no obstacle. */
+            notes: string[];
         };
         /**
          * @description Where an invoice is in its life.
@@ -6512,12 +7158,34 @@ export interface components {
              */
             unit_price: number;
         };
-        ItemView: components["schemas"]["OrderItem"] & {
+        /**
+         * @description A line item. The prices are null for someone who may not see them (`ViewPrices`,
+         *     0061): the workshop gets what to build and how many, not what it costs.
+         */
+        ItemView: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            order_id: number;
+            /** Format: int32 */
+            position: number;
+            description: string;
+            quantity: string;
+            currency: components["schemas"]["Currency"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /**
+             * Format: int64
+             * @description Minor units in the order's currency.
+             */
+            unit_price?: number | null;
             /**
              * Format: int64
              * @description Backend-computed: round(quantity × unit_price), half away from zero.
              */
-            line_total_minor: number;
+            line_total_minor?: number | null;
         };
         /** @description The list envelope: `{"items": [...]}`. */
         Items_Absence: {
@@ -6568,6 +7236,13 @@ export interface components {
                 notes?: string | null;
                 /** Format: date-time */
                 created_at: string;
+                /**
+                 * Format: int64
+                 * @description The job ad the applicant came through (0064); see `GET /hr/jobs/{id}/ads`.
+                 */
+                ad_id?: number | null;
+                /** @description `paid`, `organic`, `social`, `email`, `referral` or `direct`; null before 0064. */
+                channel?: string | null;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -6836,6 +7511,20 @@ export interface components {
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
+        Items_Department: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                key: string;
+                name: string;
+                /** @description `#rrggbb`: the colour of the department's module everywhere it shows. */
+                color: string;
+                /** Format: int32 */
+                position: number;
+                is_active: boolean;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
         Items_Document: {
             items: {
                 /** Format: int64 */
@@ -6900,6 +7589,25 @@ export interface components {
                  */
                 thumb_url?: string | null;
             })[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_DraftSummary: {
+            items: {
+                /** Format: int64 */
+                order_id: number;
+                order_number: string;
+                order_title: string;
+                partner_name: string;
+                currency: components["schemas"]["Currency"];
+                /**
+                 * Format: int64
+                 * @description The order's items, net, in minor units.
+                 */
+                net_minor: number;
+                created_by_name?: string | null;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
         Items_EmailSummary: {
@@ -7364,13 +8072,31 @@ export interface components {
         };
         /** @description The list envelope: `{"items": [...]}`. */
         Items_ItemView: {
-            items: (components["schemas"]["OrderItem"] & {
+            items: {
+                /** Format: int64 */
+                id: number;
+                /** Format: int64 */
+                order_id: number;
+                /** Format: int32 */
+                position: number;
+                description: string;
+                quantity: string;
+                currency: components["schemas"]["Currency"];
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                /**
+                 * Format: int64
+                 * @description Minor units in the order's currency.
+                 */
+                unit_price?: number | null;
                 /**
                  * Format: int64
                  * @description Backend-computed: round(quantity × unit_price), half away from zero.
                  */
-                line_total_minor: number;
-            })[];
+                line_total_minor?: number | null;
+            }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
         Items_Job: {
@@ -7567,6 +8293,11 @@ export interface components {
                 sick_days: number;
                 /** Format: int32 */
                 unpaid_days: number;
+                /**
+                 * Format: int32
+                 * @description Igazolatlan: working days absent without leave.
+                 */
+                unexcused_days: number;
                 /** Format: int32 */
                 other_days: number;
             }[];
@@ -7586,6 +8317,18 @@ export interface components {
                  * @description Leads lost for this reason.
                  */
                 leads: number;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_Membership: {
+            items: {
+                /** Format: int64 */
+                user_id: number;
+                user_name: string;
+                /** Format: int64 */
+                department_id: number;
+                /** @description Heads are told when work is released to the department. */
+                is_head: boolean;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -7677,8 +8420,11 @@ export interface components {
                 project_type_id?: number | null;
                 project_type_label?: string | null;
                 currency: components["schemas"]["Currency"];
-                /** Format: int64 */
-                total_minor: number;
+                /**
+                 * Format: int64
+                 * @description The items' total; null for someone who may not see prices (0061).
+                 */
+                total_minor?: number | null;
                 vehicle_make?: string | null;
                 vehicle_model?: string | null;
                 vehicle_plate?: string | null;
@@ -7820,12 +8566,17 @@ export interface components {
                 /** Format: int32 */
                 position: number;
                 is_active: boolean;
-                /**
-                 * @description Which build-spec section the order form shows for this type: `heating`,
-                 *     `cooling`, or null for work that has no build spec (repairs). Configuration, so
-                 *     the office can retype a category without a deploy.
-                 */
-                spec_form?: string | null;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_RoleGrid: {
+            items: {
+                role: components["schemas"]["Role"];
+                /** @description Admin: always everything, and not editable. */
+                editable: boolean;
+                capabilities: components["schemas"]["Capability"][];
+                /** @description The role's out-of-the-box set, to show what "restore defaults" would do. */
+                defaults: components["schemas"]["Capability"][];
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -7899,6 +8650,15 @@ export interface components {
                 stall_after_days: number;
                 /** Format: int64 */
                 open_blockers: number;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_StatusCount: {
+            items: {
+                /** @description The stage key (`GET /config/stages`) or e-mail status. */
+                key: string;
+                /** Format: int64 */
+                count: number;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -8205,6 +8965,72 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        JobAd: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            posting_id: number;
+            /** @description `facebook`, `instagram`, `google`, `tiktok` or `other`. */
+            platform: string;
+            name: string;
+            headline?: string | null;
+            body?: string | null;
+            /**
+             * Format: int64
+             * @description What it cost, in HUF fillér.
+             */
+            spend_minor?: number | null;
+            /** Format: date */
+            starts_on?: string | null;
+            /** Format: date */
+            ends_on?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            archived_at?: string | null;
+            /**
+             * Format: int64
+             * @description Visits to the listing's page through this ad.
+             */
+            visits: number;
+            /**
+             * Format: int64
+             * @description Applications that came through this ad.
+             */
+            applications: number;
+        };
+        JobAdBody: {
+            platform: string;
+            name: string;
+            headline?: string | null;
+            body?: string | null;
+            /**
+             * Format: int64
+             * @description What it cost, in HUF fillér.
+             */
+            spend_minor?: number | null;
+            /** Format: date */
+            starts_on?: string | null;
+            /** Format: date */
+            ends_on?: string | null;
+            /** @description PATCH only: archive (true) or bring back (false). */
+            archived?: boolean | null;
+        };
+        /** @description An ad with its link and what an applicant cost through it. */
+        JobAdView: components["schemas"]["JobAd"] & {
+            /** @description Paste this into the ad: visits and applications through it are counted for the ad. */
+            link: string;
+            /**
+             * Format: int64
+             * @description Spend divided by applications, in HUF fillér; null without spend or applications.
+             */
+            cost_per_application_minor?: number | null;
+        };
+        JobAdsReport: {
+            ads: components["schemas"]["JobAdView"][];
+            /** @description Visits and applications that came through no ad of ours, by channel. */
+            other: components["schemas"]["ChannelStats"][];
+        };
         JobBody: {
             title?: string | null;
             description?: string | null;
@@ -8406,6 +9232,11 @@ export interface components {
             /** @description The lead tags, each with the domain that put it there when the server did. */
             tags: components["schemas"]["LeadTagRef"][];
             lost_reason?: null | components["schemas"]["LostReason"];
+            /**
+             * @description The build questionnaire (0065): the project type it is asked for and the answers
+             *     so far. Change it with `PUT /leads/{id}/spec`.
+             */
+            spec: components["schemas"]["LeadSpec"];
         };
         LeadHit: {
             /** Format: int64 */
@@ -8450,6 +9281,25 @@ export interface components {
             by_campaign: components["schemas"]["CampaignRow"][];
             /** @description The most common first pages of a visit. */
             by_page: components["schemas"]["PageRow"][];
+        };
+        /** @description A lead's questionnaire: the project type it is asked for, and the answers so far. */
+        LeadSpec: {
+            /** Format: int64 */
+            project_type_id?: number | null;
+            /** @description Question key → answer: `true`/`false`, a number, text, or a list of choices. */
+            answers: Record<string, unknown>;
+        };
+        LeadSpecBody: {
+            /**
+             * Format: int64
+             * @description The project type the questions are asked for; null: not chosen yet.
+             */
+            project_type_id?: number | null;
+            /**
+             * @description Question key → answer. Replaces the lead's answers; answers to questions not asked
+             *     for this type and these answers are left out.
+             */
+            answers?: Record<string, unknown>;
         };
         LeadSummary: {
             /** Format: int64 */
@@ -8544,11 +9394,16 @@ export interface components {
             sick_days: number;
             /** Format: int32 */
             unpaid_days: number;
+            /**
+             * Format: int32
+             * @description Igazolatlan: working days absent without leave.
+             */
+            unexcused_days: number;
             /** Format: int32 */
             other_days: number;
         };
         /** @enum {string} */
-        LeaveKind: "annual" | "sick" | "unpaid" | "other";
+        LeaveKind: "annual" | "sick" | "unpaid" | "unexcused" | "other";
         LocationBody: {
             name?: string | null;
             /** @description `bay` | `parking` | `external` (`yard_kinds` in `GET /config/lookups`). */
@@ -8602,8 +9457,6 @@ export interface components {
             tyre_conditions: components["schemas"]["LookupItem"][];
             yard_kinds: components["schemas"]["LookupItem"][];
             fuel_levels: components["schemas"]["LookupItem"][];
-            heating_fuels: components["schemas"]["LookupItem"][];
-            defrost_modes: components["schemas"]["LookupItem"][];
             order_relations: components["schemas"]["LookupItem"][];
             task_entity_types: components["schemas"]["LookupItem"][];
             currencies: components["schemas"]["LookupItem"][];
@@ -8638,6 +9491,16 @@ export interface components {
         MeResponse: {
             user: components["schemas"]["SessionUser"];
         };
+        /** @description One person in one department. */
+        Membership: {
+            /** Format: int64 */
+            user_id: number;
+            user_name: string;
+            /** Format: int64 */
+            department_id: number;
+            /** @description Heads are told when work is released to the department. */
+            is_head: boolean;
+        };
         Mention: {
             /** Format: int64 */
             user_id: number;
@@ -8648,6 +9511,44 @@ export interface components {
             /** Format: int64 */
             id: number;
             display_name: string;
+        };
+        /** @description A drawing or photo on a module's sheet: one of the order's own files, linked. */
+        ModuleFile: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            module_id: number;
+            /** Format: int64 */
+            image_id?: number | null;
+            /** Format: int64 */
+            document_id?: number | null;
+            /** @description The file's name, for the list; null for a photo uploaded without one. */
+            filename?: string | null;
+        };
+        ModuleFileBody: {
+            /**
+             * Format: int64
+             * @description One of the order's photos, or…
+             */
+            image_id?: number | null;
+            /**
+             * Format: int64
+             * @description …one of the order's documents. Exactly one of the two.
+             */
+            document_id?: number | null;
+        };
+        ModulePatch: {
+            content?: string | null;
+            /** @description `draft` or `done`. Releasing is `POST /modules/{id}/release`, which tells the heads. */
+            status?: string | null;
+        };
+        /** @description A module as the screen shows it: the text, its files, and what this person may do. */
+        ModuleView: components["schemas"]["OrderModule"] & {
+            files: components["schemas"]["ModuleFile"][];
+            /** @description Released, then written to again: the department has an older version. */
+            changed_since_release: boolean;
+            /** @description Whether the caller may write this module (office, or a member of the department). */
+            can_edit: boolean;
         };
         MoveBody: {
             /** Format: int64 */
@@ -8681,6 +9582,15 @@ export interface components {
             message: string;
             path?: string | null;
         };
+        NewDepartment: {
+            /** @description Lower-case letters, digits and `_`; never changes. */
+            key: string;
+            name: string;
+            /** @description `#rrggbb`. */
+            color: string;
+            /** Format: int32 */
+            position?: number;
+        };
         NewDocument: {
             kind: string;
             title: string;
@@ -8692,6 +9602,11 @@ export interface components {
             /** Format: int64 */
             file_size?: number | null;
             notes?: string | null;
+        };
+        NewModule: {
+            /** Format: int64 */
+            department_id: number;
+            content?: string;
         };
         /**
          * @description A newsletter blast: one row, everyone in BCC, nobody sees the list.
@@ -8917,7 +9832,12 @@ export interface components {
              *     `valuables_declared = true`, and rejected without it.
              */
             valuables?: string | null;
-            spec?: null | components["schemas"]["SpecBody"];
+            /**
+             * @description The build questionnaire's answers (0065): question key → answer. Written in the same
+             *     transaction as the order; answers to questions not asked for the chosen project type
+             *     are left out. Not checked for completeness here: converting a lead is.
+             */
+            spec_answers?: Record<string, unknown> | null;
             items?: components["schemas"]["ItemBody"][];
         };
         OrderBulkBody: {
@@ -8941,7 +9861,7 @@ export interface components {
             partner: components["schemas"]["PartnerRef"];
             stage: components["schemas"]["StageView"];
             items: components["schemas"]["ItemView"][];
-            value: components["schemas"]["OrderValue"];
+            value?: null | components["schemas"]["OrderValue"];
             blockers: components["schemas"]["Blocker"][];
             related?: null | components["schemas"]["RelatedOrder"];
             /**
@@ -8949,7 +9869,11 @@ export interface components {
              *     enquiry is the case the join table exists for.
              */
             vehicles: components["schemas"]["Vehicle"][];
-            spec?: null | components["schemas"]["OrderSpec"];
+            /**
+             * @description The build questionnaire's answers (0065): question key → answer. Draw them with
+             *     `GET /config/questionnaire`, grouped by the sections asked for this order.
+             */
+            spec_answers: Record<string, unknown>;
             /** @description Image count per category; categories without images are absent. */
             image_counts: {
                 [key: string]: number;
@@ -8980,22 +9904,35 @@ export interface components {
             plate?: string | null;
             stage_label: string;
         };
-        OrderItem: {
+        OrderModule: {
             /** Format: int64 */
             id: number;
             /** Format: int64 */
             order_id: number;
-            /** Format: int32 */
-            position: number;
-            description: string;
-            quantity: string;
             /** Format: int64 */
-            unit_price: number;
-            currency: components["schemas"]["Currency"];
+            department_id: number;
+            department_key: string;
+            department_name: string;
+            /** @description `#rrggbb`, the department's colour. */
+            department_color: string;
+            content: string;
+            /** @description `draft`, `released` (handed to the department, heads told) or `done`. */
+            status: string;
+            /** Format: date-time */
+            content_updated_at: string;
+            /** Format: date-time */
+            released_at?: string | null;
+            released_by_name?: string | null;
+            updated_by_name?: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+        };
+        /** @description The order's technical content, plus which departments the caller may start a module for. */
+        OrderModules: {
+            items: components["schemas"]["ModuleView"][];
+            editable_department_ids: number[];
         };
         OrderNote: {
             /** Format: int64 */
@@ -9018,40 +9955,6 @@ export interface components {
             id: number;
             number: string;
         };
-        OrderSpec: {
-            /** Format: int64 */
-            order_id: number;
-            /** @description `heating` | `cooling`. */
-            form: string;
-            target_temp_c?: string | null;
-            /** Format: int32 */
-            insulation_mm?: number | null;
-            cooling_unit_make?: string | null;
-            cooling_unit_model?: string | null;
-            /** @description ATP classification (FNA, FRC, …). Free text until the real list is confirmed. */
-            atp_class?: string | null;
-            /** Format: int32 */
-            compartments?: number | null;
-            /** @description `automatic` | `manual` | `hot_gas`. */
-            defrost?: string | null;
-            electric_standby?: boolean | null;
-            /**
-             * @description The serial number off the cooling unit's plate, scanned on the phone (0049). Kept
-             *     when the rest of the spec is saved; cleared if the order turns into a heating job.
-             */
-            cooling_unit_serial?: string | null;
-            heater_make?: string | null;
-            heater_model?: string | null;
-            heat_output_kw?: string | null;
-            /** @description `diesel` | `electric` | `lpg` | `engine_coolant`. */
-            fuel?: string | null;
-            thermostat?: boolean | null;
-            notes?: string | null;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
         OrderSummary: {
             /** Format: int64 */
             id: number;
@@ -9064,8 +9967,11 @@ export interface components {
             project_type_id?: number | null;
             project_type_label?: string | null;
             currency: components["schemas"]["Currency"];
-            /** Format: int64 */
-            total_minor: number;
+            /**
+             * Format: int64
+             * @description The items' total; null for someone who may not see prices (0061).
+             */
+            total_minor?: number | null;
             vehicle_make?: string | null;
             vehicle_model?: string | null;
             vehicle_plate?: string | null;
@@ -9308,8 +10214,36 @@ export interface components {
             /** Format: int32 */
             position?: number | null;
             is_active?: boolean | null;
-            /** @description Absent keeps the current form; explicit null removes the build-spec section. */
-            spec_form?: string | null;
+        };
+        PatchQuestion: {
+            /**
+             * Format: int64
+             * @description Moves the question to another section.
+             */
+            section_id?: number | null;
+            label?: string | null;
+            help?: string | null;
+            unit?: string | null;
+            /** @description Replaces the choices. Answers already given keep their old choice. */
+            options?: string[] | null;
+            /** Format: double */
+            min_value?: number | null;
+            /** Format: double */
+            max_value?: number | null;
+            required?: boolean | null;
+            /** Format: int32 */
+            position?: number | null;
+            is_active?: boolean | null;
+        };
+        PatchSection: {
+            title?: string | null;
+            /** Format: int32 */
+            position?: number | null;
+            is_active?: boolean | null;
+            /** @description Absent keeps it; null: always asked. */
+            shown_when?: string | null;
+            /** @description Replaces the list; empty: every type. */
+            project_type_ids?: number[] | null;
         };
         PatchStage: {
             label_hu?: string | null;
@@ -9394,6 +10328,34 @@ export interface components {
             recipient_suppressed: boolean;
             attachments: components["schemas"]["AttachmentRef"][];
         };
+        /** @description One line of the preview: an order item, priced and taxed exactly as the issue would. */
+        PreviewLine: {
+            /**
+             * Format: int64
+             * @description The order item it comes from: editing the line edits that item.
+             */
+            item_id: number;
+            /** Format: int32 */
+            position: number;
+            description: string;
+            quantity: string;
+            /** Format: int64 */
+            unit_price_minor: number;
+            /** Format: int64 */
+            net_minor: number;
+            /** Format: int64 */
+            vat_minor: number;
+            /** Format: int64 */
+            gross_minor: number;
+        };
+        /** @description One side of the invoice, as the preview prints it. */
+        PreviewParty: {
+            name: string;
+            tax_number?: string | null;
+            /** @description One line: "6728 Szeged, Napos út 3.", with the country when it is not Hungary. */
+            address: string;
+            bank_account?: string | null;
+        };
         PreviewUrl: {
             /** @description Presigned, served inline so the browser shows it; expires after one hour. */
             url: string;
@@ -9452,12 +10414,6 @@ export interface components {
             /** Format: int32 */
             position: number;
             is_active: boolean;
-            /**
-             * @description Which build-spec section the order form shows for this type: `heating`,
-             *     `cooling`, or null for work that has no build spec (repairs). Configuration, so
-             *     the office can retype a category without a deploy.
-             */
-            spec_form?: string | null;
         };
         Providers: {
             /** @description "Sign in with Google" is configured. */
@@ -9470,33 +10426,64 @@ export interface components {
             /** @description `published` or `closed`. A draft is not found. */
             status: string;
         };
+        Question: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            section_id: number;
+            /** @description The answer's name in the answers object. Never changes. */
+            key: string;
+            label: string;
+            /** @description One line under the field: an example, or what to measure. */
+            help?: string | null;
+            /** @description `yes_no` | `number` | `text` | `long_text` | `choice` | `multi_choice`. */
+            kind: string;
+            /** @description Shown next to a number: °C, mm, kW. */
+            unit?: string | null;
+            /** @description The choices of a `choice` / `multi_choice`, as shown and as stored. */
+            options: string[];
+            /** Format: double */
+            min_value?: number | null;
+            /** Format: double */
+            max_value?: number | null;
+            /** @description Has to be answered before the lead may become an order. */
+            required: boolean;
+            /** Format: int32 */
+            position: number;
+            is_active: boolean;
+        };
+        /** @description The whole configuration, sections in display order. */
+        Questionnaire: {
+            sections: components["schemas"]["Section"][];
+        };
         /**
-         * @description A quotation letter for a lead: the one letter that shouts. Hero band on top, the
-         *     lead's quotation PDF attached, sent by the staff member as themselves.
-         *
-         *     The price and validity lines appear when the lead carries them; the PDF is
-         *     authoritative either way, so a lead without a quoted price still sends. Anything the
-         *     office writes by hand goes through `{{variable}}` rendering first, then Markdown when
-         *     asked — the same pipeline as a manual letter.
+         * @description A quotation the sales manager made and sent outside the CRM, recorded on the lead: the
+         *     PDF already filed as one of the lead's documents, the price and validity it states, and
+         *     the follow-up letters counted from the day it went out. The CRM never sends the
+         *     quotation itself: the customer gets it from a person's own mailbox.
          */
-        QuotationRequest: {
-            subject?: string | null;
-            body?: string | null;
-            /** @description The hero band. Defaults to the shout; the office can tone it down per send. */
-            hero?: string | null;
-            body_markdown?: boolean;
-            attachment_document_ids?: number[];
+        QuotationRecord: {
             /**
-             * @description Follow-up letters to schedule (ids of `/followup-steps`), counted from this send.
+             * Format: int64
+             * @description The quotation file: a document of this lead. Filed as `quote` if it was not already.
+             */
+            document_id: number;
+            /** Format: int64 */
+            quoted_value_minor?: number | null;
+            currency?: null | components["schemas"]["Currency"];
+            /** Format: date */
+            quote_valid_until?: string | null;
+            /**
+             * Format: date
+             * @description The day it went out. Today when omitted; never in the future.
+             */
+            sent_on?: string | null;
+            /**
+             * @description Follow-up letters to schedule (ids of `/followup-steps`), counted from `sent_on`.
              *     Omitted: every active default step. `[]`: none. Any still waiting from an earlier
              *     quotation of the lead are cancelled either way.
              */
             followup_step_ids?: number[] | null;
-        };
-        /** @description The queued quotation letter. */
-        QuotationSent: {
-            /** Format: int64 */
-            email_id: number;
         };
         RawImportView: {
             /**
@@ -9608,7 +10595,20 @@ export interface components {
             revoked: number;
         };
         /** @enum {string} */
-        Role: "admin" | "office" | "designer" | "viewer";
+        Role: "admin" | "office" | "sales" | "accountant" | "designer" | "worker" | "purchaser" | "viewer";
+        RoleCapabilities: {
+            /** @description The role's whole set; what is left out is taken away. */
+            capabilities: components["schemas"]["Capability"][];
+        };
+        /** @description One role and what it may do now. */
+        RoleGrid: {
+            role: components["schemas"]["Role"];
+            /** @description Admin: always everything, and not editable. */
+            editable: boolean;
+            capabilities: components["schemas"]["Capability"][];
+            /** @description The role's out-of-the-box set, to show what "restore defaults" would do. */
+            defaults: components["schemas"]["Capability"][];
+        };
         SalesFunnel: {
             period: components["schemas"]["Period"];
             totals: components["schemas"]["FunnelTotals"];
@@ -9675,6 +10675,21 @@ export interface components {
             /** Format: int64 */
             id: number;
             recipients: number;
+        };
+        Section: {
+            /** Format: int64 */
+            id: number;
+            key: string;
+            title: string;
+            /** Format: int32 */
+            position: number;
+            is_active: boolean;
+            /** @description The key of the yes/no question whose "yes" opens this section; null: always asked. */
+            shown_when?: string | null;
+            /** @description The project types this section is asked for; empty: every type. */
+            project_type_ids: number[];
+            /** @description In display order, inactive ones included (settings shows them; forms skip them). */
+            questions: components["schemas"]["Question"][];
         };
         /** @description Per-send results: how many letters, how many opened, how many clicks. */
         SendStats: {
@@ -9839,30 +10854,10 @@ export interface components {
             position?: number | null;
             archived?: boolean | null;
         };
-        /**
-         * @description The build spec as the form sends it. `form` is not taken on trust: it must match what
-         *     the order's project type asks for, or the row would mean something the office did not
-         *     choose.
-         */
-        SpecBody: {
-            target_temp_c?: string | null;
-            /** Format: int32 */
-            insulation_mm?: number | null;
-            cooling_unit_make?: string | null;
-            cooling_unit_model?: string | null;
-            atp_class?: string | null;
-            /** Format: int32 */
-            compartments?: number | null;
-            /** @description `automatic` | `manual` | `hot_gas`. */
-            defrost?: string | null;
-            electric_standby?: boolean | null;
-            heater_make?: string | null;
-            heater_model?: string | null;
-            heat_output_kw?: string | null;
-            /** @description `diesel` | `electric` | `lpg` | `engine_coolant`. */
-            fuel?: string | null;
-            thermostat?: boolean | null;
-            notes?: string | null;
+        /** @description An order's answers, as sent and as returned. */
+        SpecAnswers: {
+            /** @description Question key → answer. Answers to questions not asked for this job are left out. */
+            answers?: Record<string, unknown>;
         };
         StageBody: {
             /** @description Target stage key. */
@@ -10056,6 +11051,13 @@ export interface components {
              * @description Of that, past its deadline.
              */
             overdue: number;
+        };
+        /** @description One status and how many records are in it now. */
+        StatusCount: {
+            /** @description The stage key (`GET /config/stages`) or e-mail status. */
+            key: string;
+            /** Format: int64 */
+            count: number;
         };
         StepBody: {
             label: string;
@@ -10467,6 +11469,10 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        UserDepartments: {
+            /** @description Every department the person works in; departments left out are left. */
+            departments: components["schemas"]["DepartmentSeat"][];
+        };
         UserSettings: {
             /** Format: int64 */
             user_id: number;
@@ -10646,6 +11652,18 @@ export interface components {
             model?: string | null;
             /** @description "offline", or "nhtsa" when the online lookup added to it. */
             source: string;
+        };
+        /** @description Where a visitor of the listing's page came from, as the page read it off its own URL. */
+        VisitSource: {
+            /**
+             * Format: int64
+             * @description The `ad` parameter of a tracked link.
+             */
+            ad?: number | null;
+            utm_source?: string | null;
+            utm_medium?: string | null;
+            utm_campaign?: string | null;
+            referrer?: string | null;
         };
         VolumeReport: {
             period: components["schemas"]["Period"];
@@ -11799,6 +12817,87 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    users_list_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_RoleGrid"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    users_set_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description office, sales, accountant, designer or viewer */
+                role: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleCapabilities"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleGrid"];
+                };
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -13541,7 +14640,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description `partner_id` may be omitted when the lead has one; `title` defaults to the lead's. */
+        /** @description `partner_id` may be omitted when the lead has one; `title` defaults to the lead's; `project_type_id` to the lead's. `spec_answers` are laid over the lead's answers, and every required question asked must then be answered (`422 spec_incomplete` otherwise). */
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OrderBody"];
@@ -13576,7 +14675,7 @@ export interface operations {
             };
         };
     };
-    leads_quotation: {
+    leads_record_quotation: {
         parameters: {
             query?: never;
             header?: never;
@@ -13587,16 +14686,16 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["QuotationRequest"];
+                "application/json": components["schemas"]["QuotationRecord"];
             };
         };
         responses: {
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuotationSent"];
+                    "application/json": components["schemas"]["Lead"];
                 };
             };
             /** @description Client error; see `error.code` */
@@ -14062,7 +15161,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OrderSpec"];
+                    "application/json": components["schemas"]["SpecAnswers"];
                 };
             };
             /** @description Client error; see `error.code` */
@@ -14183,94 +15282,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Items_OrderNote"];
-                };
-            };
-            /** @description Client error; see `error.code` */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Server error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    orders_get_spec: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderSpec"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Client error; see `error.code` */
-            "4XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Server error */
-            "5XX": {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    orders_put_spec: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SpecBody"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderSpec"];
                 };
             };
             /** @description Client error; see `error.code` */
@@ -14434,6 +15445,340 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    orders_copy_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CopyRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CopyResult"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    configuration_get_questionnaire: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questionnaire"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    configuration_create_section: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSection"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questionnaire"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    configuration_update_section: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchSection"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questionnaire"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    configuration_create_question: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQuestion"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questionnaire"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    configuration_update_question: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchQuestion"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questionnaire"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leads_put_lead_spec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadSpecBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadSpec"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    orders_put_order_spec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecAnswers"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecAnswers"];
                 };
             };
             /** @description Client error; see `error.code` */
@@ -20364,6 +21709,178 @@ export interface operations {
             };
         };
     };
+    hr_list_ads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAdsReport"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_create_ad: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobAdBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAdView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hr_update_ad: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobAdBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAdView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    recruitment_record_visit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitSource"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     reports_volume: {
         parameters: {
             query?: {
@@ -21090,6 +22607,120 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GlobalResults"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leads_lead_stage_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Leads per current stage; stages with none are absent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_StatusCount"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    orders_order_stage_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Orders per current stage; stages with none are absent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_StatusCount"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    email_status_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description E-mails per status; statuses with none are absent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_StatusCount"];
                 };
             };
             /** @description Client error; see `error.code` */
@@ -22352,6 +23983,217 @@ export interface operations {
             };
         };
     };
+    invoices_list_drafts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_DraftSummary"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_get_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDraft"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_put_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDraft"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_delete_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invoices_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePreview"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     invoices_detail: {
         parameters: {
             query?: never;
@@ -22816,6 +24658,489 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Statement"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_list_departments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Department"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_create_department: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewDepartment"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Department"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_update_department: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepartmentPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Department"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_list_memberships: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Membership"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_set_user_departments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserDepartments"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_list_modules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderModules"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_create_module: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewModule"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_delete_module: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_update_module: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModulePatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_release_module: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_add_module_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModuleFileBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleView"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modules_remove_module_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                file_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleView"];
                 };
             };
             /** @description Client error; see `error.code` */

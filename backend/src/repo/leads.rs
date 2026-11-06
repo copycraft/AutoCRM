@@ -192,6 +192,28 @@ pub async fn set_quote_fx(
     Ok(())
 }
 
+/// The price and validity a recorded quotation states. Runtime-checked, like `set_assigned`.
+pub async fn set_quote(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    quoted_value_minor: Option<i64>,
+    currency: Option<&str>,
+    quote_valid_until: Option<NaiveDate>,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE leads SET quoted_value_minor = $2, currency = $3, quote_valid_until = $4,
+                          updated_at = now()
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(quoted_value_minor)
+    .bind(currency)
+    .bind(quote_valid_until)
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
 pub async fn set_assigned(
     db: impl PgExecutor<'_>,
     id: i64,

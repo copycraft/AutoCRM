@@ -169,7 +169,7 @@ export function PartnerForm({
       )}
       <div className="card-content grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
-          <VatNumberField form={form} partnerId={initial?.id} />
+          <TaxNumberLookup form={form} partnerId={initial?.id} initial={initial} />
         </div>
         <div>
           <label className="label" htmlFor="kind">{t('kindLabel')}</label>
@@ -182,10 +182,6 @@ export function PartnerForm({
           <label className="label" htmlFor="name">{tc('name')} *</label>
           <input id="name" className="input" {...register('name')} />
           {errors.name && <p className="mt-1 text-metadata text-steel-900">{tv('required')}</p>}
-        </div>
-        <div>
-          <label className="label" htmlFor="tax_number">{t('taxNumber')}</label>
-          <input id="tax_number" className="input font-mono" placeholder="12345678-1-23" {...register('tax_number')} />
         </div>
         <div>
           <label className="label" htmlFor="country">{t('country')}</label>
@@ -237,5 +233,55 @@ export function PartnerForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * One tax-number field at the top of the form, EU by default. Switched to "Belföldi",
+ * it takes the Hungarian adószám (12345678-2-06) and checks its közösségi form
+ * (HU12345678) in VIES, which also fills the EU field when the company has one.
+ */
+function TaxNumberLookup({
+  form,
+  partnerId,
+  initial,
+}: {
+  form: ReturnType<typeof useForm<PartnerFormValues>>;
+  partnerId?: number;
+  initial?: Partner;
+}) {
+  const tv = useTranslations('vat');
+  const [mode, setMode] = useState<'eu_tax_number' | 'tax_number'>(
+    initial?.tax_number && !initial?.eu_tax_number ? 'tax_number' : 'eu_tax_number',
+  );
+  const other = form.watch(mode === 'eu_tax_number' ? 'tax_number' : 'eu_tax_number');
+  return (
+    <div>
+      <div className="mb-2 inline-flex rounded-lg border border-steel-200 p-0.5" role="tablist">
+        {(['eu_tax_number', 'tax_number'] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={mode === m}
+            onClick={() => setMode(m)}
+            className={
+              mode === m
+                ? 'rounded-md bg-steel-900 px-3 py-1 text-metadata font-medium text-white'
+                : 'rounded-md px-3 py-1 text-metadata text-steel-500 hover:text-steel-900'
+            }
+          >
+            {m === 'eu_tax_number' ? tv('modeEu') : tv('modeDomestic')}
+          </button>
+        ))}
+      </div>
+      {/* Remounted per mode: each field keeps its own verdict. */}
+      <VatNumberField key={mode} form={form} partnerId={partnerId} field={mode} />
+      {other?.trim() && (
+        <p className="mt-1 font-mono text-metadata text-steel-500">
+          {mode === 'eu_tax_number' ? tv('domestic') : tv('community')}: {other}
+        </p>
+      )}
+    </div>
   );
 }

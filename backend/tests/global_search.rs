@@ -55,22 +55,38 @@ async fn every_word_must_match_in_any_order_ignoring_accents(pool: PgPool) {
 
     // Accents and case do not matter, the order of words does not matter.
     for q in ["kovacs gyor", "gyor KOVÁCS", "fuvarozo kft", "Kovács Győr"] {
-        let hits = search::partners(&pool, q, 8).await.unwrap();
+        let hits = search::partners(&pool, q, 8, true).await.unwrap();
         assert_eq!(names(&hits), ["Kovács Fuvarozó Kft."], "query {q:?}");
     }
     // One word that matches nothing rules the record out.
     assert!(
-        search::partners(&pool, "kovacs budapest", 8)
+        search::partners(&pool, "kovacs budapest", 8, true)
             .await
             .unwrap()
             .is_empty()
     );
     // One word matches both.
-    assert_eq!(search::partners(&pool, "kovacs", 8).await.unwrap().len(), 2);
+    assert_eq!(
+        search::partners(&pool, "kovacs", 8, true)
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
     // Nothing to search.
-    assert!(search::partners(&pool, "   ", 8).await.unwrap().is_empty());
+    assert!(
+        search::partners(&pool, "   ", 8, true)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     // A wildcard typed by the user is just a character.
-    assert!(search::partners(&pool, "%", 8).await.unwrap().is_empty());
+    assert!(
+        search::partners(&pool, "%", 8, true)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -81,7 +97,7 @@ async fn better_matches_rank_first_whatever_their_age(pool: PgPool) {
     partner(&pool, "Nagy Kovács Kft.", None, None).await;
     partner(&pool, "Újabb Kovács", None, None).await;
 
-    let hits = search::partners(&pool, "kovács", 8).await.unwrap();
+    let hits = search::partners(&pool, "kovács", 8, true).await.unwrap();
     assert_eq!(
         names(&hits),
         [
@@ -113,7 +129,7 @@ async fn phone_numbers_find_partners_and_contacts_in_any_spelling(pool: PgPool) 
 
     for q in ["+36 30 123 4567", "06301234567", "0036301234567", "30 123"] {
         assert_eq!(
-            search::partners(&pool, q, 8).await.unwrap().len(),
+            search::partners(&pool, q, 8, true).await.unwrap().len(),
             1,
             "partner {q:?}"
         );

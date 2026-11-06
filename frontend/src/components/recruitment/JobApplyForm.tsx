@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Snowflake } from 'lucide-react';
@@ -13,6 +13,23 @@ const RESUME_EXTENSIONS = ['pdf', 'doc', 'docx', 'odt', 'rtf'];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Field = 'fullName' | 'email' | 'phone' | 'age' | 'resume';
+
+/**
+ * Where the visitor came from, read off the page's own URL (a job ad's tracked link carries
+ * `ad` and the `utm_*` tags) and the referrer. Counted for our own statistics only (0064).
+ */
+function visitSource() {
+  if (typeof window === 'undefined') return {};
+  const q = new URLSearchParams(window.location.search);
+  const ad = Number(q.get('ad'));
+  return {
+    ad: Number.isFinite(ad) && ad > 0 ? ad : null,
+    utm_source: q.get('utm_source'),
+    utm_medium: q.get('utm_medium'),
+    utm_campaign: q.get('utm_campaign'),
+    referrer: document.referrer || null,
+  };
+}
 type Errors = Partial<Record<Field, string>>;
 
 /** The public application form of one job listing: details and a resume, no login. */
@@ -35,6 +52,20 @@ export function JobApplyForm({ slug }: { slug: string }) {
   } else {
     body = <Form slug={slug} />;
   }
+
+  // One visit per browser session per listing: a reload is not a new visitor.
+  const open = job.data?.status === 'published';
+  useEffect(() => {
+    if (!open) return;
+    const key = `job-visit:${slug}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch {
+      // Storage blocked: count it anyway.
+    }
+    void recruitmentApi.visit(slug, visitSource()).catch(() => undefined);
+  }, [open, slug]);
 
   return (
     <div className="min-h-screen bg-panel px-4 py-8">
@@ -92,6 +123,10 @@ function Form({ slug }: { slug: string }) {
       form.set('message', values.message.trim());
       form.set('company', values.company);
       form.set('resume', resume!, resume!.name);
+      // Which ad or channel brought the applicant (0064).
+      for (const [k, v] of Object.entries(visitSource())) {
+        if (v != null && v !== '') form.set(k, String(v));
+      }
       return recruitmentApi.apply(slug, form);
     },
     onSuccess: () => setDone(true),

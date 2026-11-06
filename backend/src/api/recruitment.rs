@@ -21,6 +21,7 @@ use crate::AppState;
 use crate::domain::email::normalize_address;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
+use crate::media::layout;
 use crate::media::storage::content_disposition;
 use crate::repo::audit;
 use crate::repo::recruitment::{self, ApplicationInput, ApplicationRow, PostingInput, PostingRow};
@@ -373,6 +374,10 @@ pub struct Application {
     /// HR's own notes, e.g. from the phone interview.
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// The job ad the applicant came through (0064); see `GET /hr/jobs/{id}/ads`.
+    pub ad_id: Option<i64>,
+    /// `paid`, `organic`, `social`, `email`, `referral` or `direct`; null before 0064.
+    pub channel: Option<String>,
 }
 
 async fn present_application(state: &AppState, row: ApplicationRow) -> Application {
@@ -404,6 +409,8 @@ async fn present_application(state: &AppState, row: ApplicationRow) -> Applicati
         resume_url,
         notes: row.notes,
         created_at: row.created_at,
+        ad_id: row.ad_id,
+        channel: row.channel,
     }
 }
 
@@ -548,6 +555,13 @@ struct ApplyForm {
     resume: Vec<u8>,
     /// Honeypot: real visitors leave it empty; a filled one is silently dropped.
     company: Option<String>,
+    /// Where the visitor came from (0064): the `ad` and `utm_*` parameters of the page's
+    /// own URL, and the referrer.
+    ad: Option<i64>,
+    utm_source: Option<String>,
+    utm_medium: Option<String>,
+    utm_campaign: Option<String>,
+    referrer: Option<String>,
 }
 
 /// The text fields as the visitor typed them, before validation.
@@ -561,6 +575,7 @@ struct RawForm {
     message: Option<String>,
     company: Option<String>,
     resume: Option<(String, Vec<u8>)>,
+    source: super::job_ads::VisitSource,
 }
 
 fn bad_form(e: impl std::fmt::Display) -> AppError {
@@ -586,6 +601,11 @@ async fn read_form(mut multipart: Multipart) -> AppResult<RawForm> {
             "city" => form.city = Some(text),
             "message" => form.message = Some(text),
             "company" => form.company = Some(text),
+            "ad" => form.source.ad = text.trim().parse().ok(),
+            "utm_source" => form.source.utm_source = Some(text),
+            "utm_medium" => form.source.utm_medium = Some(text),
+            "utm_campaign" => form.source.utm_campaign = Some(text),
+            "referrer" => form.source.referrer = Some(text),
             _ => {}
         }
     }
@@ -677,6 +697,7 @@ fn validate_form(f: &RawForm) -> AppResult<ApplicationInput> {
         resume_key: String::new(),
         resume_filename: String::new(),
         resume_content_type: String::new(),
+        source: Default::default(),
     })
 }
 
@@ -711,6 +732,7 @@ async fn apply(
         return Err(AppError::validation("this position is no longer open"));
     }
     let mut input = validate_form(&form)?;
+    input.source = form.source.resolve(&state.db, posting.id).await?;
 
     let (filename, bytes) = form
         .resume
@@ -736,10 +758,14 @@ async fn apply(
         ));
     }
 
-    let key = format!(
-        "hr/applications/{}/{:016x}.{ext}",
-        posting.id,
-        rand::random::<u64>()
+    let key = layout::join(
+        &layout::posting_folder_of(&state, posting.id).await?,
+        &format!(
+            "{}_{}_{}.{ext}",
+            service::business_today(state.config.business_tz),
+            layout::stem_slug(&input.full_name, 40),
+            layout::random_tag()
+        ),
     );
     state
         .storage

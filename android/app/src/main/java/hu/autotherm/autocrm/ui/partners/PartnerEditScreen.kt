@@ -76,7 +76,11 @@ class PartnerEditViewModel(private val api: AutoCrmApi) : ViewModel() {
     val state: StateFlow<State> = _state.asStateFlow()
 
     /** What the person typed, as it was when the form opened: "unsaved" means it differs. */
-    private fun fingerprint(s: State): List<Any?> = listOf(s.name, s.taxNumber, s.euTaxNumber, s.email, s.phone, s.website, s.postalCode, s.city, s.address, s.notes)
+    private fun fingerprint(s: State): List<Any?> = listOf(
+        s.name, s.kind, s.role, s.country, s.currency,
+        s.taxNumber, s.euTaxNumber, s.email, s.phone, s.website,
+        s.postalCode, s.city, s.address, s.notes,
+    )
     private var baseline: List<Any?> = fingerprint(State())
 
     fun isDirty(s: State): Boolean = !s.busy && fingerprint(s) != baseline

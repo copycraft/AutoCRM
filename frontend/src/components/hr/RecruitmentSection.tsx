@@ -18,6 +18,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmailValue, PhoneValue } from '@/components/ui/ContactLinks';
 import { useToast } from '@/components/ui/Toasts';
 import type { JobApplication, JobPosting } from '@/lib/api/types';
+import { JobAdsSection, jobAdsKey } from './JobAdsSection';
 
 const STATUS_TONE: Record<string, StatusTone> = { draft: 'steel', published: 'done', closed: 'muted' };
 
@@ -200,6 +201,8 @@ function JobDetail({ id, onBack }: { id: number; onBack: () => void }) {
         </div>
       </div>
 
+      <JobAdsSection jobId={id} />
+
       <section className="space-y-3">
         <h3 className="text-section font-semibold">
           {t('applicants')} · {t('applicantCount', { count: job.application_count })}
@@ -285,7 +288,10 @@ function Applicant({ application: a, jobId }: { application: JobApplication; job
     <div className="card">
       <div className="card-content space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <p className="text-section font-semibold">{a.full_name}</p>
+          <p className="flex flex-wrap items-center gap-2 text-section font-semibold">
+            {a.full_name}
+            <ApplicantSource adId={a.ad_id} channel={a.channel} jobId={jobId} />
+          </p>
           <p className="text-metadata text-steel-500">
             {t('appliedAt')} {format.dateTime(new Date(a.created_at), { dateStyle: 'medium', timeStyle: 'short' })}
           </p>
@@ -467,4 +473,14 @@ function JobDialog({
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+/** Where the applicant came from: the ad by name, else the channel (0064). */
+function ApplicantSource({ adId, channel, jobId }: { adId?: number | null; channel?: string | null; jobId: number }) {
+  const t = useTranslations('jobAds');
+  const ads = useQuery({ queryKey: jobAdsKey(jobId), queryFn: () => hrApi.jobAds(jobId), enabled: adId != null });
+  const ad = ads.data?.ads.find((a) => a.id === adId);
+  const label = ad ? `${t('via')}: ${ad.name}` : channel ? t(`channels.${channel}`) : null;
+  if (!label) return null;
+  return <span className="rounded-full bg-cold/10 px-2 py-0.5 text-metadata font-medium text-cold">{label}</span>;
 }

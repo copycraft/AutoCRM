@@ -3,6 +3,7 @@ package hu.autotherm.autocrm
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -25,8 +26,27 @@ import hu.autotherm.autocrm.ui.notifications.NotificationsScreen
 import hu.autotherm.autocrm.ui.notifications.NotificationsViewModel
 import kotlinx.coroutines.delay
 import androidx.fragment.app.FragmentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalDensity
+import androidx.navigation.NavBackStackEntry
+import hu.autotherm.autocrm.data.prefs.DisplayScale
+import hu.autotherm.autocrm.ui.theme.Panel
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -179,6 +199,10 @@ import hu.autotherm.autocrm.ui.theme.AutoCrmTheme
 import hu.autotherm.autocrm.ui.theme.Steel500
 import kotlinx.coroutines.launch
 
+// The scrims enableEdgeToEdge() uses by default behind three-button navigation.
+private val LightNavScrim = android.graphics.Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
+private val DarkNavScrim = android.graphics.Color.argb(0x80, 0x1b, 0x1b, 0x1b)
+
 // A FragmentActivity (a ComponentActivity underneath) because the system's biometric
 // prompt hosts itself in a fragment (app lock, 0049).
 class MainActivity : FragmentActivity() {
@@ -188,6 +212,13 @@ class MainActivity : FragmentActivity() {
 
     /** Files another app shared with us ("Megosztás → AutoCRM"), waiting for a target. */
     private var pendingShare by mutableStateOf<List<SharedFile>?>(null)
+
+    // The user's display size and text size (Beállítások → Méret) replace the system's
+    // density and font scale for this activity and every dialog it opens.
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase)
+        DisplayScale.overrideFor(newBase)?.let(::applyOverrideConfiguration)
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -234,8 +265,13 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        pendingRoute = intent?.getStringExtra(NotificationPollWorker.EXTRA_ROUTE)
-        pendingShare = sharedFiles(intent)
+        // Only on true first creation: a configuration change (rotation, theme flip) hands
+        // back the same Intent, and re-reading it would reopen a share flow that was
+        // already finished or navigate to a notification that was already handled.
+        if (savedInstanceState == null) {
+            pendingRoute = intent?.getStringExtra(NotificationPollWorker.EXTRA_ROUTE)
+            pendingShare = sharedFiles(intent)
+        }
         val app = application as AutoCrmApp
         setContent {
             val themeMode by app.themePrefs.mode.collectAsState(initial = ThemePrefs.MODE_SYSTEM)
@@ -245,6 +281,18 @@ class MainActivity : FragmentActivity() {
                 ThemePrefs.MODE_DARK -> true
                 else -> isSystemInDarkTheme()
             }
+            // Status and navigation bar icons follow the app's theme, not the phone's: with
+            // the app set to dark on a light phone they were dark-on-dark and invisible.
+            DisposableEffect(dark) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(
+                        android.graphics.Color.TRANSPARENT,
+                        android.graphics.Color.TRANSPARENT,
+                    ) { dark },
+                    navigationBarStyle = SystemBarStyle.auto(LightNavScrim, DarkNavScrim) { dark },
+                )
+                onDispose {}
+            }
             AutoCrmTheme(darkTheme = dark, amoled = amoled) {
                 val server by app.serverStore.baseUrl.collectAsState(initial = null)
                 val account by app.sessionStore.account.collectAsState(initial = null)
@@ -253,7 +301,10 @@ class MainActivity : FragmentActivity() {
                 // Sideloaded updates (0051). Outside the `when` on purpose: a build too old
                 // for the current API cannot sign in, so the dialog has to work on the
                 // login screen and on the server-setup screen too.
-                Box(Modifier.fillMaxSize()) {
+                // The page colour under everything: while two screens cross-fade, what shows
+                // through is this, not the window's (light) launch background — in dark mode
+                // that was a white flash on every navigation.
+                Box(Modifier.fillMaxSize().background(Panel)) {
                 when {
                     // Nothing can be asked of the user before the app knows where to ask it.
                     server == null || editingServer -> ServerSetupScreen(
@@ -278,7 +329,10 @@ class MainActivity : FragmentActivity() {
                     account!!.mustChangePassword -> ChangePasswordScreen(
                         viewModel = viewModel { ChangePasswordViewModel(app.api, app.sessionStore) },
                         onChanged = { /* me() already re-saved; the flow moves on */ },
-                        onSignedOut = { /* session cleared; the flow falls back to login */ },
+                        onSignedOut = {
+                            // Session cleared; the flow falls back to login.
+                            hu.autotherm.autocrm.data.auth.CredentialStore.clear(this@MainActivity)
+                        },
                     )
 
                     else -> AppLockGate {
@@ -434,7 +488,11 @@ private fun AppScaffold(
     LaunchedEffect(pendingRoute) {
         val route = pendingRoute ?: return@LaunchedEffect
         if (route == Destination.Notifications.route) navController.navigateToTop(route)
-        else runCatching { navController.navigate(route) }
+        else runCatching {
+            // launchSingleTop: tapping a notification for a job already on screen must not
+            // stack a second identical entry that makes Back feel like doing nothing.
+            navController.navigate(route) { launchSingleTop = true }
+        }
         onRouteHandled()
     }
     // The app opens on the tab it was left on: a fitter who lives in Fotózás starts there,
@@ -499,9 +557,10 @@ private fun AppScaffold(
                 DESTINATIONS.filter { dest ->
                     when (dest) {
                         Destination.Capture -> account.canUploadMedia
-                        Destination.Incoming -> account.canIssueInvoices
                         Destination.Hr -> account.hrAccess
                         Destination.Users -> account.isAdmin
+                        Destination.Leads, Destination.Emails -> account.canViewSales
+                        Destination.Incoming -> account.canViewIncomingInvoices
                         else -> true
                     }
                 }.forEach { dest ->
@@ -540,6 +599,8 @@ private fun AppScaffold(
                                 app.sessionStore.clear()
                                 // What the next user of this phone must not be able to read.
                                 app.responseCache.clear()
+                                // The remembered password belongs to the signed-out person.
+                                hu.autotherm.autocrm.data.auth.CredentialStore.clear(context)
                             }
                         } else confirmLogout = true
                     },
@@ -566,54 +627,73 @@ private fun AppScaffold(
                 hu.autotherm.autocrm.ui.common.Toasts.show("Újra van kapcsolat")
             }
         }
-        if (!online && offlineSince == null) {
-            Row(
-                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer)
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(Icons.Filled.CloudOff, contentDescription = null)
-                Text(
-                    "Nincs hálózat: mentés és frissítés a kapcsolat visszatértéig nem megy",
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-        }
         // Shown while the screen below is read from the phone's copy, not the server.
-        offlineSince?.let { since ->
+        val banner = when {
+            offlineSince != null -> "Nincs kapcsolat: a legutóbbi frissítés adatai (${formatTime(offlineSince!!)})"
+            !online -> "Nincs hálózat: mentés és frissítés a kapcsolat visszatértéig nem megy"
+            else -> null
+        }
+        if (banner != null) {
+            // The banner is the top of the window now, so it steps below the status bar
+            // itself and the screen's top bar below it no longer has to (see the Box).
             Row(
                 Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer)
+                    .windowInsetsPadding(WindowInsets.statusBars)
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(Icons.Filled.CloudOff, contentDescription = null)
-                Text(
-                    "Nincs kapcsolat: a legutóbbi frissítés adatai (${formatTime(since)})",
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                Text(banner, style = MaterialTheme.typography.labelMedium)
             }
         }
-        Box(Modifier.weight(1f)) {
+        // The four places a working day is spent, one thumb away; "Több" opens the full menu.
+        val barEntry by navController.currentBackStackEntryAsState()
+        val barRoute = barEntry?.destination?.route
+        // While typing (a search, a comment) the tab bar steps aside for the keyboard.
+        val keyboardUp = androidx.compose.foundation.layout.WindowInsets.isImeVisible
+        val showBar = barRoute != null && DESTINATIONS.any { it.route == barRoute } && !keyboardUp
+        Box(
+            Modifier.weight(1f)
+                // Insets something above or below already pays for: each screen's own
+                // Scaffold would otherwise pad again — a blank strip above the tab bar the
+                // height of the gesture area, or the status bar twice under the banner.
+                .then(if (banner != null) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)
+                .then(
+                    if (showBar) {
+                        Modifier.consumeWindowInsets(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+        // One motion language for the whole app. Opening a screen: the old one fades out
+        // quickly as the new one slides a short way in from the right and fades up; Back
+        // runs it in reverse. Switching tabs only cross-fades: tabs are side by side, not
+        // on top of each other. Sequential fades, never two half-transparent screens at once.
+        val shift = with(LocalDensity.current) { 32.dp.roundToPx() }
+        val tabSwitch: AnimatedContentTransitionScope<NavBackStackEntry>.() -> Boolean = {
+            DESTINATIONS.any { it.route == initialState.destination.route } &&
+                DESTINATIONS.any { it.route == targetState.destination.route }
+        }
+        val slide = tween<androidx.compose.ui.unit.IntOffset>(240, easing = FastOutSlowInEasing)
+        val fadeUp = fadeIn(tween(170, delayMillis = 70))
+        val fadeAway = fadeOut(tween(70))
         NavHost(
             navController = navController,
             startDestination = Destination.Orders.route,
             modifier = Modifier.fillMaxSize(),
-            // One motion language for the whole app: new screens slide in from the
-            // right and fade, leaving screens hold still and fade. Fast enough to
-            // feel instant on a shop floor (220ms), present enough to feel spatial.
             enterTransition = {
-                slideInHorizontally(tween(220)) { it / 4 } + fadeIn(tween(220))
+                if (tabSwitch()) fadeUp else slideInHorizontally(slide) { shift } + fadeUp
             },
             exitTransition = {
-                fadeOut(tween(180))
+                if (tabSwitch()) fadeAway else slideOutHorizontally(slide) { -shift } + fadeAway
             },
             popEnterTransition = {
-                fadeIn(tween(180))
+                if (tabSwitch()) fadeUp else slideInHorizontally(slide) { -shift } + fadeUp
             },
             popExitTransition = {
-                slideOutHorizontally(tween(220)) { it / 4 } + fadeOut(tween(220))
+                if (tabSwitch()) fadeAway else slideOutHorizontally(slide) { shift } + fadeAway
             },
         ) {
             composable(Destination.Orders.route) {
@@ -885,10 +965,11 @@ private fun AppScaffold(
             }
             // ── Incoming (supplier) invoices: the phone is the capture end ──
             composable(Destination.Incoming.route) {
-                if (account.canIssueInvoices) IncomingListScreen(
+                // Seeing them is its own right (0061); recording them stays IssueInvoices.
+                if (account.canViewIncomingInvoices) IncomingListScreen(
                     viewModel = viewModel { IncomingListViewModel(app.api) },
                     onOpen = { id -> navController.navigate("incoming/$id") },
-                    onScan = { navController.navigate("incoming/scan") },
+                    onScan = if (account.canIssueInvoices) ({ navController.navigate("incoming/scan") }) else null,
                     onMenu = openDrawer,
                 )
             }
@@ -905,10 +986,10 @@ private fun AppScaffold(
             }
             composable("incoming/{id}") { entry ->
                 val id = entry.arguments?.getString("id")?.toLongOrNull() ?: return@composable
-                if (account.canIssueInvoices) IncomingDetailScreen(
+                if (account.canViewIncomingInvoices) IncomingDetailScreen(
                     invoiceId = id,
                     viewModel = viewModel { IncomingDetailViewModel(app.api) },
-                    canEdit = true,
+                    canEdit = account.canIssueInvoices,
                     onBack = { navController.popBackStack() },
                     onDeleted = {
                         navController.navigateToTop(Destination.Incoming.route)
@@ -1072,13 +1153,12 @@ private fun AppScaffold(
             }
         }
         // Confirmations and refusals of what was just tapped, above the keyboard if open.
+        // Clear of the gesture bar on screens without the tab bar (consumed, so zero, with it).
         hu.autotherm.autocrm.ui.common.AppSnackbarHost(
-            Modifier.align(Alignment.BottomCenter).imePadding().padding(horizontal = 12.dp, vertical = 8.dp),
+            Modifier.align(Alignment.BottomCenter).imePadding().navigationBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
         )
         }
-        // The four places a working day is spent, one thumb away; "Több" opens the full menu.
-        val barEntry by navController.currentBackStackEntryAsState()
-        val barRoute = barEntry?.destination?.route
         LaunchedEffect(barRoute) {
             if (barRoute in listOf(Destination.Orders.route, Destination.Leads.route, Destination.Capture.route, Destination.Tasks.route)) {
                 tabPrefs.edit().putString("last_tab", barRoute).apply()
@@ -1103,9 +1183,13 @@ private fun AppScaffold(
             Destination.Capture.takeIf { account.canUploadMedia },
             Destination.Tasks,
         )
-        // While typing (a search, a comment) the tab bar steps aside for the keyboard.
-        val keyboardUp = androidx.compose.foundation.layout.WindowInsets.isImeVisible
-        if (barRoute != null && DESTINATIONS.any { it.route == barRoute } && !keyboardUp) {
+        // Slides away (and back) instead of vanishing: opening a job used to make the whole
+        // screen jump 80dp taller in the first frame of the transition.
+        AnimatedVisibility(
+            visible = showBar,
+            enter = expandVertically(tween(200), expandFrom = Alignment.Top),
+            exit = shrinkVertically(tween(200), shrinkTowards = Alignment.Top),
+        ) {
             NavigationBar(
                 containerColor = hu.autotherm.autocrm.ui.theme.Surface,
                 tonalElevation = 0.dp,

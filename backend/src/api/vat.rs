@@ -63,7 +63,11 @@ async fn check(
     let partner_id = match b.subject {
         None => None,
         Some(VatSubject { kind, id }) if kind == "partner" => Some(id),
-        Some(_) => return Err(AppError::validation("subject.type: only 'partner' is supported")),
+        Some(_) => {
+            return Err(AppError::validation(
+                "subject.type: only 'partner' is supported",
+            ));
+        }
     };
     let result = vat::check(
         &state.db,

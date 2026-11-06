@@ -4,8 +4,9 @@ package hu.autotherm.autocrm.ui.inspection
 
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.foundation.background
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -37,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -128,6 +130,7 @@ fun WalkaroundScreen(
             )
         },
     ) { padding ->
+        Box(Modifier.fillMaxSize()) {
         when (val phase = state.phase) {
             is Phase.Loading -> if (state.payload == null && state.error != null) {
                 // The order (or templates) failed to load: a bare skeleton here would
@@ -142,49 +145,70 @@ fun WalkaroundScreen(
                     Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 )
             }
+            // The list steps take their 16dp inset as content padding (StepPadding).
             is Phase.Readings -> ReadingsStep(
                 viewModel = viewModel,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
             is Phase.Zone -> ZoneStep(
                 viewModel = viewModel,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
             is Phase.Damage -> DamageStep(
                 viewModel = viewModel,
                 damageLocalId = phase.damageLocalId,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
             is Phase.Comparison -> ComparisonStep(
                 viewModel = viewModel,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
             is Phase.Summary -> SummaryStep(
                 viewModel = viewModel,
                 onSigning = viewModel::gotoSigning,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
             is Phase.Signing -> SigningStep(
                 viewModel = viewModel,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
             is Phase.Done -> DoneStep(
                 onExit = onExit,
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             )
         }
-        state.error?.let {
-            // Transient banner under the top bar content is handled per step; a
-            // global fallback keeps unexpected errors visible anywhere.
+        // Global fallback: every step renders the errors its own flows set, but an
+        // unexpected one must never be dropped into the void.
+        state.error?.let { errorMessage ->
+            Text(
+                errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 4.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surface,
+                        RoundedCornerShape(8.dp),
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
         }
     }
 }
+
+/**
+ * A walkaround step's inset, given to its list as content padding: the cards scroll up to
+ * the top bar and clear of the bottom edge instead of vanishing 16dp short of both.
+ */
+internal val StepPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
 
 @Composable
 private fun ReadingsStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier) {
     val state by viewModel.state.collectAsState()
     val payload = state.payload ?: return
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier, contentPadding = StepPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         state.notice?.let { notice ->
             item {
                 Card {
@@ -443,7 +467,7 @@ private fun ZoneStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifi
         }
     }
 
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier, contentPadding = StepPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             LinearProgressIndicator(
                 progress = { (payload.zoneIndex).toFloat() / templates.size.toFloat() },
@@ -556,7 +580,7 @@ private fun DamageStep(
     }
     var subStep by rememberSaveable(damageLocalId) { mutableStateOf(0) } // 0 photo → 1 more? → 2 form → 3 another?
 
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier, contentPadding = StepPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Sérülés dokumentálása", style = MaterialTheme.typography.titleLarge)
             Text(

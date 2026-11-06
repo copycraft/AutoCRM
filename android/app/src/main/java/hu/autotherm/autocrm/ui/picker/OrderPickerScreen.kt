@@ -81,11 +81,11 @@ class OrderPickerViewModel(
 
     init {
         // Immediate first load, then debounced typing.
-        viewModelScope.launch { load(queryFlow.value) }
+        loadNow(queryFlow.value)
         viewModelScope.launch {
             // 300 ms: long enough that typing a six-character plate is one request, short
             // enough that the list feels attached to the keyboard.
-            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { load(it) }
+            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { loadNow(it) }
         }
     }
 
@@ -95,7 +95,16 @@ class OrderPickerViewModel(
 
     fun toggleFinished() {
         _state.value = _state.value.copy(includeFinished = !_state.value.includeFinished)
-        viewModelScope.launch { load(queryFlow.value) }
+        loadNow(queryFlow.value)
+    }
+
+    // Launched loads are tracked so a slower older request can never overwrite a newer
+    // one's result (toggle + typing in quick succession, response order not guaranteed).
+    private var loadJob: kotlinx.coroutines.Job? = null
+
+    private fun loadNow(query: String) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch { load(query) }
     }
 
     private suspend fun load(query: String) {
@@ -226,6 +235,7 @@ fun OrderPickerScreen(
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.orders, key = { it.id }) { order ->

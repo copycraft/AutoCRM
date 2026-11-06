@@ -12,6 +12,9 @@ const EXACT: Record<string, Handler> = {
   '/auth/preferences': () => f.userSettings,
   '/auth/sessions': () => ({ items: [] }),
   '/users': () => ({ items: [f.user, f.officeUser] }),
+  '/roles': () => ({ items: [] }),
+  '/departments': () => ({ items: [] }),
+  '/departments/members': () => ({ items: [] }),
   '/hr/employees': () => ({ items: [f.employee] }),
   '/hr/jobs': () => ({ items: [f.jobPosting] }),
   '/hr/absences': () => ({ items: [f.absence] }),
@@ -37,10 +40,11 @@ const EXACT: Record<string, Handler> = {
   '/reports/stalled': () => ({ items: [] }),
   '/email-suppressions': () => ({ items: [] }),
   '/project-types': () => ({
-    items: [f.coolingProjectType, f.heatingProjectType, f.plainProjectType],
+    items: [f.boxProjectType, f.vanProjectType, f.customProjectType],
   }),
   '/settings': () => f.settings,
   '/config/lookups': () => f.lookups,
+  '/config/questionnaire': () => f.questionnaire,
   '/invoices': (search) => {
     // The Számlázó filters run on the server; mirror them here.
     let items = [f.billedStorno, f.billedInvoice];
@@ -53,6 +57,8 @@ const EXACT: Record<string, Handler> = {
 
 const PATTERNS: [RegExp, Handler][] = [
   [/^\/hr\/jobs\/\d+\/applications$/, () => ({ items: [f.jobApplication] })],
+  [/^\/hr\/jobs\/\d+\/ads$/, () => ({ ads: [], other: [] })],
+  [/^\/orders\/\d+\/modules$/, () => ({ items: [], editable_department_ids: [] })],
   [/^\/partners\/\d+$/, () => f.partnerDetail],
   [/^\/partners\/\d+\/contacts$/, () => ({ items: [f.contact] })],
   [/^\/leads\/\d+$/, () => f.leadDetail],

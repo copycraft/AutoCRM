@@ -15,6 +15,8 @@ pub enum LeaveKind {
     Annual,
     Sick,
     Unpaid,
+    /// Igazolatlan: absent without leave or a paper for it.
+    Unexcused,
     Other,
 }
 
@@ -24,6 +26,7 @@ impl LeaveKind {
             "annual" => Some(LeaveKind::Annual),
             "sick" => Some(LeaveKind::Sick),
             "unpaid" => Some(LeaveKind::Unpaid),
+            "unexcused" => Some(LeaveKind::Unexcused),
             "other" => Some(LeaveKind::Other),
             _ => None,
         }
@@ -34,6 +37,7 @@ impl LeaveKind {
             LeaveKind::Annual => "annual",
             LeaveKind::Sick => "sick",
             LeaveKind::Unpaid => "unpaid",
+            LeaveKind::Unexcused => "unexcused",
             LeaveKind::Other => "other",
         }
     }

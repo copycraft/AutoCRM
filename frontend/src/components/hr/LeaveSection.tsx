@@ -20,19 +20,21 @@ import { useToast } from '@/components/ui/Toasts';
 import type { Absence, LeaveKind } from '@/lib/api/types';
 import { AbsencePaper } from './HrChecklists';
 
-const KINDS: LeaveKind[] = ['annual', 'sick', 'unpaid', 'other'];
+const KINDS: LeaveKind[] = ['annual', 'sick', 'unpaid', 'unexcused', 'other'];
 const ISO = 'yyyy-MM-dd';
 
 const KIND_TONE: Record<LeaveKind, StatusTone> = {
   annual: 'cold',
   sick: 'signal',
   unpaid: 'steel',
+  unexcused: 'signal',
   other: 'muted',
 };
 const KIND_CELL: Record<LeaveKind, string> = {
   annual: 'bg-cold',
   sick: 'bg-signal',
   unpaid: 'bg-steel-500',
+  unexcused: 'bg-steel-900',
   other: 'bg-steel-200',
 };
 
@@ -214,6 +216,7 @@ export function LeaveSection() {
                 <th className="px-4 py-2 text-right font-medium">{t('remaining')}</th>
                 <th className="px-4 py-2 text-right font-medium">{t('sick')}</th>
                 <th className="px-4 py-2 text-right font-medium">{t('unpaid')}</th>
+                <th className="px-4 py-2 text-right font-medium">{t('unexcused')}</th>
                 <th className="px-4 py-2 text-right font-medium">{t('other')}</th>
               </tr>
             </thead>
@@ -228,6 +231,9 @@ export function LeaveSection() {
                   </td>
                   <td className="px-4 py-2 text-right font-mono">{r.sick_days}</td>
                   <td className="px-4 py-2 text-right font-mono">{r.unpaid_days}</td>
+                  <td className={cn('px-4 py-2 text-right font-mono', r.unexcused_days > 0 && 'font-semibold text-signal')}>
+                    {r.unexcused_days}
+                  </td>
                   <td className="px-4 py-2 text-right font-mono">{r.other_days}</td>
                 </tr>
               ))}

@@ -16,7 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -30,12 +31,19 @@ import hu.autotherm.autocrm.ui.common.ErrorState
 import hu.autotherm.autocrm.ui.common.ListSkeleton
 import hu.autotherm.autocrm.ui.common.StatusBadge
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 
-private const val CELL = 40
+// The layout is stored on the server in grid cells: an integer (x, y, width, height)
+// on a GRID_W x GRID_H board. Everything here converts pixel gestures into cells once,
+// at the gesture boundary, so no draw code ever mixes the two.
+// One grid cell is one parking place for a spot; buildings and bays span several.
 private const val GRID_W = 40
 private const val GRID_H = 25
 
-private fun snap(v: Float): Float = (Math.round(v / CELL.toFloat()) * CELL.toFloat())
+/** Snaps a pixel-space coordinate to the grid: whole cells in cell space. */
+private fun snapCell(v: Float): Int = Math.round(v)
 
 @Composable
 fun YardCanvas(
@@ -56,8 +64,11 @@ fun YardCanvas(
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCur by remember { mutableStateOf<Offset?>(null) }
     var draggingItemId by remember { mutableStateOf<Long?>(null) }
-    var draggingOrigin by remember { mutableStateOf<Offset?>(null) }
     var refreshing by remember { mutableStateOf(false) }
+
+    // Pixel size of the canvas, kept as state so the gesture handlers below can convert
+    // finger positions into grid cells (the lambda reads it fresh on every event).
+    var canvasWidthPx by remember { mutableStateOf(0f) }
 
     val measurer = rememberTextMeasurer()
 
@@ -81,12 +92,11 @@ fun YardCanvas(
 
     LaunchedEffect(Unit) { load() }
 
-    fun spotAt(pos: Offset): LayoutItem? {
+    /** The last spot or bay under a *grid-space* point, hit-testing the rotated bounds. */
+    fun spotAtCell(g: Offset): LayoutItem? {
         return items.lastOrNull { item ->
             if (item.kind != "spot" && item.kind != "workshop_bay") return@lastOrNull false
-            val w = if (item.rotation % 180 == 0) item.width else item.height
-            val h = if (item.rotation % 180 == 0) item.height else item.width
-            pos.x >= item.x && pos.x <= item.x + w && pos.y >= item.y && pos.y <= item.y + h
+            hitTest(item, g)
         }
     }
 
@@ -105,7 +115,7 @@ fun YardCanvas(
         }
     }
 
-    fun createItem(kind: String, x: Float, y: Float, w: Float, h: Float) {
+    fun createItem(kind: String, x: Int, y: Int) {
         scope.launch {
             try {
                 val locId = if (kind == "spot") locations.firstOrNull()?.id else null
@@ -121,10 +131,10 @@ fun YardCanvas(
                         kind = kind,
                         locationId = locId,
                         parentId = parentId,
-                        x = x.toInt(),
-                        y = y.toInt(),
-                        width = w.toInt(),
-                        height = h.toInt(),
+                        x = x,
+                        y = y,
+                        width = 1,
+                        height = 1,
                         color = color,
                     ),
                 )
@@ -135,15 +145,15 @@ fun YardCanvas(
         }
     }
 
-    fun moveItem(id: Long, dx: Float, dy: Float) {
+    fun moveItem(id: Long, x: Int, y: Int) {
         scope.launch {
             try {
                 val item = items.find { it.id == id } ?: return@launch
                 api.updateLayoutItem(
                     item.id,
                     LayoutItemBody(
-                        x = item.x + dx.toInt(),
-                        y = item.y + dy.toInt(),
+                        x = x.coerceIn(0, GRID_W - item.width),
+                        y = y.coerceIn(0, GRID_H - item.height),
                     ),
                 )
                 items = api.yardLayout()
@@ -157,6 +167,31 @@ fun YardCanvas(
     if (error != null) return ErrorState(error!!, modifier, onRetry = { loading = true; error = null; load() })
 
     val unplaced = vehicles.filter { it.locationId == null }
+
+    // Text measured once when the data changes, not on every frame of a drag.
+    val itemLabels = remember(measurer, items, canvasWidthPx) {
+        items.mapNotNull { item ->
+            val label = item.number.ifEmpty { item.label }
+            if (label.isEmpty()) {
+                null
+            } else {
+                item.id to measurer.measure(
+                    label,
+                    style = TextStyle(fontSize = 11.sp, color = Color(0xFF1C1917)),
+                    maxLines = 1,
+                )
+            }
+        }.toMap()
+    }
+    val plates = remember(measurer, vehicles) {
+        vehicles.associate { v ->
+            v.vehicleId to measurer.measure(
+                v.plate ?: "#${v.vehicleId}",
+                style = TextStyle(fontSize = 8.sp, color = Color.White),
+                maxLines = 1,
+            )
+        }
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (canConfigure) {
@@ -184,64 +219,67 @@ fun YardCanvas(
             isRefreshing = refreshing,
             onRefresh = { refreshing = true; load() },
         ) {
+            val gridPointHandler: (Offset) -> Unit = { offset ->
+                val cellPx = canvasWidthPx / GRID_W
+                if (cellPx > 0f) {
+                    val gx = snapCell(offset.x / cellPx)
+                    val gy = snapCell(offset.y / cellPx).coerceIn(0, GRID_H - 1)
+                    createItem(tool, gx, gy)
+                }
+            }
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(GRID_W.toFloat() / GRID_H.toFloat())
-                    .pointerInput(tool, canConfigure) {
+                    .onSizeChanged { canvasWidthPx = it.width.toFloat() }
+                    .pointerInput(tool, canConfigure, canvasWidthPx) {
                         if (canConfigure && tool != "select") {
-                            detectTapGestures { offset ->
-                                val gx = snap(offset.x)
-                                val gy = snap(offset.y)
-                                createItem(tool, gx, gy, CELL.toFloat(), CELL.toFloat())
-                            }
+                            detectTapGestures { offset -> gridPointHandler(offset) }
                         }
                     }
-                    .pointerInput(canConfigure) {
+                    .pointerInput(canConfigure, canvasWidthPx) {
                         if (canConfigure) {
                             detectDragGestures(
                                 onDragStart = { offset ->
-                                    val hit = spotAt(offset)
-                                    if (hit != null) {
-                                        selectedId = hit.id
-                                        draggingItemId = hit.id
-                                        draggingOrigin = Offset(hit.x.toFloat(), hit.y.toFloat())
-                                        dragStart = offset
-                                        dragCur = offset
+                                    val cellPx = canvasWidthPx / GRID_W
+                                    if (cellPx > 0f) {
+                                        val hit = spotAtCell(Offset(offset.x / cellPx, offset.y / cellPx))
+                                        if (hit != null) {
+                                            selectedId = hit.id
+                                            draggingItemId = hit.id
+                                            dragStart = offset
+                                            dragCur = offset
+                                        }
                                     }
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = { change, _ ->
                                     change.consume()
                                     dragCur = change.position
                                 },
                                 onDragEnd = {
                                     val ds = dragStart
                                     val dc = dragCur
-                                    val origin = draggingOrigin
                                     val id = draggingItemId
-                                    if (ds != null && dc != null && origin != null && id != null) {
-                                        moveItem(id, dc.x - ds.x, dc.y - ds.y)
+                                    val cellPx = canvasWidthPx / GRID_W
+                                    if (ds != null && dc != null && id != null && cellPx > 0f) {
+                                        val item = items.find { it.id == id }
+                                        if (item != null) {
+                                            moveItem(
+                                                id,
+                                                item.x + Math.round((dc.x - ds.x) / cellPx),
+                                                item.y + Math.round((dc.y - ds.y) / cellPx),
+                                            )
+                                        }
                                     }
                                     dragStart = null
                                     dragCur = null
                                     draggingItemId = null
-                                    draggingOrigin = null
                                 },
                                 onDragCancel = {
                                     dragStart = null
                                     dragCur = null
                                     draggingItemId = null
-                                    draggingOrigin = null
                                 },
-                            )
-                        }
-                    }
-                    .pointerInput(canMove) {
-                        if (canMove) {
-                            detectDragGestures(
-                                onDragStart = { },
-                                onDrag = { _, _ -> },
-                                onDragEnd = { },
                             )
                         }
                     },
@@ -257,7 +295,7 @@ fun YardCanvas(
                         Color(0xFFE5E7EB),
                         start = Offset(gx * cellPx, 0f),
                         end = Offset(gx * cellPx, h),
-                        strokeWidth = 0.5f,
+                        strokeWidth = 0.5.dp.toPx(),
                     )
                 }
                 for (gy in 0..GRID_H) {
@@ -265,70 +303,70 @@ fun YardCanvas(
                         Color(0xFFE5E7EB),
                         start = Offset(0f, gy * cellPx),
                         end = Offset(w, gy * cellPx),
-                        strokeWidth = 0.5f,
+                        strokeWidth = 0.5.dp.toPx(),
                     )
                 }
 
                 for (item in items) {
-                    val iw = if (item.rotation % 180 == 0) item.width else item.height
-                    val ih = if (item.rotation % 180 == 0) item.height else item.width
                     val c = try { Color(android.graphics.Color.parseColor(item.color)) } catch (_: Exception) { Color.Gray }
                     val isSelected = item.id == selectedId
 
-                    val drawW = iw * cellPx
-                    val drawH = ih * cellPx
+                    val pw = item.width * cellPx
+                    val ph = item.height * cellPx
+                    val cx = item.x * cellPx + pw / 2f
+                    val cy = item.y * cellPx + ph / 2f
 
-                    rotate(degrees = item.rotation.toFloat(), pivot = Offset(item.x * cellPx + drawW / 2, item.y * cellPx + drawH / 2)) {
+                    // The rect is drawn at its stored (unrotated) position and rotated about
+                    // its own centre — the same geometry spotAtCell hit-tests against.
+                    rotate(degrees = item.rotation.toFloat(), pivot = Offset(cx, cy)) {
                         drawRect(
                             color = c.copy(alpha = 0.15f),
                             topLeft = Offset(item.x * cellPx, item.y * cellPx),
-                            size = Size(drawW, drawH),
+                            size = Size(pw, ph),
                         )
                         drawRect(
                             color = c,
                             topLeft = Offset(item.x * cellPx, item.y * cellPx),
-                            size = Size(drawW, drawH),
-                            style = Stroke(width = if (isSelected) 3f else 1.5f),
+                            size = Size(pw, ph),
+                            style = Stroke(width = if (isSelected) 3.dp.toPx() else 1.5.dp.toPx()),
                         )
                     }
 
-                    val label = item.number.ifEmpty { item.label }
-                    if (label.isNotEmpty()) {
-                        val textResult = measurer.measure(
-                            label,
-                            style = TextStyle(fontSize = 11.sp, color = Color(0xFF1C1917)),
-                        )
+                    itemLabels[item.id]?.let { labelResult ->
                         drawText(
-                            textLayoutResult = textResult,
+                            textLayoutResult = labelResult,
                             topLeft = Offset(
-                                item.x * cellPx + drawW / 2 - textResult.size.width / 2f,
-                                item.y * cellPx + drawH / 2 - textResult.size.height / 2f,
+                                cx - labelResult.size.width / 2f,
+                                cy - labelResult.size.height / 2f,
                             ),
                         )
                     }
 
                     if (item.kind == "spot" || item.kind == "workshop_bay") {
                         val here = vehicles.filter { it.locationId == item.locationId }
-                        here.take(3).forEachIndexed { i, v ->
-                            val badgeX = item.x * cellPx + 4 + i * (cellPx * 1.5f)
-                            val badgeY = item.y * cellPx + drawH - 18
+                        // Plates stack inward from the right edge of the spot so they never
+                        // spill onto the neighbours, whatever the spot's size.
+                        val badgeW = cellPx * 1.4f
+                        val badgeH = 14f
+                        val pitch = badgeW + 2f
+                        val shown = here.take((pw / pitch).toInt().coerceIn(1, 3))
+                        shown.forEachIndexed { i, v ->
+                            val badgeX = item.x * cellPx + pw - (i + 1) * pitch
+                            val badgeY = item.y * cellPx + ph - badgeH - 3f
                             drawRect(
                                 color = Color(0xFF1C1917),
                                 topLeft = Offset(badgeX, badgeY),
-                                size = Size(cellPx * 1.4f, 14f),
+                                size = Size(badgeW, badgeH),
                             )
-                            val plate = v.plate ?: "#${v.vehicleId}"
-                            val plateResult = measurer.measure(
-                                plate,
-                                style = TextStyle(fontSize = 8.sp, color = Color.White),
-                            )
-                            drawText(
-                                textLayoutResult = plateResult,
-                                topLeft = Offset(
-                                    badgeX + cellPx * 0.7f - plateResult.size.width / 2f,
-                                    badgeY + 7 - plateResult.size.height / 2f,
-                                ),
-                            )
+                            plates[v.vehicleId]?.let { plateResult ->
+                                drawText(
+                                    textLayoutResult = plateResult,
+                                    topLeft = Offset(
+                                        badgeX + badgeW / 2f - plateResult.size.width / 2f,
+                                        badgeY + badgeH / 2f - plateResult.size.height / 2f,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }
@@ -339,12 +377,12 @@ fun YardCanvas(
                     drawRect(
                         color = Color(0xFF3B82F6).copy(alpha = 0.1f),
                         topLeft = Offset(
-                            minOf(snap(ds.x), snap(dc.x)),
-                            minOf(snap(ds.y), snap(dc.y)),
+                            minOf(ds.x, dc.x),
+                            minOf(ds.y, dc.y),
                         ),
                         size = Size(
-                            maxOf(CELL.toFloat(), kotlin.math.abs(dc.x - ds.x)),
-                            maxOf(CELL.toFloat(), kotlin.math.abs(dc.y - ds.y)),
+                            maxOf(1.dp.toPx(), abs(dc.x - ds.x)),
+                            maxOf(1.dp.toPx(), abs(dc.y - ds.y)),
                         ),
                     )
                 }
@@ -356,15 +394,7 @@ fun YardCanvas(
                 Text("Nincs elhelyezve:", style = MaterialTheme.typography.labelMedium)
                 unplaced.forEach { v ->
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .pointerInput(v.vehicleId) {
-                                detectTapGestures(
-                                    onTap = {
-                                        val spot = spotAt(it)
-                                    },
-                                )
-                            },
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -382,4 +412,22 @@ fun YardCanvas(
             }
         }
     }
+}
+
+/**
+ * Whether a grid-space point falls inside an item — the inverse rotation of the point
+ * about the rect's centre, then an axis-aligned test on the stored rect. This matches
+ * exactly how the item is drawn (rect at its stored corner, rotated about its centre).
+ */
+private fun hitTest(item: LayoutItem, g: Offset): Boolean {
+    val cx = item.x + item.width / 2.0
+    val cy = item.y + item.height / 2.0
+    val a = Math.toRadians(item.rotation.toDouble())
+    val cos = cos(-a)
+    val sin = sin(-a)
+    val dx = g.x - cx
+    val dy = g.y - cy
+    val rx = cx + dx * cos - dy * sin
+    val ry = cy + dx * sin + dy * cos
+    return rx >= item.x && rx <= item.x + item.width && ry >= item.y && ry <= item.y + item.height
 }

@@ -78,9 +78,32 @@ fun VideoCaptureScreen(
     }
     LaunchedEffect(Unit) { if (!hasPermission) permissionLauncher.launch(Manifest.permission.CAMERA) }
     if (!hasPermission) {
+        val settings = LocalContext.current
         Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
             Text("Kameraengedély nélkül nem készülhet videó.", style = MaterialTheme.typography.titleLarge)
-            Button(onClick = onCancel, modifier = Modifier.padding(top = 16.dp)) { Text("Vissza") }
+            Text(
+                "Ha a kamera tartósan nincs engedélyezve, kapcsold be a Beállításokban, " +
+                    "az AutoCRM engedélyei között.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("Újra") }
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        runCatching {
+                            settings.startActivity(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    android.net.Uri.fromParts("package", settings.packageName, null),
+                                ),
+                            )
+                        }
+                    },
+                ) { Text("Beállítások") }
+                androidx.compose.material3.OutlinedButton(onClick = onCancel) { Text("Vissza") }
+            }
         }
         return
     }
@@ -92,25 +115,36 @@ fun VideoCaptureScreen(
     var startedAt by remember { mutableLongStateOf(0L) }
     var elapsed by remember { mutableLongStateOf(0L) }
     var error by remember { mutableStateOf<String?>(null) }
+    // Deliberately cancelled (Mégse): the Finalize event that follows must not turn into
+    // a fake "a videó nem mentődött" — the caller deletes the file as the way of saying so.
+    var cancelled = false
 
     DisposableEffect(lifecycleOwner) {
         val future = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        // The provider future resolves late on a cold start: a disposed composable must
+        // not bind a camera nothing will ever unbind again.
+        var disposed = false
         future.addListener({
+            if (disposed) return@addListener
             provider = runCatching { future.get() }.getOrNull()
             val recorder = Recorder.Builder()
                 .setQualitySelector(QualitySelector.from(Quality.HD))
                 .build()
             val capture = VideoCapture.withOutput(recorder)
-            videoCapture = capture
             try {
                 provider?.unbindAll()
                 provider?.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+                // Recording over an unbound capture starts a broken take: published only
+                // when the camera is really ours.
+                videoCapture = capture
             } catch (e: Exception) {
                 error = "a kamera nem indult el"
             }
         }, ContextCompat.getMainExecutor(context))
         onDispose {
+            disposed = true
+            cancelled = true
             recording?.stop()
             runCatching { provider?.unbindAll() }
         }
@@ -158,6 +192,7 @@ fun VideoCaptureScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = {
+                cancelled = true
                 stop()
                 onCancel()
             }) {
@@ -170,16 +205,21 @@ fun VideoCaptureScreen(
                         return@IconButton
                     }
                     val capture = videoCapture ?: return@IconButton
+                    cancelled = false
                     startedAt = System.currentTimeMillis()
                     elapsed = 0
                     recording = capture.output
                         .prepareRecording(context, FileOutputOptions.Builder(request.file).build())
                         .start(ContextCompat.getMainExecutor(context)) { event ->
                             if (event is VideoRecordEvent.Finalize) {
-                                if (event.hasError() && !request.file.exists()) {
-                                    error = "a felvétel nem sikerült"
-                                } else {
-                                    onRecorded(System.currentTimeMillis() - startedAt)
+                                when {
+                                    cancelled -> Unit // deliberate: the file was deleted on purpose
+                                    event.hasError() && !request.file.exists() ->
+                                        error = "a felvétel nem sikerült"
+                                    request.file.exists() ->
+                                        onRecorded(System.currentTimeMillis() - startedAt)
+                                    else ->
+                                        error = "a felvétel nem sikerült"
                                 }
                             }
                         }

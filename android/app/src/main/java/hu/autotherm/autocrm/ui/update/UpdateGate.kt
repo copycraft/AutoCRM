@@ -11,6 +11,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -43,7 +44,20 @@ fun UpdateGate(
 
     if (version == null) return
 
-    val canInstallNow = ApkUpdater.canInstall(LocalContext.current)
+    // Re-read when the user returns from Settings: granting "unknown apps" invalidates
+    // nothing observed here, so without this the dialog kept showing "Engedélyezés"
+    // even after the permission was on, dead-ending the flow.
+    val context = LocalContext.current
+    var canInstallTick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) canInstallTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val canInstallNow = androidx.compose.runtime.remember(canInstallTick) { ApkUpdater.canInstall(context) }
     AlertDialog(
         onDismissRequest = { if (!state.mandatory) viewModel.dismiss() },
         title = {

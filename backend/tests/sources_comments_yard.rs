@@ -198,7 +198,7 @@ async fn an_eur_quote_freezes_its_rate_and_the_order_is_valued_on_that_day(pool:
         "POST",
         &format!("/api/leads/{id}/convert"),
         &office,
-        Some(json!({ "currency": "EUR" })),
+        Some(json!({ "currency": "EUR", "spec_answers": { "heats": false, "cools": false } })),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED, "{order}");

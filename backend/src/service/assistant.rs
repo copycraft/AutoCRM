@@ -17,6 +17,7 @@ use sqlx::PgPool;
 use utoipa::ToSchema;
 
 use crate::config::AiConfig;
+use crate::domain::role::Capability;
 use crate::domain::search_terms::fold;
 use crate::domain::stage::StageEntity;
 use crate::error::{AppError, AppResult};
@@ -26,6 +27,7 @@ use crate::repo::{
     config, incoming_invoices, invoices, lead_tags, leads, like_pattern, newsletter_tags, orders,
     partners, search, timeline,
 };
+use crate::service::auth::AuthUser;
 
 /// Today in Budapest, where the office works.
 fn local_today() -> chrono::NaiveDate {
@@ -545,20 +547,48 @@ fn compact(mut v: Value) -> Value {
     v
 }
 
+/// The answer when a tool would show what the person asking may not see (0061).
+const NO_RIGHT: &str = "Ehhez nincs jogosultságod: ezt az adatot a szerepköröd nem látja.";
+
+/// Whether the person may use the tool at all: the assistant shows nothing more than the
+/// screens would. Fine-grained parts (totals, contacts) are trimmed inside the tools.
+fn tool_allowed(me: &AuthUser, name: &str, args: &Value) -> bool {
+    let sales = me.can(Capability::ViewSales);
+    match name {
+        "list_leads" | "expiring_quotes" => sales,
+        "overdue_invoices" => me.can(Capability::ViewInvoices),
+        "list_incoming_invoices" => me.can(Capability::ViewIncomingInvoices),
+        "get_record" | "recent_history" if s(args, "kind") == Some("lead") => sales,
+        "create_filter" => match s(args, "list") {
+            Some("leads") | Some("subscribers") => sales,
+            Some("incoming_invoices") => me.can(Capability::ViewIncomingInvoices),
+            _ => true,
+        },
+        _ => true,
+    }
+}
+
 async fn run_tool(
     db: &PgPool,
+    me: &AuthUser,
     name: &str,
     args: &Value,
     filters: &mut Vec<FilterSuggestion>,
 ) -> Result<Value, String> {
     let err = |e: sqlx::Error| e.to_string();
+    if !tool_allowed(me, name, args) {
+        return Err(NO_RIGHT.into());
+    }
+    let prices = me.can(Capability::ViewPrices);
+    let sales = me.can(Capability::ViewSales);
     match name {
         "search" => {
             let q = s(args, "query").ok_or("a query kötelező")?;
             Ok(json!({
                 "orders": search::orders(db, q, 5).await.map_err(err)?,
-                "partners": search::partners(db, q, 5).await.map_err(err)?,
-                "leads": search::leads(db, q, 5).await.map_err(err)?,
+                "partners": search::partners(db, q, 5, me.can(Capability::ViewContacts))
+                    .await.map_err(err)?,
+                "leads": if sales { search::leads(db, q, 5).await.map_err(err)? } else { Vec::new() },
             }))
         }
         "list_leads" => {
@@ -609,7 +639,7 @@ async fn run_tool(
                 .map_err(err)?;
             Ok(json!(rows.iter().map(|o| json!({
                 "id": o.id, "number": o.number, "title": o.title, "partner": o.partner_name,
-                "stage": o.stage_label, "total": format!("{} {}", o.total_minor / 100, o.currency),
+                "stage": o.stage_label, "total": o.total_minor.filter(|_| prices).map(|t| format!("{} {}", t / 100, o.currency)),
                 "due": o.due_date, "plate": o.vehicle_plate,
             })).collect::<Vec<_>>()))
         }
@@ -639,6 +669,10 @@ async fn run_tool(
                         .into_iter()
                         .map(|t| t.label)
                         .collect();
+                    let mut lead = lead;
+                    if !prices {
+                        lead.quoted_value_minor = None;
+                    }
                     let mut v = compact(json!(lead));
                     v["stage"] = json!(stage);
                     v["tags"] = json!(tags);
@@ -662,12 +696,14 @@ async fn run_tool(
                     v["stage"] = json!(stage);
                     Ok(v)
                 }
-                Some("partner") => Ok(compact(json!(
-                    partners::find(db, id)
+                Some("partner") => {
+                    let mut partner = partners::find(db, id)
                         .await
                         .map_err(err)?
-                        .ok_or("nincs ilyen partner")?
-                ))),
+                        .ok_or("nincs ilyen partner")?;
+                    crate::api::visibility::partner(me, &mut partner);
+                    Ok(compact(json!(partner)))
+                }
                 _ => Err("a kind lead, order vagy partner".into()),
             }
         }
@@ -690,15 +726,33 @@ async fn run_tool(
                     .await
                     .map_err(err)?;
             let pairs = |rows: Vec<(String, i64)>| rows.into_iter().collect::<BTreeMap<_, _>>();
-            Ok(json!({
-                "leads_by_stage": pairs(lead_stages),
-                "orders_by_stage": pairs(order_stages),
-                "invoices_by_list": invoices::bucket_counts(db).await.map_err(err)?
-                    .into_iter().map(|c| (c.bucket, c.count)).collect::<BTreeMap<_, _>>(),
-                "incoming_invoices_by_list": incoming_invoices::bucket_counts(db).await.map_err(err)?
-                    .into_iter().map(|c| (c.bucket, c.count)).collect::<BTreeMap<_, _>>(),
-                "newsletter": newsletter_tags::counts(db).await.map_err(err)?,
-            }))
+            // Only the parts the person may see; the rest is left out, not zeroed.
+            let mut v = json!({ "orders_by_stage": pairs(order_stages) });
+            if sales {
+                v["leads_by_stage"] = json!(pairs(lead_stages));
+                v["newsletter"] = json!(newsletter_tags::counts(db).await.map_err(err)?);
+            }
+            if me.can(Capability::ViewInvoices) {
+                v["invoices_by_list"] = json!(
+                    invoices::bucket_counts(db)
+                        .await
+                        .map_err(err)?
+                        .into_iter()
+                        .map(|c| (c.bucket, c.count))
+                        .collect::<BTreeMap<_, _>>()
+                );
+            }
+            if me.can(Capability::ViewIncomingInvoices) {
+                v["incoming_invoices_by_list"] = json!(
+                    incoming_invoices::bucket_counts(db)
+                        .await
+                        .map_err(err)?
+                        .into_iter()
+                        .map(|c| (c.bucket, c.count))
+                        .collect::<BTreeMap<_, _>>()
+                );
+            }
+            Ok(v)
         }
         "create_filter" => {
             let filter = create_filter(db, args).await?;
@@ -782,7 +836,8 @@ async fn run_tool(
                 Some("partner") => TimelineEntity::Partner,
                 _ => return Err("a kind lead, order vagy partner".into()),
             };
-            let rows = timeline::list(db, entity, id, ROWS).await.map_err(err)?;
+            let mut rows = timeline::list(db, entity, id, ROWS).await.map_err(err)?;
+            rows.retain(|e| crate::api::visibility::history_entry_visible(me, &e.kind, &e.action));
             Ok(json!(rows.iter().map(|e| json!({
                 "at": e.at.with_timezone(&chrono_tz::Europe::Budapest).format("%Y.%m.%d. %H:%M").to_string(),
                 "kind": e.kind, "action": e.action, "who": e.user_name,
@@ -1392,12 +1447,13 @@ fn search_words(question: &str) -> Option<String> {
 /// filter that opens the same rows. The error is the tool's refusal, in words.
 async fn answer(
     db: &PgPool,
+    me: &AuthUser,
     name: &str,
     args: &Value,
     steps: &mut Vec<ToolStep>,
     filters: &mut Vec<FilterSuggestion>,
 ) -> Result<String, String> {
-    let result = run_tool(db, name, args, filters).await;
+    let result = run_tool(db, me, name, args, filters).await;
     steps.push(ToolStep {
         tool: name.to_string(),
         arguments: args.clone(),
@@ -1428,6 +1484,7 @@ fn filter_args_for(tool: &str, args: &Value) -> Option<Value> {
 
 pub async fn chat(
     db: &PgPool,
+    me: &AuthUser,
     ai: &AiConfig,
     history: &[ChatMessage],
     today: &str,
@@ -1457,7 +1514,7 @@ pub async fn chat(
     // Plain questions skip the model: the right tool is obvious from the words.
     if let Some((name, mut args)) = route(db, &question).await {
         ground(db, &name, &mut args, &question).await;
-        let reply = answer(db, &name, &args, &mut steps, &mut filters)
+        let reply = answer(db, me, &name, &args, &mut steps, &mut filters)
             .await
             .unwrap_or_else(|e| format!("Ezt nem sikerült lekérdeznem: {e}"));
         return Ok(AssistantReply {
@@ -1479,7 +1536,7 @@ pub async fn chat(
             if round == 0 {
                 let args =
                     json!({ "query": search_words(&question).unwrap_or_else(|| question.clone()) });
-                if let Ok(reply) = answer(db, "search", &args, &mut steps, &mut filters).await {
+                if let Ok(reply) = answer(db, me, "search", &args, &mut steps, &mut filters).await {
                     return Ok(AssistantReply {
                         reply,
                         filters,
@@ -1495,7 +1552,7 @@ pub async fn chat(
         let mut args = arguments(&call.function);
         let name = call.function.name.clone();
         ground(db, &name, &mut args, &question).await;
-        let result = run_tool(db, &name, &args, &mut filters).await;
+        let result = run_tool(db, me, &name, &args, &mut filters).await;
         steps.push(ToolStep {
             tool: name.clone(),
             arguments: args.clone(),

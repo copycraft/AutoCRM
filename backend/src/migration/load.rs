@@ -253,6 +253,8 @@ pub struct LoadSummary {
     pub orders: usize,
     pub leads: usize,
     pub notes: usize,
+    /// Orders and leads whose stage history came from MiniCRM's status path.
+    pub stage_histories: usize,
     /// Distinct vehicles created or matched from the four order text columns (V2.1).
     pub vehicles: usize,
     pub skipped_projects: usize,
@@ -562,6 +564,7 @@ pub async fn run(
         return Ok(summary);
     }
     load_notes(state, raw_dir, &mut summary).await?;
+    load_stage_history(state, mapping, raw_dir, &mut summary).await?;
     load_files(state, mapping, data_dir, &mut summary).await?;
     // Every imported EU VAT number is checked against VIES once, by the worker, throttled
     // (created_by = 'migration'). A repeated import queues it again; numbers already
@@ -577,19 +580,25 @@ pub async fn run(
     Ok(summary)
 }
 
-/// The MiniCRM address record for a contact, if `extract --addresses` downloaded one.
-/// `Api/R3/AddressList/{cid}` returns either `{"<id>": {...}}` or a bare array; a contact
-/// can have several (postal, billing), and the first with a usable city wins.
+/// The MiniCRM address record for a contact. `extract` writes `raw/addresses/{cid}.json`
+/// as `{"Count": n, "Results": {"<id>": {…Address/{id}…}}}`; older layouts (a bare
+/// id-keyed object or an array) still read. `AddressList` alone gives only one-line
+/// labels, which are skipped: there is no postal code or city in them. A contact can have
+/// several (postal, billing): the default one with a city wins, then any with a city.
 pub fn address_for(addresses: &HashMap<i64, Value>, contact_id: i64) -> Option<&Value> {
     let list = addresses.get(&contact_id)?;
-    let candidates: Vec<&Value> = match list {
-        Value::Object(map) => map.values().collect(),
-        Value::Array(items) => items.iter().collect(),
+    let body = list.get("Results").unwrap_or(list);
+    let candidates: Vec<&Value> = match body {
+        Value::Object(map) => map.values().filter(|v| v.is_object()).collect(),
+        Value::Array(items) => items.iter().filter(|v| v.is_object()).collect(),
         _ => return None,
     };
+    let usable = |a: &&Value| text(a, "City").is_some() || text(a, "PostalCode").is_some();
+    let is_default = |a: &&Value| a.get("Default").and_then(as_i64) == Some(1);
     candidates
         .iter()
-        .find(|a| text(a, "City").is_some() || text(a, "PostalCode").is_some())
+        .find(|a| is_default(a) && usable(a))
+        .or_else(|| candidates.iter().find(|a| usable(a)))
         .or(candidates.first())
         .copied()
 }
@@ -1156,24 +1165,26 @@ async fn load_notes(
         };
         let value: Value = serde_json::from_str(&std::fs::read_to_string(&path)?)
             .with_context(|| format!("parsing {}", path.display()))?;
-        for todo in todo_entries(&value) {
-            let Some(id) = todo.get("Id").and_then(as_i64) else {
+        for summary_entry in todo_entries(&value) {
+            let Some(id) = summary_entry.get("Id").and_then(as_i64) else {
                 continue;
             };
-            let body = ["Comment", "Description", "Body", "Note", "Name", "Subject"]
-                .iter()
-                .filter_map(|k| text(todo, k))
-                .collect::<Vec<_>>()
-                .join("\n\n");
+            // The list entry is a summary; `ToDo/{id}` (raw/todo-details) has when it was
+            // created, who by, and the comments written under it.
+            let detail = read_todo_detail(raw_dir, id)?;
+            let todo = detail.as_ref().unwrap_or(summary_entry);
+            let body = todo_body(todo);
             if body.is_empty() {
                 summary.problem(format!(
                     "to-do {id} on project {project}: no recognisable text; kept in raw_import only"
                 ));
                 continue;
             }
-            let author = ["UserName", "User", "CreatedByName", "Owner"]
+            let author = ["CreatedBy", "UserName", "User", "CreatedByName", "Owner"]
                 .iter()
-                .find_map(|k| text(todo, k));
+                .find_map(|k| text(todo, k))
+                // `UserId` is a name on the detail and a number on the list entry.
+                .or_else(|| text(todo, "UserId").filter(|u| u.parse::<i64>().is_err()));
             let occurred_at = ["CreatedAt", "Deadline", "UpdatedAt", "Date"]
                 .iter()
                 .find_map(|k| text(todo, k))
@@ -1196,6 +1207,142 @@ async fn load_notes(
             .execute(&state.db)
             .await?;
             summary.notes += 1;
+        }
+    }
+    Ok(())
+}
+
+/// `raw/todo-details/{id}.json`, when `extract` downloaded it.
+fn read_todo_detail(raw_dir: &Path, id: i64) -> anyhow::Result<Option<Value>> {
+    let path = raw_dir.join("todo-details").join(format!("{id}.json"));
+    if !path.exists() {
+        return Ok(None);
+    }
+    Ok(Some(
+        serde_json::from_str(&std::fs::read_to_string(&path)?)
+            .with_context(|| format!("parsing {}", path.display()))?,
+    ))
+}
+
+/// A to-do's text: its own, then each comment written under it (`Notes` on the detail).
+pub fn todo_body(todo: &Value) -> String {
+    let mut parts: Vec<String> = ["Comment", "Description", "Body", "Note", "Name", "Subject"]
+        .iter()
+        .filter_map(|k| text(todo, k))
+        .collect();
+    if let Some(Value::Array(notes)) = todo.get("Notes") {
+        for note in notes {
+            if let Some(comment) = text(note, "Comment") {
+                let when = text(note, "CreatedAt").map(|w| format!("{w}: ")).unwrap_or_default();
+                parts.push(format!("{when}{comment}"));
+            }
+        }
+    }
+    parts.join("\n\n")
+}
+
+/// MiniCRM's status path for a card as AutoCRM stages, oldest first: each change's new
+/// status mapped through `statuses` (unmapped ones dropped), consecutive repeats folded.
+pub fn stage_path(
+    history: &Value,
+    statuses: &BTreeMap<String, String>,
+    tz: Tz,
+) -> Vec<(String, DateTime<Utc>)> {
+    let mut changes: Vec<(DateTime<Utc>, i64, String)> = todo_entries(history)
+        .into_iter()
+        .filter_map(|e| {
+            let at = text(e, "ClosedAt").and_then(|s| parse_timestamp(&s, tz))?;
+            let order = e.get("Id").and_then(as_i64).unwrap_or(0);
+            let stage = statuses.get(&text(e, "Status_New_Id")?)?.clone();
+            Some((at, order, stage))
+        })
+        .collect();
+    changes.sort();
+    let mut path: Vec<(String, DateTime<Utc>)> = Vec::new();
+    for (at, _, stage) in changes {
+        if path.last().is_none_or(|(last, _)| *last != stage) {
+            path.push((stage, at));
+        }
+    }
+    path
+}
+
+/// MiniCRM status histories → `order_stages` / `lead_stages`, so stage-duration and flow
+/// reports cover the years before AutoCRM. Replaces only the single row `load_projects`
+/// wrote ("MiniCRM import"); a record someone has moved since in AutoCRM is left alone.
+async fn load_stage_history(
+    state: &AppState,
+    mapping: &Mapping,
+    raw_dir: &Path,
+    summary: &mut LoadSummary,
+) -> anyhow::Result<()> {
+    let dir = raw_dir.join("status-history");
+    if !dir.exists() {
+        return Ok(());
+    }
+    let tz = state.config.business_tz;
+    let mut files: Vec<_> = std::fs::read_dir(&dir)?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "json"))
+        .collect();
+    files.sort();
+    for path in files {
+        let Some(project) = path
+            .file_stem()
+            .and_then(|s| s.to_str()?.parse::<i64>().ok())
+        else {
+            continue;
+        };
+        let history: Value = serde_json::from_str(&std::fs::read_to_string(&path)?)
+            .with_context(|| format!("parsing {}", path.display()))?;
+        // Runtime-checked: table names differ per entity, and the migration tool should
+        // not need the offline query cache refreshed for its own one-off statements.
+        for (table, key, statuses) in [
+            ("order_stages", "order_id", &mapping.order_statuses),
+            ("lead_stages", "lead_id", &mapping.lead_statuses),
+        ] {
+            let owner = if table == "order_stages" { "orders" } else { "leads" };
+            let Some(record_id): Option<i64> =
+                sqlx::query_scalar(&format!("SELECT id FROM {owner} WHERE minicrm_id = $1"))
+                    .bind(project)
+                    .fetch_optional(&state.db)
+                    .await?
+            else {
+                continue;
+            };
+            let steps = stage_path(&history, statuses, tz);
+            if steps.len() < 2 {
+                break; // one step says no more than the row load_projects wrote
+            }
+            let mut tx = state.db.begin().await?;
+            let others: i64 = sqlx::query_scalar(&format!(
+                "SELECT count(*) FROM {table} WHERE {key} = $1 AND note IS DISTINCT FROM 'MiniCRM import'"
+            ))
+            .bind(record_id)
+            .fetch_one(&mut *tx)
+            .await?;
+            if others > 0 {
+                tx.rollback().await?;
+                break;
+            }
+            sqlx::query(&format!("DELETE FROM {table} WHERE {key} = $1"))
+                .bind(record_id)
+                .execute(&mut *tx)
+                .await?;
+            for (stage, at) in &steps {
+                sqlx::query(&format!(
+                    "INSERT INTO {table} ({key}, stage_key, entered_at, note) VALUES ($1, $2, $3, 'MiniCRM import')"
+                ))
+                .bind(record_id)
+                .bind(stage)
+                .bind(at)
+                .execute(&mut *tx)
+                .await?;
+            }
+            tx.commit().await?;
+            summary.stage_histories += 1;
+            break;
         }
     }
     Ok(())
@@ -1489,5 +1636,64 @@ mod tests {
         );
         assert_eq!(mapping.entity_for(Some(1)), Some("order"));
         assert_eq!(mapping.entity_for(Some(2)), None);
+    }
+
+    #[test]
+    fn addresses_prefer_the_default_one_with_a_city_and_skip_bare_labels() {
+        let mut map = HashMap::new();
+        map.insert(
+            7,
+            json!({"Count": 2, "Results": {
+                "1": {"Id": 1, "City": "Szeged", "Default": 0},
+                "2": {"Id": 2, "City": "Budapest", "PostalCode": "1111", "Default": 1}
+            }}),
+        );
+        // AddressList's own shape: labels only, nothing to read a city from.
+        map.insert(8, json!({"Count": 1, "Results": {"5": "Office (John Doe)"}}));
+        assert_eq!(
+            text(address_for(&map, 7).unwrap(), "City").as_deref(),
+            Some("Budapest")
+        );
+        assert!(address_for(&map, 8).is_none());
+        assert!(address_for(&map, 9).is_none());
+    }
+
+    #[test]
+    fn a_todo_keeps_the_comments_written_under_it() {
+        let detail = json!({
+            "Id": 3606, "Comment": "Ajánlat kiküldve",
+            "Notes": [{"Comment": "Visszahívni hétfőn", "CreatedAt": "2024-08-19 13:55:00"}]
+        });
+        assert_eq!(
+            todo_body(&detail),
+            "Ajánlat kiküldve\n\n2024-08-19 13:55:00: Visszahívni hétfőn"
+        );
+    }
+
+    #[test]
+    fn status_history_becomes_a_stage_path_oldest_first() {
+        let tz: Tz = "Europe/Budapest".parse().unwrap();
+        let statuses: BTreeMap<String, String> = [
+            ("2801", "intake"),
+            ("2806", "production"),
+            ("2810", "production"),
+            ("2811", "completed"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        let history = json!({"Count": "5", "Results": {
+            "567": {"Id": "567", "ClosedAt": "2023-03-23 13:31:20", "Status_New_Id": "2811"},
+            "353": {"Id": "353", "ClosedAt": "2023-03-17 10:40:22", "Status_New_Id": "2806"},
+            "354": {"Id": "354", "ClosedAt": "2023-03-20 09:00:00", "Status_New_Id": "2810"},
+            "352": {"Id": "352", "ClosedAt": "2023-03-17 10:40:08", "Status_New_Id": "2801"},
+            "999": {"Id": "999", "ClosedAt": "2023-03-18 08:00:00", "Status_New_Id": "4444"}
+        }});
+        let path: Vec<String> = stage_path(&history, &statuses, tz)
+            .into_iter()
+            .map(|(stage, _)| stage)
+            .collect();
+        // 2806 and 2810 are both "production": one step. 4444 is unmapped: dropped.
+        assert_eq!(path, ["intake", "production", "completed"]);
     }
 }

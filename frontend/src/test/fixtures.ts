@@ -33,7 +33,7 @@ import type {
   OrderSummary,
   Partner,
   PartnerDetail,
-  OrderSpec,
+  Questionnaire,
   Proforma,
   ProjectType,
   RawImportView,
@@ -75,6 +75,14 @@ export const sessionUser: SessionUser = {
     'annul_invoices',
     'access_hr',
     'comment',
+    'view_prices',
+    'view_invoices',
+    'view_incoming_invoices',
+    'view_sales',
+    'view_contacts',
+    'view_business_reports',
+    'view_all_modules',
+    'handle_handovers',
   ],
 };
 
@@ -266,27 +274,6 @@ export const vehicle: Vehicle = {
   updated_at: NOW,
 };
 
-export const orderSpec: OrderSpec = {
-  order_id: 3,
-  form: 'cooling',
-  target_temp_c: '-18.0',
-  insulation_mm: 80,
-  cooling_unit_make: 'Carrier',
-  cooling_unit_model: 'Xarios 600',
-  atp_class: 'FRC',
-  compartments: 1,
-  defrost: 'automatic',
-  electric_standby: true,
-  heater_make: null,
-  heater_model: null,
-  heat_output_kw: null,
-  fuel: null,
-  thermostat: null,
-  notes: null,
-  created_at: NOW,
-  updated_at: NOW,
-};
-
 export const orderDetail: OrderDetail = {
   order,
   partner: { id: partner.id, name: partner.name },
@@ -314,7 +301,14 @@ export const orderDetail: OrderDetail = {
     relation: 'warranty',
   },
   vehicles: [vehicle],
-  spec: orderSpec,
+  spec_answers: {
+    heats: false,
+    cools: true,
+    cool_temp_c: -18.5,
+    freezes: false,
+    cooling_unit_make: 'Carrier',
+    cooling_unit_serial: 'TK-1',
+  },
   image_counts: { intake: 3, completion: 2 },
   vehicle_locations: [],
   comment_count: 0,
@@ -364,6 +358,7 @@ export const leadSummary: LeadSummary = {
 
 export const leadDetail: LeadDetail = {
   lead,
+  spec: { project_type_id: 1, answers: { cools: true, box_length_mm: 4200 } },
   stage: { stage_key: 'quoted', entered_at: NOW },
   history: [{ ...stageEntry, stage_key: 'quoted', label_hu: 'Árajánlat kiadva' }],
   orders: [{ id: 3, number: 'MC-1001' }],
@@ -465,37 +460,145 @@ export const leadStageDefinitions: StageDefinition[] = [
   },
 ];
 
-/** A type whose orders carry a refrigeration spec. */
-export const coolingProjectType: ProjectType = {
+/** A box body: the questionnaire asks its inner size. */
+export const boxProjectType: ProjectType = {
   id: 1,
-  key: 'unit_install',
-  label_hu: 'Hűtőgép beépítés',
-  position: 1,
+  key: 'refrigerated_body',
+  label_hu: 'Doboz',
+  position: 10,
   is_active: true,
-  spec_form: 'cooling',
 };
 
-/** A type whose orders carry a heater spec. */
-export const heatingProjectType: ProjectType = {
+export const vanProjectType: ProjectType = {
   id: 2,
-  key: 'heated_body',
-  label_hu: 'Fűtött felépítmény',
-  position: 2,
+  key: 'van_conversion',
+  label_hu: 'Furgon szigetelés',
+  position: 20,
   is_active: true,
-  spec_form: 'heating',
 };
 
-/** A type with no build spec at all — a repair. */
-export const plainProjectType: ProjectType = {
+export const customProjectType: ProjectType = {
   id: 3,
-  key: 'repair',
-  label_hu: 'Javítás / átalakítás',
-  position: 3,
+  key: 'other',
+  label_hu: 'Egyedi projekt',
+  position: 40,
   is_active: true,
-  spec_form: null,
 };
 
-export const projectType = coolingProjectType;
+export const projectType = boxProjectType;
+
+function question(
+  id: number,
+  sectionId: number,
+  key: string,
+  label: string,
+  kind: string,
+  extra: Partial<Questionnaire['sections'][number]['questions'][number]> = {},
+): Questionnaire['sections'][number]['questions'][number] {
+  return {
+    id,
+    section_id: sectionId,
+    key,
+    label,
+    help: null,
+    kind,
+    unit: null,
+    options: [],
+    min_value: null,
+    max_value: null,
+    required: false,
+    position: id,
+    is_active: true,
+    ...extra,
+  };
+}
+
+/** The seeded questionnaire, cut down: the two switches, a box-only section, and cooling →
+ *  freezer and heating behind their switches. */
+export const questionnaire: Questionnaire = {
+  sections: [
+    {
+      id: 1,
+      key: 'general',
+      title: 'Alapok',
+      position: 10,
+      is_active: true,
+      shown_when: null,
+      project_type_ids: [],
+      questions: [
+        question(10, 1, 'heats', 'Fűteni kell?', 'yes_no', { required: true }),
+        question(11, 1, 'cools', 'Hűteni kell?', 'yes_no', { required: true }),
+      ],
+    },
+    {
+      id: 2,
+      key: 'box',
+      title: 'Doboz',
+      position: 20,
+      is_active: true,
+      shown_when: null,
+      project_type_ids: [1],
+      questions: [
+        question(20, 2, 'box_length_mm', 'Belső hossz', 'number', {
+          required: true,
+          unit: 'mm',
+          min_value: 1,
+          max_value: 20000,
+        }),
+      ],
+    },
+    {
+      id: 3,
+      key: 'cooling',
+      title: 'Hűtés',
+      position: 30,
+      is_active: true,
+      shown_when: 'cools',
+      project_type_ids: [],
+      questions: [
+        question(30, 3, 'cool_temp_c', 'Hűtött hőmérséklet', 'number', {
+          required: true,
+          unit: '°C',
+          min_value: -40,
+          max_value: 30,
+        }),
+        question(31, 3, 'cooling_unit_make', 'Hűtőgép gyártója', 'text'),
+        question(32, 3, 'freezes', 'Fagyasztani is kell?', 'yes_no', { required: true }),
+        question(33, 3, 'cooling_unit_serial', 'Hűtőgép gyári száma', 'text'),
+      ],
+    },
+    {
+      id: 4,
+      key: 'freezer',
+      title: 'Fagyasztás',
+      position: 40,
+      is_active: true,
+      shown_when: 'freezes',
+      project_type_ids: [],
+      questions: [
+        question(40, 4, 'freeze_temp_c', 'Fagyasztott hőmérséklet', 'number', {
+          required: true,
+          unit: '°C',
+          min_value: -40,
+          max_value: 0,
+        }),
+      ],
+    },
+    {
+      id: 5,
+      key: 'heating',
+      title: 'Fűtés',
+      position: 50,
+      is_active: true,
+      shown_when: 'heats',
+      project_type_ids: [],
+      questions: [
+        question(50, 5, 'heat_temp_c', 'Fűtött hőmérséklet', 'number', { required: true, unit: '°C' }),
+        question(51, 5, 'fuel', 'Energiaforrás', 'choice', { options: ['Dízel', 'Elektromos'] }),
+      ],
+    },
+  ],
+};
 
 export const settings: Settings = {
   automatic_email_enabled: true,
@@ -704,17 +807,6 @@ export const lookups: Lookups = {
     { key: '3/4', label_hu: '3/4' },
     { key: 'F', label_hu: 'F' },
   ],
-  heating_fuels: [
-    { key: 'diesel', label_hu: 'Dízel' },
-    { key: 'electric', label_hu: 'Elektromos' },
-    { key: 'lpg', label_hu: 'LPG' },
-    { key: 'engine_coolant', label_hu: 'Motorhűtőfolyadék' },
-  ],
-  defrost_modes: [
-    { key: 'automatic', label_hu: 'Automatikus' },
-    { key: 'manual', label_hu: 'Kézi' },
-    { key: 'hot_gas', label_hu: 'Forrógázas' },
-  ],
   order_relations: [
     { key: 'warranty', label_hu: 'Garanciális' },
     { key: 'rework', label_hu: 'Újramunkálás' },
@@ -748,13 +840,6 @@ export const lookups: Lookups = {
     { key: 'inspection', label_hu: 'Átvétel', immutable: false, attachable: false },
   ],
   email_themes: [
-    {
-      key: 'quotation',
-      label_hu: 'Árajánlat',
-      subject: 'Árajánlatunk',
-      hero: 'Megjött az Autotherm árajánlatod!',
-      body: 'Tisztelt Címzett!',
-    },
     {
       key: 'promo',
       label_hu: 'Akció',
@@ -862,6 +947,7 @@ export const leaveBalance: LeaveBalance = {
   remaining: -3,
   sick_days: 2,
   unpaid_days: 0,
+  unexcused_days: 0,
   other_days: 0,
 };
 

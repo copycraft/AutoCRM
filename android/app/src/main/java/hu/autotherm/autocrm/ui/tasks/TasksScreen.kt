@@ -146,7 +146,7 @@ fun TasksScreen(
             ScreenTopBar(
                 title = "Feladatok",
                 subtitle = if (open.isNotEmpty()) {
-                    val today = java.time.LocalDate.now().toString()
+                    val today = hu.autotherm.autocrm.util.businessTodayIso()
                     val late = open.count { it.dueDate != null && it.dueDate < today }
                     "${open.size} nyitott" + if (late > 0) " · $late lejárt" else ""
                 } else {
@@ -158,9 +158,9 @@ fun TasksScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             when {
-                state.loading -> ListSkeleton()
+                state.loading -> ListSkeleton(Modifier.padding(top = 12.dp))
                 state.error != null && state.tasks.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::load)
                 state.tasks.isEmpty() -> EmptyState("Nincs feladat.")
@@ -171,6 +171,7 @@ fun TasksScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = topScroll,
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         // Grouped by what needs doing first; a short list needs no headings.
@@ -248,7 +249,7 @@ fun TaskRow(
                     color = if (task.isDone) Steel500 else MaterialTheme.colorScheme.onSurface,
                 )
                 val overdue = !task.isDone && task.dueDate?.let {
-                    runCatching { java.time.LocalDate.parse(it).isBefore(java.time.LocalDate.now()) }.getOrDefault(false)
+                    runCatching { java.time.LocalDate.parse(it).isBefore(hu.autotherm.autocrm.util.businessToday()) }.getOrDefault(false)
                 } == true
                 val meta = listOfNotNull(
                     task.assignedName,
@@ -311,9 +312,10 @@ fun TaskDialog(
             label = "Határidő",
             modifier = Modifier.fillMaxWidth(),
         )
-        // The usual deadlines, one tap each instead of a calendar.
+        // The usual deadlines, one tap each instead of a calendar. Business timezone, so
+        // the chip picked matches the late/today grouping the row will then land under.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val today = java.time.LocalDate.now()
+            val today = hu.autotherm.autocrm.util.businessToday()
             listOf("Ma" to today, "Holnap" to today.plusDays(1), "1 hét" to today.plusWeeks(1)).forEach { (label, date) ->
                 androidx.compose.material3.FilterChip(
                     selected = due == date.toString(),
@@ -338,7 +340,7 @@ fun TaskDialog(
  */
 internal fun taskGroups(
     open: List<Task>,
-    today: java.time.LocalDate = java.time.LocalDate.now(),
+    today: java.time.LocalDate = hu.autotherm.autocrm.util.businessToday(),
 ): List<Pair<String, List<Task>>> {
     fun day(t: Task) = t.dueDate?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
     val dated = open.filter { day(it) != null }.sortedBy { day(it) }

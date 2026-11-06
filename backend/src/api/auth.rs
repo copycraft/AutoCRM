@@ -82,7 +82,8 @@ pub struct SessionUser {
 }
 
 impl SessionUser {
-    fn from_user(user: &User, session_kind: SessionKind) -> Self {
+    /// `grid`: the role's set from the admin's grid (0061), as the session will see it.
+    fn from_user(user: &User, session_kind: SessionKind, grid: &[Capability]) -> Self {
         SessionUser {
             id: user.id,
             email: user.email.clone(),
@@ -96,7 +97,8 @@ impl SessionUser {
                 Capability::ALL
                     .into_iter()
                     .filter(|c| {
-                        user.role.can(*c)
+                        user.role == Role::Admin
+                            || grid.contains(c)
                             || (*c == Capability::AccessHr && user.hr_access)
                             || grants.contains(c)
                     })
@@ -182,7 +184,12 @@ async fn login(
     )
     .await;
 
-    let user = SessionUser::from_user(&outcome.user, body.client);
+    let grid: Vec<String> =
+        sqlx::query_scalar("SELECT capability FROM role_permissions WHERE role = $1")
+            .bind(outcome.user.role)
+            .fetch_all(&state.db)
+            .await?;
+    let user = SessionUser::from_user(&outcome.user, body.client, &auth::parse_permissions(&grid));
     match body.client {
         SessionKind::Web => {
             // Until the absolute cap, not `expires_at`: the cookie is never re-issued, and

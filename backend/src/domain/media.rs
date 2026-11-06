@@ -57,6 +57,9 @@ pub enum DocumentKind {
     Other,
     /// A short clip recorded during a handover walkaround (0047). Never an email attachment.
     Video,
+    /// The quotation the sales manager made outside the CRM and sent from their own
+    /// mailbox (0057). Filed on the lead; recording it starts the follow-ups.
+    Quote,
 }
 
 /// What kind of thumbnail a document gets, from its file name. `None`: no thumbnail (PDFs
@@ -76,11 +79,6 @@ pub fn thumb_source(filename: &str) -> Option<ThumbSource> {
         "jpg" | "jpeg" | "png" | "webp" => Some(ThumbSource::Image),
         _ => None,
     }
-}
-
-/// Where a document's thumbnail is stored: next to the file, by its key.
-pub fn document_thumb_key(storage_key: &str) -> String {
-    format!("{storage_key}.thumb.png")
 }
 
 pub const MAX_IMAGE_BYTES: i64 = 50 * 1024 * 1024;
@@ -107,37 +105,6 @@ pub fn document_extension(filename: &str) -> Option<String> {
     (ok && !BLOCKED.contains(&ext.as_str())).then_some(ext)
 }
 
-/// Content-addressed object key for an original image.
-pub fn image_storage_key(
-    order_id: i64,
-    category: ImageCategory,
-    hash_hex: &str,
-    ext: &str,
-) -> String {
-    format!("orders/{order_id}/{}/{hash_hex}.{ext}", category.as_str())
-}
-
-pub fn image_derived_key(
-    order_id: i64,
-    category: ImageCategory,
-    hash_hex: &str,
-    variant: &str,
-) -> String {
-    format!(
-        "orders/{order_id}/{}/derived/{hash_hex}.{variant}.jpg",
-        category.as_str()
-    )
-}
-
-pub fn document_storage_key(order_id: i64, hash_hex: &str, ext: &str) -> String {
-    format!("orders/{order_id}/documents/{hash_hex}.{ext}")
-}
-
-/// V2.4: a quotation belongs to the lead it was sent for, before any order exists.
-pub fn lead_document_storage_key(lead_id: i64, hash_hex: &str, ext: &str) -> String {
-    format!("leads/{lead_id}/documents/{hash_hex}.{ext}")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,10 +116,6 @@ mod tests {
         assert_eq!(thumb_source("fotó.jpeg"), Some(ThumbSource::Image));
         assert_eq!(thumb_source("ajánlat.pdf"), None);
         assert_eq!(thumb_source("README"), None);
-        assert_eq!(
-            document_thumb_key("orders/1/documents/ab.dxf"),
-            "orders/1/documents/ab.dxf.thumb.png"
-        );
     }
 
     #[test]
@@ -168,13 +131,5 @@ mod tests {
         assert_eq!(document_extension("virus.exe"), None);
         assert_eq!(document_extension("noext"), None);
         assert_eq!(document_extension("weird.p d f"), None);
-    }
-
-    #[test]
-    fn keys_are_content_addressed() {
-        assert_eq!(
-            image_storage_key(42, ImageCategory::Intake, "abcd", "jpg"),
-            "orders/42/intake/abcd.jpg"
-        );
     }
 }

@@ -18,6 +18,7 @@ import { RecentRecords, ResumeBanner } from '@/components/layout/RecentRecords';
 import { DashboardReminders } from './DashboardReminders';
 import { blockersApi, leadsApi, ordersApi, reportsApi, tasksApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
+import { canViewSales, useAuth } from '@/lib/auth/context';
 import { daysSince } from '@/lib/utils/format';
 import { budapestIsoPlus } from '@/components/forms/DateQuickPicks';
 import type { Currency } from '@/lib/api/types';
@@ -47,6 +48,8 @@ function SectionError({ error, onRetry }: { error: unknown; onRetry: () => void 
 
 export function DashboardView() {
   const t = useTranslations('dashboard');
+  const { user } = useAuth();
+  const sales = canViewSales(user);
   const tn = useTranslations('navigation');
   const locale = useLocale();
 
@@ -69,6 +72,7 @@ export function DashboardView() {
       {
         queryKey: qk.leads({ open: true, dashboard: true }),
         queryFn: () => leadsApi.list({ open: true, limit: 100 }),
+        enabled: sales,
         staleTime: 60_000,
       },
       {

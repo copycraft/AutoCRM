@@ -14,6 +14,8 @@ import { StagePhotoCategories } from '@/components/media/StagePhotoCategories';
 import { qk } from '@/lib/query/provider';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import type { EmailTransportBody, Settings } from '@/lib/api/types';
+import { DepartmentsSettings } from '@/components/admin/DepartmentsSettings';
+import { QuestionnaireSettings } from '@/components/spec/QuestionnaireSettings';
 
 type Mode = 'inherit' | 'dry_run' | 'smtp';
 
@@ -40,6 +42,8 @@ export default function SettingsPage() {
           <SettingsForm key={query.data.updated_at} initial={query.data} />
           <ZoneTemplates />
           <StagePhotoCategories />
+          <DepartmentsSettings />
+          <QuestionnaireSettings />
         </>
       )}
     </AppShell>

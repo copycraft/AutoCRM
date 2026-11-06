@@ -8,7 +8,7 @@ import { ZoneTemplates } from '@/components/inspections/ZoneTemplates';
 
 vi.mock('@/lib/api/client', () => import('./client-mock'));
 
-const COOLING = 1; // fixtures: coolingProjectType
+const COOLING = 1; // fixtures: boxProjectType
 const HEATING = 2;
 
 function zone(

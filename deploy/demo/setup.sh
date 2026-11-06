@@ -6,22 +6,30 @@
 #   ./setup.sh            start fresh
 #   ./setup.sh --build    rebuild the images first (after pulling new code)
 #   docker compose down   stop it after the showing
+#
+# With NFS_SERVER set in .env the files go to your NAS share (docker-compose.nfs.yml).
+# Files already on the share are never deleted: point a demo at an empty export.
 set -euo pipefail
 cd "$(dirname "$0")"
 set -a; . ./.env; set +a
 : "${DEMO_PASSWORD:?set DEMO_PASSWORD in .env}"
 
-if [ "${1:-}" = "--build" ]; then docker compose build; fi
+compose=(docker compose)
+if [ -n "${NFS_SERVER:-}" ]; then
+  compose+=(-f docker-compose.yml -f docker-compose.nfs.yml)
+fi
 
-docker compose --profile cloudflared down --volumes --remove-orphans
-if [ -n "${TUNNEL_TOKEN:-}" ]; then docker compose --profile cloudflared up -d; else docker compose up -d; fi
+if [ "${1:-}" = "--build" ]; then "${compose[@]}" build; fi
+
+"${compose[@]}" --profile cloudflared down --volumes --remove-orphans
+if [ -n "${TUNNEL_TOKEN:-}" ]; then "${compose[@]}" --profile cloudflared up -d; else "${compose[@]}" up -d; fi
 
 
-docker compose run --rm --no-deps -e AUTOCRM_ADMIN_PASSWORD="$DEMO_PASSWORD" migrate \
+"${compose[@]}" run --rm --no-deps -e AUTOCRM_ADMIN_PASSWORD="$DEMO_PASSWORD" migrate \
   autocrm create-admin --email admin@demo.local --name "Demo Admin"
 
 # The other roles share the admin's password hash; nobody is asked to change it.
-docker compose exec -T postgres psql -U autocrm -d autocrm -v ON_ERROR_STOP=1 <<'SQL'
+"${compose[@]}" exec -T postgres psql -U autocrm -d autocrm -v ON_ERROR_STOP=1 <<'SQL'
 INSERT INTO users (email, display_name, role, password_hash, must_change_password)
 SELECT v.email, v.name, v.role::user_role, u.password_hash, false
 FROM users u,
@@ -36,4 +44,5 @@ SQL
 
 
 echo "demo ready: https://${APP_HOST}"
+if [ -n "${NFS_SERVER:-}" ]; then echo "files: ${NFS_SERVER}:${NFS_EXPORT} (projektek/, hr/, ...)"; fi
 echo "showcase data (leads, orders, walkarounds, staff): node seed.mjs"

@@ -20,6 +20,7 @@ import { errorMessage } from '@/lib/api/errors';
 import { usePreferences } from '@/hooks/usePreferences';
 import { NEWSLETTER_LANGUAGES } from '@/components/tables/BulkBar';
 import type { components } from '@/lib/api/schema.gen';
+import { previewHtml } from '@/lib/emailPreview';
 
 type ComposeRequest = components['schemas']['ComposeRequest'];
 type Variant = { language: string; subject: string; hero: string; body: string };
@@ -604,7 +605,7 @@ export function ComposeForm({
               <iframe
                 title={t('previewTitle')}
                 sandbox=""
-                srcDoc={preview.data.body_html}
+                srcDoc={previewHtml(preview.data.body_html)}
                 className="h-[560px] w-full rounded-lg border border-steel-200 bg-white"
               />
             </>

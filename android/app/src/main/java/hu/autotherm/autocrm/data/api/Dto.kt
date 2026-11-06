@@ -95,7 +95,8 @@ data class OrderSummary(
     @SerialName("title") val title: String,
     @SerialName("partner_name") val partnerName: String,
     @SerialName("currency") val currency: String,
-    @SerialName("total_minor") val totalMinor: Long,
+    /** Null for someone who may not see prices (0061). */
+    @SerialName("total_minor") val totalMinor: Long? = null,
     @SerialName("vehicle_plate") val vehiclePlate: String? = null,
     @SerialName("due_date") val dueDate: String? = null,
     @SerialName("stage_key") val stageKey: String,
@@ -161,9 +162,10 @@ data class ItemView(
     @SerialName("id") val id: Long,
     @SerialName("description") val description: String,
     @SerialName("quantity") val quantity: String,
-    @SerialName("unit_price") val unitPrice: Long,
+    /** The prices are null for someone who may not see them (0061). */
+    @SerialName("unit_price") val unitPrice: Long? = null,
     @SerialName("currency") val currency: String,
-    @SerialName("line_total_minor") val lineTotalMinor: Long,
+    @SerialName("line_total_minor") val lineTotalMinor: Long? = null,
 )
 
 @Serializable
@@ -192,26 +194,61 @@ data class Vehicle(
     @SerialName("year") val year: Long? = null,
 )
 
+// ── The build questionnaire (0065) ─────────────────────────────────────────────
+// Sections of questions per project type; a section can open on a yes/no answer
+// ("Hűteni kell?" igen → Hűtés). Answers are one JSON object keyed by question key:
+// true/false, a number, text, or a list of choices.
+
 @Serializable
-data class OrderSpec(
-    @SerialName("order_id") val orderId: Long,
-    @SerialName("form") val form: String,
-    @SerialName("target_temp_c") val targetTempC: String? = null,
-    @SerialName("insulation_mm") val insulationMm: Int? = null,
-    @SerialName("cooling_unit_make") val coolingUnitMake: String? = null,
-    @SerialName("cooling_unit_model") val coolingUnitModel: String? = null,
-    @SerialName("atp_class") val atpClass: String? = null,
-    @SerialName("compartments") val compartments: Int? = null,
-    @SerialName("defrost") val defrost: String? = null,
-    @SerialName("electric_standby") val electricStandby: Boolean? = null,
-    @SerialName("heater_make") val heaterMake: String? = null,
-    @SerialName("heater_model") val heaterModel: String? = null,
-    @SerialName("heat_output_kw") val heatOutputKw: String? = null,
-    @SerialName("fuel") val fuel: String? = null,
-    @SerialName("thermostat") val thermostat: Boolean? = null,
-    @SerialName("notes") val notes: String? = null,
-    /** Read off the unit's plate (or its barcode) on the phone (0049). */
-    @SerialName("cooling_unit_serial") val coolingUnitSerial: String? = null,
+data class SpecQuestion(
+    @SerialName("id") val id: Long,
+    @SerialName("section_id") val sectionId: Long,
+    @SerialName("key") val key: String,
+    @SerialName("label") val label: String,
+    @SerialName("help") val help: String? = null,
+    /** yes_no | number | text | long_text | choice | multi_choice */
+    @SerialName("kind") val kind: String,
+    @SerialName("unit") val unit: String? = null,
+    @SerialName("options") val options: List<String> = emptyList(),
+    @SerialName("min_value") val minValue: Double? = null,
+    @SerialName("max_value") val maxValue: Double? = null,
+    /** Has to be answered before the lead may become an order. */
+    @SerialName("required") val required: Boolean = false,
+    @SerialName("position") val position: Int = 0,
+    @SerialName("is_active") val isActive: Boolean = true,
+)
+
+@Serializable
+data class SpecSection(
+    @SerialName("id") val id: Long,
+    @SerialName("key") val key: String,
+    @SerialName("title") val title: String,
+    @SerialName("position") val position: Int = 0,
+    @SerialName("is_active") val isActive: Boolean = true,
+    /** The yes/no question whose "yes" opens this section; null: always asked. */
+    @SerialName("shown_when") val shownWhen: String? = null,
+    /** The project types it is asked for; empty: every type. */
+    @SerialName("project_type_ids") val projectTypeIds: List<Long> = emptyList(),
+    @SerialName("questions") val questions: List<SpecQuestion> = emptyList(),
+)
+
+@Serializable
+data class Questionnaire(
+    @SerialName("sections") val sections: List<SpecSection> = emptyList(),
+)
+
+/** A lead's questionnaire: the project type it is asked for and the answers so far. */
+@Serializable
+data class LeadSpec(
+    @SerialName("project_type_id") val projectTypeId: Long? = null,
+    @SerialName("answers") val answers: kotlinx.serialization.json.JsonObject =
+        kotlinx.serialization.json.JsonObject(emptyMap()),
+)
+
+@Serializable
+data class SpecAnswers(
+    @SerialName("answers") val answers: kotlinx.serialization.json.JsonObject =
+        kotlinx.serialization.json.JsonObject(emptyMap()),
 )
 
 @Serializable
@@ -228,11 +265,14 @@ data class OrderDetail(
     @SerialName("partner") val partner: PartnerRef,
     @SerialName("stage") val stage: StageView,
     @SerialName("items") val items: List<ItemView> = emptyList(),
-    @SerialName("value") val value: OrderValue,
+    /** Null for someone who may not see prices (0061). */
+    @SerialName("value") val value: OrderValue? = null,
     @SerialName("blockers") val blockers: List<Blocker> = emptyList(),
     @SerialName("related") val related: RelatedOrder? = null,
     @SerialName("vehicles") val vehicles: List<Vehicle> = emptyList(),
-    @SerialName("spec") val spec: OrderSpec? = null,
+    /** The build questionnaire's answers (0065), drawn with [Questionnaire]. */
+    @SerialName("spec_answers") val specAnswers: kotlinx.serialization.json.JsonObject =
+        kotlinx.serialization.json.JsonObject(emptyMap()),
     @SerialName("image_counts") val imageCounts: Map<String, Long> = emptyMap(),
     /** The category a new photo takes in the current stage (0048); null: production. */
     @SerialName("photo_category") val photoCategory: String? = null,
@@ -534,6 +574,8 @@ data class LeadDetail(
     @SerialName("orders") val orders: List<OrderRef> = emptyList(),
     /** Where the lead came from; only leads the website filed have it. */
     @SerialName("attribution") val attribution: LeadAttribution? = null,
+    /** The build questionnaire, filled while selling (0065). */
+    @SerialName("spec") val spec: LeadSpec = LeadSpec(),
 )
 
 // ── Write bodies ────────────────────────────────────────────────────────────────
@@ -603,6 +645,8 @@ data class OrderBody(
     @SerialName("vehicle_vin") val vehicleVin: String? = null,
     @SerialName("description") val description: String? = null,
     @SerialName("due_date") val dueDate: String? = null,
+    /** Questionnaire answers: on a conversion, laid over the lead's own (0065). */
+    @SerialName("spec_answers") val specAnswers: kotlinx.serialization.json.JsonObject? = null,
 )
 
 @Serializable
@@ -963,8 +1007,6 @@ data class Lookups(
     @SerialName("verdicts") val verdicts: List<LookupItem> = emptyList(),
     @SerialName("walkaround_kinds") val walkaroundKinds: List<LookupItem> = emptyList(),
     @SerialName("fuel_levels") val fuelLevels: List<LookupItem> = emptyList(),
-    @SerialName("heating_fuels") val heatingFuels: List<LookupItem> = emptyList(),
-    @SerialName("defrost_modes") val defrostModes: List<LookupItem> = emptyList(),
     @SerialName("order_relations") val orderRelations: List<LookupItem> = emptyList(),
     @SerialName("task_entity_types") val taskEntityTypes: List<LookupItem> = emptyList(),
     @SerialName("currencies") val currencies: List<LookupItem> = emptyList(),
@@ -1006,7 +1048,6 @@ data class ProjectType(
     @SerialName("key") val key: String,
     @SerialName("label_hu") val labelHu: String,
     @SerialName("is_active") val isActive: Boolean,
-    @SerialName("spec_form") val specForm: String? = null,
 )
 
 /** The API's error envelope (backend/src/error.rs): `{"error": {"code", "message"}}`. */
@@ -1377,4 +1418,68 @@ data class AppVersion(
     /** True when the server refuses to serve an old build: the app must not work on it. */
     @SerialName("mandatory") val mandatory: Boolean = false,
     @SerialName("changelog_hu") val changelogHu: String = "",
+)
+
+// ── Technical content by department (0059) ──────────────────────────────────────────
+
+@Serializable
+data class ModuleFile(
+    @SerialName("id") val id: Long,
+    @SerialName("image_id") val imageId: Long? = null,
+    @SerialName("document_id") val documentId: Long? = null,
+    @SerialName("filename") val filename: String? = null,
+)
+
+/** One department's part of an order's technical content, with what this person may do. */
+@Serializable
+data class OrderModule(
+    @SerialName("id") val id: Long,
+    @SerialName("department_id") val departmentId: Long,
+    @SerialName("department_name") val departmentName: String,
+    /** `#rrggbb`: the department's colour. */
+    @SerialName("department_color") val departmentColor: String,
+    @SerialName("content") val content: String = "",
+    /** `draft`, `released` or `done`. */
+    @SerialName("status") val status: String,
+    @SerialName("released_at") val releasedAt: String? = null,
+    @SerialName("updated_by_name") val updatedByName: String? = null,
+    @SerialName("content_updated_at") val contentUpdatedAt: String? = null,
+    @SerialName("changed_since_release") val changedSinceRelease: Boolean = false,
+    @SerialName("can_edit") val canEdit: Boolean = false,
+    @SerialName("files") val files: List<ModuleFile> = emptyList(),
+)
+
+@Serializable
+data class OrderModules(
+    @SerialName("items") val items: List<OrderModule> = emptyList(),
+    @SerialName("editable_department_ids") val editableDepartmentIds: List<Long> = emptyList(),
+)
+
+@Serializable
+data class ModulePatch(
+    @SerialName("content") val content: String? = null,
+    @SerialName("status") val status: String? = null,
+)
+
+// ── Repeat orders ───────────────────────────────────────────────────────────────────
+
+@Serializable
+data class CopyOrderBody(
+    @SerialName("title") val title: String? = null,
+    @SerialName("items") val items: Boolean = true,
+    @SerialName("spec") val spec: Boolean = true,
+    @SerialName("modules") val modules: Boolean = true,
+    @SerialName("files") val files: Boolean = true,
+)
+
+@Serializable
+data class CopiedOrderRef(
+    @SerialName("id") val id: Long,
+    @SerialName("number") val number: String,
+)
+
+@Serializable
+data class CopyOrderResult(
+    @SerialName("order") val order: CopiedOrderRef,
+    @SerialName("failed_files") val failedFiles: List<String> = emptyList(),
 )

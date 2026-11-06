@@ -108,10 +108,15 @@ object AppLock {
 @Composable
 fun AppLockGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
-    val enabled = remember { AppLock.isEnabled(context) && AppLock.available(context) }
-    if (!enabled) {
-        content()
-        return
+    // Driven from AppLock.locked alone: the switch that enables the lock must begin
+    // gating the running app immediately, without waiting for a process restart.
+    // (onForeground() already resets locked=false when the feature is off.)
+    if (AppLock.isEnabled(context)) {
+        val available = remember { AppLock.available(context) }
+        if (!available) {
+            content()
+            return
+        }
     }
     if (!AppLock.locked) {
         content()

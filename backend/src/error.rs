@@ -484,6 +484,13 @@ pub const ERROR_CODES: &[ErrorCode] = &[
         "The payment is more than is still open on the invoice.",
     ),
     code(
+        "spec_incomplete",
+        422,
+        false,
+        "A műszaki kérdőív még nem teljes: töltse ki a megjelölt kérdéseket a megrendelés előtt.",
+        "Required questionnaire answers are missing; the message lists their keys.",
+    ),
+    code(
         "not_issued",
         422,
         false,

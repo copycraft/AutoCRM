@@ -1,4 +1,5 @@
-//! Thin wrapper over an S3-compatible object store (MinIO in dev, MinIO/B2 in production).
+//! Where file bytes live: an S3-compatible object store (MinIO in dev), or a mounted share
+//! of plain files in project folders (`STORAGE_BACKEND=fs`, see [`super::fs_store`]).
 
 use std::time::Duration;
 
@@ -16,10 +17,11 @@ use aws_sdk_s3::types::{
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use crate::config::S3Config;
+use super::fs_store::FsStore;
+use crate::config::{Config, S3Config, StorageConfig};
 
 #[derive(Clone)]
-pub struct Storage {
+pub struct S3Store {
     client: Client,
     bucket: String,
     intake_lock_years: u32,
@@ -41,7 +43,7 @@ pub struct ObjectInfo {
     pub sha256_b64: Option<String>,
 }
 
-impl Storage {
+impl S3Store {
     pub fn new(cfg: &S3Config) -> Self {
         let credentials = Credentials::new(
             &cfg.access_key,
@@ -62,7 +64,7 @@ impl Storage {
         if let Some(endpoint) = &cfg.endpoint {
             builder = builder.endpoint_url(endpoint);
         }
-        Storage {
+        S3Store {
             client: Client::from_conf(builder.build()),
             bucket: cfg.bucket.clone(),
             intake_lock_years: cfg.intake_lock_years,
@@ -236,6 +238,141 @@ impl Storage {
             .await
             .map_err(|e| anyhow!("bucket {}: {}", self.bucket, DisplayErrorContext(e)))?;
         Ok(())
+    }
+}
+
+/// The configured store. Every caller goes through this; which one it is matters only to
+/// the upload and download routes of the share (`api::files`) and to re-sorting.
+#[derive(Clone)]
+pub enum Storage {
+    S3(S3Store),
+    Fs(FsStore),
+}
+
+impl Storage {
+    pub fn from_config(config: &Config) -> Self {
+        match &config.storage {
+            StorageConfig::S3(c) => Storage::S3(S3Store::new(c)),
+            StorageConfig::Fs(c) => Storage::Fs(FsStore::new(
+                c,
+                &config.public_base_url,
+                &config.upload_signing_key,
+            )),
+        }
+    }
+
+    pub fn as_fs(&self) -> Option<&FsStore> {
+        match self {
+            Storage::Fs(fs) => Some(fs),
+            Storage::S3(_) => None,
+        }
+    }
+
+    pub fn intake_lock_until(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        match self {
+            Storage::S3(s) => s.intake_lock_until(now),
+            Storage::Fs(f) => f.intake_lock_until(now),
+        }
+    }
+
+    pub async fn lock_object(&self, key: &str, until: DateTime<Utc>) -> anyhow::Result<()> {
+        match self {
+            Storage::S3(s) => s.lock_object(key, until).await,
+            Storage::Fs(f) => f.lock_object(key, until).await,
+        }
+    }
+
+    pub async fn presign_put(
+        &self,
+        key: &str,
+        content_type: &str,
+        byte_size: i64,
+        sha256_b64: &str,
+        lock_until: Option<DateTime<Utc>>,
+        expires_in: Duration,
+    ) -> anyhow::Result<PresignedRequest> {
+        match self {
+            Storage::S3(s) => {
+                s.presign_put(
+                    key,
+                    content_type,
+                    byte_size,
+                    sha256_b64,
+                    lock_until,
+                    expires_in,
+                )
+                .await
+            }
+            Storage::Fs(f) => f.presign_put(
+                key,
+                content_type,
+                byte_size,
+                sha256_b64,
+                lock_until,
+                expires_in,
+            ),
+        }
+    }
+
+    pub async fn presign_get(
+        &self,
+        key: &str,
+        expires_in: Duration,
+        content_disposition: Option<String>,
+    ) -> anyhow::Result<String> {
+        match self {
+            Storage::S3(s) => s.presign_get(key, expires_in, content_disposition).await,
+            Storage::Fs(f) => f.presign_get(key, expires_in, content_disposition),
+        }
+    }
+
+    pub async fn head(&self, key: &str) -> anyhow::Result<Option<ObjectInfo>> {
+        match self {
+            Storage::S3(s) => s.head(key).await,
+            Storage::Fs(f) => f.head(key).await,
+        }
+    }
+
+    pub async fn get_bytes(&self, key: &str) -> anyhow::Result<Vec<u8>> {
+        match self {
+            Storage::S3(s) => s.get_bytes(key).await,
+            Storage::Fs(f) => f.get_bytes(key).await,
+        }
+    }
+
+    /// The object's bytes as a stream, for passing large files on without holding them.
+    pub async fn open(&self, key: &str) -> anyhow::Result<ByteStream> {
+        match self {
+            Storage::S3(s) => s.open(key).await,
+            Storage::Fs(f) => f.open(key).await,
+        }
+    }
+
+    /// Removes an object. Missing keys are not an error.
+    pub async fn delete(&self, key: &str) -> anyhow::Result<()> {
+        match self {
+            Storage::S3(s) => s.delete(key).await,
+            Storage::Fs(f) => f.delete(key).await,
+        }
+    }
+
+    pub async fn put_bytes(
+        &self,
+        key: &str,
+        bytes: Vec<u8>,
+        content_type: &str,
+    ) -> anyhow::Result<()> {
+        match self {
+            Storage::S3(s) => s.put_bytes(key, bytes, content_type).await,
+            Storage::Fs(f) => f.put_bytes(key, bytes).await,
+        }
+    }
+
+    pub async fn check(&self) -> anyhow::Result<()> {
+        match self {
+            Storage::S3(s) => s.check().await,
+            Storage::Fs(f) => f.check().await,
+        }
     }
 }
 

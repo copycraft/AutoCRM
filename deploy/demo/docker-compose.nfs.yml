@@ -1,0 +1,28 @@
+# Files on your NAS over NFS instead of the bundled object store: plain files in project
+# folders that you can open from the share. setup.sh adds this file when NFS_SERVER is set
+# in .env; by hand:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.nfs.yml up -d
+#
+# Docker mounts the share itself (the host needs `sudo apt-get install -y nfs-common`). If
+# the mount fails, the backend does not start: it never writes the files anywhere else.
+services:
+  migrate:
+    environment: &files-env
+      STORAGE_BACKEND: fs
+      STORAGE_DIR: /srv/autocrm-files
+
+  backend:
+    # The owner of the exported folder on the NAS: the backend writes as this user.
+    user: "${FILES_UID:-65534}:${FILES_GID:-65534}"
+    environment: *files-env
+    volumes:
+      - files:/srv/autocrm-files
+
+volumes:
+  files:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: "addr=${NFS_SERVER},${NFS_OPTIONS:-rw,nfsvers=4.1,hard,noatime}"
+      device: ":${NFS_EXPORT:?set NFS_EXPORT in .env, e.g. /volume1/autocrm}"

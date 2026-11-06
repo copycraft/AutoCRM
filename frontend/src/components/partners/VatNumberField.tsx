@@ -1,6 +1,8 @@
 'use client';
 
 // The EU VAT number field: checked against VIES on blur, with the verdict as a badge.
+// It also drives the domestic Hungarian tax number field: 12345678-2-06 is looked up in
+// VIES as HU12345678 (its közösségi adószám), and a valid answer fills the EU field too.
 // A valid number fills the company's empty name/address fields from the EU registry;
 // fields that already hold something different are only offered (with a diff), never
 // overwritten silently. An invalid number never blocks saving: the CRM holds prospects.
@@ -43,11 +45,15 @@ const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
 export function VatNumberField({
   form,
   partnerId,
+  field: fieldName = 'eu_tax_number',
 }: {
   form: UseFormReturn<PartnerFormValues>;
   /** Set when editing: the verdict is filed on the partner and the history is shown. */
   partnerId?: number;
+  /** `tax_number`: the domestic Hungarian adószám, checked through its EU form. */
+  field?: 'eu_tax_number' | 'tax_number';
 }) {
+  const domestic = fieldName === 'tax_number';
   const t = useTranslations('vat');
   const tp = useTranslations('partners');
   const { register, getValues, setValue } = form;
@@ -58,6 +64,7 @@ export function VatNumberField({
   const [filled, setFilled] = useState<Fillable[]>([]);
   const [offer, setOffer] = useState<Partial<Record<Fillable, string>>>({});
   const [history, setHistory] = useState<VatCheck[] | null>(null);
+  const [filledEu, setFilledEu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const lastChecked = useRef<string>('');
   const fieldLabel: Record<Fillable, string> = {
@@ -68,7 +75,7 @@ export function VatNumberField({
   };
 
   const loadHistory = async () => {
-    if (!partnerId) return;
+    if (!partnerId || domestic) return;
     try {
       setHistory((await vatApi.history(partnerId)).items);
     } catch {
@@ -78,7 +85,7 @@ export function VatNumberField({
 
   // Editing: show the latest verdict on file when it is about the number in the field.
   useEffect(() => {
-    if (!partnerId) return;
+    if (!partnerId || domestic) return;
     let live = true;
     vatApi
       .history(partnerId)
@@ -86,7 +93,7 @@ export function VatNumberField({
         if (!live) return;
         setHistory(items);
         const latest = items[0];
-        const current = compact(getValues('eu_tax_number') ?? '');
+        const current = compact(getValues(fieldName) ?? '');
         if (latest && current && compact(latest.country_code + latest.vat_number) === current) {
           lastChecked.current = current;
           setResult({
@@ -118,17 +125,26 @@ export function VatNumberField({
   }, [partnerId]);
 
   const run = async (force: boolean) => {
-    const input = (getValues('eu_tax_number') ?? '').trim();
+    const input = (getValues(fieldName) ?? '').trim();
     if (!input) {
       setResult(null);
       setFormatInvalid(false);
       lastChecked.current = '';
       return;
     }
+    // The domestic field only goes to VIES as a full Hungarian adószám; anything else is
+    // left to the server's own tax-number validation on save.
+    if (domestic && !/^(HU)?d{11}$/.test(compact(input))) {
+      setResult(null);
+      setFormatInvalid(false);
+      lastChecked.current = compact(input);
+      return;
+    }
     setBusy(true);
     setFormatInvalid(false);
     setFilled([]);
     setOffer({});
+    setFilledEu(false);
     try {
       const r = await vatApi.check({
         input,
@@ -144,8 +160,16 @@ export function VatNumberField({
       }
       lastChecked.current = r.formatted;
       setResult(r);
-      if (r.formatted !== input) setValue('eu_tax_number', r.formatted, { shouldDirty: true });
-      if (r.status === 'VALID') applyVies(r);
+      lastChecked.current = domestic ? compact(input) : r.formatted;
+      if (!domestic && r.formatted !== input) setValue('eu_tax_number', r.formatted, { shouldDirty: true });
+      if (r.status === 'VALID') {
+        applyVies(r);
+        // A Hungarian company with a közösségi adószám: that is its EU VAT number.
+        if (domestic && !(getValues('eu_tax_number') ?? '').trim()) {
+          setValue('eu_tax_number', r.formatted, { shouldDirty: true });
+          setFilledEu(true);
+        }
+      }
       void loadHistory();
     } catch {
       setResult(null);
@@ -188,9 +212,9 @@ export function VatNumberField({
     setOffer({});
   };
 
-  const field = register('eu_tax_number', {
+  const field = register(fieldName, {
     onBlur: () => {
-      const v = compact(getValues('eu_tax_number') ?? '');
+      const v = compact(getValues(fieldName) ?? '');
       if (v !== lastChecked.current) void run(false);
     },
   });
@@ -200,16 +224,16 @@ export function VatNumberField({
 
   return (
     <div>
-      <label className="label" htmlFor="eu_tax_number">
-        {tp('euTaxNumber')}
+      <label className="label" htmlFor={fieldName}>
+        {domestic ? tp('taxNumber') : tp('euTaxNumber')}
       </label>
       <div className="flex items-center gap-2">
         <input
-          id="eu_tax_number"
+          id={fieldName}
           className={cn('input font-mono', formatInvalid && 'border-signal')}
-          placeholder="ATU12345678"
+          placeholder={domestic ? '12345678-1-23' : 'ATU12345678'}
           aria-invalid={formatInvalid || undefined}
-          aria-describedby="eu_tax_number_status"
+          aria-describedby={`${fieldName}_status`}
           {...field}
         />
         {result && !busy && (
@@ -225,13 +249,15 @@ export function VatNumberField({
         )}
       </div>
 
-      <div id="eu_tax_number_status" className="mt-1 space-y-2 text-metadata" aria-live="polite">
+      <div id={`${fieldName}_status`} className="mt-1 space-y-2 text-metadata" aria-live="polite">
         {busy && (
           <p className="flex items-center gap-1.5 text-steel-500">
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> {t('checking')}
           </p>
         )}
-        {!busy && !result && !formatInvalid && <p className="text-steel-500">{t('lookupHint')}</p>}
+        {!busy && !result && !formatInvalid && (
+          <p className="text-steel-500">{domestic ? t('domesticLookupHint') : t('lookupHint')}</p>
+        )}
         {!busy && formatInvalid && <p className="text-signal">{t('formatInvalid')}</p>}
 
         {!busy && result && (
@@ -293,6 +319,12 @@ export function VatNumberField({
                   </>
                 )}
               </dl>
+            )}
+
+            {filledEu && (
+              <p className="text-done">
+                {t('filledEu', { number: result.formatted })}
+              </p>
             )}
 
             {filled.length > 0 && (

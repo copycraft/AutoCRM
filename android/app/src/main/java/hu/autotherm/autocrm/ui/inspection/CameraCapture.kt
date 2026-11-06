@@ -101,6 +101,10 @@ fun CameraCapture(
     DisposableEffect(lifecycleOwner) {
         var provider: ProcessCameraProvider? = null
         var bound = false
+        // ProcessCameraProvider.getInstance() resolves asynchronously: if the composable
+        // is disposed while waiting (cancel during the cold-start bind), the listener
+        // must not bind a camera nothing will ever unbind.
+        var disposed = false
         val future = try {
             ProcessCameraProvider.getInstance(context)
         } catch (e: Exception) {
@@ -108,15 +112,18 @@ fun CameraCapture(
             null
         }
         val listener = Runnable {
-            if (bound) return@Runnable
+            if (bound || disposed) return@Runnable
             provider = try {
                 future?.get()
             } catch (e: Exception) {
                 error = "a kamera nem indult el"
                 return@Runnable
             }
+            // The flash the user already switched on during the bind window counts:
+            // without this a tap on Vaku before binding was silently dropped.
             val capture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .setFlashMode(if (flashOn) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF)
                 .build()
             imageCapture = capture
             try {
@@ -134,7 +141,10 @@ fun CameraCapture(
             }
         }
         future?.addListener(listener, executor)
-        onDispose { runCatching { provider?.unbindAll() } }
+        onDispose {
+            disposed = true
+            runCatching { provider?.unbindAll() }
+        }
     }
 
     LaunchedEffect(flashOn) {

@@ -59,12 +59,13 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import java.time.LocalDate
 
-private val KINDS = listOf("annual", "sick", "unpaid", "other")
+private val KINDS = listOf("annual", "sick", "unpaid", "unexcused", "other")
 
 private fun kindLabel(kind: String): String = when (kind) {
     "annual" -> "Szabadság"
     "sick" -> "Betegszabadság"
     "unpaid" -> "Fizetés nélküli"
+    "unexcused" -> "Igazolatlan"
     "other" -> "Egyéb"
     else -> kind
 }
@@ -72,6 +73,7 @@ private fun kindLabel(kind: String): String = when (kind) {
 private fun kindTone(kind: String): Tone = when (kind) {
     "annual" -> Tone.Cold
     "sick" -> Tone.Signal
+    "unexcused" -> Tone.Signal
     else -> Tone.Steel
 }
 
@@ -97,7 +99,7 @@ class LeaveViewModel(private val api: AutoCrmApi) : ViewModel() {
             val keep = _state.value.absences.isNotEmpty()
             _state.value = _state.value.copy(loading = !keep, refreshing = keep, error = null)
             try {
-                val today = LocalDate.now()
+                val today = hu.autotherm.autocrm.util.businessToday()
                 val absences = api.absences(today.minusDays(7).toString(), today.plusDays(90).toString())
                 val people = api.employees()
                 _state.value = _state.value.copy(
@@ -174,7 +176,7 @@ fun LeaveScreen(viewModel: LeaveViewModel, onBack: () -> Unit) {
             }
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
             if (state.error != null && state.absences.isNotEmpty()) {
                 Text(
                     state.error!!,
@@ -192,6 +194,7 @@ fun LeaveScreen(viewModel: LeaveViewModel, onBack: () -> Unit) {
                 else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(fab = true),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.absences, key = { it.id }) { a ->
@@ -207,7 +210,7 @@ fun LeaveScreen(viewModel: LeaveViewModel, onBack: () -> Unit) {
                                             style = MaterialTheme.typography.bodyMedium,
                                         )
                                         // Who is out today is the question the list is opened for.
-                                        val today = java.time.LocalDate.now().toString()
+                                        val today = hu.autotherm.autocrm.util.businessTodayIso()
                                         if (a.startDate <= today && today <= a.endDate) {
                                             StatusBadge("Ma távol", Tone.Signal)
                                         }
@@ -268,8 +271,8 @@ private fun AbsenceDialog(
 ) {
     var employee by remember { mutableStateOf(people.first()) }
     var kind by remember { mutableStateOf("annual") }
-    var start by remember { mutableStateOf(LocalDate.now().toString()) }
-    var end by remember { mutableStateOf(LocalDate.now().toString()) }
+    var start by remember { mutableStateOf(hu.autotherm.autocrm.util.businessToday().toString()) }
+    var end by remember { mutableStateOf(hu.autotherm.autocrm.util.businessToday().toString()) }
     var note by remember { mutableStateOf("") }
     var employeeMenu by remember { mutableStateOf(false) }
     var kindMenu by remember { mutableStateOf(false) }
@@ -313,7 +316,7 @@ private fun AbsenceDialog(
         androidx.compose.foundation.layout.Row(
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
         ) {
-            val today = java.time.LocalDate.now()
+            val today = hu.autotherm.autocrm.util.businessToday()
             val nextMonday = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
             listOf(
                 "Ma" to (today to today),

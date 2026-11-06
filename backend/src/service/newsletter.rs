@@ -286,8 +286,8 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
         let (unsub_short, unsub_long) = unsubscribe_words(letter.language.as_deref());
         let footer_text = format!("\n\n---\n{unsub_short}: {unsub}");
         let footer_html = format!(
-            "<p style=\"margin:16px 0 0 0;font-size:11px;line-height:1.5;color:#8a847a;\">\
-             <a href=\"{unsub}\" style=\"color:#8a847a;\">{unsub_long}</a></p>"
+            "<p style=\"margin:20px 0 0 0;font-size:12px;line-height:1.5;color:#64748b;\">\
+             <a href=\"{unsub}\" style=\"color:#64748b;\">{unsub_long}</a></p>"
         );
         let body_text = format!("{}{}", letter.text, footer_text);
         let with_links =
@@ -297,13 +297,7 @@ pub async fn dispatch(state: &AppState, send_id: i64) -> anyhow::Result<usize> {
         let pixel = format!(
             "<img src=\"{base}/api/newsletter/track/open?token={token}\" width=\"1\" height=\"1\" alt=\"\" />"
         );
-        let mut body_html = with_links.replace(
-            "</body></html>",
-            &format!("{footer_html}{pixel}</body></html>"),
-        );
-        if !body_html.contains(&pixel) {
-            body_html.push_str(&format!("{footer_html}{pixel}"));
-        }
+        let body_html = template::append_to_content(&with_links, &format!("{footer_html}{pixel}"));
 
         let id = emails::insert(
             &mut *tx,

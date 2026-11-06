@@ -80,7 +80,11 @@ class LeadEditViewModel(private val api: AutoCrmApi) : ViewModel() {
     val state: StateFlow<State> = _state.asStateFlow()
 
     /** What the person typed, as it was when the form opened: "unsaved" means it differs. */
-    private fun fingerprint(s: State): List<Any?> = listOf(s.title, s.contactName, s.contactEmail, s.contactPhone, s.sourceDetail, s.description, s.quotedValue, s.quoteValidUntil)
+    private fun fingerprint(s: State): List<Any?> = listOf(
+        s.title, s.partner?.id, s.contactName, s.contactEmail, s.contactPhone,
+        s.source, s.sourceDetail, s.assignedTo, s.description,
+        s.quotedValue, s.currency, s.quoteValidUntil,
+    )
     private var baseline: List<Any?> = fingerprint(State())
 
     fun isDirty(s: State): Boolean = !s.busy && fingerprint(s) != baseline

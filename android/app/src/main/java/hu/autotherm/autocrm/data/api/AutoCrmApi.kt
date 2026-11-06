@@ -380,6 +380,25 @@ class AutoCrmApi(
     suspend fun order(id: Long): OrderDetail =
         send(Request.Builder().url(url("/orders/$id").build()).get(), OrderDetail.serializer())
 
+    // ── Technical content by department (0059) ──
+
+    suspend fun orderModules(orderId: Long): OrderModules =
+        send(Request.Builder().url(url("/orders/$orderId/modules").build()).get(), OrderModules.serializer())
+
+    suspend fun updateModule(id: Long, patch: ModulePatch): OrderModule =
+        send(Request.Builder().url(url("/modules/$id").build()).patch(body(patch)), OrderModule.serializer())
+
+    /** Hands the part to its department: the heads are told. */
+    suspend fun releaseModule(id: Long): OrderModule =
+        send(
+            Request.Builder().url(url("/modules/$id/release").build()).post(EMPTY),
+            OrderModule.serializer(),
+        )
+
+    /** Repeat order: a new project started as a copy of this one. */
+    suspend fun copyOrder(id: Long, body: CopyOrderBody): CopyOrderResult =
+        send(Request.Builder().url(url("/orders/$id/copy").build()).post(body(body)), CopyOrderResult.serializer())
+
     suspend fun createOrder(body: OrderBody): Order =
         send(
             Request.Builder().url(url("/orders").build()).post(body(body)),
@@ -789,11 +808,24 @@ class AutoCrmApi(
         )
 
     /** The cooling unit's serial number on the order's spec (0049). */
-    suspend fun setCoolingSerial(orderId: Long, serial: String?): OrderSpec =
+    suspend fun setCoolingSerial(orderId: Long, serial: String?): SpecAnswers =
         send(
             Request.Builder().url(url("/orders/$orderId/cooling-serial").build())
                 .put(body(CoolingSerialBody(serial))),
-            OrderSpec.serializer(),
+            SpecAnswers.serializer(),
+        )
+
+    // ── The build questionnaire (0065) ──────────────────────────────────────────────
+
+    /** The sections and questions, in display order (inactive ones included). */
+    suspend fun questionnaire(): Questionnaire =
+        send(Request.Builder().url(url("/config/questionnaire").build()).get(), Questionnaire.serializer())
+
+    /** Replaces a lead's project type and answers. Never demands completeness. */
+    suspend fun putLeadSpec(id: Long, body: kotlinx.serialization.json.JsonObject): LeadSpec =
+        send(
+            Request.Builder().url(url("/leads/$id/spec").build()).put(body(body)),
+            LeadSpec.serializer(),
         )
 
     suspend fun putInspectionTyres(id: Long, tyres: List<InspectionTyre>): List<InspectionTyre> =

@@ -130,5 +130,9 @@ internal val ERROR_TEXT: Map<String, String> = mapOf(
     "nav_unreachable" to "A számlázó szolgáltatás nem érhető el. A megrendelés nem sérült; próbálja újra később.",
     "overpayment" to "A befizetés több, mint a számlán még nyitott összeg.",
     "not_issued" to "Csak kiállított számlának van letölthető bizonylata.",
+    "spec_incomplete" to "A műszaki kérdőív még nem teljes: töltse ki a megjelölt kérdéseket a megrendelés előtt.",
     "pdf_unavailable" to "A PDF most nem tölthető le. Próbálja újra később.",
+    "eu_vat_number_required" to "Uniós cégnek 0%-os ÁFA-val csak közösségi adószámmal lehet számlázni. Adja meg a partner EU adószámát.",
+    "eu_vat_number_invalid" to "A vevő EU adószáma a VIES szerint nem érvényes, így 0%-os uniós számla nem állítható ki.",
+    "eu_vat_check_unavailable" to "A VIES most nem tudta megerősíteni a vevő EU adószámát. Próbálja újra később.",
 )

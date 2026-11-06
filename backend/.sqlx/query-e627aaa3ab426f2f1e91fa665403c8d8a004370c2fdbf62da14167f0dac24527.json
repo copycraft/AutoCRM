@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO spec_questions\n            (section_id, key, kind, label, help, unit, options, min_value, max_value, required,\n             position, is_active)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::float8::numeric, $9::float8::numeric, $10,\n                 $11, $12)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "TextArray",
+        "Float8",
+        "Float8",
+        "Bool",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e627aaa3ab426f2f1e91fa665403c8d8a004370c2fdbf62da14167f0dac24527"
+}

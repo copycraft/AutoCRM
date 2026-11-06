@@ -102,6 +102,7 @@ export const qk = {
   templates: ['email-templates'],
   stages: (entity?: string) => ['stage-definitions', entity],
   projectTypes: ['project-types'],
+  questionnaire: ['questionnaire'],
   settings: ['settings'],
   lookups: ['lookups'],
   reports: (name: string, params?: unknown) => ['reports', name, params],

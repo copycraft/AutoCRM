@@ -130,10 +130,11 @@ class ScanPdfTest {
             // Each page embeds exactly the bytes it was given.
             assertTrue(text.contains("/Length ${gray.size}"))
             assertTrue(text.contains("/Length ${rotated.size}"))
-            // The rotated page draws through a rotation matrix, not axis-aligned.
+            // The rotated page draws through a 90° rotation matrix in unit image space:
+            // magnitudes are the rect's own w/h (280.67 × 842), the offset its corner.
             assertTrue(text.contains("/Im1 Do"))
             val matrix = text.substringBefore(" /Im1 Do").substringAfterLast("stream\n")
-            assertTrue("got $matrix", matrix.contains("-9.36") && matrix.contains("84.20"))
+            assertTrue("got $matrix", matrix.contains("-842.00") && matrix.contains("280.67"))
             // startxref points at the xref table it names.
             val xrefAt = text.substringAfterLast("startxref\n").substringBefore("\n").trim().toInt()
             assertEquals("xref", text.substring(xrefAt, xrefAt + 4))

@@ -17,70 +17,15 @@ import { useLookups } from '@/hooks/useLookups';
 import { useDirtyGuard } from '@/hooks/useDirtyGuard';
 import { useFormDraft } from '@/hooks/useFormDraft';
 import { VinDecodeButton } from '@/components/orders/VehicleExtras';
-import { BuildSpecSection, type SpecForm } from './BuildSpecSection';
+import { QuestionnaireFields } from '@/components/spec/QuestionnaireFields';
+import { useQuestionnaire } from '@/components/spec/QuestionnaireView';
 import { ReturningVehicleWarning } from '@/components/orders/ReturningVehicleWarning';
-import type {
-  Order,
-  OrderBody,
-  OrderSpec,
-  PatchOrder,
-  ProjectType,
-  SpecBody,
-} from '@/lib/api/types';
-
-/**
- * The numeric ranges the database enforces on `order_specs` (migration 0015).
- *
- * Mirrored here so a wrong value is caught under the field the user is looking at, rather
- * than coming back as a 422 after a round trip. The database keeps its CHECKs — this is a
- * courtesy, not the guarantee — and [`SPEC_CONSTRAINT_FIELD`] catches whatever still gets
- * through so that even then the error lands on the right input.
- */
-export const SPEC_LIMITS = {
-  target_temp_c: { min: -40, max: 120 },
-  insulation_mm: { min: 0, max: 500 },
-  compartments: { min: 1, max: 5 },
-} as const;
-
-/**
- * A blank optional number, or one inside the database's range.
- *
- * The message is a token, not finished text: zod resolves messages at parse time, where
- * there is no translator in scope. [`fieldErrorText`] turns it into Hungarian at render.
- */
-function boundedNumber(min: number, max: number) {
-  return z
-    .string()
-    .trim()
-    .optional()
-    .refine(
-      (s) => {
-        if (!s) return true;
-        // Hungarian keyboards produce a decimal comma, and the office types it.
-        const n = Number(s.replace(',', '.'));
-        return Number.isFinite(n) && n >= min && n <= max;
-      },
-      { message: `range:${min}:${max}` },
-    );
-}
-
-/** Same, for "must be greater than zero" where naming an upper bound would be noise. */
-function positiveNumber() {
-  return z
-    .string()
-    .trim()
-    .optional()
-    .refine((s) => {
-      if (!s) return true;
-      const n = Number(s.replace(',', '.'));
-      return Number.isFinite(n) && n > 0;
-    }, { message: 'positive' });
-}
+import type { Answers, Order, OrderBody, PatchOrder } from '@/lib/api/types';
 
 /**
  * A react-hook-form error message as Hungarian text.
  *
- * Three kinds arrive here: a `range:min:max` token from [`boundedNumber`], a bare
+ * Three kinds arrive here: a `range:min:max` token (`answerProblem` in lib/questionnaire), a bare
  * catalogue key, and a message the server wrote (already Hungarian, or at least already
  * a sentence). Anything unrecognised is shown as-is rather than swallowed — a message
  * the user can read beats a blank space under a red box.
@@ -102,37 +47,14 @@ export function fieldErrorText(
 }
 
 /**
- * Database constraint → the input that carries the offending value.
- *
- * The last line of defence. Everything in `SPEC_LIMITS` is checked before submit, but a
- * CHECK can be added to a migration without anyone touching this form, and enum columns
- * (`defrost`, `fuel`) are only ever as correct as the select that feeds them. Mapping the
- * name back to a field turns "the data violates the database's rules" — true, and useless —
- * into a red box around the thing to change.
+ * Database constraint → the input that carries the offending value. The last line of
+ * defence: mapping the name back to a field turns "the data violates the database's rules"
+ * into a red box around the thing to change. (The questionnaire's answers are checked by
+ * the server against their questions and come back as a message naming the question.)
  */
-const SPEC_CONSTRAINT_FIELD: Record<string, keyof OrderFormValues> = {
-  order_specs_target_temp_c_check: 'target_temp_c',
-  order_specs_insulation_mm_check: 'insulation_mm',
-  order_specs_compartments_check: 'compartments',
-  order_specs_heat_output_kw_check: 'heat_output_kw',
-  order_specs_defrost_check: 'defrost',
-  order_specs_fuel_check: 'fuel',
+const CONSTRAINT_FIELD: Record<string, keyof OrderFormValues> = {
   orders_currency_check: 'currency',
 };
-
-/**
- * The text a field shows when the database, rather than zod, rejected the value.
- *
- * Deliberately the same token the client-side check would have produced: the user should
- * not be able to tell which side caught it, and two wordings for one rule is how they
- * drift apart.
- */
-function constraintMessage(field: keyof OrderFormValues): string {
-  const limit = SPEC_LIMITS[field as keyof typeof SPEC_LIMITS];
-  if (limit) return `range:${limit.min}:${limit.max}`;
-  if (field === 'heat_output_kw') return 'positive';
-  return 'invalidValue';
-}
 
 const schema = z.object({
   title: z.string().trim().min(1),
@@ -152,22 +74,9 @@ const schema = z.object({
   description: z.string().trim().optional(),
   due_date: z.string(),
   assigned_to: z.custom<number | null | 'me'>(() => true),
-  // Build specification. Which of these the user sees depends on the chosen project type's
-  // spec_form; the ones that do not apply are never sent.
-  target_temp_c: boundedNumber(SPEC_LIMITS.target_temp_c.min, SPEC_LIMITS.target_temp_c.max),
-  insulation_mm: boundedNumber(SPEC_LIMITS.insulation_mm.min, SPEC_LIMITS.insulation_mm.max),
-  cooling_unit_make: z.string().trim().optional(),
-  cooling_unit_model: z.string().trim().optional(),
-  atp_class: z.string().trim().optional(),
-  compartments: boundedNumber(SPEC_LIMITS.compartments.min, SPEC_LIMITS.compartments.max),
-  defrost: z.string().trim().optional(),
-  electric_standby: z.boolean().optional(),
-  heater_make: z.string().trim().optional(),
-  heater_model: z.string().trim().optional(),
-  heat_output_kw: positiveNumber(),
-  fuel: z.string().trim().optional(),
-  thermostat: z.boolean().optional(),
-  spec_notes: z.string().trim().optional(),
+  // The build questionnaire's answers (key → answer). Which questions show depends on the
+  // project type and on the answers themselves; the server checks every value.
+  spec_answers: z.custom<Answers>(() => true),
 });
 
 export type OrderFormValues = z.infer<typeof schema>;
@@ -181,62 +90,7 @@ function assignee(v: OrderFormValues['assigned_to'], meId: number | undefined): 
   return v === 'me' ? (meId ?? null) : v;
 }
 
-/**
- * The build spec, or undefined when the project type asks for none.
- *
- * Only the chosen variant's fields are sent. The backend blanks the other variant's
- * columns anyway and the database refuses a row that mixes them, but sending a heater
- * make on a cooling order would still be a lie about what the user filled in.
- */
-export function orderSpecBody(v: OrderFormValues, form: SpecForm | null): SpecBody | undefined {
-  if (!form) return undefined;
-  const clean = (x: string | undefined) => (x?.trim() ? x.trim() : undefined);
-  const int = (x: string | undefined) => {
-    const n = Number(clean(x));
-    return clean(x) && Number.isFinite(n) ? Math.trunc(n) : undefined;
-  };
-  const shared = {
-    target_temp_c: clean(v.target_temp_c),
-    insulation_mm: int(v.insulation_mm),
-    notes: clean(v.spec_notes),
-  };
-  return form === 'cooling'
-    ? {
-        ...shared,
-        cooling_unit_make: clean(v.cooling_unit_make),
-        cooling_unit_model: clean(v.cooling_unit_model),
-        atp_class: clean(v.atp_class),
-        compartments: int(v.compartments),
-        defrost: clean(v.defrost),
-        electric_standby: v.electric_standby ?? false,
-      }
-    : {
-        ...shared,
-        heater_make: clean(v.heater_make),
-        heater_model: clean(v.heater_model),
-        heat_output_kw: clean(v.heat_output_kw),
-        fuel: clean(v.fuel),
-        thermostat: v.thermostat ?? false,
-      };
-}
-
-/** The spec form a project type asks for, if any. */
-export function specFormOf(
-  projectTypes: ProjectType[] | undefined,
-  projectTypeId: string,
-): SpecForm | null {
-  if (!projectTypeId) return null;
-  const found = projectTypes?.find((p) => p.id === Number(projectTypeId));
-  return found?.spec_form === 'heating' || found?.spec_form === 'cooling'
-    ? found.spec_form
-    : null;
-}
-
-export function orderCreateBody(
-  v: OrderFormValues,
-  meId: number | undefined,
-  specForm: SpecForm | null,
-): OrderBody {
+export function orderCreateBody(v: OrderFormValues, meId: number | undefined): OrderBody {
   const clean = (s: string | undefined) => (s?.trim() ? s.trim() : undefined);
   const date = (s: string) => (s ? s : undefined);
   return {
@@ -254,7 +108,7 @@ export function orderCreateBody(
     description: clean(v.description),
     due_date: date(v.due_date),
     assigned_to: assignee(v.assigned_to, meId),
-    spec: orderSpecBody(v, specForm),
+    spec_answers: v.spec_answers,
     items: [],
   };
 }
@@ -305,7 +159,7 @@ export function orderPatchBody(
 export function OrderForm({
   initial,
   initialPartner,
-  initialSpec,
+  initialAnswers,
   currencyLocked,
   draftKey,
   onSubmit,
@@ -313,13 +167,13 @@ export function OrderForm({
 }: {
   initial?: Order;
   initialPartner?: PartnerOption | null;
-  /** The order's existing build spec, so editing starts from what was recorded. */
-  initialSpec?: OrderSpec | null;
+  /** The order's questionnaire answers, so editing starts from what was recorded. */
+  initialAnswers?: Answers;
   /** True while the order has items — currency select disabled. */
   currencyLocked?: boolean;
   /** Draft autosave slot for the create page; ignored when editing. */
   draftKey?: string;
-  onSubmit: (v: OrderFormValues, contactDirty: boolean, specForm: SpecForm | null) => Promise<void>;
+  onSubmit: (v: OrderFormValues, contactDirty: boolean) => Promise<void>;
   submitLabel: string;
 }) {
   const t = useTranslations('orders');
@@ -327,6 +181,7 @@ export function OrderForm({
   const tq = useTranslations('qol');
   const tv = useTranslations('validation');
   const ter = useTranslations('errors');
+  const ts = useTranslations('spec');
   const [serverError, setServerError] = useState<string | null>(null);
   const [partnerError, setPartnerError] = useState(false);
   const { data: lookups } = useLookups();
@@ -346,20 +201,7 @@ export function OrderForm({
     description: '',
     due_date: '',
     assigned_to: null,
-    target_temp_c: '',
-    insulation_mm: '',
-    cooling_unit_make: '',
-    cooling_unit_model: '',
-    atp_class: '',
-    compartments: '',
-    defrost: '',
-    electric_standby: false,
-    heater_make: '',
-    heater_model: '',
-    heat_output_kw: '',
-    fuel: '',
-    thermostat: false,
-    spec_notes: '',
+    spec_answers: {},
   };
 
   const { register, handleSubmit, control, watch, reset, setValue, setError, formState } = useForm<OrderFormValues>({
@@ -379,20 +221,7 @@ export function OrderForm({
       description: initial?.description ?? '',
       due_date: initial?.due_date ?? '',
       assigned_to: initial?.assigned_to ?? lastAssignee(),
-      target_temp_c: initialSpec?.target_temp_c ?? '',
-      insulation_mm: initialSpec?.insulation_mm != null ? String(initialSpec.insulation_mm) : '',
-      cooling_unit_make: initialSpec?.cooling_unit_make ?? '',
-      cooling_unit_model: initialSpec?.cooling_unit_model ?? '',
-      atp_class: initialSpec?.atp_class ?? '',
-      compartments: initialSpec?.compartments != null ? String(initialSpec.compartments) : '',
-      defrost: initialSpec?.defrost ?? '',
-      electric_standby: initialSpec?.electric_standby ?? false,
-      heater_make: initialSpec?.heater_make ?? '',
-      heater_model: initialSpec?.heater_model ?? '',
-      heat_output_kw: initialSpec?.heat_output_kw ?? '',
-      fuel: initialSpec?.fuel ?? '',
-      thermostat: initialSpec?.thermostat ?? false,
-      spec_notes: initialSpec?.notes ?? '',
+      spec_answers: initialAnswers ?? {},
     },
   });
 
@@ -404,7 +233,7 @@ export function OrderForm({
     reset,
     empty: emptyOrder,
   });
-  // Spec fields are registered on this same form, so its isDirty covers them too.
+  // The answers are a field of this same form, so its isDirty covers them too.
   useDirtyGuard(formState.isDirty && !formState.isSubmitSuccessful, tq('unsavedChanges'));
   const contactsQuery = useQuery({
     queryKey: qk.partner(partnerId ?? 0),
@@ -414,9 +243,10 @@ export function OrderForm({
     queryKey: qk.projectTypes,
     queryFn: () => configApi.projectTypes(),
   });
-  // The section below the vehicle fields changes as this changes: cooling types show the
-  // refrigeration fields, heating types the heater fields, a repair neither.
-  const specForm = specFormOf(projectTypes.data?.items, watch('project_type_id'));
+  // The questionnaire below the vehicle fields follows the project type and its own
+  // answers: "Fűteni kell?" igen opens the heating questions, and so on.
+  const questionnaire = useQuestionnaire();
+  const projectTypeId = watch('project_type_id') ? Number(watch('project_type_id')) : null;
 
   return (
     <form
@@ -429,15 +259,15 @@ export function OrderForm({
           return;
         }
         try {
-          await onSubmit(v, !!formState.dirtyFields.contact_id, specForm);
+          await onSubmit(v, !!formState.dirtyFields.contact_id);
           draft.clear();
         } catch (e) {
           // A rejected write names the constraint it tripped. If that names a field on
           // this form, put the error there and take the user to it; the banner is for
           // everything that genuinely has no field to blame.
-          const field = SPEC_CONSTRAINT_FIELD[constraintName(e) ?? ''];
+          const field = CONSTRAINT_FIELD[constraintName(e) ?? ''];
           if (field) {
-            setError(field, { message: constraintMessage(field) }, { shouldFocus: true });
+            setError(field, { message: 'invalidValue' }, { shouldFocus: true });
           } else {
             setServerError(errorMessage(e, ter, ter('unknownError')));
           }
@@ -582,7 +412,25 @@ export function OrderForm({
           )}
         />
 
-        <BuildSpecSection form={specForm} register={register} errors={formState.errors} />
+        <div className="md:col-span-2 border-t border-steel-200 pt-4">
+          <h3 className="text-section font-semibold">{ts('title')}</h3>
+          <p className="mt-1 text-metadata text-steel-500">{ts('explanation')}</p>
+          <div className="mt-4">
+            <Controller
+              control={control}
+              name="spec_answers"
+              render={({ field }) => (
+                <QuestionnaireFields
+                  questionnaire={questionnaire.data}
+                  projectTypeId={projectTypeId}
+                  answers={field.value ?? {}}
+                  onChange={field.onChange}
+                  idPrefix="of"
+                />
+              )}
+            />
+          </div>
+        </div>
       </div>
       <div className="card-footer justify-end">
         <button className="btn-primary" type="submit" disabled={formState.isSubmitting}>

@@ -267,6 +267,7 @@ async fn staff_send_as_themselves_through_the_queue(pool: PgPool) {
         must_change_password: false,
         hr_access: false,
         permissions: vec![],
+        role_grid: None,
     };
 
     let id = send_manual(

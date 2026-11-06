@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use anyhow::anyhow;
 use lettre::message::header::{ContentType, Header, HeaderName, HeaderValue};
-use lettre::message::{Attachment, Mailbox, MultiPart};
+use lettre::message::{Attachment, Mailbox, MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::transport::smtp::extension::ClientId;
@@ -361,21 +361,41 @@ fn build_message(email: &OutgoingEmail) -> anyhow::Result<Message> {
     if let Some(refs) = &email.references {
         builder = builder.references(refs.clone());
     }
-    let alternative =
-        MultiPart::alternative_plain_html(email.body_text.clone(), email.body_html.clone());
-    let body = if email.attachments.is_empty() {
+    // mixed[ alternative[ text, related[ html, inline images ] ], attachments ]: the images
+    // the HTML points at sit next to it in multipart/related, so clients show them in the
+    // letter instead of also listing them as attachments (the logo is in every letter).
+    let content_type = |a: &OutgoingAttachment| {
+        ContentType::parse(&a.content_type)
+            .unwrap_or_else(|_| ContentType::parse("application/octet-stream").expect("valid"))
+    };
+    let (inline, files): (Vec<_>, Vec<_>) = email
+        .attachments
+        .iter()
+        .partition(|a| a.content_id.is_some());
+    let alternative = if inline.is_empty() {
+        MultiPart::alternative_plain_html(email.body_text.clone(), email.body_html.clone())
+    } else {
+        let mut related =
+            MultiPart::related().singlepart(SinglePart::html(email.body_html.clone()));
+        for a in &inline {
+            let cid = a.content_id.clone().unwrap_or_default();
+            related = related.singlepart(
+                Attachment::new_inline_with_name(cid, a.filename.clone())
+                    .body(a.bytes.clone(), content_type(a)),
+            );
+        }
+        MultiPart::alternative()
+            .singlepart(SinglePart::plain(email.body_text.clone()))
+            .multipart(related)
+    };
+    let body = if files.is_empty() {
         alternative
     } else {
         let mut mixed = MultiPart::mixed().multipart(alternative);
-        for a in &email.attachments {
-            let content_type = ContentType::parse(&a.content_type)
-                .unwrap_or_else(|_| ContentType::parse("application/octet-stream").expect("valid"));
-            let part = match &a.content_id {
-                Some(cid) => Attachment::new_inline_with_name(cid.clone(), a.filename.clone())
-                    .body(a.bytes.clone(), content_type),
-                None => Attachment::new(a.filename.clone()).body(a.bytes.clone(), content_type),
-            };
-            mixed = mixed.singlepart(part);
+        for a in &files {
+            mixed = mixed.singlepart(
+                Attachment::new(a.filename.clone()).body(a.bytes.clone(), content_type(a)),
+            );
         }
         mixed
     };
@@ -451,6 +471,13 @@ mod tests {
         let text = formatted(&e);
         assert!(text.contains("Content-ID: <doc-9>"), "{text}");
         assert!(text.contains("Content-Disposition: inline"), "{text}");
+        // Next to the HTML, not among the downloads.
+        assert!(text.contains("multipart/related"), "{text}");
+        let related = text.find("multipart/related").unwrap();
+        assert!(
+            text.find("Content-ID: <doc-9>").unwrap() > related,
+            "{text}"
+        );
     }
 
     #[test]

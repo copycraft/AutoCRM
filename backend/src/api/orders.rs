@@ -15,7 +15,6 @@ use super::extract::{ApiJson, ApiPath, ApiQuery, Auth};
 use super::leads::StageBody;
 use super::{Items, optional, page_limit, page_offset, patch as patch_field, patch_text, required};
 use crate::AppState;
-use crate::domain::lookups::{DEFROST_KEYS, HEATING_FUEL_KEYS};
 use crate::domain::media::ImageCategory;
 use crate::domain::money::{Currency, Money};
 use crate::domain::order::{normalize_plate, validate_line_item};
@@ -26,13 +25,12 @@ use crate::repo::audit::AuditEntry;
 use crate::repo::blockers::Blocker;
 use crate::repo::order_items::OrderItem;
 use crate::repo::order_notes::OrderNote;
-use crate::repo::order_specs::{OrderSpec, SpecFields};
 use crate::repo::orders::{Order, OrderFields, OrderFilter, OrderSummary, OrderValue};
 use crate::repo::stages::StageEntry;
 use crate::repo::vehicles::{self, Vehicle};
 use crate::repo::{
-    audit, blockers, config, images, like_pattern, order_items, order_notes, order_specs, orders,
-    parse_sort, partners, stages,
+    audit, blockers, config, images, like_pattern, order_items, order_notes, orders, parse_sort,
+    partners, questionnaire, stages,
 };
 use crate::service;
 use crate::service::orders::{
@@ -51,9 +49,29 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(stage_history))
         .routes(routes!(audit_trail))
         .routes(routes!(notes))
-        .routes(routes!(get_spec, put_spec))
         .routes(routes!(list_items, add_item))
         .routes(routes!(update_item, delete_item))
+        .routes(routes!(copy_order))
+}
+
+/// Start a new project as a copy of this one, for a repeat order: the data row, items, spec,
+/// each department's technical content and its drawings and photos, all editable after.
+/// Plate, VIN and everything about the earlier job itself stay behind.
+#[utoipa::path(
+    post, path = "/orders/{id}/copy", tag = "orders",
+    params(("id" = i64, Path)),
+    request_body = service::repeat_order::CopyRequest,
+    responses((status = 201, body = service::repeat_order::CopyResult))
+)]
+async fn copy_order(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(b): ApiJson<service::repeat_order::CopyRequest>,
+) -> AppResult<(StatusCode, Json<service::repeat_order::CopyResult>)> {
+    me.require(Capability::EditOrders)?;
+    let copied = service::repeat_order::copy_order(&state, &me, id, &b).await?;
+    Ok((StatusCode::CREATED, Json(copied)))
 }
 
 /// Quantities arrive as strings ("1.5") for exactness; plain JSON numbers are accepted too.
@@ -97,7 +115,7 @@ struct SearchQuery {
 )]
 async fn search(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> AppResult<Json<Items<OrderSummary>>> {
     let plate = q.q.as_deref().map(normalize_plate).unwrap_or_default();
@@ -116,16 +134,16 @@ async fn search(
     };
     let sort_key = parse_sort(q.sort.as_deref(), orders::ORDER_SORTS, orders::DEFAULT_SORT)
         .map_err(AppError::validation)?;
-    Ok(Items::new(
-        orders::search(
-            &state.db,
-            &filter,
-            &sort_key,
-            page_limit(q.limit),
-            page_offset(q.offset),
-        )
-        .await?,
-    ))
+    let mut rows = orders::search(
+        &state.db,
+        &filter,
+        &sort_key,
+        page_limit(q.limit),
+        page_offset(q.offset),
+    )
+    .await?;
+    super::visibility::order_summaries(&me, &mut rows);
+    Ok(Items::new(rows))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -173,97 +191,13 @@ pub struct OrderBody {
     /// Intake slip: what was left in the vehicle. Only meaningful with
     /// `valuables_declared = true`, and rejected without it.
     pub valuables: Option<String>,
-    /// The build specification, when the chosen project type asks for one. Written in the
-    /// same transaction as the order so a failed second request cannot leave a build with
-    /// no spec.
-    pub spec: Option<SpecBody>,
+    /// The build questionnaire's answers (0065): question key → answer. Written in the same
+    /// transaction as the order; answers to questions not asked for the chosen project type
+    /// are left out. Not checked for completeness here: converting a lead is.
+    #[schema(value_type = Option<Object>)]
+    pub spec_answers: Option<crate::domain::questionnaire::Answers>,
     #[serde(default)]
     pub items: Vec<ItemBody>,
-}
-
-/// The build spec as the form sends it. `form` is not taken on trust: it must match what
-/// the order's project type asks for, or the row would mean something the office did not
-/// choose.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct SpecBody {
-    pub target_temp_c: Option<String>,
-    pub insulation_mm: Option<i32>,
-    pub cooling_unit_make: Option<String>,
-    pub cooling_unit_model: Option<String>,
-    pub atp_class: Option<String>,
-    pub compartments: Option<i32>,
-    /// `automatic` | `manual` | `hot_gas`.
-    pub defrost: Option<String>,
-    pub electric_standby: Option<bool>,
-    pub heater_make: Option<String>,
-    pub heater_model: Option<String>,
-    pub heat_output_kw: Option<String>,
-    /// `diesel` | `electric` | `lpg` | `engine_coolant`.
-    pub fuel: Option<String>,
-    pub thermostat: Option<bool>,
-    pub notes: Option<String>,
-}
-
-fn decimal_field(name: &str, value: Option<String>) -> AppResult<Option<Decimal>> {
-    match optional(value) {
-        // Hungarian keyboards produce a comma; refusing it would be a UI bug, not a rule.
-        Some(s) => Ok(Some(s.replace(',', ".").parse::<Decimal>().map_err(
-            |_| AppError::validation(format!("{name} must be a number")),
-        )?)),
-        None => Ok(None),
-    }
-}
-
-fn spec_fields(form: &str, b: SpecBody) -> AppResult<SpecFields> {
-    // Accepted values live in `domain::lookups`, next to the labels
-    // `GET /config/lookups` publishes: one definition, no drift.
-    if let Some(d) = optional(b.defrost.clone())
-        && !DEFROST_KEYS.contains(&d.as_str())
-    {
-        return Err(AppError::validation(format!(
-            "defrost must be one of {}",
-            DEFROST_KEYS.join(", ")
-        )));
-    }
-    if let Some(f) = optional(b.fuel.clone())
-        && !HEATING_FUEL_KEYS.contains(&f.as_str())
-    {
-        return Err(AppError::validation(format!(
-            "fuel must be one of {}",
-            HEATING_FUEL_KEYS.join(", ")
-        )));
-    }
-    Ok(SpecFields {
-        form: form.to_string(),
-        target_temp_c: decimal_field("target_temp_c", b.target_temp_c)?,
-        insulation_mm: b.insulation_mm,
-        cooling_unit_make: optional(b.cooling_unit_make),
-        cooling_unit_model: optional(b.cooling_unit_model),
-        atp_class: optional(b.atp_class).map(|s| s.to_uppercase()),
-        compartments: b.compartments,
-        defrost: optional(b.defrost),
-        electric_standby: b.electric_standby,
-        heater_make: optional(b.heater_make),
-        heater_model: optional(b.heater_model),
-        heat_output_kw: decimal_field("heat_output_kw", b.heat_output_kw)?,
-        fuel: optional(b.fuel),
-        thermostat: b.thermostat,
-        notes: optional(b.notes),
-    }
-    .for_form())
-}
-
-/// The spec form this order's project type asks for. `None` means the type has no build
-/// spec (a repair), and a spec sent for it is a validation error rather than a silent
-/// write nobody can see.
-async fn required_form(
-    conn: &mut sqlx::PgConnection,
-    project_type_id: Option<i64>,
-) -> AppResult<Option<String>> {
-    match project_type_id {
-        Some(id) => Ok(order_specs::form_for_project_type(&mut *conn, id).await?),
-        None => Ok(None),
-    }
 }
 
 /// The five marks on a fuel gauge, matching the CHECK in 0019_intake_extras.sql. A value
@@ -363,25 +297,12 @@ async fn create(
         .partner_id
         .ok_or_else(|| AppError::validation("partner_id is required"))?;
     let today = service::business_today(state.config.business_tz);
-    let spec = b.spec.clone();
-    let project_type_id = b.project_type_id;
+    let answers = b.spec_answers.clone();
     let (fields, items) = fields_from_body(b, partner_id, today, None)?;
     let mut tx = state.db.begin().await?;
     let order = create_in_tx(&mut tx, me.user_id, today, fields, items, None).await?;
-    if let Some(spec) = spec {
-        let form = required_form(&mut tx, project_type_id)
-            .await?
-            .ok_or_else(|| AppError::validation("this project type has no build specification"))?;
-        let written = order_specs::upsert(&mut *tx, order.id, &spec_fields(&form, spec)?).await?;
-        audit::record(
-            &mut *tx,
-            Some(me.user_id),
-            "order",
-            order.id,
-            "spec_set",
-            json!({ "form": written.form }),
-        )
-        .await?;
+    if let Some(answers) = answers {
+        service::questionnaire::save_order(&mut tx, me.user_id, order.id, &answers).await?;
     }
     tx.commit().await?;
     Ok((StatusCode::CREATED, Json(order)))
@@ -402,12 +323,25 @@ struct StageView {
     is_terminal: bool,
 }
 
+/// A line item. The prices are null for someone who may not see them (`ViewPrices`,
+/// 0061): the workshop gets what to build and how many, not what it costs.
 #[derive(Serialize, ToSchema)]
 pub struct ItemView {
-    #[serde(flatten)]
-    item: OrderItem,
+    id: i64,
+    order_id: i64,
+    position: i32,
+    description: String,
+    #[serde(with = "rust_decimal::serde::str")]
+    #[schema(value_type = String)]
+    quantity: Decimal,
+    #[schema(value_type = crate::domain::money::Currency)]
+    currency: String,
+    created_at: chrono::DateTime<Utc>,
+    updated_at: chrono::DateTime<Utc>,
+    /// Minor units in the order's currency.
+    unit_price: Option<i64>,
     /// Backend-computed: round(quantity × unit_price), half away from zero.
-    line_total_minor: i64,
+    line_total_minor: Option<i64>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -425,15 +359,18 @@ struct OrderDetail {
     partner: PartnerRef,
     stage: StageView,
     items: Vec<ItemView>,
-    value: OrderValue,
+    /// Null for someone who may not see prices (`ViewPrices`).
+    value: Option<OrderValue>,
     blockers: Vec<Blocker>,
     /// V2.2: the job this one repairs or repeats, resolved for display.
     related: Option<RelatedOrder>,
     /// V2.1: the vans this job covers. Usually one; three identical Sprinters from one
     /// enquiry is the case the join table exists for.
     vehicles: Vec<Vehicle>,
-    /// The build specification, when the project type asks for one.
-    spec: Option<OrderSpec>,
+    /// The build questionnaire's answers (0065): question key → answer. Draw them with
+    /// `GET /config/questionnaire`, grouped by the sections asked for this order.
+    #[schema(value_type = Object)]
+    spec_answers: crate::domain::questionnaire::Answers,
     /// Image count per category; categories without images are absent.
     #[schema(value_type = HashMap<String, i64>)]
     image_counts: HashMap<ImageCategory, i64>,
@@ -448,7 +385,7 @@ struct OrderDetail {
     open_incidents: i64,
 }
 
-fn item_view(item: OrderItem) -> AppResult<ItemView> {
+fn item_view(item: OrderItem, prices: bool) -> AppResult<ItemView> {
     let currency: Currency = item
         .currency
         .parse()
@@ -457,8 +394,16 @@ fn item_view(item: OrderItem) -> AppResult<ItemView> {
         .times_quantity(item.quantity)
         .map_err(|e| AppError::internal(e.to_string()))?;
     Ok(ItemView {
-        line_total_minor: line.minor(),
-        item,
+        id: item.id,
+        order_id: item.order_id,
+        position: item.position,
+        description: item.description,
+        quantity: item.quantity,
+        currency: item.currency,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        unit_price: prices.then_some(item.unit_price),
+        line_total_minor: prices.then_some(line.minor()),
     })
 }
 
@@ -469,7 +414,7 @@ fn item_view(item: OrderItem) -> AppResult<ItemView> {
 )]
 async fn detail(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<OrderDetail>> {
     let order = orders::find(&state.db, id)
@@ -499,6 +444,7 @@ async fn detail(
     }
 
     let current_key = current.stage_key.clone();
+    let prices = me.can(Capability::ViewPrices);
     let order_vehicles = vehicles::list_for_order(&state.db, id).await?;
     let vehicle_ids: Vec<i64> = order_vehicles.iter().map(|v| v.id).collect();
     Ok(Json(OrderDetail {
@@ -515,8 +461,11 @@ async fn detail(
             entered_at: current.entered_at,
             key: current.stage_key,
         },
-        items: items.into_iter().map(item_view).collect::<AppResult<_>>()?,
-        value,
+        items: items
+            .into_iter()
+            .map(|i| item_view(i, prices))
+            .collect::<AppResult<_>>()?,
+        value: prices.then_some(value),
         blockers: blockers::list_for_order(
             &state.db,
             id,
@@ -553,7 +502,7 @@ async fn detail(
         .filter(|i| i.order_id == id)
         .count() as i64,
         vehicles: order_vehicles,
-        spec: order_specs::find(&state.db, id).await?,
+        spec_answers: questionnaire::order_answers(&state.db, id).await?,
         order,
     }))
 }
@@ -890,58 +839,6 @@ async fn notes(
     ))
 }
 
-#[utoipa::path(
-    get, path = "/orders/{id}/spec", tag = "orders",
-    params(("id" = i64, Path)),
-    responses((status = 200, body = OrderSpec), (status = 404))
-)]
-async fn get_spec(
-    State(state): State<AppState>,
-    Auth(_): Auth,
-    ApiPath(id): ApiPath<i64>,
-) -> AppResult<Json<OrderSpec>> {
-    order_specs::find(&state.db, id)
-        .await?
-        .map(Json)
-        .ok_or(AppError::NotFound("order spec"))
-}
-
-/// Replaces the build spec. The form comes from the order's project type, never from the
-/// request: a cooling order cannot be given a heating spec by sending one.
-#[utoipa::path(
-    put, path = "/orders/{id}/spec", tag = "orders",
-    params(("id" = i64, Path)),
-    request_body = SpecBody,
-    responses((status = 200, body = OrderSpec))
-)]
-async fn put_spec(
-    State(state): State<AppState>,
-    Auth(me): Auth,
-    ApiPath(id): ApiPath<i64>,
-    ApiJson(b): ApiJson<SpecBody>,
-) -> AppResult<Json<OrderSpec>> {
-    me.require(Capability::EditOrders)?;
-    let mut tx = state.db.begin().await?;
-    let order = orders::lock(&mut *tx, id)
-        .await?
-        .ok_or(AppError::NotFound("order"))?;
-    let form = required_form(&mut tx, order.project_type_id)
-        .await?
-        .ok_or_else(|| AppError::validation("this project type has no build specification"))?;
-    let spec = order_specs::upsert(&mut *tx, id, &spec_fields(&form, b)?).await?;
-    audit::record(
-        &mut *tx,
-        Some(me.user_id),
-        "order",
-        id,
-        "spec_set",
-        json!({ "form": spec.form }),
-    )
-    .await?;
-    tx.commit().await?;
-    Ok(Json(spec))
-}
-
 #[derive(Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 struct AuditQuery {
@@ -955,13 +852,17 @@ struct AuditQuery {
 )]
 async fn audit_trail(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
     ApiQuery(q): ApiQuery<AuditQuery>,
 ) -> AppResult<Json<Items<AuditEntry>>> {
-    Ok(Items::new(
-        audit::list_for(&state.db, "order", id, page_limit(q.limit)).await?,
-    ))
+    let mut rows = audit::list_for(&state.db, "order", id, page_limit(q.limit)).await?;
+    rows.retain(|e| super::visibility::history_entry_visible(&me, "change", &e.action));
+    if !me.can(Capability::ViewPrices) {
+        rows.iter_mut()
+            .for_each(|e| super::visibility::scrub_money(&mut e.changes));
+    }
+    Ok(Items::new(rows))
 }
 
 #[utoipa::path(
@@ -971,12 +872,16 @@ async fn audit_trail(
 )]
 async fn list_items(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<ItemView>>> {
     let items = order_items::list(&state.db, id).await?;
+    let prices = me.can(Capability::ViewPrices);
     Ok(Items::new(
-        items.into_iter().map(item_view).collect::<AppResult<_>>()?,
+        items
+            .into_iter()
+            .map(|i| item_view(i, prices))
+            .collect::<AppResult<_>>()?,
     ))
 }
 
@@ -1041,7 +946,10 @@ async fn add_item(
     )
     .await?;
     tx.commit().await?;
-    Ok((StatusCode::CREATED, Json(item_view(item)?)))
+    Ok((
+        StatusCode::CREATED,
+        Json(item_view(item, me.can(Capability::ViewPrices))?),
+    ))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -1128,7 +1036,7 @@ async fn update_item(
     )
     .await?;
     tx.commit().await?;
-    Ok(Json(item_view(updated)?))
+    Ok(Json(item_view(updated, me.can(Capability::ViewPrices))?))
 }
 
 #[utoipa::path(
@@ -1167,20 +1075,20 @@ struct CoolingSerialBody {
     serial: Option<String>,
 }
 
-/// The cooling unit's serial number, typically scanned off its plate on the phone. Only on
-/// an order whose project type takes a cooling spec.
+/// The cooling unit's serial number, typically scanned off its plate on the phone: the
+/// `cooling_unit_serial` answer. Only on an order that is asked the cooling questions.
 #[utoipa::path(
     put, path = "/orders/{id}/cooling-serial", tag = "orders",
     params(("id" = i64, Path)),
     request_body = CoolingSerialBody,
-    responses((status = 200, body = OrderSpec))
+    responses((status = 200, body = service::questionnaire::SpecAnswers))
 )]
 async fn set_cooling_serial(
     State(state): State<AppState>,
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<CoolingSerialBody>,
-) -> AppResult<Json<OrderSpec>> {
+) -> AppResult<Json<service::questionnaire::SpecAnswers>> {
     // The shop floor reads the plate, so the right that lets them add photos lets them
     // file it.
     me.require(Capability::UploadMedia)?;
@@ -1190,27 +1098,16 @@ async fn set_cooling_serial(
         return Err(AppError::validation("serial: at most 100 characters"));
     }
     let mut tx = state.db.begin().await?;
-    let order = orders::lock(&mut *tx, id)
-        .await?
-        .ok_or(AppError::NotFound("order"))?;
-    let form = required_form(&mut tx, order.project_type_id).await?;
-    if form.as_deref() != Some("cooling") {
-        return Err(AppError::validation(
-            "this order has no cooling unit (its project type takes no cooling spec)",
-        ));
-    }
-    let spec = order_specs::set_cooling_serial(&mut *tx, id, serial.as_deref())
-        .await?
-        .ok_or_else(|| AppError::validation("this order's build spec is a heating one"))?;
-    audit::record(
-        &mut *tx,
-        Some(me.user_id),
-        "order",
+    let answers = service::questionnaire::set_order_answer(
+        &mut tx,
+        me.user_id,
         id,
-        "cooling_serial",
-        json!({ "serial": serial }),
+        "cooling_unit_serial",
+        serial
+            .map(serde_json::Value::String)
+            .unwrap_or(serde_json::Value::Null),
     )
     .await?;
     tx.commit().await?;
-    Ok(Json(spec))
+    Ok(Json(service::questionnaire::SpecAnswers { answers }))
 }

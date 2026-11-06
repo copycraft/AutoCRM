@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -52,6 +53,7 @@ import hu.autotherm.autocrm.data.api.AddItemBody
 import hu.autotherm.autocrm.data.api.AutoCrmApi
 import hu.autotherm.autocrm.data.api.Blocker
 import hu.autotherm.autocrm.data.api.BlockerBody
+import hu.autotherm.autocrm.data.api.CopyOrderBody
 import hu.autotherm.autocrm.data.api.Lookups
 import hu.autotherm.autocrm.data.api.OrderDetail
 import hu.autotherm.autocrm.data.api.OrderNote
@@ -111,6 +113,8 @@ class OrderDetailViewModel(
         val tasks: List<Task> = emptyList(),
         val canEdit: Boolean = false,
         val canChangeStage: Boolean = false,
+        /** Átvétel and átadás (0063). */
+        val canHandleHandovers: Boolean = false,
         /** Who to ring about this job: its contact's number, else the customer's. */
         val callNumber: String? = null,
         val canManageBlockers: Boolean = false,
@@ -147,6 +151,28 @@ class OrderDetailViewModel(
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
+    /**
+     * Repeat order: a new project started as a copy of this one (items, spec, technical
+     * content, drawings; never the plate or VIN). Opens the new project when it is made.
+     */
+    fun copyOrder(orderId: Long, onCopied: (Long) -> Unit) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(busy = true)
+            try {
+                val r = api.copyOrder(orderId, CopyOrderBody())
+                _state.value = _state.value.copy(busy = false)
+                hu.autotherm.autocrm.ui.common.Toasts.show(
+                    if (r.failedFiles.isEmpty()) "Új projekt: #${r.order.number}"
+                    else "Új projekt: #${r.order.number} – ${r.failedFiles.size} fájl nem másolódott át",
+                )
+                onCopied(r.order.id)
+            } catch (e: Throwable) {
+                _state.value = _state.value.copy(busy = false)
+                hu.autotherm.autocrm.ui.common.Toasts.show(hu.autotherm.autocrm.ui.common.describeError(e))
+            }
+        }
+    }
+
     fun load(orderId: Long) {
         viewModelScope.launch {
             val keepRows = _state.value.detail != null
@@ -174,20 +200,25 @@ class OrderDetailViewModel(
                 }
                 val detail = detailDeferred.await()
                 val account = accountDeferred.await()
-                _state.value = State(
+                // Copy, not a fresh State: a fetch landing while a dialog is open (the
+                //"+ Még egy" flow, a blocked save retry, ON_RESUME refresh while typing)
+                // must not close it and throw away what the user had typed.
+                _state.value = _state.value.copy(
                     loading = false,
+                    refreshing = false,
+                    error = null,
                     detail = detail,
                     stages = stagesDeferred.await(),
                     notes = notesDeferred.await(),
                     tasks = tasksDeferred.await(),
                     canEdit = account?.canEdit == true,
                     canChangeStage = account?.canChangeStage == true,
+                    canHandleHandovers = account?.canHandleHandovers == true,
                     canManageBlockers = account?.canManageBlockers == true,
                     canSendEmail = account?.canSendEmail == true,
                     canComment = account?.canComment == true,
                     canUploadMedia = account?.canUploadMedia == true,
                     lookups = lookupsDeferred.await(),
-                    callNumber = _state.value.callNumber,
                 )
                 // The number to ring comes from the partner record; fetched after the page
                 // is up so it never holds the job back.
@@ -301,7 +332,7 @@ class OrderDetailViewModel(
             try {
                 api.deleteItem(itemId)
                 hu.autotherm.autocrm.ui.common.Toasts.show("Tétel törölve: ${item.description}", "Visszavonás") {
-                    addItem(orderId, item.description, item.quantity, item.unitPrice)
+                    item.unitPrice?.let { addItem(orderId, item.description, item.quantity, it) }
                 }
                 load(orderId)
             } catch (e: Throwable) {
@@ -456,6 +487,31 @@ fun OrderDetailScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(orderId) { viewModel.load(orderId) }
     hu.autotherm.autocrm.ui.common.RefreshOnReturn { viewModel.load(orderId) }
+    var copyAsk by androidx.compose.runtime.saveable.rememberSaveable(orderId) { mutableStateOf(false) }
+    if (copyAsk) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { if (!state.busy) copyAsk = false },
+            title = { Text("Ismételt rendelés") },
+            text = {
+                Text(
+                    "Új projekt készül ennek a másolataként: tételek, műszaki adatok, műszaki tartalom, " +
+                        "rajzok. A rendszám, az alvázszám és a korábbi munka adatai nem kerülnek át.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.copyOrder(orderId) { newId ->
+                            copyAsk = false
+                            onOpenOrder(newId)
+                        }
+                    },
+                    enabled = !state.busy,
+                ) { Text("Új projekt") }
+            },
+            dismissButton = { TextButton(onClick = { copyAsk = false }, enabled = !state.busy) { Text("Mégse") } },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -473,6 +529,9 @@ fun OrderDetailScreen(
                         }
                     }
                     if (state.canEdit && state.detail != null) {
+                        IconButton(onClick = { copyAsk = true }) {
+                            Icon(Icons.Outlined.ContentCopy, contentDescription = "Ismételt rendelés")
+                        }
                         IconButton(onClick = { onEditOrder(orderId) }) {
                             Icon(Icons.Outlined.Edit, contentDescription = "Szerkesztés")
                         }
@@ -491,6 +550,8 @@ fun OrderDetailScreen(
                 ErrorState("Nem található.", Modifier.padding(padding)) { viewModel.load(orderId) }
             else -> {
                 val detail = state.detail!!
+                // The build questionnaire (0065): what is asked for this job, to draw the answers.
+                val questionnaire = hu.autotherm.autocrm.ui.spec.rememberQuestionnaire()
                 hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = { viewModel.load(orderId) },
@@ -498,8 +559,9 @@ fun OrderDetailScreen(
                 ) {
                     val detailList = androidx.compose.foundation.lazy.rememberLazyListState()
                     LazyColumn(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+                        Modifier.fillMaxSize(),
                         state = detailList,
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(horizontal = 16.dp, top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item {
@@ -574,16 +636,19 @@ fun OrderDetailScreen(
                                 }
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Column {
-                                        Text("Érték", style = MaterialTheme.typography.labelMedium, color = Steel500)
-                                        Text(
-                                            formatMoney(detail.value.totalMinor, detail.value.currency),
-                                            style = MaterialTheme.typography.titleLarge,
-                                        )
-                                    }
+                                    // No value at all for someone who may not see prices.
+                                    detail.value?.let { value ->
+                                        Column {
+                                            Text("Érték", style = MaterialTheme.typography.labelMedium, color = Steel500)
+                                            Text(
+                                                formatMoney(value.totalMinor, value.currency),
+                                                style = MaterialTheme.typography.titleLarge,
+                                            )
+                                        }
+                                    } ?: androidx.compose.foundation.layout.Spacer(Modifier)
                                     detail.order.dueDate?.let { due ->
                                         val late = !detail.stage.isTerminal && runCatching {
-                                            java.time.LocalDate.parse(due).isBefore(java.time.LocalDate.now())
+                                            java.time.LocalDate.parse(due).isBefore(hu.autotherm.autocrm.util.businessToday())
                                         }.getOrDefault(false)
                                         Column(horizontalAlignment = Alignment.End) {
                                             Text("Határidő", style = MaterialTheme.typography.labelMedium, color = Steel500)
@@ -601,8 +666,8 @@ fun OrderDetailScreen(
                                 // undercounts every report it appears in. Say so where the work is.
                                 val warnings = listOfNotNull(
                                     "$open nyitott akadály".takeIf { open > 0 },
-                                    "Nincs rögzített érték".takeIf { detail.value.totalMinor == 0L },
-                                    "Hiányzó árfolyam".takeIf { detail.value.totalHufMinor == null && detail.value.currency != "HUF" },
+                                    "Nincs rögzített érték".takeIf { detail.value?.totalMinor == 0L },
+                                    "Hiányzó árfolyam".takeIf { detail.value?.let { it.totalHufMinor == null && it.currency != "HUF" } == true },
                                 )
                                 if (warnings.isNotEmpty()) {
                                     FlowRow(
@@ -624,11 +689,13 @@ fun OrderDetailScreen(
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
-                                SecondaryButton(
-                                    text = "Átvétel-átadás",
-                                    onClick = { onInspections(orderId) },
-                                    modifier = Modifier.weight(1f),
-                                )
+                                if (state.canHandleHandovers) {
+                                    SecondaryButton(
+                                        text = "Átvétel-átadás",
+                                        onClick = { onInspections(orderId) },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
                             }
                         }
 
@@ -656,27 +723,30 @@ fun OrderDetailScreen(
                             }
                         }
 
-                        detail.spec?.let { spec ->
+                        // The build questionnaire, grouped by the sections asked for this job.
+                        // The cooling unit's serial is filed here from the unit's plate.
+                        if (detail.specAnswers.isNotEmpty()) {
                             item {
                                 Card {
-                                    SectionTitle(
-                                        if (spec.form == "cooling") "Hűtési specifikáció" else "Fűtési specifikáció",
+                                    SectionTitle("Műszaki kérdőív")
+                                    hu.autotherm.autocrm.ui.spec.QuestionnaireView(
+                                        questionnaire = questionnaire,
+                                        projectTypeId = detail.order.projectTypeId,
+                                        answers = detail.specAnswers,
+                                        custom = { q, value ->
+                                            if (q.key == "cooling_unit_serial") {
+                                                CoolingSerialRow(
+                                                    orderId = orderId,
+                                                    current = (value as? kotlinx.serialization.json.JsonPrimitive)?.content,
+                                                    canEdit = state.canUploadMedia,
+                                                    onSaved = { viewModel.load(orderId) },
+                                                )
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        },
                                     )
-                                    Info("Kívánt hőmérséklet", spec.targetTempC?.let { "$it °C" }, mono = true)
-                                    Info("Szigetelés", spec.insulationMm?.let { "$it mm" }, mono = true)
-                                    if (spec.form == "cooling") {
-                                        Info("Hűtőgép", listOfNotNull(spec.coolingUnitMake, spec.coolingUnitModel).joinToString(" ").ifBlank { null })
-                                        Info("ATP osztály", spec.atpClass, mono = true)
-                                        CoolingSerialRow(
-                                            orderId = orderId,
-                                            current = spec.coolingUnitSerial,
-                                            canEdit = state.canUploadMedia,
-                                            onSaved = { viewModel.load(orderId) },
-                                        )
-                                    } else {
-                                        Info("Fűtőkészülék", listOfNotNull(spec.heaterMake, spec.heaterModel).joinToString(" ").ifBlank { null })
-                                        Info("Teljesítmény", spec.heatOutputKw?.let { "$it kW" }, mono = true)
-                                    }
                                 }
                             }
                         }
@@ -741,6 +811,8 @@ fun OrderDetailScreen(
                             }
                         }
 
+                        item { ModulesCard(orderId = orderId) }
+
                         item {
                             OrderPhotoSection(
                                 orderId = orderId,
@@ -796,15 +868,15 @@ fun OrderDetailScreen(
                                         Column(Modifier.weight(1f, fill = false)) {
                                             Text(item.description, style = MaterialTheme.typography.bodyLarge)
                                             Text(
-                                                "${item.quantity} × ${formatMoney(item.unitPrice, item.currency)}",
+                                                item.unitPrice?.let { "${item.quantity} × ${formatMoney(it, item.currency)}" }
+                                                    ?: "${item.quantity} db",
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = Steel500,
                                             )
                                         }
-                                        Text(
-                                            formatMoney(item.lineTotalMinor, item.currency),
-                                            style = MonoSmall,
-                                        )
+                                        item.lineTotalMinor?.let {
+                                            Text(formatMoney(it, item.currency), style = MonoSmall)
+                                        }
                                         if (state.canEdit) {
                                             IconButton(onClick = { viewModel.deleteItem(orderId, item.id) }) {
                                                 Icon(
@@ -818,7 +890,7 @@ fun OrderDetailScreen(
                                 }
                             }
                             // The lines add up to something: say what, under the last one.
-                            if (detail.items.size > 1) {
+                            if (detail.items.size > 1 && detail.value != null) {
                                 item(key = "items-total") {
                                     Row(
                                         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -830,7 +902,7 @@ fun OrderDetailScreen(
                                             color = Steel500,
                                         )
                                         Text(
-                                            formatMoney(detail.items.sumOf { it.lineTotalMinor }, detail.value.currency),
+                                            formatMoney(detail.items.sumOf { it.lineTotalMinor ?: 0L }, detail.value.currency),
                                             style = MaterialTheme.typography.titleMedium,
                                         )
                                     }

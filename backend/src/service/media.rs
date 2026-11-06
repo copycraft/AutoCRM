@@ -12,10 +12,11 @@ use sha2::{Digest, Sha256};
 
 use crate::AppState;
 use crate::domain::media::{
-    ImageCategory, MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, document_extension, document_storage_key,
-    image_extension, image_storage_key, lead_document_storage_key, thumb_source,
+    ImageCategory, MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, document_extension, image_extension,
+    thumb_source,
 };
 use crate::error::{AppError, AppResult};
+use crate::media::layout;
 use crate::media::storage::PresignedRequest;
 use crate::media::upload_token::{self, UploadClaims, UploadTarget};
 use crate::repo::documents::{self, Document, NewDocument, Owner};
@@ -164,15 +165,25 @@ pub async fn request_upload(
             } else {
                 None
             };
-            (image_storage_key(order_id, *category, &hash_hex, ext), lock)
+            let key = layout::image_key(
+                state,
+                order_id,
+                *category,
+                filename.as_deref(),
+                &hash_hex,
+                ext,
+            )
+            .await?;
+            (key, lock)
         }
-        UploadTarget::Document { replaces, .. } => {
+        UploadTarget::Document { kind, replaces } => {
             if req.byte_size > MAX_DOCUMENT_BYTES {
                 return Err(AppError::validation("document is too large"));
             }
-            if let Some(previous) = replaces {
-                current_version(state, owner, *previous).await?;
-            }
+            let version = match replaces {
+                Some(previous) => current_version(state, owner, *previous).await?.version + 1,
+                None => 1,
+            };
             let name = filename
                 .as_deref()
                 .ok_or_else(|| AppError::validation("filename is required for documents"))?;
@@ -184,10 +195,8 @@ pub async fn request_upload(
                     document_id: Some(existing.id),
                 });
             }
-            let key = match owner {
-                Owner::Order(id) => document_storage_key(id, &hash_hex, &ext),
-                Owner::Lead(id) => lead_document_storage_key(id, &hash_hex, &ext),
-            };
+            let key =
+                layout::document_key(state, owner, *kind, name, version, &hash_hex, &ext).await?;
             (key, None)
         }
     };
@@ -264,10 +273,17 @@ pub async fn complete_upload(
                 "uploaded file hash differs from the declared hash",
             ));
         }
-        // Store without checksum support: verify by reading the object back.
+        // A store without checksums (or the share): read it back, a chunk at a time, since
+        // a document may be 2 GB.
         None => {
-            let bytes = state.storage.get_bytes(&claims.storage_key).await?;
-            if Sha256::digest(&bytes).as_slice() != hash.as_slice() {
+            let mut stream = state.storage.open(&claims.storage_key).await?;
+            let mut hasher = Sha256::new();
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk
+                    .map_err(|e| AppError::internal(format!("reading the upload back: {e}")))?;
+                hasher.update(&chunk);
+            }
+            if hasher.finalize().as_slice() != hash.as_slice() {
                 return Err(AppError::rule(
                     "upload_mismatch",
                     "uploaded file hash differs from the declared hash",

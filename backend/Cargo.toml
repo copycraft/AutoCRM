@@ -49,7 +49,9 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
-tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "limit", "catch-panic", "compression-gzip"] }
+# fs: files on the NFS share are served with Range and conditional requests (videos seek).
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "limit", "catch-panic", "compression-gzip", "fs"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
@@ -60,7 +62,6 @@ webpki-roots = "0.26"
 
 [dev-dependencies]
 http-body-util = "0.1"
-tower = { version = "0.5", features = ["util"] }
 
 [profile.dev.package."*"]
 # Image decoding and argon2 are unbearably slow unoptimised; our own code stays debuggable.

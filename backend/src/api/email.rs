@@ -62,9 +62,10 @@ struct ListQuery {
 )]
 async fn list(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<ListQuery>,
 ) -> AppResult<Json<Items<EmailSummary>>> {
+    me.require(Capability::ViewSales)?;
     let filter = EmailFilter {
         order_id: q.order_id,
         lead_id: q.lead_id,
@@ -91,9 +92,10 @@ async fn list(
 )]
 async fn detail(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<EmailMessage>> {
+    me.require(Capability::ViewSales)?;
     Ok(Json(
         emails::find(&state.db, id)
             .await?

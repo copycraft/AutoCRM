@@ -70,6 +70,12 @@ class SessionStore(private val context: Context) {
         val canSendEmail: Boolean get() = has("send_email", "admin", "office")
         val canIssueInvoices: Boolean get() = has("issue_invoices", "admin", "office")
         val canManageBlockers: Boolean get() = has("manage_blockers", "admin", "office", "designer")
+        // Seeing (0061): the server leaves out what these say no to; the menus follow.
+        val canViewSales: Boolean get() = has("view_sales", "admin", "office", "sales", "viewer")
+        val canViewIncomingInvoices: Boolean get() =
+            has("view_incoming_invoices", "admin", "office", "accountant", "purchaser", "viewer")
+        /** Átvétel and átadás (0063). */
+        val canHandleHandovers: Boolean get() = has("handle_handovers", "admin", "office", "designer", "purchaser")
         val isAdmin: Boolean get() = role == "admin"
     }
 

@@ -87,7 +87,7 @@ fun ComparisonStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier
     }
 
     val checkoutById = checkout.damages.associateBy { it.id }
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier, contentPadding = StepPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card {
                 Text("Összehasonlítás az átvétellel", style = MaterialTheme.typography.titleLarge)
@@ -95,6 +95,18 @@ fun ComparisonStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier
                     "Elöl a kiadáskor készült fotó, mellette az átvételkor készült ugyanabból a zónából.",
                     style = MaterialTheme.typography.labelMedium,
                     color = Steel500,
+                )
+            }
+        }
+        // The "why am I here" reason set by signNow() (pending verdicts) is invisible when
+        // it is only rendered in the loading/failed branch above: the user taps
+        // "Aláírás és lezárás" and lands on a silent list.
+        state.error?.let { errorMessage ->
+            item(key = "error") {
+                Text(
+                    errorMessage,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
                 )
             }
         }
@@ -215,7 +227,7 @@ fun SummaryStep(
 ) {
     val state by viewModel.state.collectAsState()
     val payload = state.payload ?: return
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier, contentPadding = StepPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card {
                 Text("Összesítő", style = MaterialTheme.typography.titleLarge)
@@ -300,7 +312,7 @@ fun SigningStep(viewModel: WalkaroundViewModel, modifier: Modifier = Modifier) {
     val inspectorPad = rememberSignatureState()
     val customerPad = rememberSignatureState()
 
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier, contentPadding = StepPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card {
                 Text("Aláírás lezáráshoz", style = MaterialTheme.typography.titleLarge)
@@ -410,7 +422,7 @@ fun ServerInspectionDetail(
     lookups: hu.autotherm.autocrm.data.api.Lookups?,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier, contentPadding = StepPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card {
                 Text(

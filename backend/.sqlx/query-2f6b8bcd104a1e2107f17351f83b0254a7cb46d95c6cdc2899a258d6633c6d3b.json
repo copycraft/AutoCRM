@@ -29,7 +29,11 @@
                 "admin",
                 "office",
                 "designer",
-                "viewer"
+                "viewer",
+                "sales",
+                "accountant",
+                "worker",
+                "purchaser"
               ]
             }
           }

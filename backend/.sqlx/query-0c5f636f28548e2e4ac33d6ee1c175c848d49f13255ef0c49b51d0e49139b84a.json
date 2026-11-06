@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO spec_section_project_types (section_id, project_type_id)\n         SELECT $1, t FROM unnest($2::bigint[]) AS t ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0c5f636f28548e2e4ac33d6ee1c175c848d49f13255ef0c49b51d0e49139b84a"
+}

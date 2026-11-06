@@ -15,6 +15,7 @@ pub mod lookups;
 pub mod media;
 pub mod money;
 pub mod order;
+pub mod questionnaire;
 pub mod partner;
 pub mod role;
 pub mod search_terms;

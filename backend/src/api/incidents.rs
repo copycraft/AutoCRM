@@ -52,7 +52,7 @@ struct ListQuery {
 )]
 async fn list(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<ListQuery>,
 ) -> AppResult<Json<Items<Incident>>> {
     if let Some(s) = q.status.as_deref()
@@ -61,17 +61,20 @@ async fn list(
     {
         return Err(AppError::validation("status must be open or resolved"));
     }
-    Ok(Items::new(
-        incidents::list(
-            &state.db,
-            q.status.as_deref(),
-            q.order_id,
-            q.inspection_id,
-            page_limit(q.limit),
-            page_offset(q.offset),
-        )
-        .await?,
-    ))
+    let mut rows = incidents::list(
+        &state.db,
+        q.status.as_deref(),
+        q.order_id,
+        q.inspection_id,
+        page_limit(q.limit),
+        page_offset(q.offset),
+    )
+    .await?;
+    // What an incident cost is money like any other (0061).
+    if !me.can(Capability::ViewPrices) {
+        rows.iter_mut().for_each(|i| i.cost_minor = None);
+    }
+    Ok(Items::new(rows))
 }
 
 #[utoipa::path(
@@ -81,14 +84,16 @@ async fn list(
 )]
 async fn detail(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Incident>> {
-    Ok(Json(
-        incidents::find(&state.db, id)
-            .await?
-            .ok_or(AppError::NotFound("incident"))?,
-    ))
+    let mut incident = incidents::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("incident"))?;
+    if !me.can(Capability::ViewPrices) {
+        incident.cost_minor = None;
+    }
+    Ok(Json(incident))
 }
 
 #[derive(Deserialize, ToSchema)]

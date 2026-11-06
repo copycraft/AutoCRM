@@ -33,6 +33,8 @@ import { daysSince } from '@/lib/utils/format';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { stageTone } from '@/lib/utils/stages';
 import { TagChip, sortMarkets, useLeadTags, useMarketName } from '@/components/leads/LeadTags';
+import { BucketList } from '@/components/tags/BucketList';
+import { WithStatusAside, countMap, stageGroups } from '@/components/tables/StatusAside';
 import type { LeadRow, StageDefinition } from '@/lib/api/types';
 
 
@@ -45,6 +47,7 @@ export default function LeadsPage() {
   const tn = useTranslations('navigation');
   const tq = useTranslations('qol');
   const tt = useTranslations('leadTags');
+  const ts = useTranslations('statusList');
   const marketName = useMarketName();
   const ter = useTranslations('errors');
   const locale = useLocale();
@@ -90,6 +93,16 @@ export default function LeadsPage() {
     for (const d of stagesQuery.data?.items ?? []) m.set(d.key, d);
     return m;
   }, [stagesQuery.data]);
+  const stageCounts = useQuery({
+    queryKey: qk.leads('stage-counts'),
+    queryFn: () => leadsApi.stageCounts(),
+  });
+  // A closed stage under "open only" would show nothing: picking one lifts that filter.
+  const pickStage = (key: string) => {
+    setStage(key);
+    if (defs.get(key)?.is_terminal) setOpenOnly(false);
+    setPage(1);
+  };
 
   const tagsQuery = useLeadTags();
   const tagGroups = useMemo(() => {
@@ -301,6 +314,25 @@ export default function LeadsPage() {
           )
         }
       />
+      <WithStatusAside
+        aside={
+          <>
+            <BucketList
+              title={ts('leads')}
+              groups={stageGroups(stagesQuery.data?.items, { open: ts('open'), won: ts('won'), lost: ts('lost') })}
+              counts={countMap(stageCounts.data?.items)}
+              value={stage}
+              onChange={pickStage}
+              allLabel={ts('allLeads')}
+            />
+            {stagesQuery.isError && (
+              <p className="mt-2 text-metadata text-steel-900" role="alert">
+                {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
+              </p>
+            )}
+          </>
+        }
+      >
       <SavedViewsBar listKey="leads" />
       <FilterBar onClear={clear}>
         <FilterField label={tc('search')}>
@@ -313,29 +345,6 @@ export default function LeadsPage() {
               setPage(1);
             }}
           />
-        </FilterField>
-        <FilterField label={t('stage')}>
-          <select
-            className="input"
-            value={stage}
-            disabled={stagesQuery.isLoading}
-            onChange={(e) => {
-              setStage(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">{tc('all')}</option>
-            {(stagesQuery.data?.items ?? []).map((d) => (
-              <option key={d.key} value={d.key}>
-                {d.label_hu}
-              </option>
-            ))}
-          </select>
-          {stagesQuery.isError && (
-            <span className="text-metadata text-steel-900" role="alert">
-              {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
-            </span>
-          )}
         </FilterField>
         <FilterField label={tt('filter')}>
           <select
@@ -432,6 +441,7 @@ export default function LeadsPage() {
           </div>
         </>
       )}
+      </WithStatusAside>
     </AppShell>
   );
 }

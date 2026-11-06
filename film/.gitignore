@@ -1,0 +1,9 @@
+# Recorded frames, renders and generated audio are rebuilt from the scripts here.
+capture/raw/
+capture/seq/
+capture/tracks/
+capture/phone/
+effectcraft/*.motion.json
+render/
+audio/
+data/

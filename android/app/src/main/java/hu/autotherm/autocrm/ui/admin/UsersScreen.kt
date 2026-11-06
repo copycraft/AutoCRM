@@ -48,12 +48,16 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
-private val ROLES = listOf("admin", "office", "designer", "viewer")
+private val ROLES = listOf("admin", "office", "sales", "accountant", "designer", "worker", "purchaser", "viewer")
 
 internal fun roleLabel(role: String): String = when (role) {
     "admin" -> "Adminisztrátor"
     "office" -> "Irodai"
+    "sales" -> "Értékesítő"
+    "accountant" -> "Könyvelő"
     "designer" -> "Tervező"
+    "worker" -> "Munkás"
+    "purchaser" -> "Anyagbeszerző"
     "viewer" -> "Megtekintő"
     else -> role
 }
@@ -127,7 +131,7 @@ fun UsersScreen(viewModel: UsersViewModel, myUserId: Long, onMenu: () -> Unit) {
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
             // A refused change (the last admin, say) keeps the list on screen.
             if (state.error != null && state.users.isNotEmpty()) {
                 Text(
@@ -145,6 +149,7 @@ fun UsersScreen(viewModel: UsersViewModel, myUserId: Long, onMenu: () -> Unit) {
                 else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.users, key = { it.id }) { user ->

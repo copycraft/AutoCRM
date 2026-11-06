@@ -14,7 +14,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Money } from '@/components/ui/Money';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { invoicesApi, leadsApi } from '@/lib/api/endpoints';
-import { canIssueInvoices, useAuth } from '@/lib/auth/context';
+import { canIssueInvoices, canViewInvoices, canViewSales, useAuth } from '@/lib/auth/context';
 import type { Currency } from '@/lib/api/types';
 
 export function DashboardReminders() {
@@ -22,12 +22,13 @@ export function DashboardReminders() {
   const locale = useLocale();
   const { user } = useAuth();
   const [mineOnly, setMineOnly] = useState(true);
-  const canBill = canIssueInvoices(user);
+  const canBill = canIssueInvoices(user) && canViewInvoices(user);
+  const canQuotes = canViewSales(user);
 
   const quotes = useQuery({
     queryKey: ['expiring-quotes', mineOnly ? user?.id : 'all'],
     queryFn: () => leadsApi.expiringQuotes({ days: 7, assigned_to: mineOnly ? user?.id : undefined }),
-    enabled: !!user,
+    enabled: !!user && canQuotes,
     staleTime: 60_000,
   });
   const overdue = useQuery({
@@ -41,6 +42,7 @@ export function DashboardReminders() {
 
   return (
     <>
+      {canQuotes && (
       <CollapsibleSection
         storageKey="dash-expiring-quotes"
         title={t('expiringQuotesTitle')}
@@ -90,6 +92,7 @@ export function DashboardReminders() {
           </ul>
         )}
       </CollapsibleSection>
+      )}
 
       {canBill && (
         <CollapsibleSection

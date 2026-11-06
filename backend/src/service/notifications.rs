@@ -77,7 +77,10 @@ pub async fn vat_number_invalidated(
         LEAD_AUDIENCE,
         "vat_invalid",
         "Érvénytelenné vált EU adószám",
-        Some(&format!("{}: {formatted} a VIES szerint már nem érvényes", short(&partner.name, 80))),
+        Some(&format!(
+            "{}: {formatted} a VIES szerint már nem érvényes",
+            short(&partner.name, 80)
+        )),
         Some(&format!("/partners/{}", partner.id)),
     )
     .await?;

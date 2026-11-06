@@ -179,7 +179,7 @@ fun EmailListScreen(
             }
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
             hu.autotherm.autocrm.ui.common.SearchField(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
@@ -202,6 +202,7 @@ fun EmailListScreen(
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(fab = canEdit),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.emails, key = { it.id }) { email ->
@@ -333,7 +334,8 @@ fun EmailDetailScreen(
                     modifier = Modifier.padding(padding),
                 ) {
                     LazyColumn(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+                        Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(horizontal = 16.dp, top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item {

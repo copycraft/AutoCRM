@@ -125,19 +125,37 @@ fun LoginScreen(
     val prefs = androidx.compose.runtime.remember {
         context.getSharedPreferences("login", android.content.Context.MODE_PRIVATE)
     }
-    var email by rememberSaveable { mutableStateOf(prefs.getString("last_email", null).orEmpty()) }
-    val passwordFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        if (email.isNotBlank()) runCatching { passwordFocus.requestFocus() }
+    // The remembered password (AndroidKeyStore-encrypted, opt-in). Offered as a one-tap
+    // sign-in after a session expiry; cleared on logout — the next user of this shared
+    // phone must not tap themselves in as the last one.
+    val savedCreds = androidx.compose.runtime.remember {
+        runCatching { hu.autotherm.autocrm.data.auth.CredentialStore.load(context) }.getOrNull()
     }
-    val signedIn: () -> Unit = {
-        prefs.edit().putString("last_email", email.trim()).apply()
-        hu.autotherm.autocrm.data.auth.SessionNotice.expired.value = false
-        onSignedIn()
+    var rememberMe by rememberSaveable { mutableStateOf(prefs.getBoolean("remember_password", false)) }
+    var email by rememberSaveable {
+        mutableStateOf(prefs.getString("last_email", null) ?: savedCreds?.email.orEmpty())
     }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var code by rememberSaveable { mutableStateOf("") }
+    val passwordFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        // Only the keyboard opens on the password when the remembered one matches a
+        // saved account: then the quick sign-in chip is what is used.
+        if (email.isNotBlank() && (savedCreds == null || savedCreds.email != email.trim())) {
+            runCatching { passwordFocus.requestFocus() }
+        }
+    }
+    val signedIn: () -> Unit = {
+        prefs.edit().putString("last_email", email.trim()).putBoolean("remember_password", rememberMe).apply()
+        if (rememberMe && password.isNotBlank()) {
+            hu.autotherm.autocrm.data.auth.CredentialStore.save(context, email.trim(), password)
+        } else {
+            hu.autotherm.autocrm.data.auth.CredentialStore.clear(context)
+        }
+        hu.autotherm.autocrm.data.auth.SessionNotice.expired.value = false
+        onSignedIn()
+    }
 
     hu.autotherm.autocrm.ui.common.CenteredScrollColumn {
         Text("AUTOTHERM", style = MaterialTheme.typography.displaySmall)
@@ -163,6 +181,7 @@ fun LoginScreen(
                 keyboardType = KeyboardType.Email,
                 imeAction = ImeAction.Next,
             ),
+            keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() }),
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(12.dp))
@@ -206,6 +225,38 @@ fun LoginScreen(
                 "Írd be a hitelesítő alkalmazás hatjegyű kódját.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Steel500,
+            )
+        }
+
+        // Remember-workflow handled by the opt-in checkbox: keeping it off keeps the
+        // shared phone's password out of the device entirely.
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            androidx.compose.material3.Checkbox(
+                checked = rememberMe,
+                onCheckedChange = { rememberMe = it },
+                enabled = !state.busy,
+            )
+            Text(
+                "Jelszó megjegyzése ezen a telefonon",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Steel500,
+            )
+        }
+
+        savedCreds?.let { saved ->
+            Spacer(Modifier.height(4.dp))
+            hu.autotherm.autocrm.ui.common.SecondaryButton(
+                text = "Bejelentkezés mentett fiókkal · " + saved.email.substringBefore("@"),
+                onClick = {
+                    email = saved.email
+                    password = saved.password
+                    viewModel.signIn(saved.email, saved.password, null, signedIn)
+                },
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
 

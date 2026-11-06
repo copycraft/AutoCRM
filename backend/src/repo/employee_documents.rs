@@ -119,6 +119,21 @@ pub async fn set_file(
     Ok(done.rows_affected() == 1)
 }
 
+/// What kind of paper a live document of this employee is: its folder on the share.
+pub async fn kind_of(
+    db: impl PgExecutor<'_>,
+    id: i64,
+    employee_id: i64,
+) -> sqlx::Result<Option<String>> {
+    sqlx::query_scalar(
+        "SELECT kind FROM employee_documents WHERE id = $1 AND employee_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(employee_id)
+    .fetch_optional(db)
+    .await
+}
+
 /// The stored file's key and name, when the document has one.
 pub async fn file_of(
     db: impl PgExecutor<'_>,

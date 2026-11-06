@@ -14,6 +14,7 @@ pub mod configuration;
 pub mod docs;
 pub mod email;
 pub mod extract;
+pub mod files;
 pub mod followups;
 pub mod hr;
 pub mod hr_statuses;
@@ -21,27 +22,33 @@ pub mod incidents;
 pub mod incoming_invoices;
 pub mod inspections;
 pub mod invoices;
+pub mod job_ads;
 pub mod lead_sources;
 pub mod lead_tags;
 pub mod leads;
 pub mod leave;
 pub mod media;
 pub mod mobile;
+pub mod modules;
 pub mod newsletter;
 pub mod newsletter_tags;
 pub mod notifications;
 pub mod openapi;
 pub mod orders;
+pub mod questionnaire;
 pub mod partners;
 pub mod raw_import;
 pub mod recruitment;
 pub mod reports;
+pub mod roles;
 pub mod search;
+pub mod status_counts;
 pub mod tasks;
 pub mod timeline;
 pub mod users;
 pub mod vat;
 pub mod vehicles;
+pub mod visibility;
 pub mod yard;
 
 use std::time::Duration;
@@ -68,12 +75,14 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .merge(auth::routes())
         .merge(users::routes())
+        .merge(roles::routes())
         .merge(configuration::routes())
         .merge(partners::routes())
         .merge(raw_import::routes())
         .merge(lead_tags::routes())
         .merge(leads::routes())
         .merge(orders::routes())
+        .merge(questionnaire::routes())
         .merge(blockers::routes())
         .merge(inspections::routes())
         .merge(media::routes())
@@ -87,8 +96,10 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(hr_statuses::routes())
         .merge(leave::routes())
         .merge(recruitment::routes())
+        .merge(job_ads::routes())
         .merge(reports::routes())
         .merge(search::routes())
+        .merge(status_counts::routes())
         .merge(tasks::routes())
         .merge(timeline::routes())
         .merge(admin::routes())
@@ -96,6 +107,7 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         .merge(vehicles::routes())
         // Last, so adding it appends to the generated document instead of reshuffling it.
         .merge(invoices::routes())
+        .merge(modules::routes())
         .merge(incoming_invoices::routes())
         // 0048: appended, like invoicing, so the existing document keeps its order.
         .merge(lead_sources::routes())
@@ -120,6 +132,9 @@ pub fn router(state: AppState) -> Router {
             StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(30),
         ))
+        // After those two: an upload to the share runs as long as the file takes, and
+        // downloads are served byte-exact so a video can seek.
+        .merge(files::routes())
         .layer(CatchPanicLayer::new())
         .layer(TraceLayer::new_for_http())
         .layer(PropagateRequestIdLayer::x_request_id())

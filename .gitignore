@@ -36,3 +36,16 @@ Thumbs.db
 
 # Local agent/tooling state
 /.claude/
+
+# The AutoCRM film: scripts and notes are kept; footage, renders, audio, caches and the
+# EffectCraft project files (gigabytes, several over GitHub's 100 MB limit) are not.
+/film/capture/
+/film/render/
+/film/audio/
+/film/data/
+/film/effectcraft/
+/film-showcase/node_modules/
+/film-showcase/output/
+/film-showcase/videos/
+__pycache__/
+*.pyc

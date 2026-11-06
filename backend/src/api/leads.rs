@@ -28,7 +28,6 @@ use crate::repo::orders::Order;
 use crate::repo::stages::{CurrentStage, StageEntry};
 use crate::repo::{audit, leads, like_pattern, orders, parse_sort, phone_pattern, stages};
 use crate::service;
-use crate::service::email::QuotationRequest;
 use crate::service::stages::{StageChange, TransitionOption};
 
 pub fn routes() -> OpenApiRouter<AppState> {
@@ -39,7 +38,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(change_stage))
         .routes(routes!(transitions))
         .routes(routes!(convert))
-        .routes(routes!(quotation))
+        .routes(routes!(record_quotation))
         .routes(routes!(expiring_quotes))
         .routes(routes!(bulk_action))
         // 0049
@@ -139,9 +138,10 @@ struct ExpiringQuery {
 )]
 async fn expiring_quotes(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<ExpiringQuery>,
 ) -> AppResult<Json<Items<service::reminders::ExpiringQuote>>> {
+    me.require(Capability::ViewSales)?;
     let today = service::business_today(state.config.business_tz);
     let days = q.days.unwrap_or(7).clamp(1, 90);
     Ok(Items::new(
@@ -174,9 +174,10 @@ struct SearchQuery {
 )]
 async fn search(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> AppResult<Json<Items<LeadRow>>> {
+    me.require(Capability::ViewSales)?;
     let pattern = q.q.as_deref().and_then(like_pattern);
     let phone = q.q.as_deref().and_then(phone_pattern);
     let sort_key = parse_sort(q.sort.as_deref(), leads::LEAD_SORTS, leads::DEFAULT_SORT)
@@ -532,6 +533,9 @@ struct LeadDetail {
     tags: Vec<LeadTagRef>,
     /// Why it was lost, when it was.
     lost_reason: Option<crate::repo::lost_reasons::LostReason>,
+    /// The build questionnaire (0065): the project type it is asked for and the answers
+    /// so far. Change it with `PUT /leads/{id}/spec`.
+    spec: service::questionnaire::LeadSpec,
 }
 
 #[utoipa::path(
@@ -541,9 +545,10 @@ struct LeadDetail {
 )]
 async fn detail(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<LeadDetail>> {
+    me.require(Capability::ViewSales)?;
     let lead = leads::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("lead"))?;
@@ -557,7 +562,15 @@ async fn detail(
     let documents = documents::list_for_lead(&state.db, id).await?;
     let attribution = crate::repo::attribution::find(&state.db, id).await?;
     let tags = lead_tags::for_lead(&state.db, id).await?;
+    let spec = crate::repo::questionnaire::lead_spec(&state.db, id)
+        .await?
+        .map(|(project_type_id, answers)| service::questionnaire::LeadSpec {
+            project_type_id,
+            answers,
+        })
+        .unwrap_or_default();
     Ok(Json(LeadDetail {
+        spec,
         lead,
         stage,
         history,
@@ -717,9 +730,10 @@ async fn change_stage(
 )]
 async fn transitions(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<TransitionOption>>> {
+    me.require(Capability::ViewSales)?;
     Ok(Items::new(
         service::stages::lead_transitions(&state.db, id).await?,
     ))
@@ -728,7 +742,7 @@ async fn transitions(
 #[utoipa::path(
     post, path = "/leads/{id}/convert", tag = "leads",
     params(("id" = i64, Path)),
-    request_body(content = OrderBody, description = "`partner_id` may be omitted when the lead has one; `title` defaults to the lead's."),
+    request_body(content = OrderBody, description = "`partner_id` may be omitted when the lead has one; `title` defaults to the lead's; `project_type_id` to the lead's. `spec_answers` are laid over the lead's answers, and every required question asked must then be answered (`422 spec_incomplete` otherwise)."),
     responses((status = 201, body = Order))
 )]
 async fn convert(
@@ -746,6 +760,7 @@ async fn convert(
     let partner_id = b.partner_id.or(lead.partner_id);
     let title_fallback = lead.title.clone();
     let valuation_given = b.valuation_date.is_some();
+    let answers = b.spec_answers.clone();
     let (mut fields, items) =
         fields_from_body(b, partner_id.unwrap_or(0), today, Some(title_fallback))?;
     fields.partner_id = partner_id.unwrap_or(0);
@@ -767,6 +782,7 @@ async fn convert(
             partner_id,
             fields,
             items,
+            answers,
         },
     )
     .await?;
@@ -776,37 +792,25 @@ async fn convert(
     Ok((StatusCode::CREATED, Json(order)))
 }
 
-/// The queued quotation letter.
-#[derive(Serialize, ToSchema)]
-pub struct QuotationSent {
-    pub email_id: i64,
-}
-
-/// Send the quotation letter for a lead: hero band on top, the lead's quotation PDF
-/// attached, from the staff member as themselves. Writing to a stranger's money needs a
-/// person behind it, so this is `SendEmail` (office), not an automatic trigger.
+/// Record a quotation the sales manager made and sent from their own mailbox: the lead's
+/// uploaded PDF becomes its `quote` document, the price and validity are set, and the
+/// follow-up letters are scheduled from the day it went out. The CRM does not send it.
 #[utoipa::path(
     post, path = "/leads/{id}/quotation", tag = "leads",
     params(("id" = i64, Path)),
-    request_body = QuotationRequest,
-    responses((status = 202, body = QuotationSent))
+    request_body = service::leads::QuotationRecord,
+    responses((status = 200, body = Lead))
 )]
-async fn quotation(
+async fn record_quotation(
     State(state): State<AppState>,
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
-    ApiJson(b): ApiJson<QuotationRequest>,
-) -> AppResult<(StatusCode, Json<QuotationSent>)> {
-    me.require(Capability::SendEmail)?;
-    let email_id = service::email::send_quotation(&state, &me, id, &b).await?;
-    // Sending is quoting: the rate of the day the letter went out is the one that counts.
-    let mut tx = state.db.begin().await?;
-    if let Some(lead) = leads::lock(&mut *tx, id).await? {
-        let today = service::business_today(state.config.business_tz);
-        service::leads::refresh_quote_fx(&mut tx, lead, today).await?;
-    }
-    tx.commit().await?;
-    Ok((StatusCode::ACCEPTED, Json(QuotationSent { email_id })))
+    ApiJson(b): ApiJson<service::leads::QuotationRecord>,
+) -> AppResult<Json<Lead>> {
+    me.require(Capability::EditLeads)?;
+    Ok(Json(
+        service::leads::record_quotation(&state, &me, id, &b).await?,
+    ))
 }
 
 /// The whole correspondence with the lead's customer, both ways, oldest first: our letters
@@ -819,9 +823,10 @@ async fn quotation(
 )]
 async fn conversation(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<crate::repo::emails::ConversationItem>>> {
+    me.require(Capability::ViewSales)?;
     if leads::find(&state.db, id).await?.is_none() {
         return Err(AppError::NotFound("lead"));
     }

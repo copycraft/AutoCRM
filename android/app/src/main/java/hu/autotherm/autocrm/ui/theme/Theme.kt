@@ -8,10 +8,15 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,9 +31,13 @@ import hu.autotherm.autocrm.R
  * `Surface` for cards; what changes with the theme is what those names resolve to.
  * That is the whole dark-theme migration: no call site knows which mode is on.
  */
+// Snapshot state, not plain vars: the palette getters below are read from Canvas
+// drawings, `.background(Surface)` and raw `Steel500` text that bypass
+// MaterialTheme.colorScheme. As plain fields a light→dark flip would leave every such
+// screen with stale colours until an unrelated recomposition touched it.
 private object ThemeFlags {
-    var dark: Boolean = false
-    var amoled: Boolean = false
+    var dark by mutableStateOf(false)
+    var amoled by mutableStateOf(false)
 }
 
 private val LightPanel = Color(0xFFF7F8F7)
@@ -136,13 +145,32 @@ private fun autoCrmDarkColors(amoled: Boolean) = darkColorScheme(
  * named instances by weight. Downloadable fonts were rejected: the app must render correctly
  * in a basement garage with no signal.
  */
-private val Plex = FontFamily(
-    Font(R.font.plex_sans_variable, FontWeight.Normal),
-    Font(R.font.plex_sans_variable, FontWeight.Medium),
-    Font(R.font.plex_sans_variable, FontWeight.SemiBold),
+// A variable TTF's weights are an axis, not separate files: without FontVariation.Settings
+// every slot below renders the file's default instance (Regular), so SemiBold titles came
+// out looking like body text on every screen.
+private val Plex = @OptIn(ExperimentalTextApi::class) FontFamily(
+    Font(
+        R.font.plex_sans_variable,
+        FontWeight.Normal,
+        variationSettings = FontVariation.Settings(FontVariation.weight(400)),
+    ),
+    Font(
+        R.font.plex_sans_variable,
+        FontWeight.Medium,
+        variationSettings = FontVariation.Settings(FontVariation.weight(500)),
+    ),
+    Font(
+        R.font.plex_sans_variable,
+        FontWeight.SemiBold,
+        variationSettings = FontVariation.Settings(FontVariation.weight(600)),
+    ),
     // The variable file spans 100–700: without an explicit Bold entry M3 components
     // asking for Bold fall back to another family and the typeface visibly mixes.
-    Font(R.font.plex_sans_variable, FontWeight.Bold),
+    Font(
+        R.font.plex_sans_variable,
+        FontWeight.Bold,
+        variationSettings = FontVariation.Settings(FontVariation.weight(700)),
+    ),
 )
 private val Mono = FontFamily(
     Font(R.font.plex_mono_regular, FontWeight.Normal),

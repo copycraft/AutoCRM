@@ -66,11 +66,21 @@ async fn history(
     ApiPath((entity, id)): ApiPath<(TimelineEntity, i64)>,
     ApiQuery(q): ApiQuery<HistoryQuery>,
 ) -> AppResult<Json<Items<TimelineEvent>>> {
-    if entity == TimelineEntity::Employee {
-        me.require(Capability::AccessHr)?;
+    match entity {
+        TimelineEntity::Employee => me.require(Capability::AccessHr)?,
+        TimelineEntity::Lead => me.require(Capability::ViewSales)?,
+        TimelineEntity::IncomingInvoice => me.require(Capability::ViewIncomingInvoices)?,
+        _ => {}
     }
     let limit = q.limit.unwrap_or(300).clamp(1, 1000);
     let mut events = timeline::list(&state.db, entity, id, limit).await?;
+    // What this person may not see is left out of the history too (0061).
+    events.retain(|e| super::visibility::history_entry_visible(&me, &e.kind, &e.action));
+    if !me.can(Capability::ViewPrices) {
+        events
+            .iter_mut()
+            .for_each(|e| super::visibility::scrub_money(&mut e.changes));
+    }
 
     let users = ids_in(&events, USER_FIELDS);
     let partners = ids_in(&events, PARTNER_FIELDS);

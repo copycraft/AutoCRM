@@ -118,6 +118,17 @@ pub async fn find(db: impl PgExecutor<'_>, id: i64) -> sqlx::Result<Option<Docum
     .await
 }
 
+/// Refiles a document as another kind. Only for a lead's files, which share one folder
+/// whatever their kind, so nothing moves on the share. Runtime-checked.
+pub async fn set_kind(db: impl PgExecutor<'_>, id: i64, kind: DocumentKind) -> sqlx::Result<()> {
+    sqlx::query("UPDATE documents SET kind = $2 WHERE id = $1")
+        .bind(id)
+        .bind(kind)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 pub async fn list_for_order(db: impl PgExecutor<'_>, order_id: i64) -> sqlx::Result<Vec<Document>> {
     sqlx::query_as!(
         Document,

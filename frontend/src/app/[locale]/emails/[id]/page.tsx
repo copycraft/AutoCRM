@@ -21,6 +21,7 @@ import { useRouteId } from '@/hooks/useRouteId';
 import { canAdmin, useAuth } from '@/lib/auth/context';
 import { useToast } from '@/components/ui/Toasts';
 import type { EmailStatus } from '@/lib/api/types';
+import { previewHtml } from '@/lib/emailPreview';
 
 function statusTone(status: EmailStatus): StatusTone {
   switch (status) {
@@ -293,7 +294,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } | P
                     <iframe
                       title={t('viewHtml')}
                       sandbox=""
-                      srcDoc={email.body_html}
+                      srcDoc={previewHtml(email.body_html)}
                       className="h-[480px] w-full rounded-lg border border-steel-200 bg-white"
                     />
                   ) : (

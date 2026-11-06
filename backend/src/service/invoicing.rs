@@ -25,16 +25,17 @@ use crate::domain::invoice::{
     InvoiceKind, InvoiceStatus, PaymentMethod, line_amounts, minor_to_decimal_string,
     split_address_line, validate_vat_rate,
 };
-use crate::domain::media::{DocumentKind, document_storage_key};
+use crate::domain::media::DocumentKind;
 use crate::domain::money::{Currency, Money};
 use crate::domain::partner::PartnerKind;
 use crate::error::{AppError, AppResult};
 use crate::integrations::nav::{self, NavError, NavSidecar};
+use crate::media::layout;
 use crate::repo::documents::{self, NewDocument, Owner};
 use crate::repo::invoices::{self, Invoice, NewInvoice, NewLine, NewProforma, Proforma};
 use crate::repo::orders::Order;
 use crate::repo::partners::Partner;
-use crate::repo::{audit, fx, jobs, order_items, orders, partners};
+use crate::repo::{audit, fx, invoice_drafts, jobs, order_items, orders, partners};
 use crate::service::auth::AuthUser;
 use crate::service::email::{About, AttachmentRef, AutomaticEmail, queue_automatic};
 use crate::service::{automation, business_today};
@@ -352,22 +353,13 @@ pub async fn create_invoice(
     req: &IssueRequest,
 ) -> AppResult<Invoice> {
     let (_, nav) = sidecar(&state.config)?;
-    let vat_rate = match req.vat_rate {
-        Some(rate) => validate_vat_rate(rate).map_err(AppError::validation)?,
-        None => nav.default_vat_rate,
-    };
-    // Closed set, validated here: the sidecar would refuse anything else after the
-    // number is drawn, spending it. Absent means a bank transfer.
-    let payment_method = match &req.payment_method {
-        None => PaymentMethod::DEFAULT,
-        Some(raw) => PaymentMethod::parse(raw).map_err(|e| AppError::validation(e.to_string()))?,
-    };
-    let today = business_today(state.config.business_tz);
-    let issue_date = req.issue_date.unwrap_or(today);
-    let delivery_date = req.delivery_date.unwrap_or(issue_date);
-    let payment_date = req
-        .payment_date
-        .unwrap_or(issue_date + chrono::TimeDelta::days(nav.payment_days));
+    let Terms {
+        vat_rate,
+        payment_method,
+        issue_date,
+        delivery_date,
+        payment_date,
+    } = resolve_terms(nav, business_today(state.config.business_tz), req)?;
 
     // A 0% invoice to an EU business needs a fresh VALID VIES answer on the buyer. Asked
     // before the transaction: VIES may take seconds, and the order stays unlocked meanwhile.
@@ -440,7 +432,9 @@ pub async fn create_invoice(
     // The buyer (or their number) changed while VIES was asked: that verdict is not
     // about this invoice.
     let same_buyer = gated_partner.as_ref().is_some_and(|p| {
-        p.id == partner.id && p.country == partner.country && p.eu_tax_number == partner.eu_tax_number
+        p.id == partner.id
+            && p.country == partner.country
+            && p.eu_tax_number == partner.eu_tax_number
     });
     if crate::service::vat::needs_vies(&partner, vat_rate) && (!same_buyer || gate.is_none()) {
         return Err(AppError::rule(
@@ -474,9 +468,16 @@ pub async fn create_invoice(
         insert_line(&mut tx, invoice.id, line).await?;
     }
     if let Some(gate) = &gate {
-        invoices::set_vat_check(&mut *tx, invoice.id, gate.vat_check_id, gate.override_reason.as_deref())
-            .await?;
+        invoices::set_vat_check(
+            &mut *tx,
+            invoice.id,
+            gate.vat_check_id,
+            gate.override_reason.as_deref(),
+        )
+        .await?;
     }
+    // Issued: the draft it was prepared in has done its job.
+    invoice_drafts::delete(&mut *tx, order_id).await?;
 
     audit::record(
         &mut *tx,
@@ -505,6 +506,285 @@ pub async fn create_invoice(
 
     tracing::info!(invoice_id = invoice.id, number = %invoice.number, order_id, "invoice queued for reporting");
     Ok(invoice)
+}
+
+/// The terms an invoice is issued with: what the caller set, else the configured defaults.
+struct Terms {
+    vat_rate: Decimal,
+    payment_method: PaymentMethod,
+    issue_date: NaiveDate,
+    delivery_date: NaiveDate,
+    payment_date: NaiveDate,
+}
+
+fn resolve_terms(nav: &NavConfig, today: NaiveDate, req: &IssueRequest) -> AppResult<Terms> {
+    let vat_rate = match req.vat_rate {
+        Some(rate) => validate_vat_rate(rate).map_err(AppError::validation)?,
+        None => nav.default_vat_rate,
+    };
+    // Closed set, validated here: the sidecar would refuse anything else after the
+    // number is drawn, spending it. Absent means a bank transfer.
+    let payment_method = match &req.payment_method {
+        None => PaymentMethod::DEFAULT,
+        Some(raw) => PaymentMethod::parse(raw).map_err(|e| AppError::validation(e.to_string()))?,
+    };
+    let issue_date = req.issue_date.unwrap_or(today);
+    let delivery_date = req.delivery_date.unwrap_or(issue_date);
+    let payment_date = req
+        .payment_date
+        .unwrap_or(issue_date + chrono::TimeDelta::days(nav.payment_days));
+    Ok(Terms {
+        vat_rate,
+        payment_method,
+        issue_date,
+        delivery_date,
+        payment_date,
+    })
+}
+
+/// The terms a draft keeps, checked as an issue would check them, defaults left open.
+pub fn draft_terms(req: &IssueRequest) -> AppResult<invoice_drafts::Terms> {
+    let vat_rate = req
+        .vat_rate
+        .map(|rate| validate_vat_rate(rate).map_err(AppError::validation))
+        .transpose()?;
+    let payment_method = req
+        .payment_method
+        .as_deref()
+        .map(|raw| {
+            PaymentMethod::parse(raw)
+                .map(|m| m.as_str().to_string())
+                .map_err(|e| AppError::validation(e.to_string()))
+        })
+        .transpose()?;
+    Ok(invoice_drafts::Terms {
+        vat_rate,
+        issue_date: req.issue_date,
+        delivery_date: req.delivery_date,
+        payment_date: req.payment_date,
+        payment_method,
+    })
+}
+
+/// One side of the invoice, as the preview prints it.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct PreviewParty {
+    pub name: String,
+    pub tax_number: Option<String>,
+    /// One line: "6728 Szeged, Napos út 3.", with the country when it is not Hungary.
+    pub address: String,
+    pub bank_account: Option<String>,
+}
+
+/// One line of the preview: an order item, priced and taxed exactly as the issue would.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct PreviewLine {
+    /// The order item it comes from: editing the line edits that item.
+    pub item_id: i64,
+    pub position: i32,
+    pub description: String,
+    #[schema(value_type = String)]
+    #[serde(with = "rust_decimal::serde::str")]
+    pub quantity: Decimal,
+    pub unit_price_minor: i64,
+    pub net_minor: i64,
+    pub vat_minor: i64,
+    pub gross_minor: i64,
+}
+
+/// The invoice the order would get if it were issued now with these terms. Nothing is
+/// numbered, written or reported; the totals come from the same arithmetic the issue uses.
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct InvoicePreview {
+    pub order_id: i64,
+    pub order_number: String,
+    #[schema(value_type = crate::domain::money::Currency)]
+    pub currency: String,
+    #[schema(value_type = String)]
+    #[serde(with = "rust_decimal::serde::str")]
+    pub vat_rate: Decimal,
+    pub issue_date: NaiveDate,
+    pub delivery_date: NaiveDate,
+    pub payment_date: NaiveDate,
+    /// `TRANSFER` or `CASH`.
+    pub payment_method: String,
+    pub supplier: PreviewParty,
+    pub customer: PreviewParty,
+    pub lines: Vec<PreviewLine>,
+    pub net_minor: i64,
+    pub vat_minor: i64,
+    pub gross_minor: i64,
+    /// What would stop the issue, in words that say what to fix. Empty: ready to issue.
+    pub problems: Vec<String>,
+    /// Worth knowing before issuing, but no obstacle.
+    pub notes: Vec<String>,
+}
+
+/// What the invoicing rules would refuse about this buyer, in Hungarian for the screen.
+/// Mirrors [`customer_party`], which refuses on the first of these at issue time.
+fn customer_problems(partner: &Partner) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut missing = |what: &str| {
+        out.push(format!(
+            "A partnernél ({}) hiányzik: {what}. Pótolja a partner adatlapján.",
+            partner.name
+        ))
+    };
+    if partner.postal_code.is_none() {
+        missing("irányítószám");
+    }
+    if partner.city.is_none() {
+        missing("település");
+    }
+    match &partner.address_line {
+        None => missing("utca, házszám"),
+        Some(line) if split_address_line(line).is_none() => out.push(format!(
+            "A partner címe ({line}) nem bontható utcára, közterület-típusra és házszámra \
+             (pl. „Kossuth Lajos utca 12.”). Javítsa a partner adatlapján."
+        )),
+        Some(_) => {}
+    }
+    if partner.country.eq_ignore_ascii_case("HU")
+        && partner.kind == PartnerKind::Business
+        && partner.tax_number.is_none()
+    {
+        out.push(format!(
+            "A partnernél ({}) hiányzik az adószám. Pótolja a partner adatlapján.",
+            partner.name
+        ));
+    }
+    out
+}
+
+fn one_line_address(parts: &[Option<&str>], country: &str) -> String {
+    let mut s = parts
+        .iter()
+        .flatten()
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !country.eq_ignore_ascii_case("HU") && !country.is_empty() {
+        s = format!("{s} ({})", country.to_uppercase());
+    }
+    s
+}
+
+/// Previews the invoice an order would get (see [`InvoicePreview`]). Refuses only what
+/// cannot be previewed at all — invoicing not configured, an unknown order, bad terms;
+/// everything that would only stop the issue is listed in `problems` instead.
+pub async fn preview_invoice(
+    state: &AppState,
+    order_id: i64,
+    req: &IssueRequest,
+) -> AppResult<InvoicePreview> {
+    let (_, nav) = sidecar(&state.config)?;
+    let terms = resolve_terms(nav, business_today(state.config.business_tz), req)?;
+    let mut conn = state.db.acquire().await?;
+    let order = orders::find(&mut *conn, order_id)
+        .await?
+        .ok_or(AppError::NotFound("order"))?;
+    let currency = crate::service::orders::order_currency(&order)?;
+    let mut problems = Vec::new();
+    let mut notes = Vec::new();
+
+    for existing in invoices::list_for_order(&mut *conn, order_id).await? {
+        match existing.status {
+            InvoiceStatus::Submitting => problems.push(format!(
+                "A(z) {} számla még a NAV-nál van; várja meg a döntést.",
+                existing.number
+            )),
+            InvoiceStatus::Issued if existing.kind == InvoiceKind::Invoice => problems.push(format!(
+                "A projektnek már van élő számlája ({}); újat csak sztornó után lehet kiállítani.",
+                existing.number
+            )),
+            _ => {}
+        }
+    }
+
+    let items = order_items::list(&mut *conn, order_id).await?;
+    if items.is_empty() {
+        problems.push("A számlához legalább egy tétel kell.".into());
+    }
+    let snapshot = snapshot_lines(&items, currency, terms.vat_rate, 1)?;
+    let lines = items
+        .iter()
+        .zip(&snapshot.lines)
+        .map(|(item, (line, _))| PreviewLine {
+            item_id: item.id,
+            position: line.position,
+            description: line.description.clone(),
+            quantity: line.quantity,
+            unit_price_minor: line.unit_price,
+            net_minor: line.net_amount,
+            vat_minor: line.vat_amount,
+            gross_minor: line.net_amount + line.vat_amount,
+        })
+        .collect();
+
+    let partner = partners::find(&mut *conn, order.partner_id)
+        .await?
+        .ok_or(AppError::NotFound("partner"))?;
+    problems.extend(customer_problems(&partner));
+    if crate::service::vat::needs_vies(&partner, terms.vat_rate) {
+        notes.push(
+            "0%-os uniós számla: kiállításkor a rendszer friss VIES-ellenőrzést kér a vevő \
+             közösségi adószámára."
+                .into(),
+        );
+    }
+    if let Err(e) = exchange_rate(&mut conn, currency, terms.issue_date).await {
+        problems.push(format!(
+            "Nincs MNB-árfolyam {} napra ({}): töltse le az árfolyamokat.",
+            terms.issue_date, e
+        ));
+    }
+
+    let supplier = supplier_party(nav, currency);
+    Ok(InvoicePreview {
+        order_id,
+        order_number: order.number.clone(),
+        currency: currency.code().to_string(),
+        vat_rate: terms.vat_rate,
+        issue_date: terms.issue_date,
+        delivery_date: terms.delivery_date,
+        payment_date: terms.payment_date,
+        payment_method: terms.payment_method.as_str().to_string(),
+        supplier: PreviewParty {
+            name: supplier.name,
+            tax_number: Some(supplier.tax_number),
+            address: one_line_address(
+                &[
+                    Some(supplier.address.postal_code.as_str()),
+                    Some(&format!("{},", supplier.address.city)),
+                    Some(supplier.address.street_name.as_str()),
+                    Some(supplier.address.public_place_category.as_str()),
+                    Some(supplier.address.number.as_str()),
+                ],
+                "HU",
+            ),
+            bank_account: supplier.bank_account,
+        },
+        customer: PreviewParty {
+            name: partner.name.clone(),
+            tax_number: partner.tax_number.clone().or(partner.eu_tax_number.clone()),
+            address: one_line_address(
+                &[
+                    partner.postal_code.as_deref(),
+                    partner.city.as_deref().map(|c| format!("{c},")).as_deref(),
+                    partner.address_line.as_deref(),
+                ],
+                &partner.country,
+            ),
+            bank_account: None,
+        },
+        lines,
+        net_minor: snapshot.net,
+        vat_minor: snapshot.vat,
+        gross_minor: snapshot.net + snapshot.vat,
+        problems,
+        notes,
+    })
 }
 
 async fn insert_line(
@@ -1193,6 +1473,7 @@ pub async fn store_invoice_pdf(state: &AppState, invoice: &Invoice) -> anyhow::R
         state,
         invoice.order_id,
         DocumentKind::Invoice,
+        invoice.kind == InvoiceKind::Storno,
         &filename,
         pdf,
         Some(&invoice.number),
@@ -1239,11 +1520,12 @@ pub async fn refetch_pdf(state: &AppState, id: i64) -> AppResult<Invoice> {
         .ok_or(AppError::NotFound("invoice"))
 }
 
-/// Stores a PDF the sidecar produced as a document of the order.
+/// Stores a PDF the sidecar produced as a document of the order, in its billing folder.
 async fn store_pdf(
     state: &AppState,
     order_id: i64,
     kind: DocumentKind,
+    storno: bool,
     filename: &str,
     bytes: Vec<u8>,
     source_ref: Option<&str>,
@@ -1251,7 +1533,20 @@ async fn store_pdf(
     let hash = Sha256::digest(&bytes);
     let hash_hex = hex::encode(hash);
     let byte_size = i64::try_from(bytes.len())?;
-    let key = document_storage_key(order_id, &hash_hex, "pdf");
+    let key = layout::document_key(
+        state,
+        Owner::Order(order_id),
+        if storno {
+            layout::Shelf::Storno
+        } else {
+            layout::Shelf::Kind(kind)
+        },
+        filename,
+        1,
+        &hash_hex,
+        "pdf",
+    )
+    .await?;
     state
         .storage
         .put_bytes(&key, bytes, "application/pdf")
@@ -1464,6 +1759,7 @@ pub async fn create_proforma(
         state,
         order_id,
         DocumentKind::Proforma,
+        false,
         &filename,
         pdf,
         Some(&number),

@@ -191,17 +191,21 @@ object ScanPdf {
      * Coordinates are PDF points, origin bottom-left.
      */
     internal fun drawMatrix(info: JpegInfo, rect: PageRect): String {
-        val (ew, eh) = info.effectiveSize()
         val w = rect.width()
         val h = rect.height()
         val x = rect.left
         // RectF counts from the top; PDF counts from the bottom.
         val y = PAGE_H_PT - rect.bottom
         fun num(v: Float): String = "%.2f".format(Locale.US, v)
+        // PDF image space is the unit square (spec 8.9.7.2): the coefficients carry the
+        // rect's w and h as-is. The old division by stored sizes squeezed a 90°-rotated
+        // scan far outside the A4 page; a rotation only swaps which axis gets which.
         return when (info.orientation) {
             3 -> "q ${num(-w)} 0 0 ${num(-h)} ${num(x + w)} ${num(y + h)} cm"
-            6 -> "q 0 ${num(h / ew)} ${num(-w / eh)} 0 ${num(x + w)} ${num(y)} cm"
-            8 -> "q 0 ${num(-h / ew)} ${num(w / eh)} 0 ${num(x)} ${num(y + h)} cm"
+            // 6 = stored row 0 is the visual right side, column 0 the visual top.
+            6 -> "q 0 ${num(-h)} ${num(w)} 0 ${num(x)} ${num(y + h)} cm"
+            // 8 = stored row 0 is the visual left side, column 0 the visual bottom.
+            8 -> "q 0 ${num(h)} ${num(-w)} 0 ${num(x + w)} ${num(y)} cm"
             else -> "q ${num(w)} 0 0 ${num(h)} ${num(x)} ${num(y)} cm"
         }
     }
@@ -285,8 +289,9 @@ object ScanPdf {
 
     /**
      * Downscales [src] (a full-resolution camera JPEG) into [dst]. Needs the framework
-     * to decode pixels; the rotation itself is honored downstream by [drawMatrix], so
-     * no re-encoding happens here for orientation. Returns [dst].
+     * to decode pixels; the EXIF rotation is applied here, because the re-encoded JPEG
+     * carries no EXIF and [buildPdf] embeds the bytes as-is — without this a portrait
+     * scan lies on its side in the PDF. Returns [dst].
      */
     fun downscaleForPdf(src: File, dst: File): File {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -295,9 +300,26 @@ object ScanPdf {
         var sample = 1
         while (longEdge / sample > MAX_EDGE_PX) sample *= 2
         val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-        val bitmap = BitmapFactory.decodeFile(src.absolutePath, opts)
+        var bitmap = BitmapFactory.decodeFile(src.absolutePath, opts)
             ?: throw IllegalArgumentException("nem olvasható kép: ${src.name}")
         try {
+            val orientation = runCatching { readJpegInfo(src.readBytes()).orientation }.getOrDefault(1)
+            if (orientation == 3 || orientation == 6 || orientation == 8) {
+                val matrix = android.graphics.Matrix().apply {
+                    postRotate(
+                        when (orientation) {
+                            6 -> 90f
+                            8 -> -90f
+                            else -> 180f
+                        },
+                    )
+                }
+                val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                if (rotated != bitmap) {
+                    bitmap.recycle()
+                    bitmap = rotated
+                }
+            }
             FileOutputStream(dst).use { out ->
                 if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)) {
                     throw IllegalStateException("a JPEG tömörítés nem sikerült")

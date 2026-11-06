@@ -48,6 +48,21 @@ import hu.autotherm.autocrm.data.api.LookupItem
 import hu.autotherm.autocrm.data.api.OrderBody
 import hu.autotherm.autocrm.data.api.OrderRef
 import hu.autotherm.autocrm.data.api.TransitionOption
+import hu.autotherm.autocrm.data.api.Questionnaire
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import hu.autotherm.autocrm.data.spec.Answers
+import hu.autotherm.autocrm.data.spec.answersObject
+import hu.autotherm.autocrm.data.spec.missingQuestions
+import hu.autotherm.autocrm.data.spec.visibleQuestions
+import hu.autotherm.autocrm.ui.spec.LeadSpecEditDialog
+import hu.autotherm.autocrm.ui.spec.MissingBadge
+import hu.autotherm.autocrm.ui.spec.QuestionField
+import hu.autotherm.autocrm.ui.spec.QuestionnaireFields
+import hu.autotherm.autocrm.ui.spec.QuestionnaireView
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import hu.autotherm.autocrm.data.inspection.cachedLookups
 import hu.autotherm.autocrm.data.inspection.downloadLookups
 import hu.autotherm.autocrm.data.prefs.LookupsCache
@@ -115,9 +130,9 @@ class LeadListViewModel(
 
     init {
         // First paint must not wait for the debounce.
-        viewModelScope.launch { load() }
+        loadNow()
         viewModelScope.launch {
-            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { load() }
+            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { loadNow() }
         }
     }
 
@@ -128,12 +143,21 @@ class LeadListViewModel(
     fun toggleOpenOnly() {
         _state.value = _state.value.copy(openOnly = !_state.value.openOnly)
         prefs?.edit()?.putBoolean("leads_open_only", _state.value.openOnly)?.apply()
-        viewModelScope.launch { load() }
+        loadNow()
     }
 
-    fun refresh() = viewModelScope.launch { load() }
+    fun refresh() = loadNow()
 
-    fun retry() = viewModelScope.launch { load() }
+    fun retry() = loadNow()
+
+    // Launched loads are tracked so a slower older request can never overwrite a newer
+    // one's result (toggle + type in quick succession, response order not guaranteed).
+    private var loadJob: kotlinx.coroutines.Job? = null
+
+    private fun loadNow() {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch { load() }
+    }
 
     /** Back from a lead: the loaded rows again in one request, scroll position kept. */
     fun refreshInPlace() {
@@ -288,6 +312,7 @@ fun LeadListScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = topScroll,
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(fab = canEdit),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.leads, key = { it.id }) { lead ->
@@ -351,6 +376,16 @@ class LeadDetailViewModel(
         /** The conversion's partner: the lead's own, or one picked/created in the dialog. */
         val convertPartner: hu.autotherm.autocrm.ui.common.PartnerChoice? = null,
         val convertProjectType: Long? = null,
+        /** The build questionnaire (0065); null while loading or offline. */
+        val questionnaire: Questionnaire? = null,
+        /** The answers in the convert dialog: the lead's, plus what is filled there. */
+        val convertAnswers: Answers = emptyMap(),
+        /** The questions shown first in the convert dialog: everything missing since it
+         *  opened. Grows as answers open sections; never shrinks, so nothing jumps away. */
+        val convertPinned: Set<String> = emptySet(),
+        val specEditOpen: Boolean = false,
+        val specBusy: Boolean = false,
+        val specError: String? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -367,12 +402,14 @@ class LeadDetailViewModel(
             try {
                 val lookups = downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
                 val sources = runCatching { api.leadSources() }.getOrDefault(_state.value.sources)
+                val questionnaire = runCatching { api.questionnaire() }.getOrNull() ?: _state.value.questionnaire
                 _state.value = State(
                     loading = false,
                     detail = api.lead(id),
                     lookups = lookups,
                     sources = sources,
                     canComment = sessionStore?.currentAccount()?.canComment == true,
+                    questionnaire = questionnaire,
                 )
             } catch (e: Throwable) {
                 _state.value = _state.value.copy(
@@ -414,24 +451,72 @@ class LeadDetailViewModel(
         }
     }
 
+    /** Pins whatever is missing now to the top of the convert dialog. */
+    private fun repin(s: State): State =
+        s.copy(convertPinned = s.convertPinned + missingQuestions(s.questionnaire, s.convertProjectType, s.convertAnswers).map { it.key })
+
+    fun setConvertAnswers(answers: Answers) {
+        _state.value = repin(_state.value.copy(convertAnswers = answers, convertError = null))
+    }
+
+    fun openSpecEdit() {
+        _state.value = _state.value.copy(specEditOpen = true, specError = null)
+    }
+
+    fun closeSpecEdit() {
+        _state.value = _state.value.copy(specEditOpen = false, specError = null)
+    }
+
+    /** Saves the lead's project type and answers; never demands completeness. */
+    fun saveSpec(id: Long, projectTypeId: Long?, answers: Answers) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(specBusy = true, specError = null)
+            try {
+                api.putLeadSpec(
+                    id,
+                    buildJsonObject {
+                        put("project_type_id", projectTypeId?.let(::JsonPrimitive) ?: JsonNull)
+                        put("answers", answersObject(answers))
+                    },
+                )
+                _state.value = _state.value.copy(specBusy = false, specEditOpen = false)
+                hu.autotherm.autocrm.ui.common.Toasts.show("Kérdőív mentve")
+                load(id)
+            } catch (e: Throwable) {
+                _state.value = _state.value.copy(specBusy = false, specError = describeError(e))
+            }
+        }
+    }
+
     fun openConvert() {
-        _state.value = _state.value.copy(
-            convertOpen = true,
-            convertError = null,
-            convertCurrency = _state.value.detail?.lead?.currency ?: "HUF",
-            convertPartner = null,
-            convertProjectType = null,
+        val spec = _state.value.detail?.spec
+        _state.value = repin(
+            _state.value.copy(
+                convertOpen = true,
+                convertError = null,
+                convertCurrency = _state.value.detail?.lead?.currency ?: "HUF",
+                convertPartner = null,
+                convertProjectType = spec?.projectTypeId,
+                convertAnswers = spec?.answers.orEmpty(),
+                convertPinned = emptySet(),
+            ),
         )
+        if (_state.value.questionnaire == null) {
+            viewModelScope.launch {
+                val qn = runCatching { api.questionnaire() }.getOrNull()
+                if (qn != null) _state.value = repin(_state.value.copy(questionnaire = qn))
+            }
+        }
         // Same prefill as the web dialog: the partner's default currency (MAJOR-03),
         // when the server lists it; else the first listed currency; HUF (the business
         // default) when offline with nothing cached.
         val partnerId = _state.value.detail?.lead?.partnerId ?: return
+        // The dialog is interactive while the prefill fetch runs: whatever the user
+        // already picked must not be replaced when the network answers later.
+        convertTouched = false
         viewModelScope.launch {
             val lookups = downloadLookups(api, lookupsCache) ?: cachedLookups(lookupsCache)
             val partner = runCatching { api.partner(partnerId).partner }.getOrNull()
-            if (partner != null) {
-                _state.value = _state.value.copy(convertPartner = hu.autotherm.autocrm.ui.common.PartnerChoice.of(partner))
-            }
             val default = partner?.defaultCurrency
             val listed = lookups?.currencies.orEmpty()
             val currency = when {
@@ -439,15 +524,24 @@ class LeadDetailViewModel(
                 listed.isNotEmpty() -> listed.first().key
                 else -> "HUF"
             }
-            _state.value = _state.value.copy(convertCurrency = currency, lookups = lookups)
+            _state.value = _state.value.copy(
+                convertPartner = if (convertTouched) _state.value.convertPartner
+                    else partner?.let { p -> hu.autotherm.autocrm.ui.common.PartnerChoice.of(p) },
+                convertCurrency = if (convertTouched) _state.value.convertCurrency else currency,
+                lookups = lookups,
+            )
         }
     }
 
+    private var convertTouched = false
+
     fun setConvertCurrency(currency: String) {
+        convertTouched = true
         _state.value = _state.value.copy(convertCurrency = currency)
     }
 
     fun setConvertPartner(p: hu.autotherm.autocrm.ui.common.PartnerChoice?) {
+        convertTouched = true
         _state.value = _state.value.copy(
             convertPartner = p,
             convertCurrency = p?.defaultCurrency ?: _state.value.convertCurrency,
@@ -456,7 +550,7 @@ class LeadDetailViewModel(
     }
 
     fun setConvertProjectType(id: Long?) {
-        _state.value = _state.value.copy(convertProjectType = id)
+        _state.value = repin(_state.value.copy(convertProjectType = id))
     }
 
     fun closeConvert() {
@@ -470,6 +564,15 @@ class LeadDetailViewModel(
             _state.value = s.copy(convertError = "Válassz vagy hozz létre partnert a megrendeléshez.")
             return
         }
+        // The server refuses a conversion with a required answer missing (spec_incomplete);
+        // the dialog keeps the button off until then, this is the same rule once more.
+        val missing = missingQuestions(s.questionnaire, s.convertProjectType, s.convertAnswers)
+        if (s.questionnaire == null || missing.isNotEmpty()) {
+            _state.value = s.copy(
+                convertError = if (s.questionnaire == null) "A kérdőív nem tölthető be." else "Még ${missing.size} kérdés hiányzik.",
+            )
+            return
+        }
         viewModelScope.launch {
             _state.value = _state.value.copy(convertBusy = true, convertError = null)
             try {
@@ -480,6 +583,7 @@ class LeadDetailViewModel(
                         _state.value.convertCurrency,
                         partnerId = s.convertPartner.id,
                         projectTypeId = s.convertProjectType,
+                        specAnswers = answersObject(s.convertAnswers),
                     ),
                 )
                 _state.value = _state.value.copy(convertBusy = false, convertOpen = false)
@@ -558,7 +662,8 @@ fun LeadDetailScreen(
                     modifier = Modifier.padding(padding),
                 ) {
                     LazyColumn(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+                        Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(horizontal = 16.dp, top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item {
@@ -656,6 +761,22 @@ fun LeadDetailScreen(
                                 }
                             }
                         }
+                        // The build questionnaire: filled while selling, asked again on
+                        // conversion for whatever required answer is still missing.
+                        item {
+                            Card {
+                                SectionTitle("Műszaki kérdőív")
+                                MissingBadge(state.questionnaire, detail.spec.projectTypeId, detail.spec.answers)
+                                hu.autotherm.autocrm.ui.common.ProjectTypeLabel(detail.spec.projectTypeId)
+                                QuestionnaireView(state.questionnaire, detail.spec.projectTypeId, detail.spec.answers)
+                                if (canEdit) {
+                                    OutlinedButton(
+                                        onClick = viewModel::openSpecEdit,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) { Text("Kérdőív szerkesztése") }
+                                }
+                            }
+                        }
                         item {
                             hu.autotherm.autocrm.ui.common.CommentsSection(
                                 entity = "lead",
@@ -737,8 +858,24 @@ fun LeadDetailScreen(
             onConfirm = { stage, note, reason -> viewModel.changeStage(leadId, stage, note, reason) },
         )
     }
+    if (state.specEditOpen) {
+        val spec = state.detail?.spec
+        LeadSpecEditDialog(
+            questionnaire = state.questionnaire,
+            initialProjectType = spec?.projectTypeId,
+            initialAnswers = spec?.answers.orEmpty(),
+            busy = state.specBusy,
+            error = state.specError,
+            onDismiss = viewModel::closeSpecEdit,
+            onSave = { type, answers -> viewModel.saveSpec(leadId, type, answers) },
+        )
+    }
     if (state.convertOpen) {
         ConvertDialog(
+            questionnaire = state.questionnaire,
+            answers = state.convertAnswers,
+            pinned = state.convertPinned,
+            onAnswers = viewModel::setConvertAnswers,
             busy = state.convertBusy,
             error = state.convertError,
             initialTitle = state.detail?.lead?.title.orEmpty(),
@@ -776,12 +913,14 @@ internal fun convertBody(
     currency: String?,
     partnerId: Long? = null,
     projectTypeId: Long? = null,
+    specAnswers: kotlinx.serialization.json.JsonObject? = null,
 ): OrderBody =
     OrderBody(
         title = title,
         currency = currency?.takeIf { it.isNotBlank() } ?: "HUF",
         partnerId = partnerId,
         projectTypeId = projectTypeId,
+        specAnswers = specAnswers,
     )
 
 /** A lead that became an order is worked on the order; its stage is fixed. */
@@ -790,6 +929,10 @@ internal fun canChangeLeadStage(orders: List<OrderRef>): Boolean = orders.isEmpt
 /** Turns the lead into an order: the new job opens when the server answers. */
 @Composable
 private fun ConvertDialog(
+    questionnaire: Questionnaire?,
+    answers: Answers,
+    pinned: Set<String>,
+    onAnswers: (Answers) -> Unit,
     busy: Boolean,
     error: String?,
     initialTitle: String,
@@ -808,18 +951,54 @@ private fun ConvertDialog(
     onConfirm: (String) -> Unit,
 ) {
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
+    // The build questionnaire has to be complete first: what is missing is asked at the top,
+    // the rest of the form and the whole questionnaire below.
+    val missing = missingQuestions(questionnaire, projectTypeId, answers)
+    val missingKeys = missing.map { it.key }.toSet()
+    val top = visibleQuestions(questionnaire, projectTypeId, answers).filter { it.key in pinned || it.key in missingKeys }
+    val ready = questionnaire != null && missing.isEmpty()
     DialogShell(
         title = "Megrendeléssé alakítás",
         onDismiss = onDismiss,
         actions = {
+            if (missing.isNotEmpty()) {
+                Text("Még ${missing.size} hiányzik", style = MaterialTheme.typography.bodySmall, color = Signal)
+            }
             TextButton(onClick = onDismiss) { Text("Mégse") }
             PrimaryButton(
                 text = if (busy) "Mentés…" else "Létrehozás",
-                enabled = !busy && title.isNotBlank(),
+                enabled = !busy && title.isNotBlank() && ready,
                 onClick = { onConfirm(title.trim()) },
             )
         },
     ) {
+        if (questionnaire == null) {
+            Text("A kérdőív nem tölthető be; a megrendeléshez kapcsolat kell.", color = Signal)
+        }
+        if (top.isNotEmpty()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Signal.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("Hiányzó adatok", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "A megrendeléshez még ezekre kell válaszolni. Ha egy válasz új kérdést nyit (pl. hűtés), az is ide kerül.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Steel500,
+                )
+                top.forEach { q ->
+                    QuestionField(
+                        question = q,
+                        value = answers[q.key],
+                        onChange = { v -> onAnswers(if (v == null) answers - q.key else answers + (q.key to v)) },
+                        highlight = q.key in missingKeys,
+                    )
+                }
+            }
+        }
         AutoCrmTextField(
             value = title,
             onValueChange = { title = it },
@@ -848,6 +1027,14 @@ private fun ConvertDialog(
             options = currencies.map { it.key to it.key },
             selected = currency,
             onSelect = onCurrency,
+        )
+        Text("A teljes kérdőív", style = MaterialTheme.typography.titleMedium)
+        QuestionnaireFields(
+            questionnaire = questionnaire,
+            projectTypeId = projectTypeId,
+            answers = answers,
+            onChange = onAnswers,
+            exclude = top.map { it.key }.toSet(),
         )
         error?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = Signal) }
     }

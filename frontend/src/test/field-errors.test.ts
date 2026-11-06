@@ -3,13 +3,11 @@
 // The bug this covers: creating an order with a spec value outside its range produced
 // "Az adat sérti az adatbázis megkötéseit." — a banner above eleven identical inputs,
 // none of them marked, with no way to tell which value was wrong.
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/lib/api/errors';
 import { constraintName } from '@/lib/api/errors';
-import { SPEC_LIMITS, fieldErrorText } from '@/components/forms/OrderForm';
+import { fieldErrorText } from '@/components/forms/OrderForm';
 
 describe('the constraint name in a rejected write', () => {
   it('is taken from the message the backend actually sends', () => {
@@ -63,28 +61,4 @@ describe('the message under an invalid field', () => {
   it('is empty when there is no error', () => {
     expect(fieldErrorText(undefined, tv)).toBe('');
   });
-});
-
-describe('the form ranges', () => {
-  // The form duplicates bounds the database owns. Duplication is fine; silent drift is
-  // not — a migration widening a CHECK without this being updated would reject values
-  // the database would have accepted, which is the harder bug to notice.
-  // Relative to the vitest root (frontend/), not to this file.
-  const sql = readFileSync(
-    resolve(process.cwd(), '../backend/migrations/0015_order_specs.sql'),
-    'utf8',
-  );
-
-  it.each(Object.entries(SPEC_LIMITS))(
-    'match the CHECK on %s in migration 0015',
-    (column, limit) => {
-      const between = new RegExp(
-        `${column}\\s+[A-Z0-9(,)]+\\s+CHECK\\s*\\([^)]*BETWEEN\\s+(-?\\d+)\\s+AND\\s+(-?\\d+)`,
-        'i',
-      ).exec(sql);
-      expect(between, `no BETWEEN CHECK found for ${column}`).not.toBeNull();
-      expect(Number(between![1])).toBe(limit.min);
-      expect(Number(between![2])).toBe(limit.max);
-    },
-  );
 });

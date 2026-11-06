@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT project_type_id, spec_answers FROM leads WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "project_type_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "spec_answers",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "1f5ec17d4b95f17ea91dcbf49f1fe00bd09eaa42e265bbe3a08166fe79e3f4d0"
+}

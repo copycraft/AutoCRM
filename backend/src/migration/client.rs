@@ -1,5 +1,7 @@
 //! MiniCRM REST API (R3) client. Basic auth with SystemId + API key; strictly rate limited,
-//! because the extraction runs for hours against a production account.
+//! because the extraction runs for hours against a production account. MiniCRM allows 60
+//! requests a minute on `Api/R3` and answers 429 beyond that (Integrations Manual, "API
+//! limits"); the default pace stays under it.
 
 use std::time::{Duration, Instant};
 
@@ -74,6 +76,16 @@ impl MiniCrmClient {
             };
             let status = response.status();
             if status == StatusCode::NOT_FOUND {
+                // MiniCRM answers a wrong SystemId / API key, or a plan without API access,
+                // with 404 "Unauthorized: Access denied" rather than 401 (Integrations Manual,
+                // "Error codes"). Read as "absent", that turns a typo in the key into a run
+                // that finishes "successfully" with nothing in it.
+                let text = response.text().await.unwrap_or_default();
+                if is_access_denied(&text) {
+                    bail!(
+                        "MiniCRM refused access for {url} (404 Unauthorized); check SystemId, API key and that the plan includes the REST API"
+                    );
+                }
                 return Ok(None);
             }
             if (status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()) && attempt < 6
@@ -107,6 +119,38 @@ impl MiniCrmClient {
                 .with_context(|| format!("{url} did not return JSON"))?;
             return Ok(Some(value));
         }
+    }
+
+    /// GET a search endpoint page by page: R3 searches hold 100 results a page, numbered
+    /// from 0, with the total in `Count`. Returns every page's `Results` ids.
+    pub async fn search_ids(&self, path_with_query: &str) -> anyhow::Result<Vec<i64>> {
+        let sep = if path_with_query.contains('?') { '&' } else { '?' };
+        let mut ids = Vec::new();
+        let mut page = 0usize;
+        loop {
+            let Some(list) = self
+                .get_json(&format!("{path_with_query}{sep}Page={page}"))
+                .await?
+            else {
+                break;
+            };
+            let found = super::extract::object_or_array_ids(
+                list.get("Results").unwrap_or(&Value::Null),
+            );
+            if found.is_empty() {
+                break;
+            }
+            ids.extend(found);
+            let total = list
+                .get("Count")
+                .and_then(super::extract::as_i64)
+                .unwrap_or(0) as usize;
+            page += 1;
+            if page * 100 >= total {
+                break;
+            }
+        }
+        Ok(ids)
     }
 
     /// Raw bytes (for attached files). Uses the same credentials; MiniCRM file URLs that are
@@ -146,5 +190,24 @@ impl MiniCrmClient {
                 Err(e) => return Err(e).with_context(|| format!("GET {url}")),
             }
         }
+    }
+}
+
+/// Whether a 404 body is MiniCRM's credential refusal rather than a missing record.
+pub fn is_access_denied(body: &str) -> bool {
+    let b = body.to_ascii_lowercase();
+    b.contains("unauthorized") || b.contains("access denied")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_credential_refusal_is_not_a_missing_record() {
+        assert!(is_access_denied("Unauthorized: Access denied"));
+        assert!(is_access_denied("<h1>404 - UNAUTHORIZED</h1>"));
+        assert!(!is_access_denied("Not Found"));
+        assert!(!is_access_denied(""));
     }
 }

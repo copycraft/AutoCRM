@@ -315,7 +315,8 @@ pub struct OrderSummary {
     pub project_type_label: Option<String>,
     #[schema(value_type = crate::domain::money::Currency)]
     pub currency: String,
-    pub total_minor: i64,
+    /// The items' total; null for someone who may not see prices (0061).
+    pub total_minor: Option<i64>,
     pub vehicle_make: Option<String>,
     pub vehicle_model: Option<String>,
     pub vehicle_plate: Option<String>,

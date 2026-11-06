@@ -301,13 +301,14 @@ async fn document_views(state: &AppState, docs: Vec<Document>) -> AppResult<Vec<
 )]
 async fn list_documents(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(order_id): ApiPath<i64>,
 ) -> AppResult<Json<Items<DocumentView>>> {
     orders::find(&state.db, order_id)
         .await?
         .ok_or(AppError::NotFound("order"))?;
-    let docs = documents::list_for_order(&state.db, order_id).await?;
+    let mut docs = documents::list_for_order(&state.db, order_id).await?;
+    docs.retain(|d| super::visibility::document_visible(&me, d));
     Ok(Items::new(document_views(&state, docs).await?))
 }
 
@@ -319,9 +320,10 @@ async fn list_documents(
 )]
 async fn list_lead_documents(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(lead_id): ApiPath<i64>,
 ) -> AppResult<Json<Items<DocumentView>>> {
+    me.require(Capability::ViewSales)?;
     leads::find(&state.db, lead_id)
         .await?
         .ok_or(AppError::NotFound("lead"))?;
@@ -350,20 +352,20 @@ struct DocumentSearchQuery {
 )]
 async fn search_documents(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<DocumentSearchQuery>,
 ) -> AppResult<Json<Items<Document>>> {
-    Ok(Items::new(
-        documents::search(
-            &state.db,
-            q.kind,
-            q.expiring_before,
-            q.vehicle_id,
-            page_limit(q.limit),
-            page_offset(q.offset),
-        )
-        .await?,
-    ))
+    let mut docs = documents::search(
+        &state.db,
+        q.kind,
+        q.expiring_before,
+        q.vehicle_id,
+        page_limit(q.limit),
+        page_offset(q.offset),
+    )
+    .await?;
+    docs.retain(|d| super::visibility::document_visible(&me, d));
+    Ok(Items::new(docs))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -517,13 +519,16 @@ struct DownloadUrl {
 )]
 async fn document_url(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<DownloadUrl>> {
     let doc = documents::find(&state.db, id)
         .await?
         .filter(|d| d.deleted_at.is_none())
         .ok_or(AppError::NotFound("document"))?;
+    if !super::visibility::document_visible(&me, &doc) {
+        return Err(AppError::Forbidden);
+    }
     let url = state
         .storage
         .presign_get(
@@ -934,13 +939,16 @@ struct PreviewUrl {
 )]
 async fn document_preview(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<PreviewUrl>> {
     let doc = documents::find(&state.db, id)
         .await?
         .filter(|d| d.deleted_at.is_none())
         .ok_or(AppError::NotFound("document"))?;
+    if !super::visibility::document_visible(&me, &doc) {
+        return Err(AppError::Forbidden);
+    }
     let url = state
         .storage
         .presign_get(
@@ -962,12 +970,18 @@ async fn document_preview(
 )]
 async fn document_versions(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<DocumentView>>> {
     let all = documents::versions(&state.db, id).await?;
     if all.is_empty() {
         return Err(AppError::NotFound("document"));
+    }
+    if !all
+        .iter()
+        .all(|d| super::visibility::document_visible(&me, d))
+    {
+        return Err(AppError::Forbidden);
     }
     Ok(Items::new(document_views(&state, all).await?))
 }

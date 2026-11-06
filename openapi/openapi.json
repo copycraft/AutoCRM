@@ -1143,6 +1143,109 @@
         }
       }
     },
+    "/roles": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Every role with what it may see and do.",
+        "operationId": "users_list_roles",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_RoleGrid"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles/{role}": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Set what a role may see and do. Not the admin role, and not the capabilities only an\nadmin can have (user management, HR's own flag).",
+        "operationId": "users_set_role",
+        "parameters": [
+          {
+            "name": "role",
+            "in": "path",
+            "description": "office, sales, accountant, designer or viewer",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleCapabilities"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleGrid"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/stage-definitions": {
       "get": {
         "tags": [
@@ -3388,7 +3491,7 @@
           }
         ],
         "requestBody": {
-          "description": "`partner_id` may be omitted when the lead has one; `title` defaults to the lead's.",
+          "description": "`partner_id` may be omitted when the lead has one; `title` defaults to the lead's; `project_type_id` to the lead's. `spec_answers` are laid over the lead's answers, and every required question asked must then be answered (`422 spec_incomplete` otherwise).",
           "content": {
             "application/json": {
               "schema": {
@@ -3437,8 +3540,8 @@
         "tags": [
           "leads"
         ],
-        "summary": "Send the quotation letter for a lead: hero band on top, the lead's quotation PDF\nattached, from the staff member as themselves. Writing to a stranger's money needs a\nperson behind it, so this is `SendEmail` (office), not an automatic trigger.",
-        "operationId": "leads_quotation",
+        "summary": "Record a quotation the sales manager made and sent from their own mailbox: the lead's\nuploaded PDF becomes its `quote` document, the price and validity are set, and the\nfollow-up letters are scheduled from the day it went out. The CRM does not send it.",
+        "operationId": "leads_record_quotation",
         "parameters": [
           {
             "name": "id",
@@ -3454,19 +3557,19 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/QuotationRequest"
+                "$ref": "#/components/schemas/QuotationRecord"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "202": {
+          "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/QuotationSent"
+                  "$ref": "#/components/schemas/Lead"
                 }
               }
             }
@@ -4106,7 +4209,7 @@
         "tags": [
           "orders"
         ],
-        "summary": "The cooling unit's serial number, typically scanned off its plate on the phone. Only on\nan order whose project type takes a cooling spec.",
+        "summary": "The cooling unit's serial number, typically scanned off its plate on the phone: the\n`cooling_unit_serial` answer. Only on an order that is asked the cooling questions.",
         "operationId": "orders_set_cooling_serial",
         "parameters": [
           {
@@ -4135,7 +4238,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OrderSpec"
+                  "$ref": "#/components/schemas/SpecAnswers"
                 }
               }
             }
@@ -4299,120 +4402,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Items_OrderNote"
-                }
-              }
-            }
-          },
-          "4XX": {
-            "description": "Client error; see `error.code`",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/orders/{id}/spec": {
-      "get": {
-        "tags": [
-          "orders"
-        ],
-        "operationId": "orders_get_spec",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrderSpec"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": ""
-          },
-          "4XX": {
-            "description": "Client error; see `error.code`",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "Replaces the build spec. The form comes from the order's project type, never from the\nrequest: a cooling order cannot be given a heating spec by sending one.",
-        "operationId": "orders_put_spec",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SpecBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrderSpec"
                 }
               }
             }
@@ -4626,6 +4615,455 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ItemView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/copy": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Start a new project as a copy of this one, for a repeat order: the data row, items, spec,\neach department's technical content and its drawings and photos, all editable after.\nPlate, VIN and everything about the earlier job itself stay behind.",
+        "operationId": "orders_copy_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyResult"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/questionnaire": {
+      "get": {
+        "tags": [
+          "configuration"
+        ],
+        "summary": "The sections and their questions, in display order, switched-off ones included.",
+        "operationId": "configuration_get_questionnaire",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Questionnaire"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/questionnaire/sections": {
+      "post": {
+        "tags": [
+          "configuration"
+        ],
+        "operationId": "configuration_create_section",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Questionnaire"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/questionnaire/sections/{id}": {
+      "patch": {
+        "tags": [
+          "configuration"
+        ],
+        "operationId": "configuration_update_section",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchSection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Questionnaire"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/questionnaire/questions": {
+      "post": {
+        "tags": [
+          "configuration"
+        ],
+        "operationId": "configuration_create_question",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Questionnaire"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/questionnaire/questions/{id}": {
+      "patch": {
+        "tags": [
+          "configuration"
+        ],
+        "operationId": "configuration_update_question",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Questionnaire"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/{id}/spec": {
+      "put": {
+        "tags": [
+          "leads"
+        ],
+        "summary": "A lead's project type and questionnaire answers, filled while selling. Saving never\ndemands completeness; converting the lead does.",
+        "operationId": "leads_put_lead_spec",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadSpecBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadSpec"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/spec": {
+      "put": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Replaces an order's questionnaire answers, asked for the order's project type.",
+        "operationId": "orders_put_order_spec",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpecAnswers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecAnswers"
                 }
               }
             }
@@ -12379,6 +12817,237 @@
         ]
       }
     },
+    "/hr/jobs/{id}/ads": {
+      "get": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_list_ads",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAdsReport"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_create_ad",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobAdBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAdView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hr/job-ads/{id}": {
+      "patch": {
+        "tags": [
+          "hr"
+        ],
+        "operationId": "hr_update_ad",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobAdBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAdView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/jobs/{slug}/visit": {
+      "post": {
+        "tags": [
+          "recruitment"
+        ],
+        "summary": "Count a visit to a listing's page: a number per day, by ad and channel. Nothing about\nthe visitor is kept.",
+        "operationId": "recruitment_record_visit",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/reports/volume": {
       "get": {
         "tags": [
@@ -13437,6 +14106,126 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GlobalResults"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/leads/stage-counts": {
+      "get": {
+        "tags": [
+          "leads"
+        ],
+        "operationId": "leads_lead_stage_counts",
+        "responses": {
+          "200": {
+            "description": "Leads per current stage; stages with none are absent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_StatusCount"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/stage-counts": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "orders_order_stage_counts",
+        "responses": {
+          "200": {
+            "description": "Orders per current stage; stages with none are absent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_StatusCount"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emails/status-counts": {
+      "get": {
+        "tags": [
+          "email"
+        ],
+        "operationId": "email_status_counts",
+        "responses": {
+          "200": {
+            "description": "E-mails per status; statuses with none are absent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_StatusCount"
                 }
               }
             }
@@ -15068,6 +15857,270 @@
         }
       }
     },
+    "/invoice-drafts": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Every invoice waiting in the Számlázó to be looked over and issued, oldest first.",
+        "operationId": "invoices_list_drafts",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_DraftSummary"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/invoice-draft": {
+      "get": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "The order's invoice draft, if one is waiting in the Számlázó.",
+        "operationId": "invoices_get_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDraft"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Send the order to the Számlázó, or change the terms its draft will be issued with.\nThe lines are the order's items and are edited there; only the invoice's own terms live\nhere. Omitted terms take their default when the invoice is issued.",
+        "operationId": "invoices_put_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDraft"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "Take the order back out of the Számlázó without issuing.",
+        "operationId": "invoices_delete_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/invoice-preview": {
+      "post": {
+        "tags": [
+          "invoices"
+        ],
+        "summary": "The invoice the order would get if issued now with these terms: lines, totals, both\nparties, and whatever would stop the issue. Nothing is numbered or reported.",
+        "operationId": "invoices_preview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePreview"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/invoices/{id}": {
       "get": {
         "tags": [
@@ -15683,6 +16736,641 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Statement"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/departments": {
+      "get": {
+        "tags": [
+          "modules"
+        ],
+        "summary": "Every department, active or not, in their order.",
+        "operationId": "modules_list_departments",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Department"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "modules_create_department",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewDepartment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Department"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/departments/{id}": {
+      "patch": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "modules_update_department",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepartmentPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Department"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/departments/members": {
+      "get": {
+        "tags": [
+          "modules"
+        ],
+        "summary": "Who works in which department, and who heads it.",
+        "operationId": "modules_list_memberships",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Membership"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}/departments": {
+      "put": {
+        "tags": [
+          "modules"
+        ],
+        "summary": "Set the departments one person works in, and which of them they head.",
+        "operationId": "modules_set_user_departments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserDepartments"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orders/{id}/modules": {
+      "get": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "modules_list_modules",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderModules"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "summary": "Start a department's part of the order's technical content (or get the one it has).",
+        "operationId": "modules_create_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewModule"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/modules/{id}": {
+      "delete": {
+        "tags": [
+          "modules"
+        ],
+        "summary": "Remove a department's part from the order. Office only: it may be what a department\nis building from.",
+        "operationId": "modules_delete_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "modules_update_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModulePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/modules/{id}/release": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "summary": "Hand the module to its department: the heads get a notification and a letter. Released\nand written to since, it goes out again as a change.",
+        "operationId": "modules_release_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/modules/{id}/files": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "summary": "Put one of the order's drawings or photos on the module's sheet.",
+        "operationId": "modules_add_module_file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleFileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/modules/{id}/files/{file_id}": {
+      "delete": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "modules_remove_module_file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleView"
                 }
               }
             }
@@ -18271,6 +19959,21 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "ad_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The job ad the applicant came through (0064); see `GET /hr/jobs/{id}/ads`."
+          },
+          "channel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`paid`, `organic`, `social`, `email`, `referral` or `direct`; null before 0064."
           }
         }
       },
@@ -18337,6 +20040,38 @@
               "null"
             ],
             "description": "Honeypot: real visitors leave it empty; a filled one is silently dropped."
+          },
+          "ad": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Where the visitor came from (0064): the `ad` and `utm_*` parameters of the page's\nown URL, and the referrer."
+          },
+          "utm_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_medium": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_campaign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referrer": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -19413,7 +21148,7 @@
       },
       "Capability": {
         "type": "string",
-        "description": "Every authenticated user may read orders, partners, leads, images and reports.\nCapabilities cover everything beyond reading. The role gives a default set; an admin can\ngrant any [`Capability::grantable`] one to a single user on top of it (`users.permissions`).",
+        "description": "Every authenticated user may read orders (without their prices), partners (without\ntheir contact details), images and production reports. Capabilities cover the rest.\nThe role gives a default set; an admin can change a role's set in the grid, or grant\nany [`Capability::grantable`] one to a single user on top of it (`users.permissions`).",
         "enum": [
           "manage_users",
           "manage_settings",
@@ -19431,7 +21166,15 @@
           "issue_invoices",
           "annul_invoices",
           "access_hr",
-          "comment"
+          "comment",
+          "view_prices",
+          "view_invoices",
+          "view_incoming_invoices",
+          "view_sales",
+          "view_contacts",
+          "view_business_reports",
+          "view_all_modules",
+          "handle_handovers"
         ]
       },
       "ChainStep": {
@@ -19497,6 +21240,29 @@
             "type": "integer",
             "format": "int64",
             "description": "Leads now in the `won` stage."
+          }
+        }
+      },
+      "ChannelStats": {
+        "type": "object",
+        "description": "Visits and applications that came through no ad of ours, by channel.",
+        "required": [
+          "channel",
+          "visits",
+          "applications"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "`paid`, `organic`, `social`, `email`, `referral` or `direct`."
+          },
+          "visits": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "applications": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -20097,6 +21863,62 @@
           }
         }
       },
+      "CopyRequest": {
+        "type": "object",
+        "description": "What to take from the earlier project. Everything is taken unless switched off.",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The new project's title; the earlier one's when omitted."
+          },
+          "items": {
+            "type": "boolean"
+          },
+          "spec": {
+            "type": "boolean"
+          },
+          "modules": {
+            "type": "boolean",
+            "description": "Each department's technical content, as drafts to be released again."
+          },
+          "files": {
+            "type": "boolean",
+            "description": "Drawings, CAD files and other documents, and the photos the modules use."
+          }
+        }
+      },
+      "CopyResult": {
+        "type": "object",
+        "required": [
+          "order",
+          "copied_documents",
+          "copied_images",
+          "failed_files"
+        ],
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/Order"
+          },
+          "copied_documents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "copied_images": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Files that could not be copied, by name. The project exists either way."
+          }
+        }
+      },
       "CountryStatus": {
         "type": "object",
         "required": [
@@ -20352,13 +22174,111 @@
           "position": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "CreateQuestion": {
+        "type": "object",
+        "required": [
+          "section_id",
+          "key",
+          "label",
+          "kind"
+        ],
+        "properties": {
+          "section_id": {
+            "type": "integer",
+            "format": "int64"
           },
-          "spec_form": {
+          "key": {
+            "type": "string",
+            "description": "The answer's name; lowercase letters, digits and underscores. Fixed once created."
+          },
+          "label": {
+            "type": "string"
+          },
+          "help": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "description": "`yes_no` | `number` | `text` | `long_text` | `choice` | `multi_choice`. Fixed once\ncreated."
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "min_value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "max_value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "CreateSection": {
+        "type": "object",
+        "required": [
+          "key",
+          "title"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "shown_when": {
             "type": [
               "string",
               "null"
             ],
-            "description": "`heating` | `cooling` | omitted. Decides which build-spec section the order form\nshows for this type; omitted means the type has no build spec."
+            "description": "The key of the yes/no question whose \"yes\" opens the section; omitted: always asked."
+          },
+          "project_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The project types the section is asked for; omitted or empty: every type."
           }
         }
       },
@@ -20671,6 +22591,85 @@
           }
         }
       },
+      "Department": {
+        "type": "object",
+        "required": [
+          "id",
+          "key",
+          "name",
+          "color",
+          "position",
+          "is_active"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "description": "`#rrggbb`: the colour of the department's module everywhere it shows."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "is_active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DepartmentPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "DepartmentSeat": {
+        "type": "object",
+        "required": [
+          "department_id"
+        ],
+        "properties": {
+          "department_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "is_head": {
+            "type": "boolean"
+          }
+        }
+      },
       "Document": {
         "type": "object",
         "required": [
@@ -20818,7 +22817,8 @@
           "invoice",
           "proforma",
           "other",
-          "video"
+          "video",
+          "quote"
         ]
       },
       "DocumentPatch": {
@@ -20895,6 +22895,52 @@
           "url": {
             "type": "string",
             "description": "Presigned, expires after one hour."
+          }
+        }
+      },
+      "DraftSummary": {
+        "type": "object",
+        "description": "A draft as the billing desk lists it: which job, for whom, and what the items add up to.",
+        "required": [
+          "order_id",
+          "order_number",
+          "order_title",
+          "partner_name",
+          "currency",
+          "net_minor",
+          "updated_at"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "order_title": {
+            "type": "string"
+          },
+          "partner_name": {
+            "type": "string"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "net_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The order's items, net, in minor units."
+          },
+          "created_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -21995,6 +24041,7 @@
           "nav_rejected",
           "nav_unreachable",
           "overpayment",
+          "spec_incomplete",
           "not_issued",
           "pdf_unavailable"
         ],
@@ -22388,6 +24435,13 @@
             "code": "overpayment",
             "en": "The payment is more than is still open on the invoice.",
             "hu": "A befizetés több, mint a számlán még nyitott összeg.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "spec_incomplete",
+            "en": "Required questionnaire answers are missing; the message lists their keys.",
+            "hu": "A műszaki kérdőív még nem teljes: töltse ki a megjelölt kérdéseket a megrendelés előtt.",
             "retryable": false,
             "status": 422
           },
@@ -24531,6 +26585,73 @@
         ],
         "description": "An invoice with everything the screen shows about it."
       },
+      "InvoiceDraft": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vat_rate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The fraction (0.27); null: the configured default at issue time."
+          },
+          "issue_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Null: the day it is issued."
+          },
+          "delivery_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Null: the issue date."
+          },
+          "payment_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Null: the issue date plus the configured payment days."
+          },
+          "payment_method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`TRANSFER` or `CASH`; null: transfer."
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "InvoiceKind": {
         "type": "string",
         "enum": [
@@ -24661,6 +26782,97 @@
           }
         }
       },
+      "InvoicePreview": {
+        "type": "object",
+        "description": "The invoice the order would get if it were issued now with these terms. Nothing is\nnumbered, written or reported; the totals come from the same arithmetic the issue uses.",
+        "required": [
+          "order_id",
+          "order_number",
+          "currency",
+          "vat_rate",
+          "issue_date",
+          "delivery_date",
+          "payment_date",
+          "payment_method",
+          "supplier",
+          "customer",
+          "lines",
+          "net_minor",
+          "vat_minor",
+          "gross_minor",
+          "problems",
+          "notes"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "vat_rate": {
+            "type": "string"
+          },
+          "issue_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "delivery_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "payment_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "payment_method": {
+            "type": "string",
+            "description": "`TRANSFER` or `CASH`."
+          },
+          "supplier": {
+            "$ref": "#/components/schemas/PreviewParty"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/PreviewParty"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewLine"
+            }
+          },
+          "net_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vat_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gross_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What would stop the issue, in words that say what to fix. Empty: ready to issue."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Worth knowing before issuing, but no obstacle."
+          }
+        }
+      },
       "InvoiceStatus": {
         "type": "string",
         "description": "Where an invoice is in its life.\n\n`Submitting` is a real state, not a placeholder: NAV validates asynchronously, so there\nis a period in which the report has been sent and no verdict exists. `Rejected` is\nterminal for that document — the number is spent, and a corrected invoice is a new one.",
@@ -24750,24 +26962,65 @@
         }
       },
       "ItemView": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/OrderItem"
+        "type": "object",
+        "description": "A line item. The prices are null for someone who may not see them (`ViewPrices`,\n0061): the workshop gets what to build and how many, not what it costs.",
+        "required": [
+          "id",
+          "order_id",
+          "position",
+          "description",
+          "quantity",
+          "currency",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
           },
-          {
-            "type": "object",
-            "required": [
-              "line_total_minor"
+          "order_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unit_price": {
+            "type": [
+              "integer",
+              "null"
             ],
-            "properties": {
-              "line_total_minor": {
-                "type": "integer",
-                "format": "int64",
-                "description": "Backend-computed: round(quantity × unit_price), half away from zero."
-              }
-            }
+            "format": "int64",
+            "description": "Minor units in the order's currency."
+          },
+          "line_total_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Backend-computed: round(quantity × unit_price), half away from zero."
           }
-        ]
+        }
       },
       "Items_Absence": {
         "type": "object",
@@ -24915,6 +27168,21 @@
                 "created_at": {
                   "type": "string",
                   "format": "date-time"
+                },
+                "ad_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "The job ad the applicant came through (0064); see `GET /hr/jobs/{id}/ads`."
+                },
+                "channel": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "`paid`, `organic`, `social`, `email`, `referral` or `direct`; null before 0064."
                 }
               }
             }
@@ -25748,6 +28016,52 @@
           }
         }
       },
+      "Items_Department": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "key",
+                "name",
+                "color",
+                "position",
+                "is_active"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string",
+                  "description": "`#rrggbb`: the colour of the department's module everywhere it shows."
+                },
+                "position": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "is_active": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
       "Items_Document": {
         "type": "object",
         "description": "The list envelope: `{\"items\": [...]}`.",
@@ -25914,6 +28228,64 @@
                 }
               ],
               "description": "A document with its thumbnail, for lists."
+            }
+          }
+        }
+      },
+      "Items_DraftSummary": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A draft as the billing desk lists it: which job, for whom, and what the items add up to.",
+              "required": [
+                "order_id",
+                "order_number",
+                "order_title",
+                "partner_name",
+                "currency",
+                "net_minor",
+                "updated_at"
+              ],
+              "properties": {
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "order_number": {
+                  "type": "string"
+                },
+                "order_title": {
+                  "type": "string"
+                },
+                "partner_name": {
+                  "type": "string"
+                },
+                "currency": {
+                  "$ref": "#/components/schemas/Currency"
+                },
+                "net_minor": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "The order's items, net, in minor units."
+                },
+                "created_by_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
             }
           }
         }
@@ -27423,24 +29795,65 @@
           "items": {
             "type": "array",
             "items": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/OrderItem"
+              "type": "object",
+              "description": "A line item. The prices are null for someone who may not see them (`ViewPrices`,\n0061): the workshop gets what to build and how many, not what it costs.",
+              "required": [
+                "id",
+                "order_id",
+                "position",
+                "description",
+                "quantity",
+                "currency",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
                 },
-                {
-                  "type": "object",
-                  "required": [
-                    "line_total_minor"
+                "order_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "position": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "string"
+                },
+                "currency": {
+                  "$ref": "#/components/schemas/Currency"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "unit_price": {
+                  "type": [
+                    "integer",
+                    "null"
                   ],
-                  "properties": {
-                    "line_total_minor": {
-                      "type": "integer",
-                      "format": "int64",
-                      "description": "Backend-computed: round(quantity × unit_price), half away from zero."
-                    }
-                  }
+                  "format": "int64",
+                  "description": "Minor units in the order's currency."
+                },
+                "line_total_minor": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Backend-computed: round(quantity × unit_price), half away from zero."
                 }
-              ]
+              }
             }
           }
         }
@@ -28006,6 +30419,7 @@
                 "remaining",
                 "sick_days",
                 "unpaid_days",
+                "unexcused_days",
                 "other_days"
               ],
               "properties": {
@@ -28042,6 +30456,11 @@
                 "unpaid_days": {
                   "type": "integer",
                   "format": "int32"
+                },
+                "unexcused_days": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Igazolatlan: working days absent without leave."
                 },
                 "other_days": {
                   "type": "integer",
@@ -28092,6 +30511,45 @@
                   "type": "integer",
                   "format": "int64",
                   "description": "Leads lost for this reason."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_Membership": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "One person in one department.",
+              "required": [
+                "user_id",
+                "user_name",
+                "department_id",
+                "is_head"
+              ],
+              "properties": {
+                "user_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "user_name": {
+                  "type": "string"
+                },
+                "department_id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "is_head": {
+                  "type": "boolean",
+                  "description": "Heads are told when work is released to the department."
                 }
               }
             }
@@ -28355,7 +30813,6 @@
                 "partner_id",
                 "partner_name",
                 "currency",
-                "total_minor",
                 "stage_key",
                 "stage_label",
                 "stage_is_terminal",
@@ -28399,8 +30856,12 @@
                   "$ref": "#/components/schemas/Currency"
                 },
                 "total_minor": {
-                  "type": "integer",
-                  "format": "int64"
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "The items' total; null for someone who may not see prices (0061)."
                 },
                 "vehicle_make": {
                   "type": [
@@ -28848,13 +31309,50 @@
                 },
                 "is_active": {
                   "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_RoleGrid": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "One role and what it may do now.",
+              "required": [
+                "role",
+                "editable",
+                "capabilities",
+                "defaults"
+              ],
+              "properties": {
+                "role": {
+                  "$ref": "#/components/schemas/Role"
                 },
-                "spec_form": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "Which build-spec section the order form shows for this type: `heating`,\n`cooling`, or null for work that has no build spec (repairs). Configuration, so\nthe office can retype a category without a deploy."
+                "editable": {
+                  "type": "boolean",
+                  "description": "Admin: always everything, and not editable."
+                },
+                "capabilities": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Capability"
+                  }
+                },
+                "defaults": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Capability"
+                  },
+                  "description": "The role's out-of-the-box set, to show what \"restore defaults\" would do."
                 }
               }
             }
@@ -29128,6 +31626,36 @@
                   "format": "int32"
                 },
                 "open_blockers": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_StatusCount": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "One status and how many records are in it now.",
+              "required": [
+                "key",
+                "count"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "description": "The stage key (`GET /config/stages`) or e-mail status."
+                },
+                "count": {
                   "type": "integer",
                   "format": "int64"
                 }
@@ -30096,6 +32624,196 @@
           }
         }
       },
+      "JobAd": {
+        "type": "object",
+        "required": [
+          "id",
+          "posting_id",
+          "platform",
+          "name",
+          "created_at",
+          "visits",
+          "applications"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "posting_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "platform": {
+            "type": "string",
+            "description": "`facebook`, `instagram`, `google`, `tiktok` or `other`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "headline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spend_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "What it cost, in HUF fillér."
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "visits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Visits to the listing's page through this ad."
+          },
+          "applications": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Applications that came through this ad."
+          }
+        }
+      },
+      "JobAdBody": {
+        "type": "object",
+        "required": [
+          "platform",
+          "name"
+        ],
+        "properties": {
+          "platform": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "headline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "spend_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "What it cost, in HUF fillér."
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "archived": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "PATCH only: archive (true) or bring back (false)."
+          }
+        }
+      },
+      "JobAdView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/JobAd"
+          },
+          {
+            "type": "object",
+            "required": [
+              "link"
+            ],
+            "properties": {
+              "link": {
+                "type": "string",
+                "description": "Paste this into the ad: visits and applications through it are counted for the ad."
+              },
+              "cost_per_application_minor": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "description": "Spend divided by applications, in HUF fillér; null without spend or applications."
+              }
+            }
+          }
+        ],
+        "description": "An ad with its link and what an applicant cost through it."
+      },
+      "JobAdsReport": {
+        "type": "object",
+        "required": [
+          "ads",
+          "other"
+        ],
+        "properties": {
+          "ads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobAdView"
+            }
+          },
+          "other": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelStats"
+            },
+            "description": "Visits and applications that came through no ad of ours, by channel."
+          }
+        }
+      },
       "JobBody": {
         "type": "object",
         "properties": {
@@ -30672,7 +33390,8 @@
           "history",
           "orders",
           "documents",
-          "tags"
+          "tags",
+          "spec"
         ],
         "properties": {
           "lead": {
@@ -30736,6 +33455,10 @@
                 "description": "Why it was lost, when it was."
               }
             ]
+          },
+          "spec": {
+            "$ref": "#/components/schemas/LeadSpec",
+            "description": "The build questionnaire (0065): the project type it is asked for and the answers\nso far. Change it with `PUT /leads/{id}/spec`."
           }
         }
       },
@@ -30868,6 +33591,43 @@
               "$ref": "#/components/schemas/PageRow"
             },
             "description": "The most common first pages of a visit."
+          }
+        }
+      },
+      "LeadSpec": {
+        "type": "object",
+        "description": "A lead's questionnaire: the project type it is asked for, and the answers so far.",
+        "required": [
+          "answers"
+        ],
+        "properties": {
+          "project_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "answers": {
+            "type": "object",
+            "description": "Question key → answer: `true`/`false`, a number, text, or a list of choices."
+          }
+        }
+      },
+      "LeadSpecBody": {
+        "type": "object",
+        "properties": {
+          "project_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The project type the questions are asked for; null: not chosen yet."
+          },
+          "answers": {
+            "type": "object",
+            "description": "Question key → answer. Replaces the lead's answers; answers to questions not asked\nfor this type and these answers are left out."
           }
         }
       },
@@ -31099,6 +33859,7 @@
           "remaining",
           "sick_days",
           "unpaid_days",
+          "unexcused_days",
           "other_days"
         ],
         "properties": {
@@ -31136,6 +33897,11 @@
             "type": "integer",
             "format": "int32"
           },
+          "unexcused_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Igazolatlan: working days absent without leave."
+          },
           "other_days": {
             "type": "integer",
             "format": "int32"
@@ -31148,6 +33914,7 @@
           "annual",
           "sick",
           "unpaid",
+          "unexcused",
           "other"
         ]
       },
@@ -31276,8 +34043,6 @@
           "tyre_conditions",
           "yard_kinds",
           "fuel_levels",
-          "heating_fuels",
-          "defrost_modes",
           "order_relations",
           "task_entity_types",
           "currencies",
@@ -31331,18 +34096,6 @@
             }
           },
           "fuel_levels": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LookupItem"
-            }
-          },
-          "heating_fuels": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LookupItem"
-            }
-          },
-          "defrost_modes": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/LookupItem"
@@ -31473,6 +34226,33 @@
           }
         }
       },
+      "Membership": {
+        "type": "object",
+        "description": "One person in one department.",
+        "required": [
+          "user_id",
+          "user_name",
+          "department_id",
+          "is_head"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "department_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "is_head": {
+            "type": "boolean",
+            "description": "Heads are told when work is released to the department."
+          }
+        }
+      },
       "Mention": {
         "type": "object",
         "required": [
@@ -31505,6 +34285,116 @@
             "type": "string"
           }
         }
+      },
+      "ModuleFile": {
+        "type": "object",
+        "description": "A drawing or photo on a module's sheet: one of the order's own files, linked.",
+        "required": [
+          "id",
+          "module_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "module_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "image_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "document_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The file's name, for the list; null for a photo uploaded without one."
+          }
+        }
+      },
+      "ModuleFileBody": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "One of the order's photos, or…"
+          },
+          "document_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "…one of the order's documents. Exactly one of the two."
+          }
+        }
+      },
+      "ModulePatch": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`draft` or `done`. Releasing is `POST /modules/{id}/release`, which tells the heads."
+          }
+        }
+      },
+      "ModuleView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/OrderModule"
+          },
+          {
+            "type": "object",
+            "required": [
+              "files",
+              "changed_since_release",
+              "can_edit"
+            ],
+            "properties": {
+              "files": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ModuleFile"
+                }
+              },
+              "changed_since_release": {
+                "type": "boolean",
+                "description": "Released, then written to again: the department has an older version."
+              },
+              "can_edit": {
+                "type": "boolean",
+                "description": "Whether the caller may write this module (office, or a member of the department)."
+              }
+            }
+          }
+        ],
+        "description": "A module as the screen shows it: the text, its files, and what this person may do."
       },
       "MoveBody": {
         "type": "object",
@@ -31592,6 +34482,31 @@
           }
         }
       },
+      "NewDepartment": {
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "color"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Lower-case letters, digits and `_`; never changes."
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "description": "`#rrggbb`."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "NewDocument": {
         "type": "object",
         "required": [
@@ -31642,6 +34557,21 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "NewModule": {
+        "type": "object",
+        "required": [
+          "department_id"
+        ],
+        "properties": {
+          "department_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "content": {
+            "type": "string"
           }
         }
       },
@@ -32278,16 +35208,12 @@
             ],
             "description": "Intake slip: what was left in the vehicle. Only meaningful with\n`valuables_declared = true`, and rejected without it."
           },
-          "spec": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/SpecBody",
-                "description": "The build specification, when the chosen project type asks for one. Written in the\nsame transaction as the order so a failed second request cannot leave a build with\nno spec."
-              }
-            ]
+          "spec_answers": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The build questionnaire's answers (0065): question key → answer. Written in the same\ntransaction as the order; answers to questions not asked for the chosen project type\nare left out. Not checked for completeness here: converting a lead is."
           },
           "items": {
             "type": "array",
@@ -32365,9 +35291,9 @@
           "partner",
           "stage",
           "items",
-          "value",
           "blockers",
           "vehicles",
+          "spec_answers",
           "image_counts",
           "vehicle_locations",
           "comment_count",
@@ -32390,7 +35316,15 @@
             }
           },
           "value": {
-            "$ref": "#/components/schemas/OrderValue"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrderValue",
+                "description": "Null for someone who may not see prices (`ViewPrices`)."
+              }
+            ]
           },
           "blockers": {
             "type": "array",
@@ -32416,16 +35350,9 @@
             },
             "description": "V2.1: the vans this job covers. Usually one; three identical Sprinters from one\nenquiry is the case the join table exists for."
           },
-          "spec": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/OrderSpec",
-                "description": "The build specification, when the project type asks for one."
-              }
-            ]
+          "spec_answers": {
+            "type": "object",
+            "description": "The build questionnaire's answers (0065): question key → answer. Draw them with\n`GET /config/questionnaire`, grouped by the sections asked for this order."
           },
           "image_counts": {
             "type": "object",
@@ -32499,16 +35426,18 @@
           }
         }
       },
-      "OrderItem": {
+      "OrderModule": {
         "type": "object",
         "required": [
           "id",
           "order_id",
-          "position",
-          "description",
-          "quantity",
-          "unit_price",
-          "currency",
+          "department_id",
+          "department_key",
+          "department_name",
+          "department_color",
+          "content",
+          "status",
+          "content_updated_at",
           "created_at",
           "updated_at"
         ],
@@ -32521,22 +35450,49 @@
             "type": "integer",
             "format": "int64"
           },
-          "position": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "description": {
-            "type": "string"
-          },
-          "quantity": {
-            "type": "string"
-          },
-          "unit_price": {
+          "department_id": {
             "type": "integer",
             "format": "int64"
           },
-          "currency": {
-            "$ref": "#/components/schemas/Currency"
+          "department_key": {
+            "type": "string"
+          },
+          "department_name": {
+            "type": "string"
+          },
+          "department_color": {
+            "type": "string",
+            "description": "`#rrggbb`, the department's colour."
+          },
+          "content": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`draft`, `released` (handed to the department, heads told) or `done`."
+          },
+          "content_updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "released_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "released_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "created_at": {
             "type": "string",
@@ -32545,6 +35501,29 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "OrderModules": {
+        "type": "object",
+        "description": "The order's technical content, plus which departments the caller may start a module for.",
+        "required": [
+          "items",
+          "editable_department_ids"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleView"
+            }
+          },
+          "editable_department_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
           }
         }
       },
@@ -32605,129 +35584,6 @@
           }
         }
       },
-      "OrderSpec": {
-        "type": "object",
-        "required": [
-          "order_id",
-          "form",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "order_id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "form": {
-            "type": "string",
-            "description": "`heating` | `cooling`."
-          },
-          "target_temp_c": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "insulation_mm": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "cooling_unit_make": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "cooling_unit_model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "atp_class": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "ATP classification (FNA, FRC, …). Free text until the real list is confirmed."
-          },
-          "compartments": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "defrost": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "`automatic` | `manual` | `hot_gas`."
-          },
-          "electric_standby": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "cooling_unit_serial": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The serial number off the cooling unit's plate, scanned on the phone (0049). Kept\nwhen the rest of the spec is saved; cleared if the order turns into a heating job."
-          },
-          "heater_make": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "heater_model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "heat_output_kw": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "fuel": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "`diesel` | `electric` | `lpg` | `engine_coolant`."
-          },
-          "thermostat": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "notes": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
       "OrderSummary": {
         "type": "object",
         "required": [
@@ -32737,7 +35593,6 @@
           "partner_id",
           "partner_name",
           "currency",
-          "total_minor",
           "stage_key",
           "stage_label",
           "stage_is_terminal",
@@ -32781,8 +35636,12 @@
             "$ref": "#/components/schemas/Currency"
           },
           "total_minor": {
-            "type": "integer",
-            "format": "int64"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The items' total; null for someone who may not see prices (0061)."
           },
           "vehicle_make": {
             "type": [
@@ -33694,13 +36553,122 @@
               "boolean",
               "null"
             ]
+          }
+        }
+      },
+      "PatchQuestion": {
+        "type": "object",
+        "properties": {
+          "section_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Moves the question to another section."
           },
-          "spec_form": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "help": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "options": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Replaces the choices. Answers already given keep their old choice."
+          },
+          "min_value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "max_value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "required": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "PatchSection": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "shown_when": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Absent keeps the current form; explicit null removes the build-spec section."
+            "description": "Absent keeps it; null: always asked."
+          },
+          "project_type_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Replaces the list; empty: every type."
           }
         }
       },
@@ -34006,6 +36974,82 @@
           }
         }
       },
+      "PreviewLine": {
+        "type": "object",
+        "description": "One line of the preview: an order item, priced and taxed exactly as the issue would.",
+        "required": [
+          "item_id",
+          "position",
+          "description",
+          "quantity",
+          "unit_price_minor",
+          "net_minor",
+          "vat_minor",
+          "gross_minor"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The order item it comes from: editing the line edits that item."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "unit_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "net_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vat_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gross_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PreviewParty": {
+        "type": "object",
+        "description": "One side of the invoice, as the preview prints it.",
+        "required": [
+          "name",
+          "address"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "tax_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "address": {
+            "type": "string",
+            "description": "One line: \"6728 Szeged, Napos út 3.\", with the country when it is not Hungary."
+          },
+          "bank_account": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PreviewUrl": {
         "type": "object",
         "required": [
@@ -34174,13 +37218,6 @@
           },
           "is_active": {
             "type": "boolean"
-          },
-          "spec_form": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Which build-spec section the order form shows for this type: `heating`,\n`cooling`, or null for work that has no build spec (repairs). Configuration, so\nthe office can retype a category without a deploy."
           }
         }
       },
@@ -34224,38 +37261,145 @@
           }
         }
       },
-      "QuotationRequest": {
+      "Question": {
         "type": "object",
-        "description": "A quotation letter for a lead: the one letter that shouts. Hero band on top, the\nlead's quotation PDF attached, sent by the staff member as themselves.\n\nThe price and validity lines appear when the lead carries them; the PDF is\nauthoritative either way, so a lead without a quoted price still sends. Anything the\noffice writes by hand goes through `{{variable}}` rendering first, then Markdown when\nasked — the same pipeline as a manual letter.",
+        "required": [
+          "id",
+          "section_id",
+          "key",
+          "label",
+          "kind",
+          "options",
+          "required",
+          "position",
+          "is_active"
+        ],
         "properties": {
-          "subject": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "id": {
+            "type": "integer",
+            "format": "int64"
           },
-          "body": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "section_id": {
+            "type": "integer",
+            "format": "int64"
           },
-          "hero": {
+          "key": {
+            "type": "string",
+            "description": "The answer's name in the answers object. Never changes."
+          },
+          "label": {
+            "type": "string"
+          },
+          "help": {
             "type": [
               "string",
               "null"
             ],
-            "description": "The hero band. Defaults to the shout; the office can tone it down per send."
+            "description": "One line under the field: an example, or what to measure."
           },
-          "body_markdown": {
-            "type": "boolean"
+          "kind": {
+            "type": "string",
+            "description": "`yes_no` | `number` | `text` | `long_text` | `choice` | `multi_choice`."
           },
-          "attachment_document_ids": {
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Shown next to a number: °C, mm, kW."
+          },
+          "options": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
+            },
+            "description": "The choices of a `choice` / `multi_choice`, as shown and as stored."
+          },
+          "min_value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "max_value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Has to be answered before the lead may become an order."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "is_active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Questionnaire": {
+        "type": "object",
+        "description": "The whole configuration, sections in display order.",
+        "required": [
+          "sections"
+        ],
+        "properties": {
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Section"
             }
+          }
+        }
+      },
+      "QuotationRecord": {
+        "type": "object",
+        "description": "A quotation the sales manager made and sent outside the CRM, recorded on the lead: the\nPDF already filed as one of the lead's documents, the price and validity it states, and\nthe follow-up letters counted from the day it went out. The CRM never sends the\nquotation itself: the customer gets it from a person's own mailbox.",
+        "required": [
+          "document_id"
+        ],
+        "properties": {
+          "document_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The quotation file: a document of this lead. Filed as `quote` if it was not already."
+          },
+          "quoted_value_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Currency"
+              }
+            ]
+          },
+          "quote_valid_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "sent_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "The day it went out. Today when omitted; never in the future."
           },
           "followup_step_ids": {
             "type": [
@@ -34266,20 +37410,7 @@
               "type": "integer",
               "format": "int64"
             },
-            "description": "Follow-up letters to schedule (ids of `/followup-steps`), counted from this send.\nOmitted: every active default step. `[]`: none. Any still waiting from an earlier\nquotation of the lead are cancelled either way."
-          }
-        }
-      },
-      "QuotationSent": {
-        "type": "object",
-        "description": "The queued quotation letter.",
-        "required": [
-          "email_id"
-        ],
-        "properties": {
-          "email_id": {
-            "type": "integer",
-            "format": "int64"
+            "description": "Follow-up letters to schedule (ids of `/followup-steps`), counted from `sent_on`.\nOmitted: every active default step. `[]`: none. Any still waiting from an earlier\nquotation of the lead are cancelled either way."
           }
         }
       },
@@ -34596,9 +37727,60 @@
         "enum": [
           "admin",
           "office",
+          "sales",
+          "accountant",
           "designer",
+          "worker",
+          "purchaser",
           "viewer"
         ]
+      },
+      "RoleCapabilities": {
+        "type": "object",
+        "required": [
+          "capabilities"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Capability"
+            },
+            "description": "The role's whole set; what is left out is taken away."
+          }
+        }
+      },
+      "RoleGrid": {
+        "type": "object",
+        "description": "One role and what it may do now.",
+        "required": [
+          "role",
+          "editable",
+          "capabilities",
+          "defaults"
+        ],
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "Admin: always everything, and not editable."
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Capability"
+            }
+          },
+          "defaults": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Capability"
+            },
+            "description": "The role's out-of-the-box set, to show what \"restore defaults\" would do."
+          }
+        }
       },
       "SalesFunnel": {
         "type": "object",
@@ -34793,6 +37975,59 @@
           "recipients": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "Section": {
+        "type": "object",
+        "required": [
+          "id",
+          "key",
+          "title",
+          "position",
+          "is_active",
+          "project_type_ids",
+          "questions"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "shown_when": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The key of the yes/no question whose \"yes\" opens this section; null: always asked."
+          },
+          "project_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The project types this section is asked for; empty: every type."
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Question"
+            },
+            "description": "In display order, inactive ones included (settings shows them; forms skip them)."
           }
         }
       },
@@ -35297,97 +38532,13 @@
           }
         }
       },
-      "SpecBody": {
+      "SpecAnswers": {
         "type": "object",
-        "description": "The build spec as the form sends it. `form` is not taken on trust: it must match what\nthe order's project type asks for, or the row would mean something the office did not\nchoose.",
+        "description": "An order's answers, as sent and as returned.",
         "properties": {
-          "target_temp_c": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "insulation_mm": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "cooling_unit_make": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "cooling_unit_model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "atp_class": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "compartments": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "defrost": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "`automatic` | `manual` | `hot_gas`."
-          },
-          "electric_standby": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "heater_make": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "heater_model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "heat_output_kw": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "fuel": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "`diesel` | `electric` | `lpg` | `engine_coolant`."
-          },
-          "thermostat": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "notes": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "answers": {
+            "type": "object",
+            "description": "Question key → answer. Answers to questions not asked for this job are left out."
           }
         }
       },
@@ -35925,6 +39076,24 @@
             "type": "integer",
             "format": "int64",
             "description": "Of that, past its deadline."
+          }
+        }
+      },
+      "StatusCount": {
+        "type": "object",
+        "description": "One status and how many records are in it now.",
+        "required": [
+          "key",
+          "count"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The stage key (`GET /config/stages`) or e-mail status."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -37189,6 +40358,21 @@
           }
         }
       },
+      "UserDepartments": {
+        "type": "object",
+        "required": [
+          "departments"
+        ],
+        "properties": {
+          "departments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DepartmentSeat"
+            },
+            "description": "Every department the person works in; departments left out are left."
+          }
+        }
+      },
       "UserSettings": {
         "type": "object",
         "required": [
@@ -37851,6 +41035,44 @@
           }
         }
       },
+      "VisitSource": {
+        "type": "object",
+        "description": "Where a visitor of the listing's page came from, as the page read it off its own URL.",
+        "properties": {
+          "ad": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The `ad` parameter of a tracked link."
+          },
+          "utm_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_medium": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "utm_campaign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referrer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "VolumeReport": {
         "type": "object",
         "required": [
@@ -38475,6 +41697,9 @@
     },
     {
       "name": "ads"
+    },
+    {
+      "name": "modules"
     }
   ]
 }

@@ -5,6 +5,7 @@ import { WorkloadCharts } from '@/components/reports/WorkloadCharts';
 import { LeadSourcesReport } from '@/components/reports/LeadSourcesReport';
 import { WebsiteConversionReport } from '@/components/reports/WebsiteConversionReport';
 import { SalesReports } from '@/components/reports/SalesReports';
+import { BusinessOnly } from '@/components/reports/BusinessOnly';
 
 export default async function ReportsPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -13,9 +14,11 @@ export default async function ReportsPage({ params }: { params: Promise<{ locale
     <AppShell>
       <PageHeader title={t('reports')} />
       <WorkloadCharts />
-      <LeadSourcesReport />
-      <WebsiteConversionReport />
-      <SalesReports />
+      <BusinessOnly>
+        <LeadSourcesReport />
+        <WebsiteConversionReport />
+        <SalesReports />
+      </BusinessOnly>
     </AppShell>
   );
 }

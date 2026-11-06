@@ -12,6 +12,7 @@ use utoipa_axum::routes;
 use super::Items;
 use super::extract::{ApiQuery, Auth};
 use crate::AppState;
+use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::repo::attribution::{self, CampaignRow, ChannelRow, PageRow};
 use crate::repo::fx::{self, FxRate};
@@ -104,9 +105,10 @@ struct VolumeReport {
 )]
 async fn volume(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<VolumeQuery>,
 ) -> AppResult<Json<VolumeReport>> {
+    me.require(Capability::ViewBusinessReports)?;
     let p = period(&state, q.from, q.to)?;
     let group = q.group.unwrap_or_else(|| "month".into());
     let rows = match group.as_str() {
@@ -402,9 +404,10 @@ struct LeadSources {
 )]
 async fn lead_sources(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<Range>,
 ) -> AppResult<Json<LeadSources>> {
+    me.require(Capability::ViewBusinessReports)?;
     let p = period(&state, q.from, q.to)?;
     let (from, to) = utc_bounds(state.config.business_tz, &p);
     let by_channel = attribution::by_channel(&state.db, from, to).await?;
@@ -436,9 +439,10 @@ struct WebsiteConversion {
 )]
 async fn website_conversion(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<Range>,
 ) -> AppResult<Json<WebsiteConversion>> {
+    me.require(Capability::ViewBusinessReports)?;
     let p = period(&state, q.from, q.to)?;
     let (from, to) = utc_bounds(state.config.business_tz, &p);
     Ok(Json(WebsiteConversion {
@@ -471,9 +475,10 @@ struct SalesFunnel {
 )]
 async fn sales_funnel(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<Range>,
 ) -> AppResult<Json<SalesFunnel>> {
+    me.require(Capability::ViewBusinessReports)?;
     let p = period(&state, q.from, q.to)?;
     let (from, to) = utc_bounds(state.config.business_tz, &p);
     Ok(Json(SalesFunnel {
@@ -497,9 +502,10 @@ struct Salespeople {
 )]
 async fn salespeople(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<Range>,
 ) -> AppResult<Json<Salespeople>> {
+    me.require(Capability::ViewBusinessReports)?;
     let p = period(&state, q.from, q.to)?;
     let (from, to) = utc_bounds(state.config.business_tz, &p);
     Ok(Json(Salespeople {
@@ -524,9 +530,10 @@ struct FirstResponse {
 )]
 async fn first_response(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<Range>,
 ) -> AppResult<Json<FirstResponse>> {
+    me.require(Capability::ViewBusinessReports)?;
     let p = period(&state, q.from, q.to)?;
     let (from, to) = utc_bounds(state.config.business_tz, &p);
     Ok(Json(FirstResponse {
@@ -549,9 +556,10 @@ struct RevenueByCountry {
 )]
 async fn revenue_by_country(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<Range>,
 ) -> AppResult<Json<RevenueByCountry>> {
+    me.require(Capability::ViewBusinessReports)?;
     let p = period(&state, q.from, q.to)?;
     Ok(Json(RevenueByCountry {
         rows: sales_reports::revenue_by_country(&state.db, p.from, p.to).await?,
@@ -603,9 +611,10 @@ struct NewsletterTrends {
 )]
 async fn newsletter_trends(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<Range>,
 ) -> AppResult<Json<NewsletterTrends>> {
+    me.require(Capability::ViewBusinessReports)?;
     let p = period(&state, q.from, q.to)?;
     let (from, to) = utc_bounds(state.config.business_tz, &p);
     Ok(Json(NewsletterTrends {

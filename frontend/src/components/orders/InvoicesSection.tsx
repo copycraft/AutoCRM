@@ -1,6 +1,8 @@
 'use client';
 
-// Invoices on the order screen: issue, storno, annul, and what NAV said about each.
+// Invoices on the order screen: storno, annul, and what NAV said about each. Issuing is not
+// done here any more: "Számlázóba" files a draft and opens it in the Számlázó, where the
+// invoice is previewed before it is numbered (InvoiceDraftPanel).
 //
 // Reporting is asynchronous — the backend answers 202 and a background job waits on the
 // tax authority — so an invoice that is `submitting` is polled until NAV decides, and the
@@ -11,13 +13,14 @@
 // no NAV transaction, so it lives in its own section (`ProformasSection`).
 
 import { useEffect, useRef, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { invoicesApi, mediaApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { errorMessage } from '@/lib/api/errors';
-import { canAdmin, canEditOrders, useAuth } from '@/lib/auth/context';
+import { canAdmin, canIssueInvoices, useAuth } from '@/lib/auth/context';
 import { Money } from '@/components/ui/Money';
 import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge';
 import { DateDisplay } from '@/components/ui/DateDisplay';
@@ -84,10 +87,12 @@ export function InvoicesSection({
   const ter = useTranslations('errors');
   const { user } = useAuth();
   const qc = useQueryClient();
-  const canIssue = canEditOrders(user);
+  const router = useRouter();
+  const locale = useLocale();
+  // The backend asks IssueInvoices for issuing, storno and the draft alike.
+  const canIssue = canIssueInvoices(user);
   const canAnnul = canAdmin(user);
 
-  const [issueOpen, setIssueOpen] = useState(false);
   const [stornoFor, setStornoFor] = useState<Invoice | null>(null);
   const [annulFor, setAnnulFor] = useState<Invoice | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -131,13 +136,12 @@ export function InvoicesSection({
 
   const onError = (e: unknown) => setError(errorMessage(e, ter, ter('unknownError')));
 
-  const issue = useMutation({
-    mutationFn: (body: { vat_rate?: string; payment_date?: string; payment_method?: string }) =>
-      invoicesApi.create(orderId, body),
+  // Into the Számlázó: the draft it already has, or a new one with every term at its default.
+  const toBilling = useMutation({
+    mutationFn: () => invoicesApi.getDraft(orderId).catch(() => invoicesApi.putDraft(orderId, {})),
     onSuccess: () => {
-      setIssueOpen(false);
-      setError(null);
-      refresh();
+      void qc.invalidateQueries({ queryKey: ['invoice-drafts'] });
+      router.push(`/${locale}/invoices?draft=${orderId}`);
     },
     onError,
   });
@@ -181,11 +185,11 @@ export function InvoicesSection({
         {canIssue && (
           <button
             className="btn-secondary btn-sm"
-            onClick={() => setIssueOpen(true)}
-            disabled={inFlight || !!live}
-            title={live ? t('liveInvoiceExists') : inFlight ? t('submittingHint') : undefined}
+            onClick={() => toBilling.mutate()}
+            disabled={inFlight || !!live || toBilling.isPending}
+            title={live ? t('liveInvoiceExists') : inFlight ? t('submittingHint') : t('sendToBillingHint')}
           >
-            {t('issue')}
+            {t('sendToBilling')}
           </button>
         )}
       </div>
@@ -216,14 +220,6 @@ export function InvoicesSection({
             />
           ))}
         </ul>
-      )}
-
-      {issueOpen && (
-        <IssueDialog
-          busy={issue.isPending}
-          onClose={() => setIssueOpen(false)}
-          onSubmit={(body) => issue.mutate(body)}
-        />
       )}
 
       <ConfirmDialog
@@ -409,110 +405,6 @@ export function DocumentLink({ documentId, label }: { documentId: number; label:
     <button className="underline hover:text-steel-900" onClick={() => void open()} disabled={busy}>
       {label}
     </button>
-  );
-}
-
-/**
- * Issuing an invoice is a confirmation, not a form: the order already carries the lines,
- * the customer and the currency. The fields ever worth overriding are here: the VAT rate
- * and the due date (both pre-filled by the server when left alone), and how the customer
- * pays — cash and transfer invoices share one series, but each document records its own
- * method. The methods come from the server's lookups, not from a local list.
- */
-function IssueDialog({
-  busy,
-  onClose,
-  onSubmit,
-}: {
-  busy: boolean;
-  onClose: () => void;
-  onSubmit: (body: { vat_rate?: string; payment_date?: string; payment_method?: string }) => void;
-}) {
-  const t = useTranslations('invoices');
-  const tc = useTranslations('common');
-  const [vatRate, setVatRate] = useState('');
-  const [paymentDate, setPaymentDate] = useState('');
-  const { data: lookups } = useLookups();
-  const methods = lookups?.invoice_payment_methods ?? [];
-  // Nothing sent means the server default. Derived, not defaulted by effect, so
-  // the select shows the first method on the same render the list arrives.
-  const [methodOverride, setMethodOverride] = useState<string | null>(null);
-  const paymentMethod = methodOverride ?? methods[0]?.key ?? '';
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-steel-900/40 p-4">
-      <div className="card w-full max-w-md" role="dialog" aria-modal="true" aria-label={t('issue')}>
-        <div className="card-header">
-          <h3 className="text-section font-semibold">{t('issueTitle')}</h3>
-        </div>
-        <div className="card-content space-y-3">
-          <p className="text-body text-steel-500">{t('issueBody')}</p>
-          <div>
-            <label className="label" htmlFor="invoice-vat">
-              {t('vatRate')}
-            </label>
-            <input
-              id="invoice-vat"
-              className="input font-mono"
-              inputMode="decimal"
-              placeholder="0.27"
-              value={vatRate}
-              onChange={(e) => setVatRate(e.target.value)}
-            />
-            <p className="mt-1 text-metadata text-steel-500">{t('vatRateHint')}</p>
-          </div>
-          <div>
-            <label className="label" htmlFor="invoice-payment-date">
-              {t('paymentDate')}
-            </label>
-            <input
-              id="invoice-payment-date"
-              type="date"
-              className="input"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor="invoice-payment-method">
-              {t('paymentMethod')}
-            </label>
-            <select
-              id="invoice-payment-method"
-              className="input"
-              value={paymentMethod}
-              onChange={(e) => setMethodOverride(e.target.value)}
-            >
-              {methods.map((method) => (
-                <option key={method.key} value={method.key}>
-                  {method.label_hu}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="card-footer justify-end">
-          <button className="btn-ghost" onClick={onClose} disabled={busy}>
-            {tc('cancel')}
-          </button>
-          <button
-            className="btn-primary"
-            disabled={busy}
-              onClick={() =>
-                onSubmit({
-                  ...(vatRate.trim() ? { vat_rate: vatRate.trim() } : {}),
-                  ...(paymentDate ? { payment_date: paymentDate } : {}),
-                  // The server defaults to transfer when absent; sending the
-                  // chosen method explicitly is the same either way.
-                  ...(paymentMethod ? { payment_method: paymentMethod } : {}),
-                })
-              }
-          >
-            {busy ? tc('processing') : t('issue')}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 

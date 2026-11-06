@@ -187,9 +187,10 @@ async fn update_step(
 )]
 async fn list_for_lead(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<Followup>>> {
+    me.require(Capability::ViewSales)?;
     Ok(Items::new(followups::for_lead(&state.db, id).await?))
 }
 

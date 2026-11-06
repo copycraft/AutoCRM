@@ -187,7 +187,18 @@ fun <T> SelectField(
 @Composable
 internal fun app(): AutoCrmApp = LocalContext.current.applicationContext as AutoCrmApp
 
-/** Project types offered for an order (active ones), with the build-spec form each asks for. */
+/** A project type's name, read-only. */
+@Composable
+fun ProjectTypeLabel(id: Long?) {
+    val api = app().api
+    val types by produceState(initialValue = emptyList<hu.autotherm.autocrm.data.api.ProjectType>()) {
+        value = runCatching { api.projectTypes() }.getOrDefault(emptyList())
+    }
+    Info("Projekt típusa", id?.let { wanted -> types.firstOrNull { it.id == wanted }?.labelHu ?: "#$wanted" })
+}
+
+/** Project types offered for an order (active ones). The type decides which questions of
+ *  the build questionnaire are asked. */
 @Composable
 fun ProjectTypeField(
     selected: Long?,

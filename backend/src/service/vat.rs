@@ -36,7 +36,10 @@ pub fn rate_limit(user_id: i64) -> AppResult<()> {
     let mut seen = SEEN.get_or_init(Default::default).lock().unwrap();
     let now = Instant::now();
     let times = seen.entry(user_id).or_default();
-    while times.front().is_some_and(|t| now.duration_since(*t) >= RATE_WINDOW) {
+    while times
+        .front()
+        .is_some_and(|t| now.duration_since(*t) >= RATE_WINDOW)
+    {
         times.pop_front();
     }
     if times.len() >= RATE_LIMIT {
@@ -78,7 +81,9 @@ pub async fn check(
 
     if !req.force {
         let since = Utc::now() - chrono::Duration::days(config.vies_cache_max_age_days.max(0));
-        if let Some(hit) = vat_checks::latest_verdict(db, &vat.country_code, &vat.vat_number, since).await? {
+        if let Some(hit) =
+            vat_checks::latest_verdict(db, &vat.country_code, &vat.vat_number, since).await?
+        {
             if let Some(partner) = req.partner_id {
                 link_partner(db, partner, &hit, &vat).await?;
             }
@@ -87,7 +92,13 @@ pub async fn check(
     }
 
     let outcome = client(&config.vies)
-        .check(&vat, CheckOptions { interactive: req.interactive, bulk: req.bulk })
+        .check(
+            &vat,
+            CheckOptions {
+                interactive: req.interactive,
+                bulk: req.bulk,
+            },
+        )
         .await;
     let mut hints = vat.hints.clone();
     hints.extend(outcome.hints.iter().cloned());
@@ -122,10 +133,20 @@ pub async fn check(
     if let Some(partner) = req.partner_id {
         link_partner(db, partner, &row, &vat).await?;
     }
-    Ok(Ok(VatCheckResult::from_outcome(&vat, &outcome, row.created_at, Some(row.id))))
+    Ok(Ok(VatCheckResult::from_outcome(
+        &vat,
+        &outcome,
+        row.created_at,
+        Some(row.id),
+    )))
 }
 
-async fn link_partner(db: &sqlx::PgPool, partner: i64, row: &VatCheck, vat: &NormalizedVat) -> AppResult<()> {
+async fn link_partner(
+    db: &sqlx::PgPool,
+    partner: i64,
+    row: &VatCheck,
+    vat: &NormalizedVat,
+) -> AppResult<()> {
     if vat_checks::set_partner_status(db, partner, row, &vat.formatted).await? {
         Ok(())
     } else {
@@ -134,7 +155,11 @@ async fn link_partner(db: &sqlx::PgPool, partner: i64, row: &VatCheck, vat: &Nor
 }
 
 fn cached_result(vat: &NormalizedVat, row: &VatCheck) -> VatCheckResult {
-    let status = if row.status == "VALID" { VatCheckStatus::Valid } else { VatCheckStatus::Invalid };
+    let status = if row.status == "VALID" {
+        VatCheckStatus::Valid
+    } else {
+        VatCheckStatus::Invalid
+    };
     let mut hints = vat.hints.clone();
     for h in &row.hints {
         if !hints.contains(h) {
@@ -150,7 +175,10 @@ fn cached_result(vat: &NormalizedVat, row: &VatCheck) -> VatCheckResult {
         hu_domestic_tax_number: vat.hu_domestic_tax_number.clone(),
         name: row.name.clone(),
         address: row.address.clone(),
-        address_parts: row.address.as_deref().map(crate::integrations::vies::split_address),
+        address_parts: row
+            .address
+            .as_deref()
+            .map(crate::integrations::vies::split_address),
         request_identifier: row.request_identifier.clone(),
         request_date: row.request_date.map(|d| d.to_rfc3339()),
         checked_at: row.created_at,
@@ -211,7 +239,9 @@ pub struct SweepReport {
 /// One batch of a sweep.
 pub async fn sweep(db: &sqlx::PgPool, config: &Config, p: &SweepPayload) -> AppResult<SweepReport> {
     let batch = match p.mode {
-        SweepMode::Unavailable => vat_checks::unavailable_partners(db, p.after_id, SWEEP_BATCH).await?,
+        SweepMode::Unavailable => {
+            vat_checks::unavailable_partners(db, p.after_id, SWEEP_BATCH).await?
+        }
         SweepMode::Revalidate => {
             let before = p.checked_before.unwrap_or_else(Utc::now);
             vat_checks::revalidation_due(db, p.after_id, before, SWEEP_BATCH).await?
@@ -240,7 +270,12 @@ pub async fn sweep(db: &sqlx::PgPool, config: &Config, p: &SweepPayload) -> AppR
                 // The backfill may reuse a fresh verdict on the same number; re-checks
                 // exist to ask again.
                 force: p.mode != SweepMode::Backfill,
-                created_by: if p.mode == SweepMode::Backfill { "migration" } else { "system" }.into(),
+                created_by: if p.mode == SweepMode::Backfill {
+                    "migration"
+                } else {
+                    "system"
+                }
+                .into(),
                 interactive: false,
                 bulk: true,
             },
@@ -252,7 +287,12 @@ pub async fn sweep(db: &sqlx::PgPool, config: &Config, p: &SweepPayload) -> AppR
                 if p.mode == SweepMode::Revalidate && r.status == VatCheckStatus::Invalid {
                     report.invalidated += 1;
                     if let Some(found) = crate::repo::partners::find(db, partner.id).await? {
-                        crate::service::notifications::vat_number_invalidated(db, &found, &r.formatted).await?;
+                        crate::service::notifications::vat_number_invalidated(
+                            db,
+                            &found,
+                            &r.formatted,
+                        )
+                        .await?;
                     }
                 }
             }
@@ -279,9 +319,16 @@ pub struct InvoiceGate {
 /// Whether an invoice is an EU-business 0% one (intra-EU supply / reverse charge): the
 /// buyer is a business in another member state and no VAT is charged. AutoCRM has no
 /// separate VAT treatment field; this combination is what stands for one.
-pub fn needs_vies(partner: &crate::repo::partners::Partner, vat_rate: rust_decimal::Decimal) -> bool {
+pub fn needs_vies(
+    partner: &crate::repo::partners::Partner,
+    vat_rate: rust_decimal::Decimal,
+) -> bool {
     let country = partner.country.trim().to_ascii_uppercase();
-    let vies_country = if country == "GR" { "EL".to_string() } else { country };
+    let vies_country = if country == "GR" {
+        "EL".to_string()
+    } else {
+        country
+    };
     partner.kind == crate::domain::partner::PartnerKind::Business
         && vat_rate.is_zero()
         && vies_country != "HU"
@@ -303,16 +350,26 @@ pub async fn invoice_gate(
     if !needs_vies(partner, vat_rate) {
         return Ok(None);
     }
-    let Some(input) = partner.eu_tax_number.as_deref().filter(|n| !n.trim().is_empty()) else {
+    let Some(input) = partner
+        .eu_tax_number
+        .as_deref()
+        .filter(|n| !n.trim().is_empty())
+    else {
         return Err(AppError::rule(
             "eu_vat_number_required",
-            format!("partner '{}' has no EU VAT number; a 0% EU invoice needs one", partner.name),
+            format!(
+                "partner '{}' has no EU VAT number; a 0% EU invoice needs one",
+                partner.name
+            ),
         ));
     };
     let vat = normalize_vat(input, Some(&partner.country)).map_err(|_| {
         AppError::rule(
             "eu_vat_number_invalid",
-            format!("the EU VAT number '{input}' of partner '{}' is malformed", partner.name),
+            format!(
+                "the EU VAT number '{input}' of partner '{}' is malformed",
+                partner.name
+            ),
         )
     })?;
 
@@ -320,7 +377,11 @@ pub async fn invoice_gate(
     let fresh = vat_checks::latest_verdict(db, &vat.country_code, &vat.vat_number, since).await?;
     let (status, check_id, code) = match fresh {
         Some(row) => (
-            if row.status == "VALID" { VatCheckStatus::Valid } else { VatCheckStatus::Invalid },
+            if row.status == "VALID" {
+                VatCheckStatus::Valid
+            } else {
+                VatCheckStatus::Invalid
+            },
             Some(row.id),
             row.error_code,
         ),
@@ -339,13 +400,21 @@ pub async fn invoice_gate(
                 },
             )
             .await?
-            .map_err(|_| AppError::rule("eu_vat_number_invalid", "the buyer's EU VAT number is malformed"))?;
+            .map_err(|_| {
+                AppError::rule(
+                    "eu_vat_number_invalid",
+                    "the buyer's EU VAT number is malformed",
+                )
+            })?;
             (r.status, r.check_id, r.error_code)
         }
     };
 
     match status {
-        VatCheckStatus::Valid => Ok(Some(InvoiceGate { vat_check_id: check_id, override_reason: None })),
+        VatCheckStatus::Valid => Ok(Some(InvoiceGate {
+            vat_check_id: check_id,
+            override_reason: None,
+        })),
         VatCheckStatus::Invalid => Err(AppError::rule(
             "eu_vat_number_invalid",
             format!("VIES says {} is not a valid EU VAT number", vat.formatted),

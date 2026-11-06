@@ -10,11 +10,10 @@ use crate::AppState;
 use crate::domain::blocker::{
     NudgeDecision, NudgePolicy, NudgeState, decide, nudge_idempotency_key,
 };
-use crate::domain::media::image_derived_key;
 use crate::domain::money::Currency;
 use crate::error::AppResult;
 use crate::integrations::mnb::MnbClient;
-use crate::media::pipeline;
+use crate::media::{layout, pipeline};
 use crate::repo::{audit, blockers, config, contacts, fx, images, orders, partners, reports};
 use crate::service::business_today;
 use crate::service::email::{About, AutomaticEmail, queue_automatic, triggers};
@@ -346,8 +345,9 @@ pub async fn process_image(state: &AppState, image_id: i64) -> anyhow::Result<()
         }
     };
     let hash_hex = hex::encode(&image.content_hash);
-    let display_key = image_derived_key(image.order_id, image.category, &hash_hex, "display");
-    let thumb_key = image_derived_key(image.order_id, image.category, &hash_hex, "thumb");
+    let display_key =
+        layout::image_derived_key(state, image.order_id, &hash_hex, "display").await?;
+    let thumb_key = layout::image_derived_key(state, image.order_id, &hash_hex, "thumb").await?;
     state
         .storage
         .put_bytes(&display_key, processed.display_jpeg, "image/jpeg")
@@ -374,8 +374,8 @@ pub async fn process_image(state: &AppState, image_id: i64) -> anyhow::Result<()
 /// A thumbnail for a drawing or picture filed as a document (0048): DXF drawn, the preview
 /// inside a DWG extracted, image files scaled. Anything that cannot be drawn records why.
 pub async fn process_document(state: &AppState, document_id: i64) -> anyhow::Result<()> {
-    use crate::domain::media::{ThumbSource, document_thumb_key, thumb_source};
-    use crate::repo::documents;
+    use crate::domain::media::{ThumbSource, thumb_source};
+    use crate::repo::documents::{self, Owner};
 
     let Some(doc) = documents::find(&state.db, document_id).await? else {
         return Ok(());
@@ -407,7 +407,10 @@ pub async fn process_document(state: &AppState, document_id: i64) -> anyhow::Res
     .await?;
     match made {
         Ok(png) => {
-            let key = document_thumb_key(&doc.storage_key);
+            let owner = Owner::from_about(doc.order_id, doc.lead_id)
+                .ok_or_else(|| anyhow::anyhow!("document {document_id} has no owner"))?;
+            let key =
+                layout::document_thumb_key(state, owner, &hex::encode(&doc.content_hash)).await?;
             state.storage.put_bytes(&key, png, "image/png").await?;
             documents::set_thumb(&state.db, document_id, Some(&key), None).await?;
         }

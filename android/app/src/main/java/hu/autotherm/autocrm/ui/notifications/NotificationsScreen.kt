@@ -144,15 +144,16 @@ fun NotificationsScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             when {
-                state.loading -> ListSkeleton()
+                state.loading -> ListSkeleton(Modifier.padding(top = 12.dp))
                 state.error != null && state.items.isEmpty() ->
                     ErrorState(state.error!!, onRetry = viewModel::load)
                 state.items.isEmpty() -> EmptyState("Nincs értesítés.")
                 else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         // Today, yesterday, earlier: a feed reads by day.

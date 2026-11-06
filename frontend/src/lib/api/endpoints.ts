@@ -30,6 +30,10 @@ export const authApi = {
 // ── Users (admin) ──
 export const usersApi = {
   list: (): Promise<S['Items_User']> => request('/users', s.zUsersListResponse),
+  // 0061: what each role may see and do, as the admin's grid has it.
+  roles: (): Promise<S['Items_RoleGrid']> => request('/roles', s.zUsersListRolesResponse),
+  setRole: (role: string, capabilities: S['Capability'][]): Promise<S['RoleGrid']> =>
+    request(`/roles/${role}`, s.zUsersSetRoleResponse, { method: 'PUT', body: { capabilities } }),
   create: (body: S['CreateUser']): Promise<S['User']> =>
     request('/users', s.zUsersCreateResponse, { method: 'POST', body }),
   update: (id: number, body: S['UpdateUser']): Promise<S['User']> =>
@@ -66,6 +70,9 @@ export const partnersApi = {
 export const leadsApi = {
   list: (search: QueryOf<'leads_search'> = {}): Promise<S['Items_LeadRow']> =>
     request('/leads', s.zLeadsSearchResponse, { search }),
+  // How many leads sit in each stage now, for the status list beside the list.
+  stageCounts: (): Promise<S['Items_StatusCount']> =>
+    request('/leads/stage-counts', s.zLeadsLeadStageCountsResponse),
   get: (id: number): Promise<S['LeadDetail']> => request(`/leads/${id}`, s.zLeadsDetailResponse),
   create: (body: S['LeadBody']): Promise<S['Lead']> =>
     request('/leads', s.zLeadsCreateResponse, { method: 'POST', body }),
@@ -77,8 +84,12 @@ export const leadsApi = {
     request(`/leads/${id}/transitions`, s.zLeadsTransitionsResponse),
   convert: (id: number, body: S['OrderBody']): Promise<S['Order']> =>
     request(`/leads/${id}/convert`, s.zLeadsConvertResponse, { method: 'POST', body }),
-  quotation: (id: number, body: S['QuotationRequest']): Promise<S['QuotationSent']> =>
-    request(`/leads/${id}/quotation`, s.zLeadsQuotationResponse, { method: 'POST', body }),
+  // The build questionnaire on the lead: its project type and the answers so far.
+  putSpec: (id: number, body: S['LeadSpecBody']): Promise<S['LeadSpec']> =>
+    request(`/leads/${id}/spec`, s.zLeadsPutLeadSpecResponse, { method: 'PUT', body }),
+  // The quotation went out from someone's own mailbox: file it and start the follow-ups.
+  recordQuotation: (id: number, body: S['QuotationRecord']): Promise<S['Lead']> =>
+    request(`/leads/${id}/quotation`, s.zLeadsRecordQuotationResponse, { method: 'POST', body }),
   setTags: (id: number, tag_ids: number[]): Promise<S['Items_LeadTagRef']> =>
     request(`/leads/${id}/tags`, s.zLeadsSetLeadTagsResponse, { method: 'PUT', body: { tag_ids } }),
   // Ticked rows of the list: assign, tag, untag or move them in one go.
@@ -110,8 +121,14 @@ export const leadTagsApi = {
 
 // ── Orders ──
 export const ordersApi = {
+  // Repeat order: a new project started as a copy of this one.
+  copy: (id: number, body: S['CopyRequest']): Promise<S['CopyResult']> =>
+    request(`/orders/${id}/copy`, s.zOrdersCopyOrderResponse, { method: 'POST', body }),
   list: (search: QueryOf<'orders_search'> = {}): Promise<S['Items_OrderSummary']> =>
     request('/orders', s.zOrdersSearchResponse, { search }),
+  // How many orders sit in each stage now, for the status list beside the list.
+  stageCounts: (): Promise<S['Items_StatusCount']> =>
+    request('/orders/stage-counts', s.zOrdersOrderStageCountsResponse),
   get: (id: number): Promise<S['OrderDetail']> => request(`/orders/${id}`, s.zOrdersDetailResponse),
   create: (body: S['OrderBody']): Promise<S['Order']> =>
     request('/orders', s.zOrdersCreateResponse, { method: 'POST', body }),
@@ -127,8 +144,9 @@ export const ordersApi = {
     request(`/orders/${id}/audit`, s.zOrdersAuditTrailResponse, { search }),
   notes: (id: number): Promise<S['Items_OrderNote']> =>
     request(`/orders/${id}/notes`, s.zOrdersNotesResponse),
-  putSpec: (id: number, body: S['SpecBody']): Promise<S['OrderSpec']> =>
-    request(`/orders/${id}/spec`, s.zOrdersPutSpecResponse, { method: 'PUT', body }),
+  // The build questionnaire's answers, replaced whole.
+  putSpec: (id: number, body: S['SpecAnswers']): Promise<S['SpecAnswers']> =>
+    request(`/orders/${id}/spec`, s.zOrdersPutOrderSpecResponse, { method: 'PUT', body }),
   items: (orderId: number): Promise<S['Items_ItemView']> =>
     request(`/orders/${orderId}/items`, s.zOrdersListItemsResponse),
   createItem: (orderId: number, body: S['AddItem']): Promise<S['ItemView']> =>
@@ -152,6 +170,16 @@ export const invoicesApi = {
     request('/invoices', s.zInvoicesListAllResponse, { search }),
   get: (id: number): Promise<S['InvoiceDetail']> =>
     request(`/invoices/${id}`, s.zInvoicesDetailResponse),
+  // 0058: the order goes to the Számlázó as a draft, is previewed there, then issued.
+  drafts: (): Promise<S['Items_DraftSummary']> => request('/invoice-drafts', s.zInvoicesListDraftsResponse),
+  getDraft: (orderId: number): Promise<S['InvoiceDraft']> =>
+    request(`/orders/${orderId}/invoice-draft`, s.zInvoicesGetDraftResponse),
+  putDraft: (orderId: number, body: S['IssueRequest']): Promise<S['InvoiceDraft']> =>
+    request(`/orders/${orderId}/invoice-draft`, s.zInvoicesPutDraftResponse, { method: 'PUT', body }),
+  deleteDraft: (orderId: number): Promise<void> =>
+    requestNoContent(`/orders/${orderId}/invoice-draft`, { method: 'DELETE' }),
+  preview: (orderId: number, body: S['IssueRequest']): Promise<S['InvoicePreview']> =>
+    request(`/orders/${orderId}/invoice-preview`, s.zInvoicesPreviewResponse, { method: 'POST', body }),
   create: (orderId: number, body: S['IssueRequest']): Promise<S['Invoice']> =>
     request(`/orders/${orderId}/invoices`, s.zInvoicesCreateResponse, { method: 'POST', body }),
   storno: (id: number, body: S['StornoRequest']): Promise<S['Invoice']> =>
@@ -277,6 +305,9 @@ export const mediaApi = {
 export const emailApi = {
   list: (search: QueryOf<'email_list'> = {}): Promise<S['Items_EmailSummary']> =>
     request('/emails', s.zEmailListResponse, { search }),
+  // How many letters are in each status, for the status list beside the list.
+  statusCounts: (): Promise<S['Items_StatusCount']> =>
+    request('/emails/status-counts', s.zEmailStatusCountsResponse),
   get: (id: number): Promise<S['EmailMessage']> => request(`/emails/${id}`, s.zEmailDetailResponse),
   preview: (body: S['ComposeRequest']): Promise<S['Preview']> =>
     request('/emails/preview', s.zEmailPreviewResponse, { method: 'POST', body }),
@@ -364,6 +395,18 @@ export const configApi = {
     request('/project-types', s.zConfigurationCreateProjectTypeResponse, { method: 'POST', body }),
   patchProjectType: (id: number, body: S['PatchProjectType']): Promise<S['ProjectType']> =>
     request(`/project-types/${id}`, s.zConfigurationUpdateProjectTypeResponse, { method: 'PATCH', body }),
+  // The build questionnaire: sections of questions per project type, some opened by a
+  // yes/no answer. Every write answers with the whole questionnaire.
+  questionnaire: (): Promise<S['Questionnaire']> =>
+    request('/config/questionnaire', s.zConfigurationGetQuestionnaireResponse),
+  createSpecSection: (body: S['CreateSection']): Promise<S['Questionnaire']> =>
+    request('/config/questionnaire/sections', s.zConfigurationCreateSectionResponse, { method: 'POST', body }),
+  patchSpecSection: (id: number, body: S['PatchSection']): Promise<S['Questionnaire']> =>
+    request(`/config/questionnaire/sections/${id}`, s.zConfigurationUpdateSectionResponse, { method: 'PATCH', body }),
+  createSpecQuestion: (body: S['CreateQuestion']): Promise<S['Questionnaire']> =>
+    request('/config/questionnaire/questions', s.zConfigurationCreateQuestionResponse, { method: 'POST', body }),
+  patchSpecQuestion: (id: number, body: S['PatchQuestion']): Promise<S['Questionnaire']> =>
+    request(`/config/questionnaire/questions/${id}`, s.zConfigurationUpdateQuestionResponse, { method: 'PATCH', body }),
   settings: (): Promise<S['Settings']> => request('/settings', s.zConfigurationGetSettingsResponse),
   saveSettings: (body: S['SettingsBody']): Promise<S['Settings']> =>
     request('/settings', s.zConfigurationPutSettingsResponse, { method: 'PUT', body }),
@@ -474,6 +517,13 @@ export const adminApi = {
 
 // ── HR (admins and users with HR access) ──
 export const hrApi = {
+  // 0064: a listing's ads, their tracked links and what each brought.
+  jobAds: (jobId: number): Promise<S['JobAdsReport']> =>
+    request(`/hr/jobs/${jobId}/ads`, s.zHrListAdsResponse),
+  createJobAd: (jobId: number, body: S['JobAdBody']): Promise<S['JobAdView']> =>
+    request(`/hr/jobs/${jobId}/ads`, s.zHrCreateAdResponse, { method: 'POST', body }),
+  updateJobAd: (id: number, body: S['JobAdBody']): Promise<S['JobAdView']> =>
+    request(`/hr/job-ads/${id}`, s.zHrUpdateAdResponse, { method: 'PATCH', body }),
   list: (search: { q?: string; include_archived?: boolean; status?: number } = {}): Promise<S['Items_Employee']> =>
     request('/hr/employees', s.zHrListResponse, { search }),
   // Where each employee stands (MiniCRM's HR lists), and moving them between lists.
@@ -560,6 +610,9 @@ export const notificationsApi = {
 export const recruitmentApi = {
   job: (slug: string): Promise<S['PublicJob']> =>
     request(`/public/jobs/${encodeURIComponent(slug)}`, s.zRecruitmentPublicJobResponse),
+  /** Counts a visit to the listing's page, by ad and channel; nothing about the visitor. */
+  visit: (slug: string, body: S['VisitSource']): Promise<void> =>
+    requestNoContent(`/public/jobs/${encodeURIComponent(slug)}/visit`, { method: 'POST', body }),
   apply: (slug: string, formBody: FormData): Promise<void> =>
     requestNoContent(`/public/jobs/${encodeURIComponent(slug)}/applications`, { method: 'POST', formBody }),
 };
@@ -737,7 +790,7 @@ export const hrExtrasApi = {
 };
 
 export const orderExtrasApi = {
-  setCoolingSerial: (orderId: number, serial: string | null): Promise<S['OrderSpec']> =>
+  setCoolingSerial: (orderId: number, serial: string | null): Promise<S['SpecAnswers']> =>
     request(`/orders/${orderId}/cooling-serial`, s.zOrdersSetCoolingSerialResponse, { method: 'PUT', body: { serial } }),
   decodeVin: (vin: string): Promise<S['VinInfo']> =>
     request(`/vehicles/decode/${encodeURIComponent(vin)}`, s.zVehiclesDecodeVinResponse),
@@ -783,4 +836,30 @@ export const vatApi = {
     request('/vat/checks', s.zPartnersHistoryResponse, {
       search: { subject_type: 'partner', subject_id: partnerId },
     }),
+};
+
+// 0059: departments and the technical content split by them.
+export const modulesApi = {
+  departments: (): Promise<S['Items_Department']> => request('/departments', s.zModulesListDepartmentsResponse),
+  createDepartment: (body: S['NewDepartment']): Promise<S['Department']> =>
+    request('/departments', s.zModulesCreateDepartmentResponse, { method: 'POST', body }),
+  updateDepartment: (id: number, body: S['DepartmentPatch']): Promise<S['Department']> =>
+    request(`/departments/${id}`, s.zModulesUpdateDepartmentResponse, { method: 'PATCH', body }),
+  memberships: (): Promise<S['Items_Membership']> =>
+    request('/departments/members', s.zModulesListMembershipsResponse),
+  setUserDepartments: (userId: number, body: S['UserDepartments']): Promise<void> =>
+    requestNoContent(`/users/${userId}/departments`, { method: 'PUT', body }),
+  forOrder: (orderId: number): Promise<S['OrderModules']> =>
+    request(`/orders/${orderId}/modules`, s.zModulesListModulesResponse),
+  create: (orderId: number, body: S['NewModule']): Promise<S['ModuleView']> =>
+    request(`/orders/${orderId}/modules`, s.zModulesCreateModuleResponse, { method: 'POST', body }),
+  update: (id: number, body: S['ModulePatch']): Promise<S['ModuleView']> =>
+    request(`/modules/${id}`, s.zModulesUpdateModuleResponse, { method: 'PATCH', body }),
+  remove: (id: number): Promise<void> => requestNoContent(`/modules/${id}`, { method: 'DELETE' }),
+  release: (id: number): Promise<S['ModuleView']> =>
+    request(`/modules/${id}/release`, s.zModulesReleaseModuleResponse, { method: 'POST' }),
+  addFile: (id: number, body: S['ModuleFileBody']): Promise<S['ModuleView']> =>
+    request(`/modules/${id}/files`, s.zModulesAddModuleFileResponse, { method: 'POST', body }),
+  removeFile: (id: number, fileId: number): Promise<S['ModuleView']> =>
+    request(`/modules/${id}/files/${fileId}`, s.zModulesRemoveModuleFileResponse, { method: 'DELETE' }),
 };

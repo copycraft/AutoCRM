@@ -202,7 +202,7 @@ async fn create(
     Auth(me): Auth,
     ApiJson(mut b): ApiJson<CreateBody>,
 ) -> AppResult<(StatusCode, Json<Inspection>)> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     if !KINDS.contains(&b.kind.as_str()) {
         return Err(AppError::validation("kind must be checkout or checkin"));
     }
@@ -517,7 +517,7 @@ async fn patch(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<PatchBody>,
 ) -> AppResult<Json<Inspection>> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     let current = draft_or_locked(&state.db, id).await?;
     if let Some(Some(o)) = b.odometer {
         if o < 0 {
@@ -574,7 +574,7 @@ async fn remove(
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<StatusCode> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     if !inspections::remove_draft(&state.db, id).await? {
         // Either missing or already signed: both read as "cannot discard this".
         let exists = inspections::find(&state.db, id).await?.is_some();
@@ -613,7 +613,7 @@ async fn attach_photo(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<AttachPhotoBody>,
 ) -> AppResult<(StatusCode, Json<InspectionPhotoRow>)> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     let inspection = draft_or_locked(&state.db, id).await?;
     in_list(&b.purpose, PURPOSES, "purpose")?;
     let zone_key = super::required("zone_key", &b.zone_key)?;
@@ -685,7 +685,7 @@ async fn add_damage(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<DamageBody>,
 ) -> AppResult<(StatusCode, Json<InspectionDamage>)> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     draft_or_locked(&state.db, id).await?;
     in_list(&b.damage_type, DAMAGE_TYPES, "damage_type")?;
     in_list(&b.severity, SEVERITIES, "severity")?;
@@ -727,7 +727,7 @@ async fn remove_damage(
     Auth(me): Auth,
     ApiPath((id, damage_id)): ApiPath<(i64, i64)>,
 ) -> AppResult<StatusCode> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     draft_or_locked(&state.db, id).await?;
     if !inspections::remove_damage(&state.db, id, damage_id).await? {
         return Err(AppError::NotFound("damage"));
@@ -756,7 +756,7 @@ async fn add_signature(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<SignatureBody>,
 ) -> AppResult<(StatusCode, Json<InspectionSignature>)> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     let inspection = draft_or_locked(&state.db, id).await?;
     if b.role != "inspector" && b.role != "customer" {
         return Err(AppError::validation("role must be inspector or customer"));
@@ -790,7 +790,7 @@ async fn sign(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<SignBody>,
 ) -> AppResult<Json<Inspection>> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     let inspection = draft_or_locked(&state.db, id).await?;
     let sigs = inspections::signatures_for(&state.db, id).await?;
     let has = |role: &str| sigs.iter().any(|s| s.role == role);
@@ -842,7 +842,7 @@ async fn add_note(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<NoteBody>,
 ) -> AppResult<(StatusCode, Json<InspectionNote>)> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     inspections::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("inspection"))?;
@@ -939,7 +939,7 @@ async fn set_verdict(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<VerdictBody>,
 ) -> AppResult<Json<InspectionVerdict>> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     let checkin = draft_or_locked(&state.db, id).await?;
     if checkin.kind != "checkin" {
         return Err(AppError::validation("only a check-in takes verdicts"));
@@ -1196,7 +1196,7 @@ async fn put_tyres(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<TyresBody>,
 ) -> AppResult<Json<Vec<InspectionTyre>>> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     draft_or_locked(&state.db, id).await?;
     let mut seen = std::collections::HashSet::new();
     let mut tyres = Vec::with_capacity(b.tyres.len());
@@ -1250,7 +1250,7 @@ async fn attach_video(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<VideoBody>,
 ) -> AppResult<(StatusCode, Json<InspectionVideoRow>)> {
-    me.require(Capability::ChangeStages)?;
+    me.require(Capability::HandleHandovers)?;
     let inspection = draft_or_locked(&state.db, id).await?;
     let doc = documents::find(&state.db, b.document_id)
         .await?

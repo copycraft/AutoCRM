@@ -17,7 +17,7 @@ use crate::integrations::email::Mailer;
 use crate::repo::jobs::{self, Job};
 use crate::service::automation;
 use crate::service::email::{self, Delivery};
-use crate::service::invoicing;
+use crate::service::{invoicing, relocate};
 
 pub mod kinds {
     pub const SEND_EMAIL: &str = "send_email";
@@ -52,6 +52,9 @@ pub mod kinds {
     pub const NAV_SUBMIT_INVOICE: &str = "nav_submit_invoice";
     /// Technically annul a data report.
     pub const NAV_ANNUL_INVOICE: &str = "nav_annul_invoice";
+    /// Nightly, and after an enquiry becomes an order: file stored files in their project
+    /// folders on the share (STORAGE_BACKEND=fs; nothing to do on an object store).
+    pub const STORAGE_TIDY: &str = "storage_tidy";
     /// EU VAT numbers asked of VIES again, in batches: UNAVAILABLE answers every 15
     /// minutes, valid numbers monthly, and imported numbers once (service::vat::sweep).
     pub const VAT_SWEEP: &str = "vat_sweep";
@@ -207,6 +210,13 @@ struct ConversionPayload {
     order_id: i64,
 }
 
+#[derive(Deserialize)]
+struct TidyPayload {
+    /// Only this enquiry's documents; everything when absent.
+    #[serde(default)]
+    lead_id: Option<i64>,
+}
+
 fn payload<T: for<'de> Deserialize<'de>>(job: &Job) -> anyhow::Result<T> {
     serde_json::from_value(job.payload.clone())
         .map_err(|e| anyhow!("bad payload for {}: {e}", job.kind))
@@ -297,6 +307,15 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
         kinds::META_CONVERSION => {
             let p: ConversionPayload = payload(job)?;
             crate::service::ads::send_conversion(state, p.lead_id, p.order_id).await?;
+            Ok(Outcome::Done)
+        }
+        kinds::STORAGE_TIDY => {
+            let p: TidyPayload = payload(job)?;
+            let scope = match p.lead_id {
+                Some(id) => relocate::Scope::Lead(id),
+                None => relocate::Scope::All,
+            };
+            relocate::tidy(state, scope).await?;
             Ok(Outcome::Done)
         }
         kinds::VAT_SWEEP => {
@@ -427,6 +446,19 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
                 minute / 10
             ),
             kinds::READ_MAILBOX,
+            json!({}),
+        )
+        .await?;
+    }
+    // Files land in their folders as they are uploaded; the night pass catches what
+    // moved since (a deleted photo, a walkaround's signature) and any MiniCRM leftovers.
+    if state.storage.as_fs().is_some()
+        && time >= NaiveTime::from_hms_opt(1, 0, 0).expect("valid time")
+    {
+        once(
+            state,
+            &format!("{}:{today}", kinds::STORAGE_TIDY),
+            kinds::STORAGE_TIDY,
             json!({}),
         )
         .await?;

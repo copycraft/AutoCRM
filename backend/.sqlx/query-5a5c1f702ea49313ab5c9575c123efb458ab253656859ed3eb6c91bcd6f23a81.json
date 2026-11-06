@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM spec_section_project_types WHERE section_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5a5c1f702ea49313ab5c9575c123efb458ab253656859ed3eb6c91bcd6f23a81"
+}

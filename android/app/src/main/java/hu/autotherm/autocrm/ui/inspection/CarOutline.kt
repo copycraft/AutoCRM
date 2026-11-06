@@ -57,7 +57,9 @@ fun CarOutline(
             topLeft = Offset(left, top),
             size = Size(bodyW, bodyH),
             cornerRadius = CornerRadius(bodyW * 0.28f, bodyW * 0.28f),
-            style = Stroke(width = 5f),
+            // All strokes and radii in dp: raw pixels render a third thinner on a
+            // 480 dpi phone than on a 160 dpi one.
+            style = Stroke(width = 2.dp.toPx()),
         )
         // Windscreen + rear window.
         val glassW = bodyW * 0.72f
@@ -66,15 +68,15 @@ fun CarOutline(
             color = Steel200,
             topLeft = Offset(glassLeft, top + bodyH * 0.18f),
             size = Size(glassW, bodyH * 0.10f),
-            cornerRadius = CornerRadius(8f, 8f),
-            style = Stroke(width = 4f),
+            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+            style = Stroke(width = 1.5.dp.toPx()),
         )
         drawRoundRect(
             color = Steel200,
             topLeft = Offset(glassLeft, top + bodyH * 0.72f),
             size = Size(glassW, bodyH * 0.08f),
-            cornerRadius = CornerRadius(8f, 8f),
-            style = Stroke(width = 4f),
+            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+            style = Stroke(width = 1.5.dp.toPx()),
         )
         // Wheels.
         val wheelR = bodyW * 0.10f
@@ -86,16 +88,16 @@ fun CarOutline(
         )
         for (o in wheelOffsets) {
             drawCircle(Color.White, radius = wheelR, center = o)
-            drawCircle(Steel900, radius = wheelR, center = o, style = Stroke(width = 4f))
+            drawCircle(Steel900, radius = wheelR, center = o, style = Stroke(width = 1.5.dp.toPx()))
         }
         // Front marker.
-        drawCircle(Steel200, radius = 8f, center = Offset(w / 2, top - 22f))
+        drawCircle(Steel200, radius = 4.dp.toPx(), center = Offset(w / 2, top - 12.dp.toPx()))
 
         // Damage marks.
         for ((x, y) in marks) {
             val c = Offset(x * w, y * h)
-            drawCircle(Signal, radius = 16f, center = c)
-            drawCircle(Color.White, radius = 16f, center = c, style = Stroke(width = 4f))
+            drawCircle(Signal, radius = 10.dp.toPx(), center = c)
+            drawCircle(Color.White, radius = 10.dp.toPx(), center = c, style = Stroke(width = 2.dp.toPx()))
         }
     }
 }

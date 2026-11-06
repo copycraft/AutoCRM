@@ -37,7 +37,8 @@
                 "certificate",
                 "invoice",
                 "proforma",
-                "video"
+                "video",
+                "quote"
               ]
             }
           }

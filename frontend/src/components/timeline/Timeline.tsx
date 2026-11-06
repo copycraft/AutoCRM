@@ -265,7 +265,8 @@ function title(t: ReturnType<typeof useTranslations>, e: TimelineEvent): string 
         'item_update', 'item_remove', 'spec_set', 'blocker_nudge', 'import',
         'customer_replied', 'followup_sent', 'payment_reminder_sent', 'reminders_off', 'reminders_on',
         'document_file', 'vehicle_moved', 'incident', 'incident_rework', 'incident_resolved',
-        'incident_reopened', 'image_annotated', 'document_version',
+        'incident_reopened', 'image_annotated', 'document_version', 'quote_recorded', 'module_add', 'module_update',
+        'module_remove', 'module_released', 'copied_from',
       ];
       return known.includes(e.action) ? t(`actions.${e.action}`) : e.action.replace(/_/g, ' ');
     }

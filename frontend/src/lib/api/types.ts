@@ -98,8 +98,13 @@ export interface Items<T> {
 export type AuditEntry = Schemas['AuditEntry'];
 export type OrderNote = Schemas['OrderNote'];
 export type Vehicle = Schemas['Vehicle'];
-export type OrderSpec = Schemas['OrderSpec'];
-export type SpecBody = Schemas['SpecBody'];
+export type Questionnaire = Schemas['Questionnaire'];
+export type SpecSection = Schemas['Section'];
+export type SpecQuestion = Schemas['Question'];
+export type LeadSpec = Schemas['LeadSpec'];
+export type SpecAnswers = Schemas['SpecAnswers'];
+/** Question key → answer: true/false, a number, text, or a list of choices. */
+export type Answers = Record<string, unknown>;
 export type Document = Schemas['Document'];
 export type RawImportView = Schemas['RawImportView'];
 export type Blocker = Schemas['Blocker'];
@@ -145,3 +150,18 @@ export type Annotations = Schemas['Annotations'];
 export type InspectionTyre = Schemas['InspectionTyre'];
 export type InspectionVideoView = Schemas['InspectionVideoView'];
 export type StagePhotoCategory = Schemas['StagePhotoCategory'];
+// 0058: invoices prepared in the Számlázó.
+export type InvoiceDraft = Schemas['InvoiceDraft'];
+export type DraftSummary = Schemas['DraftSummary'];
+export type InvoicePreview = Schemas['InvoicePreview'];
+// 0059: departments and the technical content split by them.
+export type Department = Schemas['Department'];
+export type Membership = Schemas['Membership'];
+export type ModuleView = Schemas['ModuleView'];
+export type OrderModules = Schemas['OrderModules'];
+// Repeat orders.
+export type CopyRequest = Schemas['CopyRequest'];
+export type CopyResult = Schemas['CopyResult'];
+// 0064: job ads.
+export type JobAdView = Schemas['JobAdView'];
+export type JobAdsReport = Schemas['JobAdsReport'];

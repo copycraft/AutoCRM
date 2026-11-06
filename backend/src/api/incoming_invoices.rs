@@ -23,6 +23,7 @@ use super::{Items, optional, page_limit, page_offset, patch as patch_field, patc
 use crate::AppState;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
+use crate::media::layout;
 use crate::media::storage::content_disposition;
 use crate::repo::incoming_invoices::{
     self, BUCKETS, Fields, IncomingBucketCount, IncomingInvoice, KnownSupplier, NewFile,
@@ -65,9 +66,10 @@ struct ListQuery {
 )]
 async fn list(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<ListQuery>,
 ) -> AppResult<Json<Items<IncomingInvoice>>> {
+    me.require(Capability::ViewIncomingInvoices)?;
     let bucket = optional(q.bucket);
     if let Some(b) = &bucket
         && !BUCKETS.contains(&b.as_str())
@@ -96,8 +98,9 @@ async fn list(
 )]
 async fn counts(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
 ) -> AppResult<Json<Items<IncomingBucketCount>>> {
+    me.require(Capability::ViewIncomingInvoices)?;
     Ok(Items::new(
         incoming_invoices::bucket_counts(&state.db).await?,
     ))
@@ -110,8 +113,9 @@ async fn counts(
 )]
 async fn suppliers(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
 ) -> AppResult<Json<Items<KnownSupplier>>> {
+    me.require(Capability::ViewIncomingInvoices)?;
     Ok(Items::new(
         incoming_invoices::known_suppliers(&state.db).await?,
     ))
@@ -124,9 +128,10 @@ async fn suppliers(
 )]
 async fn detail(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<IncomingInvoice>> {
+    me.require(Capability::ViewIncomingInvoices)?;
     Ok(Json(
         incoming_invoices::find(&state.db, id)
             .await?
@@ -194,7 +199,14 @@ async fn upload(
             format!("this file is already uploaded as incoming invoice #{existing}"),
         ));
     }
-    let key = format!("incoming-invoices/{}.{ext}", hex::encode(&hash));
+    let hash_hex = hex::encode(&hash);
+    let key = layout::join(
+        &layout::incoming_invoice_dir(
+            crate::service::business_today(state.config.business_tz),
+            false,
+        ),
+        &layout::file_name(Some(&name), "szamla", layout::hash_tag(&hash_hex), ext),
+    );
     let size = body.len() as i64;
     state
         .storage
@@ -442,9 +454,10 @@ struct FileUrl {
 )]
 async fn file_url(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<FileUrl>> {
+    me.require(Capability::ViewIncomingInvoices)?;
     let (key, name) = incoming_invoices::file_key(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("incoming invoice file"))?;

@@ -37,24 +37,29 @@ class SignatureState {
     private val _strokes = mutableListOf<MutableList<Offset>>()
     val strokes: List<List<Offset>> get() = _strokes
 
-    var revision by mutableStateOf(0)
-        private set
+    /** One Path per stroke, appended to as the finger moves — the canvas draws these. */
+    // A snapshot list: reading it inside the Canvas's draw block re-triggers the redraw,
+    // so nothing has to rebuild every stroke on every pointer event (the old revision
+    // scheme re-allocated all paths per move and stuttered on long signatures).
+    private val _paths = androidx.compose.runtime.snapshots.SnapshotStateList<Path>()
+
+    val paths: List<Path> get() = _paths
 
     val hasContent: Boolean get() = _strokes.any { it.size > 1 }
 
     fun startStroke(at: Offset) {
         _strokes.add(mutableListOf(at))
-        revision++
+        _paths.add(Path().apply { moveTo(at.x, at.y) })
     }
 
     fun extendStroke(to: Offset) {
         _strokes.lastOrNull()?.add(to)
-        revision++
+        _paths.lastOrNull()?.lineTo(to.x, to.y)
     }
 
     fun clear() {
         _strokes.clear()
-        revision++
+        _paths.clear()
     }
 
     /** Renders the drawing to a PNG file. Null when the pad is empty. */
@@ -105,18 +110,6 @@ fun SignaturePad(
     state: SignatureState,
     modifier: Modifier = Modifier,
 ) {
-    // Read revision so every stroke recomposes the canvas.
-    state.revision
-    val paths = remember(state.revision) {
-        state.strokes.map { points ->
-            Path().apply {
-                if (points.isNotEmpty()) {
-                    moveTo(points[0].x, points[0].y)
-                    for (p in points.drop(1)) lineTo(p.x, p.y)
-                }
-            }
-        }
-    }
     Canvas(
         modifier
             .fillMaxWidth()
@@ -141,11 +134,11 @@ fun SignaturePad(
             end = Offset(size.width - 16.dp.toPx(), lineY),
             strokeWidth = 2.dp.toPx(),
         )
-        for (path in paths) {
+        for (path in state.paths) {
             drawPath(
                 path = path,
                 color = Steel900,
-                style = Stroke(width = 6f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
             )
         }
     }

@@ -64,6 +64,7 @@ works without it.
 | `VIN_DECODER_ONLINE=true` | Make and model from NHTSA when a VIN is read (the offline reading always works) |
 | `NAV_SUPPLIER_BANK_ACCOUNT_EUR` | A separate account on EUR invoices and proformas |
 | `EMAIL_MODE=smtp` | Real delivery. Otherwise mail is dry-run: rows are written and bodies logged |
+| `STORAGE_BACKEND=fs` + `STORAGE_DIR` | Files as plain files in project folders on a mounted (NFS) share instead of the object store. See [Files on an NFS share](#files-on-an-nfs-share) |
 
 Automatic mail (nudges, follow-ups, reminders, confirmations, alerts) also needs the kill
 switch turned on in Beállítások. It is off by default, and mail queued while it is off is
@@ -138,6 +139,66 @@ cd backend && cargo run -- fx-backfill --from 2010-01-01 --to 2026-09-11
 
 **Email check.** `cargo run -- email-test --to you@autotherm.hu` sends one message straight
 through the configured transport and prints what the server said.
+
+## Files on an NFS share
+
+With `STORAGE_BACKEND=fs`, every file the system keeps is a plain file under `STORAGE_DIR`,
+filed where a person browsing the share would look for it:
+
+```text
+projektek/2026/2026-0042_Kovacs-Kft_ABC-123/      one folder per order (number_customer_plate)
+    ajanlat/                                       the enquiry's quotation and files
+    dokumentumok/{terv,cad,tanusitvany,video,egyeb}/
+    szamlazas/{szamlak,sztornok,dijbekerok}/       invoice, storno and proforma PDFs
+    fotok/{bevetel,gyartas,atadas-meo,atadas-atvetel,marketing}/
+    atadas-atvetel/2026-10-19_atvetel_ABC-123_17/{fotok,alairasok,videok}/
+    torolt/…                                       deleted in the app
+    .elonezet/                                     previews and thumbnails (regenerable)
+ajanlatok/2026/L000123_Kovacs-Kft/                 enquiries that have not become an order
+hr/dolgozok/0012_Nagy-Peter/{profilkep,dokumentumok/<fajta>,tavollet}/
+hr/toborzas/0003_Villanyszerelo/                   CVs, per job posting
+bejovo-szamlak/2026/10/                            incoming supplier invoices, by month
+migracio/eredeti/                                  MiniCRM downloads, until re-sorted
+```
+
+Names are ASCII (accents dropped) and end in the first eight characters of the file's
+sha256, so two `IMG_0001.jpg` never collide. A folder is named once, from what was known
+then, and kept: renaming the customer later does not split the project. Intake photos are
+read-only files. Each night the worker re-files anything out of place (an enquiry that
+became an order, a deleted photo, a walkaround's signature) and clears aborted uploads.
+
+Uploads and downloads go through the API (`<PUBLIC_BASE_URL>/api/files/<signed token>`),
+with the same three upload steps the web app and the phone always used, so neither needed
+to change. Uploads are written under `.tmp/` and linked into place only when size and
+sha256 match.
+
+**Mounting.** Mount the export on the server, e.g. in `/etc/fstab`:
+
+```text
+nas.local:/volume1/autocrm  /srv/autocrm-files  nfs4  rw,hard,noatime,_netdev  0  0
+```
+
+then `STORAGE_BACKEND=fs` and `STORAGE_DIR=/srv/autocrm-files`. Outside `APP_ENV=dev` the
+server refuses to start (and to write) unless `STORAGE_DIR` is on a mounted filesystem of
+its own, so a share that failed to mount never fills the local disk; `STORAGE_REQUIRE_MOUNT`
+overrides that. The exported folder must be writable by the user the server runs as. The
+Docker demo mounts the share itself: [deploy/demo/README.md](deploy/demo/README.md).
+
+`hr/` holds medical papers and CVs: give it narrower permissions on the NAS than the rest
+of the share.
+
+**Moving from the object store.** Keep the `S3_*` settings, switch to `fs`, then copy every
+file over once, into its folder (the object store is left untouched; re-running resumes):
+
+```bash
+autocrm storage-relayout --from-s3 --dry-run
+```
+
+```bash
+autocrm storage-relayout --from-s3
+```
+
+Without `--from-s3` the same command re-sorts what is already on the share.
 
 ## Tests
 

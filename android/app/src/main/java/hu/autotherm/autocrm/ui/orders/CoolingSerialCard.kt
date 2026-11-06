@@ -49,6 +49,7 @@ import hu.autotherm.autocrm.ui.theme.MonoSmall
 import hu.autotherm.autocrm.ui.theme.Signal
 import hu.autotherm.autocrm.ui.theme.Steel500
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -180,22 +181,30 @@ private fun BarcodeCamera(onFound: (String) -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
     val scanner = remember { BarcodeScanning.getClient() }
-    var done by remember { mutableStateOf(false) }
+    // Atomic: written on the main thread (detector callbacks) but read on the analyzer
+    // executor thread, so a plain Boolean would be an unsynchronised race.
+    val done = remember { AtomicBoolean(false) }
     val previewView = remember { PreviewView(context) }
 
     DisposableEffect(lifecycleOwner) {
         val providerFuture = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        // CameraX resolves asynchronously: if the dialog is dismissed while the provider
+        // future is still pending, onDispose runs with provider == null — without the
+        // binding flag the late bind would leave the camera hot with no screen to stop it.
+        var binding = true
+        val boundProvider = AtomicBoolean(false)
         providerFuture.addListener({
             val p = providerFuture.get()
             provider = p
+            if (!binding) return@addListener
             val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
             val analysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
             analysis.setAnalyzer(executor) { proxy ->
                 val media = proxy.image
-                if (media == null || done) {
+                if (media == null || done.get()) {
                     proxy.close()
                     return@setAnalyzer
                 }
@@ -203,8 +212,8 @@ private fun BarcodeCamera(onFound: (String) -> Unit) {
                 scanner.process(input)
                     .addOnSuccessListener { codes ->
                         val value = codes.firstNotNullOfOrNull { it.rawValue?.trim()?.takeIf(String::isNotEmpty) }
-                        if (value != null && !done) {
-                            done = true
+                        if (value != null && !done.get()) {
+                            done.set(true)
                             ContextCompat.getMainExecutor(context).execute { onFound(value) }
                         }
                     }
@@ -213,12 +222,14 @@ private fun BarcodeCamera(onFound: (String) -> Unit) {
             try {
                 p.unbindAll()
                 p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                boundProvider.set(true)
             } catch (_: Exception) {
                 // No back camera, or it is busy: the manual field remains.
             }
         }, ContextCompat.getMainExecutor(context))
         onDispose {
-            provider?.unbindAll()
+            binding = false
+            if (boundProvider.get()) provider?.unbindAll()
             scanner.close()
             executor.shutdown()
         }

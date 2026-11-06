@@ -7,8 +7,9 @@
 // proforma's order: the invoice is built from the order's line items, the
 // same items the proforma rendered).
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BucketBadge, BucketList, type Bucket } from '@/components/tags/BucketList';
@@ -27,6 +28,7 @@ import { DateDisplay } from '@/components/ui/DateDisplay';
 import { InvoicesSection } from '@/components/orders/InvoicesSection';
 import { ProformasSection } from '@/components/orders/ProformasSection';
 import { PaymentsPanel } from '@/components/billing/PaymentsPanel';
+import { InvoiceDraftPanel } from '@/components/billing/InvoiceDraftPanel';
 import type { BilledInvoice, BilledProforma, Currency, OrderSummary } from '@/lib/api/types';
 
 const STATUSES = ['submitting', 'issued', 'rejected', 'stornoed', 'annulled'] as const;
@@ -84,10 +86,26 @@ function pickedOrder(
 export function BillingPage() {
   const t = useTranslations('invoices');
   const locale = useLocale();
-  const [tab, setTab] = useState<'invoices' | 'proformas'>('invoices');
+  const search = useSearchParams();
+  const { user } = useAuth();
+  // Drafts are issuing work: the server asks IssueInvoices for them, so only those see them.
+  const canIssue = canIssueInvoices(user);
+  // "Számlázóba" on an order lands here with ?draft=<order id>.
+  const [draftOrder, setDraftOrder] = useState<number | null>(() => Number(search.get('draft')) || null);
+  const [tab, setTab] = useState<'drafts' | 'invoices' | 'proformas'>(canIssue ? 'drafts' : 'invoices');
   const [status, setStatus] = useState('');
   const [kind, setKind] = useState('');
   const [picked, setPicked] = useState<OrderSummary | null>(null);
+  const drafts = useQuery({ queryKey: ['invoice-drafts'], queryFn: () => invoicesApi.drafts(), enabled: canIssue });
+  // Sent here again from another order while the page is open.
+  const wanted = Number(search.get('draft')) || null;
+  useEffect(() => {
+    if (wanted !== null && canIssue) setDraftOrder(wanted);
+  }, [wanted, canIssue]);
+
+  if (draftOrder !== null && canIssue) {
+    return <InvoiceDraftPanel orderId={draftOrder} onClose={() => setDraftOrder(null)} />;
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_380px]">
@@ -95,10 +113,11 @@ export function BillingPage() {
         <div className="flex gap-2" role="tablist" aria-label={t('billingTitle')}>
           {(
             [
+              ['drafts', `${t('draftsTab')} (${drafts.data?.items.length ?? 0})`],
               ['invoices', t('billingHistory')],
               ['proformas', t('billingProformas')],
             ] as const
-          ).map(([value, label]) => (
+          ).filter(([value]) => value !== 'drafts' || canIssue).map(([value, label]) => (
             <button
               key={value}
               role="tab"
@@ -111,7 +130,9 @@ export function BillingPage() {
           ))}
         </div>
         <div className="mt-4">
-          {tab === 'invoices' ? (
+          {tab === 'drafts' ? (
+            <DraftList onOpen={setDraftOrder} />
+          ) : tab === 'invoices' ? (
             <InvoiceHistory
               status={status}
               kind={kind}
@@ -135,6 +156,52 @@ export function BillingPage() {
       <aside>
         <CreatePanel picked={picked} onPick={setPicked} onClear={() => setPicked(null)} />
       </aside>
+    </div>
+  );
+}
+
+/** Orders sent to the Számlázó and not issued yet, longest waiting first. */
+function DraftList({ onOpen }: { onOpen: (orderId: number) => void }) {
+  const t = useTranslations('invoices');
+  const query = useQuery({ queryKey: ['invoice-drafts'], queryFn: () => invoicesApi.drafts() });
+  if (query.isLoading) return <LoadingState />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  const items = query.data?.items ?? [];
+  if (items.length === 0) return <p className="text-body text-steel-500">{t('draftsEmpty')}</p>;
+  return (
+    <div className="table-container">
+      <table className="table">
+        <thead>
+          <tr>
+            <th scope="col">{t('billingOrder')}</th>
+            <th scope="col">{t('customer')}</th>
+            <th scope="col" className="text-right">{t('net')}</th>
+            <th scope="col">{t('draftsBy')}</th>
+            <th scope="col"><span className="sr-only">{t('draftOpen')}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((d) => (
+            <tr key={d.order_id}>
+              <td className="font-medium">
+                #{d.order_number} · {d.order_title}
+              </td>
+              <td>{d.partner_name}</td>
+              <td className="text-right">
+                <Money minor={d.net_minor} currency={d.currency as Currency} />
+              </td>
+              <td className="text-metadata text-steel-500">
+                {d.created_by_name ?? '—'} · <DateDisplay value={d.updated_at} />
+              </td>
+              <td className="text-right">
+                <button type="button" className="btn-primary btn-sm" onClick={() => onOpen(d.order_id)}>
+                  {t('draftOpen')}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -169,8 +236,9 @@ function InvoiceHistory({
   const allBuckets = groups.flatMap((g) => g.buckets);
 
   return (
-    <section className="grid grid-cols-1 gap-5 md:grid-cols-[13rem_minmax(0,1fr)]">
-      <aside className="card self-start p-3">
+    <section className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,1fr)_13rem]">
+      {/* The status list sits on the right, as on every list; on a phone it comes first. */}
+      <aside className="card self-start p-3 md:col-start-2 md:row-start-1">
         <BucketList
           title={t('buckets.title')}
           groups={groups}
@@ -180,7 +248,7 @@ function InvoiceHistory({
           allLabel={t('buckets.all')}
         />
       </aside>
-      <div>
+      <div className="min-w-0 md:col-start-1 md:row-start-1">
       <div className="flex flex-wrap items-center gap-2">
         <label className="label" htmlFor="billing-status">
           {t('billingStatus')}

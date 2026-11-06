@@ -20,10 +20,12 @@ use crate::AppState;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
 use crate::integrations::nav::ChainElement;
+use crate::repo::invoice_drafts::{self, DraftSummary, InvoiceDraft};
 use crate::repo::invoices::{BilledInvoice, BilledProforma, Invoice, InvoiceLine, Proforma};
 use crate::repo::{documents, invoices, orders};
 use crate::service::invoicing::{
-    self, AnnulRequest, IssueRequest, ProformaCreated, ProformaRequest, StornoRequest,
+    self, AnnulRequest, InvoicePreview, IssueRequest, ProformaCreated, ProformaRequest,
+    StornoRequest,
 };
 
 pub fn routes() -> OpenApiRouter<AppState> {
@@ -35,6 +37,10 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(overdue))
         .routes(routes!(list_all_proformas))
         .routes(routes!(list_for_order, create))
+        // 0058: prepared in the Számlázó, previewed, then issued
+        .routes(routes!(list_drafts))
+        .routes(routes!(get_draft, put_draft, delete_draft))
+        .routes(routes!(preview))
         .routes(routes!(detail))
         .routes(routes!(storno))
         .routes(routes!(annul))
@@ -114,9 +120,10 @@ fn billing_limit(limit: Option<i64>) -> i64 {
 )]
 async fn list_all(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<BillingQuery>,
 ) -> AppResult<Json<Items<BilledInvoice>>> {
+    me.require(Capability::ViewInvoices)?;
     const STATUSES: &[&str] = &["submitting", "issued", "rejected", "stornoed", "annulled"];
     const KINDS: &[&str] = &["invoice", "storno"];
     if let Some(status) = &q.status
@@ -170,9 +177,10 @@ struct ProformasQuery {
 )]
 async fn list_all_proformas(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<ProformasQuery>,
 ) -> AppResult<Json<Items<BilledProforma>>> {
+    me.require(Capability::ViewInvoices)?;
     Ok(Items::new(
         invoices::list_proformas(&state.db, billing_limit(q.limit)).await?,
     ))
@@ -185,10 +193,104 @@ async fn list_all_proformas(
 )]
 async fn list_for_order(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<Invoice>>> {
+    me.require(Capability::ViewInvoices)?;
     Ok(Items::new(invoices::list_for_order(&state.db, id).await?))
+}
+
+/// Every invoice waiting in the Számlázó to be looked over and issued, oldest first.
+#[utoipa::path(
+    get, path = "/invoice-drafts", tag = "invoices",
+    responses((status = 200, body = Items<DraftSummary>))
+)]
+async fn list_drafts(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+) -> AppResult<Json<Items<DraftSummary>>> {
+    me.require(Capability::IssueInvoices)?;
+    Ok(Items::new(invoice_drafts::list(&state.db).await?))
+}
+
+/// The order's invoice draft, if one is waiting in the Számlázó.
+#[utoipa::path(
+    get, path = "/orders/{id}/invoice-draft", tag = "invoices",
+    params(("id" = i64, Path)),
+    responses((status = 200, body = InvoiceDraft), (status = 404))
+)]
+async fn get_draft(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<Json<InvoiceDraft>> {
+    me.require(Capability::IssueInvoices)?;
+    invoice_drafts::find(&state.db, id)
+        .await?
+        .map(Json)
+        .ok_or(AppError::NotFound("invoice draft"))
+}
+
+/// Send the order to the Számlázó, or change the terms its draft will be issued with.
+/// The lines are the order's items and are edited there; only the invoice's own terms live
+/// here. Omitted terms take their default when the invoice is issued.
+#[utoipa::path(
+    put, path = "/orders/{id}/invoice-draft", tag = "invoices",
+    params(("id" = i64, Path)),
+    request_body = IssueRequest,
+    responses((status = 200, body = InvoiceDraft))
+)]
+async fn put_draft(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(body): ApiJson<IssueRequest>,
+) -> AppResult<Json<InvoiceDraft>> {
+    me.require(Capability::IssueInvoices)?;
+    let terms = invoicing::draft_terms(&body)?;
+    if orders::find(&state.db, id).await?.is_none() {
+        return Err(AppError::NotFound("order"));
+    }
+    Ok(Json(
+        invoice_drafts::upsert(&state.db, id, &terms, me.user_id).await?,
+    ))
+}
+
+/// Take the order back out of the Számlázó without issuing.
+#[utoipa::path(
+    delete, path = "/orders/{id}/invoice-draft", tag = "invoices",
+    params(("id" = i64, Path)),
+    responses((status = 204), (status = 404))
+)]
+async fn delete_draft(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+) -> AppResult<StatusCode> {
+    me.require(Capability::IssueInvoices)?;
+    if invoice_drafts::delete(&state.db, id).await? {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::NotFound("invoice draft"))
+    }
+}
+
+/// The invoice the order would get if issued now with these terms: lines, totals, both
+/// parties, and whatever would stop the issue. Nothing is numbered or reported.
+#[utoipa::path(
+    post, path = "/orders/{id}/invoice-preview", tag = "invoices",
+    params(("id" = i64, Path)),
+    request_body = IssueRequest,
+    responses((status = 200, body = InvoicePreview))
+)]
+async fn preview(
+    State(state): State<AppState>,
+    Auth(me): Auth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(body): ApiJson<IssueRequest>,
+) -> AppResult<Json<InvoicePreview>> {
+    me.require(Capability::IssueInvoices)?;
+    Ok(Json(invoicing::preview_invoice(&state, id, &body).await?))
 }
 
 /// Issue an invoice for an order and report it to NAV.
@@ -219,9 +321,10 @@ async fn create(
 )]
 async fn detail(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<InvoiceDetail>> {
+    me.require(Capability::ViewInvoices)?;
     let invoice = invoices::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("invoice"))?;
@@ -313,9 +416,10 @@ async fn refetch_pdf(
 )]
 async fn chain(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<ChainStep>>> {
+    me.require(Capability::ViewInvoices)?;
     let invoice = invoices::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("invoice"))?;
@@ -334,9 +438,10 @@ async fn chain(
 )]
 async fn list_proformas(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<Proforma>>> {
+    me.require(Capability::ViewInvoices)?;
     Ok(Items::new(
         invoices::list_proformas_for_order(&state.db, id).await?,
     ))
@@ -378,8 +483,9 @@ const BUCKETS: &[&str] = &[
 )]
 async fn bucket_counts(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
 ) -> AppResult<Json<Items<invoices::BucketCount>>> {
+    me.require(Capability::ViewInvoices)?;
     Ok(Items::new(invoices::bucket_counts(&state.db).await?))
 }
 
@@ -480,9 +586,10 @@ struct OverdueQuery {
 )]
 async fn overdue(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<OverdueQuery>,
 ) -> AppResult<Json<Items<invoices::OverdueInvoice>>> {
+    me.require(Capability::ViewInvoices)?;
     let today = crate::service::business_today(state.config.business_tz);
     Ok(Items::new(
         invoices::overdue(&state.db, today, q.partner_id, 500).await?,
@@ -500,9 +607,10 @@ use crate::repo::payments::{self, InvoicePayment, NewPayment, StatementLine};
 )]
 async fn list_payments(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<InvoicePayment>>> {
+    me.require(Capability::ViewInvoices)?;
     Ok(Items::new(payments::list(&state.db, id).await?))
 }
 
@@ -681,10 +789,11 @@ struct Statement {
 )]
 async fn statement(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
     ApiQuery(q): ApiQuery<StatementQuery>,
 ) -> AppResult<Json<Statement>> {
+    me.require(Capability::ViewInvoices)?;
     let today = crate::service::business_today(state.config.business_tz);
     let to = q.to.unwrap_or(today);
     let from = q.from.unwrap_or(to - chrono::TimeDelta::days(365));

@@ -1,11 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth/context';
 
 const MAX_DEFAULT = 8;
 
+/**
+ * The storage key for this person: on a shared workshop PC one person's recent searches
+ * and records (an enquiry, a customer) must not show up for the next (0061).
+ */
+function usePersonalKey(key: string): string {
+  const { user } = useAuth();
+  return `${key}:u${user?.id ?? 'anon'}`;
+}
+
 /** Non-sensitive localStorage list (search queries, visited record refs). */
-export function useRecent(key: string, max: number = MAX_DEFAULT) {
+export function useRecent(baseKey: string, max: number = MAX_DEFAULT) {
+  const key = usePersonalKey(baseKey);
   const [items, setItems] = useState<string[]>([]);
 
   useEffect(() => {
@@ -58,11 +69,12 @@ export interface RecentRecord {
 
 /** Recently visited records (orders/leads/partners). Titles + ids only, no PII beyond names. */
 export function useRecentRecords(max = 6) {
+  const key = usePersonalKey('autocrm:recent-records');
   const [records, setRecords] = useState<RecentRecord[]>([]);
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem('autocrm:recent-records');
+      const raw = window.localStorage.getItem(key);
       if (raw) {
         const parsed: unknown = JSON.parse(raw);
         if (Array.isArray(parsed)) {
@@ -82,7 +94,7 @@ export function useRecentRecords(max = 6) {
     } catch {
       setRecords([]);
     }
-  }, [max]);
+  }, [key, max]);
 
   const push = useCallback(
     (rec: Omit<RecentRecord, 'at'>) => {
@@ -92,24 +104,24 @@ export function useRecentRecords(max = 6) {
           max,
         );
         try {
-          window.localStorage.setItem('autocrm:recent-records', JSON.stringify(next));
+          window.localStorage.setItem(key, JSON.stringify(next));
         } catch {
           /* best-effort */
         }
         return next;
       });
     },
-    [max],
+    [key, max],
   );
 
   const clear = useCallback(() => {
     setRecords([]);
     try {
-      window.localStorage.removeItem('autocrm:recent-records');
+      window.localStorage.removeItem(key);
     } catch {
       /* best-effort */
     }
-  }, []);
+  }, [key]);
 
   return { records, push, clear };
 }

@@ -1,0 +1,102 @@
+{
+ "fps": 30,
+ "width": 1920,
+ "height": 1080,
+ "duration": 120,
+ "projectName": "showcase-film",
+ "title": "Autotherm: A Teljes Folyamat",
+ "subtitle": "Hűtős átalakítás · MNP-421 · Szeged",
+ "photos": {
+  "sprinter": "C:/Users/vasta/Documents/PROJECTS/autotherm-photos/car-2/IMG_20260511_092828.jpg",
+  "hearse": "C:/Users/vasta/Documents/PROJECTS/autotherm-photos/car-1/IMG_20260818_082645.jpg",
+  "loadSpace": "C:/Users/vasta/Documents/PROJECTS/autotherm-photos/car-2/IMG_20260511_092940.jpg",
+  "sprinterSide": "C:/Users/vasta/Documents/PROJECTS/autotherm-photos/car-2/IMG_20260511_092854.jpg"
+ },
+ "audio": null,
+ "contact": {
+  "line1": "Autotherm",
+  "line2": "Járműátalakítás · Szeged",
+  "line3": "autotherm.hu · +36 62 555 0100"
+ },
+ "scenes": [
+  {
+   "n": 1,
+   "name": "Nyitás",
+   "label": "01 · NYITÁS",
+   "start": 0,
+   "end": 10,
+   "kind": "photo",
+   "subtitle": "Hűtős átalakítás · MNP-421",
+   "flashAt": []
+  },
+  {
+   "n": 2,
+   "name": "Érdeklődés",
+   "label": "02 · ÉRDEKLŐDÉS",
+   "start": 10,
+   "end": 20,
+   "kind": "web",
+   "flashAt": []
+  },
+  {
+   "n": 3,
+   "name": "Ajánlat & Megrendelés",
+   "label": "03 · AJÁNLAT & MEGRENDELÉS",
+   "start": 20,
+   "end": 35,
+   "kind": "web",
+   "emailLines": [
+    "Tárgy: Megrendelés – hűtős felépítmény",
+    "Szép napot! Elfogadjuk az ajánlatot,",
+    "a Sprinter(MNP-421) átvételére hétfőn",
+    "várjuk a műhelyt. Szabó Gergely"
+   ],
+   "flashAt": []
+  },
+  {
+   "n": 4,
+   "name": "Átvétel",
+   "label": "04 · ÁTVÉTEL",
+   "start": 35,
+   "end": 50,
+   "kind": "photo",
+   "flashAt": []
+  },
+  {
+   "n": 5,
+   "name": "Gyártás",
+   "label": "05 · GYÁRTÁS",
+   "start": 50,
+   "end": 75,
+   "kind": "web",
+   "flashAt": []
+  },
+  {
+   "n": 6,
+   "name": "Számlázás",
+   "label": "06 · SZÁMLÁZÁS",
+   "start": 75,
+   "end": 90,
+   "kind": "web",
+   "flashAt": []
+  },
+  {
+   "n": 7,
+   "name": "Kiadás",
+   "label": "07 · KIADÁS",
+   "start": 90,
+   "end": 105,
+   "kind": "photo",
+   "flashAt": []
+  },
+  {
+   "n": 8,
+   "name": "Jelentések és zárás",
+   "label": "08 · JELENTÉSEK",
+   "start": 105,
+   "end": 120,
+   "kind": "outro",
+   "flashAt": []
+  }
+ ]
+}

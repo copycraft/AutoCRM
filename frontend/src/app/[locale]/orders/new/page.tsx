@@ -6,10 +6,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { OrderForm, orderCreateBody, type OrderFormValues } from '@/components/forms/OrderForm';
-import type { SpecForm } from '@/components/forms/BuildSpecSection';
 import { ordersApi } from '@/lib/api/endpoints';
 import { useAuth } from '@/lib/auth/context';
 import { rememberLastUsed } from '@/hooks/useLastUsed';
+import { RepeatOrderPicker } from '@/components/orders/RepeatOrderPicker';
 
 export default function NewOrderPage() {
   const t = useTranslations('orders');
@@ -20,10 +20,9 @@ export default function NewOrderPage() {
   const { user } = useAuth();
 
   const create = useMutation({
-    // The build spec travels with the order so a failed second request cannot leave a
-    // build with no specification.
-    mutationFn: ({ v, specForm }: { v: OrderFormValues; specForm: SpecForm | null }) =>
-      ordersApi.create(orderCreateBody(v, user?.id, specForm)),
+    // The questionnaire's answers travel with the order so a failed second request
+    // cannot leave a build with no specification.
+    mutationFn: ({ v }: { v: OrderFormValues }) => ordersApi.create(orderCreateBody(v, user?.id)),
     onSuccess: (order) => {
       void qc.invalidateQueries({ queryKey: ['orders'] });
       router.replace(`/${locale}/orders/${order.id}`);
@@ -33,13 +32,14 @@ export default function NewOrderPage() {
   return (
     <AppShell>
       <PageHeader title={t('newOrder')} subtitle={t('currencySharedNote')} />
+      <RepeatOrderPicker />
       <OrderForm
         draftKey="order-new"
         submitLabel={tc('create')}
-        onSubmit={(v, _contactDirty, specForm) => {
+        onSubmit={(v) => {
           if (v.assigned_to !== null) rememberLastUsed('assignee', String(v.assigned_to));
           if (v.project_type_id) rememberLastUsed('ptype', v.project_type_id);
-          return create.mutateAsync({ v, specForm }).then(() => undefined);
+          return create.mutateAsync({ v }).then(() => undefined);
         }}
       />
     </AppShell>

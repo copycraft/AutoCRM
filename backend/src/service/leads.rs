@@ -1,16 +1,23 @@
 //! Lead creation and lead → order conversion.
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
+use serde::Deserialize;
 use serde_json::json;
 use sqlx::PgPool;
 
+use crate::AppState;
+use crate::domain::email::normalize_address;
 use crate::domain::lead_tag;
+use crate::domain::media::DocumentKind;
+use crate::domain::money::Currency;
 use crate::domain::stage::{StageEntity, initial_stage, keys};
 use crate::error::{AppError, AppResult};
+use crate::repo::documents::{self, Owner};
 use crate::repo::leads::{Lead, LeadInput};
 use crate::repo::orders::{Order, OrderFields};
 use crate::repo::{audit, config, contacts, lead_sources, lead_tags, leads, partners, stages};
 use crate::service::auth::AuthUser;
+use crate::service::business_today;
 use crate::service::orders::{NewItem, create_in_tx};
 use sqlx::PgConnection;
 
@@ -115,6 +122,145 @@ pub async fn refresh_quote_fx(
         lead.quote_fx_day = wanted.map(|w| w.1);
     }
     Ok(lead)
+}
+
+/// A quotation the sales manager made and sent outside the CRM, recorded on the lead: the
+/// PDF already filed as one of the lead's documents, the price and validity it states, and
+/// the follow-up letters counted from the day it went out. The CRM never sends the
+/// quotation itself: the customer gets it from a person's own mailbox.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct QuotationRecord {
+    /// The quotation file: a document of this lead. Filed as `quote` if it was not already.
+    pub document_id: i64,
+    pub quoted_value_minor: Option<i64>,
+    pub currency: Option<Currency>,
+    pub quote_valid_until: Option<NaiveDate>,
+    /// The day it went out. Today when omitted; never in the future.
+    pub sent_on: Option<NaiveDate>,
+    /// Follow-up letters to schedule (ids of `/followup-steps`), counted from `sent_on`.
+    /// Omitted: every active default step. `[]`: none. Any still waiting from an earlier
+    /// quotation of the lead are cancelled either way.
+    #[serde(default)]
+    pub followup_step_ids: Option<Vec<i64>>,
+}
+
+/// Records a quotation (see [`QuotationRecord`]). Returns the lead as it now stands.
+pub async fn record_quotation(
+    state: &AppState,
+    user: &AuthUser,
+    lead_id: i64,
+    req: &QuotationRecord,
+) -> AppResult<Lead> {
+    if req.quoted_value_minor.is_some_and(|v| v < 0) {
+        return Err(AppError::validation(
+            "quoted_value_minor must not be negative",
+        ));
+    }
+    if req.quoted_value_minor.is_some() && req.currency.is_none() {
+        return Err(AppError::validation("a quoted value needs a currency"));
+    }
+    let today = business_today(state.config.business_tz);
+    let sent_on = req.sent_on.unwrap_or(today);
+    if sent_on > today {
+        return Err(AppError::validation("sent_on cannot be in the future"));
+    }
+
+    let mut tx = state.db.begin().await?;
+    let lead = leads::lock(&mut *tx, lead_id)
+        .await?
+        .ok_or(AppError::NotFound("lead"))?;
+    let document = documents::find(&mut *tx, req.document_id)
+        .await?
+        .filter(|d| Owner::Lead(lead_id).owns(d) && d.deleted_at.is_none())
+        .ok_or_else(|| AppError::validation("the quotation must be a document of this lead"))?;
+    if document.kind != DocumentKind::Quote {
+        documents::set_kind(&mut *tx, document.id, DocumentKind::Quote).await?;
+    }
+
+    let currency = req.currency.map(|c| c.code());
+    leads::set_quote(
+        &mut *tx,
+        lead_id,
+        req.quoted_value_minor,
+        currency,
+        req.quote_valid_until,
+    )
+    .await?;
+
+    // Follow-ups go to the lead's contact, else the partner's mailbox. Scheduling letters
+    // that can only be skipped later would look like they went out, so refuse up front.
+    let wants_followups = req
+        .followup_step_ids
+        .as_ref()
+        .is_none_or(|ids| !ids.is_empty());
+    if wants_followups && !has_followup_address(&mut tx, &lead).await? {
+        return Err(AppError::validation(format!(
+            "lead #{lead_id} has no email address for the follow-ups: add a contact email \
+             or untick the follow-ups"
+        )));
+    }
+    // Sent today: count from now. Sent earlier: from that morning, as the office would.
+    let sent_at = if sent_on == today {
+        Utc::now()
+    } else {
+        sent_on
+            .and_hms_opt(9, 0, 0)
+            .and_then(|t| t.and_local_timezone(state.config.business_tz).earliest())
+            .map(|t| t.with_timezone(&Utc))
+            .unwrap_or_else(Utc::now)
+    };
+    let scheduled = crate::service::followups::schedule_for_quotation(
+        &mut tx,
+        lead_id,
+        req.followup_step_ids.as_deref(),
+        sent_at,
+        user.user_id,
+    )
+    .await?;
+
+    let lead = leads::lock(&mut *tx, lead_id)
+        .await?
+        .ok_or(AppError::NotFound("lead"))?;
+    // Quoting is the moment the rate counts, as it was when the CRM sent the letter.
+    let lead = refresh_quote_fx(&mut tx, lead, sent_on).await?;
+    audit::record(
+        &mut *tx,
+        Some(user.user_id),
+        "lead",
+        lead_id,
+        "quote_recorded",
+        json!({
+            "document_id": document.id,
+            "filename": document.filename,
+            "sent_on": sent_on,
+            "quoted_value_minor": lead.quoted_value_minor,
+            "currency": lead.currency,
+            "quote_valid_until": lead.quote_valid_until,
+            "followups": scheduled,
+        }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(lead)
+}
+
+async fn has_followup_address(conn: &mut PgConnection, lead: &Lead) -> AppResult<bool> {
+    if lead
+        .contact_email
+        .as_deref()
+        .and_then(normalize_address)
+        .is_some()
+    {
+        return Ok(true);
+    }
+    let Some(partner_id) = lead.partner_id else {
+        return Ok(false);
+    };
+    Ok(partners::find(&mut *conn, partner_id)
+        .await?
+        .and_then(|p| p.email)
+        .and_then(|e| normalize_address(&e))
+        .is_some())
 }
 
 /// `tag_ids` are the tags the person picked; tags claiming a domain the source names are
@@ -267,6 +413,9 @@ pub struct Conversion {
     pub partner_id: Option<i64>,
     pub fields: OrderFields,
     pub items: Vec<NewItem>,
+    /// Questionnaire answers given in the convert dialog, laid over the lead's own (0065).
+    /// A null answer clears the lead's.
+    pub answers: Option<crate::domain::questionnaire::Answers>,
 }
 
 pub async fn convert(
@@ -292,6 +441,23 @@ pub async fn convert(
         conversion.fields.contact_id = lead.contact_id;
     }
 
+    // The questionnaire (0065): what the lead was asked, with what the dialog added, has to
+    // answer every required question asked before there is an order. The lead keeps the
+    // completed answers too, so a second order from the same enquiry starts from them.
+    let (lead_type, lead_answers) = crate::repo::questionnaire::lead_spec(&mut *tx, lead_id)
+        .await?
+        .ok_or(AppError::NotFound("lead"))?;
+    let project_type_id = conversion.fields.project_type_id.or(lead_type);
+    conversion.fields.project_type_id = project_type_id;
+    let mut given = lead_answers.clone();
+    if let Some(answers) = conversion.answers.take() {
+        given.extend(answers);
+    }
+    let qn = crate::repo::questionnaire::load(&mut tx).await?;
+    let answers = crate::service::questionnaire::clean(&qn, project_type_id, &given, &lead_answers)?;
+    crate::service::questionnaire::require_complete(&qn, project_type_id, &answers)?;
+    crate::repo::questionnaire::set_lead_spec(&mut *tx, lead_id, project_type_id, &answers).await?;
+
     let order = create_in_tx(
         &mut tx,
         user.user_id,
@@ -301,6 +467,7 @@ pub async fn convert(
         Some(lead_id),
     )
     .await?;
+    crate::repo::questionnaire::set_order_answers(&mut *tx, order.id, &answers).await?;
 
     if lead.partner_id.is_none() {
         leads::set_partner(&mut *tx, lead_id, partner_id).await?;
@@ -315,6 +482,15 @@ pub async fn convert(
     )
     .await?;
     crate::repo::followups::cancel_for_lead(&mut *tx, lead_id, "a lead megrendelés lett").await?;
+    // The enquiry's quotation and files join the project's folder on the share.
+    crate::repo::jobs::enqueue(
+        &mut *tx,
+        crate::jobs::kinds::STORAGE_TIDY,
+        json!({ "lead_id": lead_id }),
+        None,
+        Some(&format!("storage_tidy:lead:{lead_id}:{}", order.id)),
+    )
+    .await?;
     audit::record(
         &mut *tx,
         Some(user.user_id),

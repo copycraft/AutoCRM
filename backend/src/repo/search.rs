@@ -155,21 +155,30 @@ pub async fn partners(
     db: impl PgExecutor<'_>,
     q: &str,
     limit: i64,
+    // Matching on the email or phone is reading it: only for someone who may see contacts.
+    contacts: bool,
 ) -> sqlx::Result<Vec<PartnerHit>> {
     let Some(terms) = SearchTerms::parse(q) else {
         return Ok(Vec::new());
+    };
+    let hay = if contacts {
+        format!(
+            "name, city, tax_number, email, phone, {}",
+            phone_digits("phone")
+        )
+    } else {
+        "name, city, tax_number".to_string()
     };
     let sql = format!(
         "SELECT s.id, s.name, s.kind, s.city
          FROM (
              SELECT id, name, kind::text AS kind, city,
-                    concat_ws(' ', name, city, tax_number, email, phone, {phone}) AS hay
+                    concat_ws(' ', {hay}) AS hay
              FROM partners
          ) s, LATERAL (SELECT search_fold(s.hay) AS hay_norm) n
          WHERE {match_clause}
          ORDER BY {rank}, s.id DESC
          LIMIT $3",
-        phone = phone_digits("phone"),
         match_clause = MATCH.replace("s.hay_norm", "n.hay_norm"),
         rank = rank("s.name"),
     );

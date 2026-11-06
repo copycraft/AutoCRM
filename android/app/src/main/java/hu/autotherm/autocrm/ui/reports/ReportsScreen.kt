@@ -142,7 +142,8 @@ fun ReportsScreen(
                     modifier = Modifier.padding(padding),
                 ) {
                     LazyColumn(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+                        Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(horizontal = 16.dp, top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item {

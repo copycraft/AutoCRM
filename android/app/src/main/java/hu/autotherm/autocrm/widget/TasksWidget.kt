@@ -47,7 +47,9 @@ class TasksWidget : GlanceAppWidget() {
         } else {
             null
         }
-        val today = LocalDate.now().toString()
+        // The whole queue ticks in the business timezone (Europe/Budapest), like every
+        // "lejárt" label in the app: a widget on a traveller's phone must not disagree.
+        val today = hu.autotherm.autocrm.util.businessTodayIso()
         val due = tasks.orEmpty().filter { it.dueDate != null && it.dueDate <= today }
         val later = tasks.orEmpty().size - due.size
 

@@ -151,7 +151,7 @@ fun SearchScreen(viewModel: SearchViewModel, onMenu: () -> Unit, onOpen: (String
         if (online && state.offline) viewModel.setQuery(state.query)
     }
     Scaffold(topBar = { ScreenTopBar(title = "Keresés", onMenu = onMenu) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
             SearchField(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
@@ -193,7 +193,8 @@ fun SearchScreen(viewModel: SearchViewModel, onMenu: () -> Unit, onOpen: (String
                         }
                     }
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(rows) { (group, hit) ->

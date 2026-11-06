@@ -114,6 +114,101 @@ pub struct S3Config {
     pub intake_lock_years: u32,
 }
 
+/// Where files live (`STORAGE_BACKEND`).
+#[derive(Clone)]
+pub enum StorageConfig {
+    /// An S3-compatible object store; browsers and phones upload to it directly.
+    S3(S3Config),
+    /// A directory, in production a mounted NFS share: plain files in project folders that
+    /// a person can open from the share. This server takes the uploads and serves downloads.
+    Fs(FsConfig),
+}
+
+#[derive(Debug, Clone)]
+pub struct FsConfig {
+    /// `STORAGE_DIR`, absolute.
+    pub dir: PathBuf,
+    /// Refuse to read or write unless `dir` sits on a filesystem mounted on its own (Linux):
+    /// a share that failed to mount must not quietly fill the local disk instead.
+    pub require_mount: bool,
+    /// Intake photos are made read-only files for this many years' worth of policy; 0 off.
+    pub intake_lock_years: u32,
+}
+
+impl StorageConfig {
+    pub fn intake_lock_years(&self) -> u32 {
+        match self {
+            StorageConfig::S3(c) => c.intake_lock_years,
+            StorageConfig::Fs(c) => c.intake_lock_years,
+        }
+    }
+}
+
+/// The S3 settings on their own: what `storage-relayout --from-s3` copies from after the
+/// switch to `STORAGE_BACKEND=fs`.
+pub fn s3_from_env() -> Result<S3Config, ConfigError> {
+    let mut r = Reader { errors: Vec::new() };
+    let s3 = read_s3(&mut r);
+    if r.errors.is_empty() {
+        Ok(s3)
+    } else {
+        Err(ConfigError(r.errors))
+    }
+}
+
+fn read_s3(r: &mut Reader) -> S3Config {
+    S3Config {
+        endpoint: r.optional("S3_ENDPOINT"),
+        region: r
+            .optional("S3_REGION")
+            .unwrap_or_else(|| "us-east-1".into()),
+        bucket: r.required("S3_BUCKET"),
+        access_key: r.required("S3_ACCESS_KEY"),
+        secret_key: r.required("S3_SECRET_KEY"),
+        force_path_style: r.parsed("S3_FORCE_PATH_STYLE", false),
+        intake_lock_years: r.parsed("S3_INTAKE_LOCK_YEARS", 10u32),
+    }
+}
+
+fn read_storage(r: &mut Reader, env: AppEnv) -> StorageConfig {
+    match r.optional("STORAGE_BACKEND").as_deref().unwrap_or("s3") {
+        "s3" => StorageConfig::S3(read_s3(r)),
+        "fs" => {
+            let dir = PathBuf::from(r.required("STORAGE_DIR"));
+            if !dir.as_os_str().is_empty() && !dir.is_absolute() {
+                r.errors.push(format!(
+                    "STORAGE_DIR must be an absolute path, got '{}'",
+                    dir.display()
+                ));
+            }
+            // Off in development (a plain folder on the laptop is the point there); on in
+            // staging and production, where the folder is meant to be the share.
+            let default_mount = cfg!(target_os = "linux") && env != AppEnv::Dev;
+            let require_mount = r.parsed("STORAGE_REQUIRE_MOUNT", default_mount);
+            if require_mount && !cfg!(target_os = "linux") {
+                r.errors.push(
+                    "STORAGE_REQUIRE_MOUNT=true can only be checked on Linux; set it to false"
+                        .into(),
+                );
+            }
+            let years = match Reader::var("STORAGE_INTAKE_LOCK_YEARS") {
+                Some(_) => r.parsed("STORAGE_INTAKE_LOCK_YEARS", 10u32),
+                None => r.parsed("S3_INTAKE_LOCK_YEARS", 10u32),
+            };
+            StorageConfig::Fs(FsConfig {
+                dir,
+                require_mount,
+                intake_lock_years: years,
+            })
+        }
+        other => {
+            r.errors
+                .push(format!("STORAGE_BACKEND: expected s3 or fs, got '{other}'"));
+            StorageConfig::S3(read_s3(r))
+        }
+    }
+}
+
 /// The billing party on every invoice: us.
 ///
 /// NAV wants a structured address, not a line of text, so these are separate fields rather
@@ -174,7 +269,7 @@ pub struct Config {
     pub database_url: String,
     pub database_max_connections: u32,
     pub upload_signing_key: Vec<u8>,
-    pub s3: S3Config,
+    pub storage: StorageConfig,
     pub email: EmailConfig,
     pub mnb_endpoint: String,
     /// None when NAV_SIDECAR_URL is unset: invoicing is simply not configured here.
@@ -489,17 +584,7 @@ impl Config {
                 .push("UPLOAD_SIGNING_KEY must be at least 32 bytes".into());
         }
 
-        let s3 = S3Config {
-            endpoint: r.optional("S3_ENDPOINT"),
-            region: r
-                .optional("S3_REGION")
-                .unwrap_or_else(|| "us-east-1".into()),
-            bucket: r.required("S3_BUCKET"),
-            access_key: r.required("S3_ACCESS_KEY"),
-            secret_key: r.required("S3_SECRET_KEY"),
-            force_path_style: r.parsed("S3_FORCE_PATH_STYLE", false),
-            intake_lock_years: r.parsed("S3_INTAKE_LOCK_YEARS", 10u32),
-        };
+        let storage = read_storage(&mut r, env);
 
         let from_automatic = r.required("EMAIL_FROM_AUTOMATIC");
         let reply_to_default = r.required("EMAIL_REPLY_TO_DEFAULT");
@@ -785,7 +870,7 @@ impl Config {
             database_url,
             database_max_connections,
             upload_signing_key,
-            s3,
+            storage,
             email,
             nav,
             mnb_endpoint,
@@ -832,7 +917,7 @@ pub fn test_config() -> Config {
         database_url: String::new(),
         database_max_connections: 1,
         upload_signing_key: vec![7; 32],
-        s3: S3Config {
+        storage: StorageConfig::S3(S3Config {
             endpoint: None,
             region: "us-east-1".into(),
             bucket: "test".into(),
@@ -840,7 +925,7 @@ pub fn test_config() -> Config {
             secret_key: "test".into(),
             force_path_style: true,
             intake_lock_years: 0,
-        },
+        }),
         email: EmailConfig {
             transport: EmailTransportConfig::DryRun,
             from_automatic: "noreply@autotherm.hu".into(),

@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { searchApi, templatePreviewApi } from '@/lib/api/endpoints';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { errorMessage } from '@/lib/api/errors';
+import { previewHtml } from '@/lib/emailPreview';
 
 type Target = { kind: 'order' | 'lead' | 'partner'; id: number; label: string };
 
@@ -99,7 +100,7 @@ export function TemplatePreview({ subject, body }: { subject: string; body: stri
           <iframe
             title={t('previewTitle')}
             sandbox=""
-            srcDoc={preview.data.body_html}
+            srcDoc={previewHtml(preview.data.body_html)}
             className="h-72 w-full rounded border border-steel-200 bg-white"
           />
         </>

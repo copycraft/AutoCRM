@@ -23,10 +23,13 @@ object NotificationPlanner {
 
     /**
      * Maps a server link to an in-app route, or null for one this version does not know.
-     * Only `/leads/<id>` exists today.
+     * `/leads/<id>`, and `/orders/<id>` (a department told about its technical content,
+     * 0059); a query string such as `?tab=modules` is the web's and is dropped here.
      */
     fun routeForLink(link: String?): String? {
-        val match = link?.let { Regex("^/leads/(\\d+)$").matchEntire(it) } ?: return null
-        return "lead/${match.groupValues[1]}"
+        val path = link?.substringBefore('?') ?: return null
+        Regex("^/leads/(\\d+)$").matchEntire(path)?.let { return "lead/${it.groupValues[1]}" }
+        Regex("^/orders/(\\d+)$").matchEntire(path)?.let { return "order/${it.groupValues[1]}" }
+        return null
     }
 }

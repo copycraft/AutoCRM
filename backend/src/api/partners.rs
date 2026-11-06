@@ -62,7 +62,7 @@ struct SearchQuery {
 )]
 async fn search(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiQuery(q): ApiQuery<SearchQuery>,
 ) -> AppResult<Json<Items<Partner>>> {
     let pattern = q.q.as_deref().and_then(like_pattern);
@@ -80,7 +80,9 @@ async fn search(
             "role must be customer, supplier or both",
         ));
     }
-    let rows = partners::search(
+    // Finding someone by phone number is itself reading it.
+    let phone = phone.filter(|_| me.can(Capability::ViewContacts));
+    let mut rows = partners::search(
         &state.db,
         pattern.as_deref(),
         phone.as_deref(),
@@ -92,6 +94,8 @@ async fn search(
         page_offset(q.offset),
     )
     .await?;
+    rows.iter_mut()
+        .for_each(|p| super::visibility::partner(&me, p));
     Ok(Items::new(rows))
 }
 
@@ -237,19 +241,23 @@ struct PartnerDetail {
 )]
 async fn detail(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<PartnerDetail>> {
-    let partner = partners::find(&state.db, id)
+    let mut partner = partners::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("partner"))?;
-    let contacts = contacts::list_for_partner(&state.db, id, true).await?;
+    let mut contacts = contacts::list_for_partner(&state.db, id, true).await?;
     let filter = OrderFilter {
         partner_id: Some(id),
         ..Default::default()
     };
-    let orders = orders::search(&state.db, &filter, orders::DEFAULT_SORT, 100, 0).await?;
-    let leads = leads::for_partner(&state.db, id).await?;
+    let mut orders = orders::search(&state.db, &filter, orders::DEFAULT_SORT, 100, 0).await?;
+    let mut leads = leads::for_partner(&state.db, id).await?;
+    super::visibility::partner(&me, &mut partner);
+    super::visibility::contacts(&me, &mut contacts);
+    super::visibility::order_summaries(&me, &mut orders);
+    super::visibility::lead_summaries(&me, &mut leads);
     Ok(Json(PartnerDetail {
         partner,
         contacts,
@@ -437,13 +445,13 @@ struct ContactsQuery {
 )]
 async fn list_contacts(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
     ApiQuery(q): ApiQuery<ContactsQuery>,
 ) -> AppResult<Json<Items<Contact>>> {
-    Ok(Items::new(
-        contacts::list_for_partner(&state.db, id, q.include_archived).await?,
-    ))
+    let mut rows = contacts::list_for_partner(&state.db, id, q.include_archived).await?;
+    super::visibility::contacts(&me, &mut rows);
+    Ok(Items::new(rows))
 }
 
 /// Create requires `name`. On PATCH every field is optional; `null` clears.

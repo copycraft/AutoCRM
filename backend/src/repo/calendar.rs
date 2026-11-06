@@ -39,6 +39,7 @@ pub async fn feed(db: impl PgExecutor<'_>, user_id: i64) -> sqlx::Result<Vec<Fee
                   CASE a.kind WHEN 'annual' THEN 'Szabadság'
                               WHEN 'sick' THEN 'Betegszabadság'
                               WHEN 'unpaid' THEN 'Fizetés nélküli szabadság'
+                              WHEN 'unexcused' THEN 'Igazolatlan távollét'
                               ELSE 'Távollét' END,
                   NULL
              FROM absences a

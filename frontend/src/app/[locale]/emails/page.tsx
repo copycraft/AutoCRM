@@ -25,6 +25,8 @@ import { DensityToggle, useDensityWithOverride } from '@/components/tables/Densi
 import { ExportCsvButton, collectAll } from '@/components/tables/ExportCsvButton';
 import { emailApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
+import { BucketList } from '@/components/tags/BucketList';
+import { WithStatusAside, countMap } from '@/components/tables/StatusAside';
 import type { EmailStatus, EmailSummary } from '@/lib/api/types';
 
 /** Delivery state, not decoration: failed and unknown outcomes read as alerts. */
@@ -51,11 +53,29 @@ const STATUS_KEYS: Record<EmailStatus, string> = {
   needs_review: 'needsReview',
 };
 
+/** The status list's groups: what is under way, what went out, what needs a person. */
+const STATUS_GROUPS: { title: string; statuses: EmailStatus[] }[] = [
+  { title: 'emailInProgress', statuses: ['queued', 'sending'] },
+  { title: 'emailDone', statuses: ['sent'] },
+  { title: 'emailAttention', statuses: ['failed', 'needs_review'] },
+  { title: 'emailCancelled', statuses: ['cancelled'] },
+];
+
+const STATUS_COLORS: Record<EmailStatus, string> = {
+  queued: '#93c5fd',
+  sending: '#3d6eee',
+  sent: '#16a34a',
+  failed: '#dc2626',
+  needs_review: '#f59e0b',
+  cancelled: '#94a3b8',
+};
+
 export default function EmailsPage() {
   const t = useTranslations('emails');
   const tc = useTranslations('common');
   const te = useTranslations('emptyStates');
   const tn = useTranslations('navigation');
+  const ts = useTranslations('statusList');
   const locale = useLocale();
   useRememberList('emails');
   const [q, setQ] = useUrlState('q', '');
@@ -83,6 +103,11 @@ export default function EmailsPage() {
         limit: pageSize,
         offset,
       }),
+  });
+
+  const statusCounts = useQuery({
+    queryKey: qk.emails('status-counts'),
+    queryFn: () => emailApi.statusCounts(),
   });
 
   const rows = useMemo(() => query.data?.items ?? [], [query.data]);
@@ -195,6 +220,24 @@ export default function EmailsPage() {
           </Link>
         }
       />
+      <WithStatusAside
+        aside={
+          <BucketList
+            title={ts('emails')}
+            groups={STATUS_GROUPS.map((g) => ({
+              title: ts(g.title),
+              buckets: g.statuses.map((s) => ({ key: s, label: t(`status.${STATUS_KEYS[s]}`), color: STATUS_COLORS[s] })),
+            }))}
+            counts={countMap(statusCounts.data?.items)}
+            value={status}
+            onChange={(s) => {
+              setStatus(s as EmailStatus | '');
+              setPage(1);
+            }}
+            allLabel={ts('allEmails')}
+          />
+        }
+      >
       <SavedViewsBar listKey="emails" />
       <FilterBar onClear={clear}>
         <FilterField label={tc('search')}>
@@ -207,23 +250,6 @@ export default function EmailsPage() {
               setPage(1);
             }}
           />
-        </FilterField>
-        <FilterField label={t('statusFilter')}>
-          <select
-            className="input"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as EmailStatus | '');
-              setPage(1);
-            }}
-          >
-            <option value="">{tc('all')}</option>
-            {(Object.keys(STATUS_KEYS) as EmailStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {t(`status.${STATUS_KEYS[s]}`)}
-              </option>
-            ))}
-          </select>
         </FilterField>
       </FilterBar>
       <ActiveFilterChips chips={chips} />
@@ -267,6 +293,7 @@ export default function EmailsPage() {
           </div>
         </>
       )}
+      </WithStatusAside>
     </AppShell>
   );
 }

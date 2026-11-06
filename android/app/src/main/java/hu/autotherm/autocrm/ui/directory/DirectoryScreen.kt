@@ -107,9 +107,9 @@ class DirectoryViewModel(private val api: AutoCrmApi) : ViewModel() {
     }
 
     init {
-        viewModelScope.launch { load() }
+        loadNow()
         viewModelScope.launch {
-            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { load() }
+            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { loadNow() }
         }
     }
 
@@ -119,17 +119,26 @@ class DirectoryViewModel(private val api: AutoCrmApi) : ViewModel() {
 
     fun toggleCustomers() {
         _state.value = _state.value.copy(showCustomers = !_state.value.showCustomers)
-        viewModelScope.launch { load() }
+        loadNow()
     }
 
     fun toggleSuppliers() {
         _state.value = _state.value.copy(showSuppliers = !_state.value.showSuppliers)
-        viewModelScope.launch { load() }
+        loadNow()
     }
 
-    fun refresh() = viewModelScope.launch { load() }
+    fun refresh() = loadNow()
 
-    fun retry() = viewModelScope.launch { load() }
+    fun retry() = loadNow()
+
+    // Launched loads are tracked so a slower older request can never overwrite a newer
+    // one's result (toggle + type in quick succession, response order not guaranteed).
+    private var loadJob: kotlinx.coroutines.Job? = null
+
+    private fun loadNow() {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch { load() }
+    }
 
     private fun roleFilter(): String? {
         val s = _state.value
@@ -292,6 +301,7 @@ fun DirectoryScreen(
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(fab = canEdit),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         // A–Z headers while browsing (not while searching): a long phone book

@@ -7,7 +7,9 @@ use chrono::NaiveDate;
 use sqlx::PgPool;
 
 use autocrm::AppState;
-use autocrm::config::{AppEnv, Config, EmailConfig, EmailTransportConfig, LogFormat, S3Config};
+use autocrm::config::{
+    AppEnv, Config, EmailConfig, EmailTransportConfig, FsConfig, LogFormat, S3Config, StorageConfig,
+};
 use autocrm::domain::partner::PartnerKind;
 use autocrm::domain::role::Role;
 use autocrm::media::storage::Storage;
@@ -28,7 +30,7 @@ pub fn config() -> Config {
         database_url: String::new(),
         database_max_connections: 5,
         upload_signing_key: vec![7; 32],
-        s3: S3Config {
+        storage: StorageConfig::S3(S3Config {
             // Unreachable by default: storage tests skip. TEST_S3_ENDPOINT=http://127.0.0.1:9000
             // (with the docker-compose minio and its dev credentials) runs them for real.
             endpoint: Some(
@@ -55,7 +57,7 @@ pub fn config() -> Config {
             .into(),
             force_path_style: true,
             intake_lock_years: 0,
-        },
+        }),
         email: EmailConfig {
             transport: EmailTransportConfig::DryRun,
             from_automatic: "noreply@autotherm.hu".into(),
@@ -97,12 +99,35 @@ pub fn config() -> Config {
 
 pub fn state(pool: PgPool) -> AppState {
     let config = config();
-    let storage = Storage::new(&config.s3);
+    let storage = Storage::from_config(&config);
     AppState {
         db: pool,
         config: Arc::new(config),
         storage,
     }
+}
+
+/// App state filing into a fresh scratch folder, the way it files onto the NFS share.
+/// Storage tests run for real with nothing else running. The folder is the caller's to
+/// remove.
+pub fn state_fs(pool: PgPool) -> (AppState, std::path::PathBuf) {
+    let dir = std::env::temp_dir().join(format!("autocrm-share-{}", rand_suffix()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut config = config();
+    config.storage = StorageConfig::Fs(FsConfig {
+        dir: dir.clone(),
+        require_mount: false,
+        intake_lock_years: 10,
+    });
+    let storage = Storage::from_config(&config);
+    (
+        AppState {
+            db: pool,
+            config: Arc::new(config),
+            storage,
+        },
+        dir,
+    )
 }
 
 pub async fn user(pool: &PgPool, role: Role) -> AuthUser {
@@ -131,6 +156,7 @@ pub async fn user(pool: &PgPool, role: Role) -> AuthUser {
         must_change_password: false,
         hr_access: false,
         permissions: vec![],
+        role_grid: None,
     }
 }
 
@@ -315,7 +341,7 @@ pub fn state_with_nav(pool: PgPool, sidecar_url: &str, supplier_tax_number: &str
     let mut config = config();
     // Documents are real objects: point at the dev MinIO, and let the tests that need it
     // check whether it is actually up.
-    config.s3 = S3Config {
+    config.storage = StorageConfig::S3(S3Config {
         endpoint: Some(
             std::env::var("S3_ENDPOINT").unwrap_or_else(|_| "http://localhost:9000".into()),
         ),
@@ -325,7 +351,7 @@ pub fn state_with_nav(pool: PgPool, sidecar_url: &str, supplier_tax_number: &str
         secret_key: std::env::var("S3_SECRET_KEY").unwrap_or_else(|_| "autocrm-dev-secret".into()),
         force_path_style: true,
         intake_lock_years: 0,
-    };
+    });
     config.nav = Some(NavConfig {
         sidecar_url: sidecar_url.trim_end_matches('/').to_string(),
         sidecar_token: SIDECAR_TOKEN.into(),
@@ -346,7 +372,7 @@ pub fn state_with_nav(pool: PgPool, sidecar_url: &str, supplier_tax_number: &str
         proforma_prefix: "DB".into(),
         payment_days: 8,
     });
-    let storage = Storage::new(&config.s3);
+    let storage = Storage::from_config(&config);
     AppState {
         db: pool,
         config: Arc::new(config),

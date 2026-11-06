@@ -53,7 +53,9 @@ class NotificationPlannerTest {
     fun `a lead link opens the lead and anything else opens nothing`() {
         assertEquals("lead/42", NotificationPlanner.routeForLink("/leads/42"))
         assertNull(NotificationPlanner.routeForLink("/leads/42/edit"))
-        assertNull(NotificationPlanner.routeForLink("/orders/1"))
+        assertEquals("order/1", NotificationPlanner.routeForLink("/orders/1"))
+        assertEquals("order/7", NotificationPlanner.routeForLink("/orders/7?tab=modules"))
+        assertNull(NotificationPlanner.routeForLink("/orders/7/edit"))
         assertNull(NotificationPlanner.routeForLink(null))
     }
 

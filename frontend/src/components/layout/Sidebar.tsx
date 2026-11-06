@@ -29,7 +29,14 @@ import {
   Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/format';
-import { useAuth, canAdmin, canAccessHr } from '@/lib/auth/context';
+import {
+  useAuth,
+  canAdmin,
+  canAccessHr,
+  canViewIncomingInvoices,
+  canViewInvoices,
+  canViewSales,
+} from '@/lib/auth/context';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { useNotifications } from '@/components/notifications/useUnread';
 import { isMarketingPath, marketingHref } from '@/components/layout/MarketingTabs';
@@ -55,6 +62,21 @@ const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: bo
   { href: '/settings', icon: Settings, key: 'settings', admin: true },
   { href: '/privacy', icon: Shield, key: 'privacy' },
 ] as const;
+
+/** Menu items that need a right to see what is behind them (0061). */
+function allowed(key: string, user: ReturnType<typeof useAuth>['user']): boolean {
+  switch (key) {
+    case 'invoices':
+      return canViewInvoices(user);
+    case 'incoming':
+      return canViewIncomingInvoices(user);
+    case 'marketing':
+    case 'emails':
+      return canViewSales(user);
+    default:
+      return true;
+  }
+}
 
 const SECTIONS: { label: string; items: string[] }[] = [
   { label: 'Fő', items: ['dashboard', 'notifications', 'reports', 'knowledge'] },
@@ -118,7 +140,7 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
       <GlobalSearch />
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-1" aria-label={t('main')}>
-        {(() => {
+        {allowed('marketing', user) && (() => {
           const item = NAV.find((i) => i.key === 'marketing')!;
           const href = marketing;
           const active = isMarketingPath(pathname, locale);
@@ -140,7 +162,11 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
         })()}
         {SECTIONS.map((section) => {
           const items = NAV.filter(
-            (i) => section.items.includes(i.key) && (!i.admin || canAdmin(user)) && (!i.hr || canAccessHr(user)),
+            (i) =>
+              section.items.includes(i.key) &&
+              (!i.admin || canAdmin(user)) &&
+              (!i.hr || canAccessHr(user)) &&
+              allowed(i.key, user),
           );
           if (items.length === 0) return null;
           const alwaysOpen = section.label === 'Fő' || section.label === 'Üzlet';

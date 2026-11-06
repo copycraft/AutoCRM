@@ -116,9 +116,22 @@ fn entries_for(value: &Value, project: Option<i64>, contact: Option<i64>) -> Vec
         .collect()
 }
 
+#[derive(Clone, Copy)]
+enum Owner {
+    Project,
+    Contact,
+    ToDo,
+}
+
 pub fn build(raw_dir: &Path) -> anyhow::Result<(Vec<ManifestEntry>, ManifestSummary)> {
     let mut entries = Vec::new();
-    for (sub, is_project) in [("projects", true), ("contacts", false)] {
+    // To-do details carry the to-do's attachments (and the files of e-mails logged as
+    // to-dos); they belong to the to-do's project.
+    for (sub, kind) in [
+        ("projects", Owner::Project),
+        ("contacts", Owner::Contact),
+        ("todo-details", Owner::ToDo),
+    ] {
         let dir = raw_dir.join(sub);
         if !dir.exists() {
             continue;
@@ -140,10 +153,13 @@ pub fn build(raw_dir: &Path) -> anyhow::Result<(Vec<ManifestEntry>, ManifestSumm
                     .and_then(|s| s.to_str())
                     .and_then(|s| s.parse().ok())
             });
-            let (project, contact) = if is_project {
-                (id, value.get("ContactId").and_then(as_i64))
-            } else {
-                (None, id)
+            let (project, contact) = match kind {
+                Owner::Project => (id, value.get("ContactId").and_then(as_i64)),
+                Owner::Contact => (None, id),
+                Owner::ToDo => (
+                    value.get("ProjectId").and_then(as_i64).filter(|p| *p > 0),
+                    value.get("ContactId").and_then(as_i64).filter(|c| *c > 0),
+                ),
             };
             entries.extend(entries_for(&value, project, contact));
         }

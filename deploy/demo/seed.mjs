@@ -141,6 +141,11 @@ function signaturePng(seed) {
  */
 async function putToStorage(link, headers, body) {
   const signed = new URL(link);
+  // Files on the NAS (docker-compose.nfs.yml): the link is the app's own /api/files, which
+  // BASE reaches directly.
+  if (signed.pathname.startsWith('/api/files/')) {
+    return fetch(`${BASE}${signed.pathname}`, { method: 'PUT', headers, body });
+  }
   const local = new URL(link);
   local.protocol = 'http:';
   local.hostname = new URL(BASE).hostname;
@@ -253,10 +258,13 @@ async function seed() {
   }
 
   // Won: converted to orders
+  // Each with its project type and a complete build questionnaire (0065): a lead converts
+  // only once every required answer is in.
+  const typeOf = (key, i) => projectTypes.find((t) => t.key === key)?.id ?? type(i);
   const orderSpecs = [
-    { title: 'Hűtős felépítmény – Sprinter', partner: frigo, plate: 'MNP-421', make: 'Mercedes-Benz', model: 'Sprinter 316', items: [['Hűtőagregát beépítése', 1, 4_200_000], ['Szigetelt raktér', 1, 2_650_000]] },
-    { title: 'Fűtött pékáru-szállító', partner: bakery, plate: 'RTK-883', make: 'Renault', model: 'Master', items: [['Fűtőrendszer', 1, 1_850_000], ['Polcrendszer', 2, 320_000]] },
-    { title: 'Kegyeleti kocsi átalakítás', partner: funeral, plate: 'SZM-107', make: 'Volkswagen', model: 'Crafter', items: [['Kegyeleti belső kialakítás', 1, 5_400_000]] },
+    { title: 'Hűtős felépítmény – Sprinter', partner: frigo, plate: 'MNP-421', make: 'Mercedes-Benz', model: 'Sprinter 316', typeKey: 'van_conversion', answers: { heats: false, cools: true, cool_temp_c: 2, freezes: false, van_size: 'L2H2', cooling_unit_make: 'Thermo King', insulation_mm: 60 }, items: [['Hűtőagregát beépítése', 1, 4_200_000], ['Szigetelt raktér', 1, 2_650_000]] },
+    { title: 'Fűtött pékáru-szállító', partner: bakery, plate: 'RTK-883', make: 'Renault', model: 'Master', typeKey: 'van_conversion', answers: { heats: true, heat_temp_c: 30, fuel: 'Dízel', cools: false, van_size: 'L3H2' }, items: [['Fűtőrendszer', 1, 1_850_000], ['Polcrendszer', 2, 320_000]] },
+    { title: 'Kegyeleti kocsi átalakítás', partner: funeral, plate: 'SZM-107', make: 'Volkswagen', model: 'Crafter', typeKey: 'hearse', answers: { heats: false, cools: true, cool_temp_c: 4, freezes: false, hearse_coffins: 2, hearse_partition: true }, items: [['Kegyeleti belső kialakítás', 1, 5_400_000]] },
   ];
   const orders = [];
   for (const [i, spec] of orderSpecs.entries()) {
@@ -269,16 +277,17 @@ async function seed() {
         title: spec.title,
         partner_id: spec.partner.id,
         currency: 'HUF',
-        project_type_id: type(i),
+        project_type_id: typeOf(spec.typeKey, i),
         vehicle_make: spec.make,
         vehicle_model: spec.model,
         vehicle_plate: spec.plate,
         due_date: iso(30 + i * 10),
+        spec_answers: spec.answers,
         items: spec.items.map(([description, quantity, price]) => ({ description, quantity: String(quantity), unit_price: huf(price) })),
       }),
     );
     const order = converted?.order ?? converted;
-    if (order?.id) orders.push({ ...order, spec, projectTypeId: type(i) });
+    if (order?.id) orders.push({ ...order, spec, projectTypeId: typeOf(spec.typeKey, i) });
   }
 
   // Two more orders made directly: one with no plate yet (the live átvétel on the phone shows

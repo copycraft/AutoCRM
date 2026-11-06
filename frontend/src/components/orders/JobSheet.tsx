@@ -24,7 +24,8 @@ export function JobSheet({
   partner: PartnerRef;
   vehicles: Vehicle[];
   items: ItemView[];
-  value: OrderValue;
+  /** Null for someone who may not see prices. */
+  value: OrderValue | null | undefined;
   blockers: Blocker[];
   stage: StageView;
   assigneeName: string;
@@ -150,7 +151,7 @@ export function JobSheet({
                 {t('total')} ({currency})
               </td>
               <td className="py-1 text-right">
-                <Money minor={value.total_minor} currency={currency} />
+                <Money minor={value?.total_minor} currency={currency} />
               </td>
             </tr>
           </tfoot>

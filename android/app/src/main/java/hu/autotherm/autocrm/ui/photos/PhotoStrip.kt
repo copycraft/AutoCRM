@@ -32,7 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -116,7 +121,7 @@ private fun PhotoViewer(images: List<ImageView>, start: Int, lookups: Lookups?, 
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        val pager = rememberPagerState(initialPage = start) { images.size }
+        val pager = rememberPagerState(initialPage = start.coerceIn(0, (images.size - 1).coerceAtLeast(0))) { images.size }
         // Double tap zooms in on a scratch or a serial plate; while zoomed, one finger pans
         // and pinching adjusts, and swiping to the next photo waits until zoomed back out.
         var zoomedPage by remember { mutableStateOf<Int?>(null) }
@@ -126,7 +131,9 @@ private fun PhotoViewer(images: List<ImageView>, start: Int, lookups: Lookups?, 
                 modifier = Modifier.fillMaxSize(),
                 userScrollEnabled = zoomedPage == null,
             ) { page ->
-                val img = images[page]
+                // The list the strip was opened with can shrink underneath the viewer (a
+                // pending upload finishing or an image filtered out); never index into it.
+                val img = images.getOrNull(page) ?: return@HorizontalPager
                 var scale by remember { mutableStateOf(1f) }
                 var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
                 androidx.compose.runtime.LaunchedEffect(pager.currentPage) {
@@ -151,24 +158,53 @@ private fun PhotoViewer(images: List<ImageView>, start: Int, lookups: Lookups?, 
                                 } else {
                                     scale = 2.5f
                                     // Zoom towards the tapped point rather than the centre.
-                                    offset = (androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f) - tap) * 1.5f
+                                    val lim = panLimit(scale, size.width.toFloat(), size.height.toFloat())
+                                    val wanted = (androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f) - tap) * 1.5f
+                                    offset = androidx.compose.ui.geometry.Offset(
+                                        wanted.x.coerceIn(-lim.x, lim.x),
+                                        wanted.y.coerceIn(-lim.y, lim.y),
+                                    )
                                     zoomedPage = page
                                 }
                             })
                         }
-                        .then(
-                            if (scale > 1f) {
-                                Modifier.pointerInput(page, "zoomed") {
-                                    detectTransformGestures { _, pan, zoom, _ ->
-                                        scale = (scale * zoom).coerceIn(1f, 5f)
-                                        offset = if (scale <= 1f) androidx.compose.ui.geometry.Offset.Zero else offset + pan
+                        // Two fingers pinch from the start (it used to take a double tap
+                        // first); one finger pans only while zoomed, and otherwise is left
+                        // to the pager so swiping to the next photo still works.
+                        .pointerInput(page, "zoom") {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val fingers = event.changes.count { it.pressed }
+                                    if (fingers >= 2 || scale > 1f) {
+                                        val old = scale
+                                        scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                                        offset = if (scale <= 1f) {
+                                            androidx.compose.ui.geometry.Offset.Zero
+                                        } else {
+                                            // Zoom about the fingers, not the centre: the spot
+                                            // being pinched stays under them.
+                                            val centre = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                            val focus = event.calculateCentroid(useCurrent = false)
+                                                .takeIf { it != androidx.compose.ui.geometry.Offset.Unspecified }
+                                                ?.minus(centre) ?: androidx.compose.ui.geometry.Offset.Zero
+                                            val ratio = scale / old
+                                            val moved = offset * ratio + focus * (1f - ratio) + event.calculatePan()
+                                            // A pan that is never clamped can drag the photo
+                                            // clean off screen with nothing to grab onto.
+                                            val lim = panLimit(scale, size.width.toFloat(), size.height.toFloat())
+                                            androidx.compose.ui.geometry.Offset(
+                                                moved.x.coerceIn(-lim.x, lim.x),
+                                                moved.y.coerceIn(-lim.y, lim.y),
+                                            )
+                                        }
                                         zoomedPage = if (scale > 1f) page else null
+                                        event.changes.forEach { if (it.positionChanged()) it.consume() }
                                     }
-                                }
-                            } else {
-                                Modifier
-                            },
-                        )
+                                } while (event.changes.any { it.pressed })
+                            }
+                        }
                         .graphicsLayer {
                             scaleX = scale
                             scaleY = scale
@@ -206,3 +242,7 @@ private fun PhotoViewer(images: List<ImageView>, start: Int, lookups: Lookups?, 
         }
     }
 }
+
+/** How far the scaled photo may travel per axis before its edge reaches the viewport edge. */
+private fun panLimit(scale: Float, width: Float, height: Float): androidx.compose.ui.geometry.Offset =
+    androidx.compose.ui.geometry.Offset(width / 2f * (scale - 1f), height / 2f * (scale - 1f))

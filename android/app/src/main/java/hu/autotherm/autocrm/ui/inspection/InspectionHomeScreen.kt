@@ -77,8 +77,13 @@ class InspectionHomeViewModel(private val app: AutoCrmApp) : ViewModel() {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
+    // The Room watch is one job, restarted per load — not a stacked collector per refresh:
+    // the refresh button and error retry each used to leak another live collector.
+    private var watchJob: kotlinx.coroutines.Job? = null
+
     fun load(orderId: Long) {
-        viewModelScope.launch {
+        watchJob?.cancel()
+        watchJob = viewModelScope.launch {
             app.database.inspectionDrafts().watchForOrder(orderId).collect { drafts ->
                 _state.value = _state.value.copy(drafts = drafts)
             }
@@ -198,7 +203,8 @@ fun InspectionHomeScreen(
         },
     ) { padding ->
         LazyColumn(
-            Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = hu.autotherm.autocrm.ui.common.listPadding(horizontal = 16.dp, top = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (canInspect) {
@@ -385,8 +391,7 @@ fun InspectionServerScreen(
                     ServerInspectionDetail(
                         detail = state.detail!!,
                         lookups = state.lookups,
-                        modifier = Modifier.weight(1f, fill = false)
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     if (canAnnotate) {
                         if (noteOpen) {

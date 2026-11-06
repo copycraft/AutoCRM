@@ -1,0 +1,10 @@
+node_modules/
+build/
+output/
+videos/web/*
+videos/mobile/*
+!videos/web/.gitkeep
+!videos/mobile/.gitkeep
+.env
+*.webm
+*.mp4

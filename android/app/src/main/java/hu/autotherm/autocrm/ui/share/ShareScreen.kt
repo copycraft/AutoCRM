@@ -274,7 +274,7 @@ fun ShareScreen(
             if (!state.searching && state.results.isEmpty()) {
                 EmptyState("Nincs találat.")
             }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(Modifier.weight(1f), contentPadding = hu.autotherm.autocrm.ui.common.listPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(state.results, key = { "${it.kind}-${it.id}" }) { target ->
                     Card(
                         onClick = { if (!state.uploading) confirming = target },

@@ -50,7 +50,7 @@ function ItemForm({
     defaultValues: {
       description: initial?.description ?? '',
       quantity: initial?.quantity ?? '1',
-      unit_price: initial ? minorToMajorString(initial.unit_price) : '',
+      unit_price: initial?.unit_price != null ? minorToMajorString(initial.unit_price) : '',
     },
   });
 
@@ -133,10 +133,13 @@ export function ItemsSection({
   orderId,
   items,
   currency,
+  readOnly = false,
 }: {
   orderId: number;
   items: ItemView[];
   currency: Currency;
+  /** Shown without the add, edit and delete buttons (no EditOrders). */
+  readOnly?: boolean;
 }) {
   const t = useTranslations('orders');
   const tc = useTranslations('common');
@@ -175,7 +178,7 @@ export function ItemsSection({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        {!adding && (
+        {!adding && !readOnly && (
           <button className="btn-secondary btn-sm" onClick={() => setAdding(true)}>
             {t('addItem')}
           </button>
@@ -227,12 +230,16 @@ export function ItemsSection({
                     <Money minor={it.line_total_minor} currency={currency} />
                   </td>
                   <td className="text-right whitespace-nowrap">
-                    <button className="btn-ghost btn-sm" onClick={() => setEditing(it)}>
-                      {tc('edit')}
-                    </button>
-                    <button className="btn-ghost btn-sm" onClick={() => setDeleting(it)}>
-                      {tc('delete')}
-                    </button>
+                    {!readOnly && (
+                      <>
+                        <button className="btn-ghost btn-sm" onClick={() => setEditing(it)}>
+                          {tc('edit')}
+                        </button>
+                        <button className="btn-ghost btn-sm" onClick={() => setDeleting(it)}>
+                          {tc('delete')}
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ),

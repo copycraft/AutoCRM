@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE spec_sections\n            SET title = $2, position = $3, is_active = $4, shown_when_question_id = $5\n          WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int4",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "47b64982353cf4947b1aa473170981acbc6a4f516869854967851a86f33a0edf"
+}

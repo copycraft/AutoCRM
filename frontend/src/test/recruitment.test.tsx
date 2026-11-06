@@ -90,7 +90,9 @@ describe('Public application form', () => {
     expect(await screen.findByRole('heading', { name: 'Hűtős szerelő' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Jelentkezés elküldése' }));
     expect((await screen.findAllByText('Ez a mező kötelező.')).length).toBeGreaterThanOrEqual(4);
-    expect(writes).toHaveLength(0);
+    // The visit is counted (0064); the incomplete application is not sent.
+    expect(writes.filter((w) => w.path.endsWith('/applications'))).toHaveLength(0);
+    expect(writes.map((w) => w.path)).toContain('/public/jobs/abc/visit');
   });
 
   it('rejects a resume of the wrong type before sending anything', async () => {

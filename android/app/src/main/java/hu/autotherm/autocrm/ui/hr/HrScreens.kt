@@ -156,9 +156,14 @@ class HrListViewModel(private val api: AutoCrmApi) : ViewModel() {
         load()
     }
 
+    // Launched loads are tracked so a slower older request can never overwrite a newer
+    // one's result (rapid "Kilépettek is" toggles, or a toggle while the IME search runs).
+    private var loadJob: kotlinx.coroutines.Job? = null
+
     fun load() {
-        val s = _state.value
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            val s = _state.value
             val keepRows = s.employees.isNotEmpty()
             _state.value = _state.value.copy(loading = !keepRows, refreshing = keepRows, error = null)
             try {
@@ -200,7 +205,7 @@ fun HrListScreen(
             }
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
             SearchField(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
@@ -222,6 +227,7 @@ fun HrListScreen(
                 else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(isRefreshing = state.refreshing, onRefresh = viewModel::load) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(fab = true),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.employees, key = { it.id }) { e ->
@@ -276,6 +282,15 @@ class HrEditViewModel(private val api: AutoCrmApi) : ViewModel() {
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
+
+    /** What the person typed, as it was when the form opened: "unsaved" means it differs. */
+    private fun fingerprint(s: State): List<Any?> = listOf(
+        s.fullName, s.email, s.companyPhone, s.personalPhone,
+        s.newPhoto != null, s.removePhoto,
+    )
+    private var baseline: List<Any?> = fingerprint(State())
+
+    fun isDirty(s: State): Boolean = !s.busy && s.loaded && fingerprint(s) != baseline
 
     fun set(next: (State) -> State) {
         _state.value = next(_state.value)
@@ -396,8 +411,23 @@ fun HrEditScreen(
             }
         }
     }
+    // Downsampled decode of the picked photo: a camera original can be several
+    // thousand pixels wide — a full decode would eat ~hundreds of MB for an 88 dp
+    // circle and risk an OutOfMemoryError on legacy devices here.
     val preview = remember(state.newPhoto) {
-        state.newPhoto?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+        state.newPhoto?.let { bytes ->
+            runCatching {
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                val target = 256
+                var sample = 1
+                while (bounds.outWidth / (sample * 2) >= target && bounds.outHeight / (sample * 2) >= target) {
+                    sample *= 2
+                }
+                val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
+            }.getOrNull()
+        }
     }
     val hasPhoto = preview != null || (state.photoUrl != null && !state.removePhoto)
 
@@ -410,7 +440,7 @@ fun HrEditScreen(
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             state.error?.let {

@@ -96,17 +96,10 @@ async fn any_signed_in_user_reads_the_whole_document(pool: PgPool) {
 
     // Chips and pickers.
     assert_eq!(keys(&doc["fuel_levels"]), ["E", "1/4", "1/2", "3/4", "F"]);
+    // The heating fuel and defrost choices are questionnaire options now (0065).
+    assert!(doc.get("heating_fuels").is_none());
     assert_eq!(
-        keys(&doc["heating_fuels"]),
-        ["diesel", "electric", "lpg", "engine_coolant"]
-    );
-    assert_eq!(doc["heating_fuels"][0]["label_hu"], "Dízel");
-    assert_eq!(
-        keys(&doc["defrost_modes"]),
-        ["automatic", "manual", "hot_gas"]
-    );
-    assert_eq!(doc["defrost_modes"][2]["label_hu"], "Forrógázas");
-    assert_eq!(
+
         keys(&doc["order_relations"]),
         ["warranty", "rework", "repeat"]
     );
@@ -149,14 +142,10 @@ async fn any_signed_in_user_reads_the_whole_document(pool: PgPool) {
 
     // The composer starters, content included.
     let themes = doc["email_themes"].as_array().unwrap();
-    assert_eq!(keys(&doc["email_themes"]), ["quotation", "promo"]);
-    assert_eq!(themes[0]["subject"], "Árajánlatunk");
-    assert!(
-        themes[0]["body"]
-            .as_str()
-            .unwrap()
-            .contains("Tisztelt Címzett!")
-    );
+    assert_eq!(keys(&doc["email_themes"]), ["promo"]);
+    // No quotation starter: quotations go out from a person's own mailbox.
+    assert_eq!(themes[0]["subject"], "Autotherm akció");
+    assert!(themes[0]["body"].as_str().unwrap().contains("# Újdonság"));
 
     // The error catalog travels with the document: a reworded message reaches
     // the clients with the next fetch, no app update.

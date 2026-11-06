@@ -34,6 +34,7 @@ import { ExportMenu, collectAll } from '@/components/tables/ExportCsvButton';
 import { SavedViewsBar } from '@/components/tables/SavedViewsBar';
 import { MarketingTabs } from '@/components/layout/MarketingTabs';
 import { NEWSLETTER_LANGUAGES, SubscriberBulkBar } from '@/components/tables/BulkBar';
+import { BucketList } from '@/components/tags/BucketList';
 import type { SubscriberRow } from '@/lib/api/types';
 
 const PAGE = 50;
@@ -44,6 +45,7 @@ export default function MarketingPage() {
   const tn = useTranslations('navigation');
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
+  const ts = useTranslations('statusList');
   const locale = useLocale();
   const { user } = useAuth();
   const editable = canSendEmail(user);
@@ -186,7 +188,7 @@ export default function MarketingPage() {
       {panel === 'add' && <AddPanel defaultTags={tag ? [tag] : []} onDone={refresh} />}
       {panel === 'import' && <ImportPanel defaultTags={tag ? [tag] : []} onDone={refresh} />}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,1fr)_14rem]">
         <aside className="card self-start p-4">
           <TagSidebar
             tags={tags.data?.items ?? []}
@@ -212,23 +214,6 @@ export default function MarketingPage() {
                   setPage(1);
                 }}
               />
-            </div>
-            <div>
-              <label className="label" htmlFor="mk-status">{t('status')}</label>
-              <select
-                id="mk-status"
-                className="input"
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="">{tc('all')}</option>
-                <option value="active">{t('statusActive')}</option>
-                <option value="pending">{t('statusPending')}</option>
-                <option value="unsubscribed">{t('statusUnsubscribed')}</option>
-              </select>
             </div>
             <div className="ml-auto pb-1">
               <ExportMenu
@@ -409,6 +394,33 @@ export default function MarketingPage() {
             onJump={setPage}
           />
         </div>
+        {/* Where the subscribers stand, on the right as on every list. */}
+        <aside className="card self-start p-3 lg:col-start-2 xl:col-start-auto xl:sticky xl:top-6">
+          <BucketList
+            title={ts('subscribers')}
+            groups={[
+              {
+                title: ts('subscribers'),
+                buckets: [
+                  { key: 'active', label: t('statusActive'), color: '#16a34a' },
+                  { key: 'pending', label: t('statusPending'), color: '#f59e0b' },
+                  { key: 'unsubscribed', label: t('statusUnsubscribed'), color: '#94a3b8' },
+                ],
+              },
+            ]}
+            counts={{
+              active: counts.data?.active ?? 0,
+              pending: counts.data?.pending ?? 0,
+              unsubscribed: counts.data?.unsubscribed ?? 0,
+            }}
+            value={status}
+            onChange={(s) => {
+              setStatus(s);
+              setPage(1);
+            }}
+            allLabel={ts('allSubscribers')}
+          />
+        </aside>
       </div>
       </>
       )}

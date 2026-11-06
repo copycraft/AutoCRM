@@ -71,9 +71,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
-@OptIn(FlowPreview::class)
 private const val PARTNER_PAGE = 50
 
+@OptIn(FlowPreview::class)
 class PartnerListViewModel(private val api: AutoCrmApi) : ViewModel() {
 
     /** The next page, asked for when the end of the list scrolls into view. */
@@ -120,9 +120,9 @@ class PartnerListViewModel(private val api: AutoCrmApi) : ViewModel() {
 
     init {
         // First paint must not wait for the debounce.
-        viewModelScope.launch { load() }
+        loadNow()
         viewModelScope.launch {
-            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { load() }
+            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { loadNow() }
         }
     }
 
@@ -132,12 +132,21 @@ class PartnerListViewModel(private val api: AutoCrmApi) : ViewModel() {
 
     fun setRole(role: String?) {
         _state.value = _state.value.copy(role = role)
-        viewModelScope.launch { load() }
+        loadNow()
     }
 
-    fun refresh() = viewModelScope.launch { load() }
+    fun refresh() = loadNow()
 
-    fun retry() = viewModelScope.launch { load() }
+    fun retry() = loadNow()
+
+    // Launched loads are tracked so a slower older request can never overwrite a newer
+    // one's result (change the filter, then type — response order is not guaranteed).
+    private var loadJob: kotlinx.coroutines.Job? = null
+
+    private fun loadNow() {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch { load() }
+    }
 
     private suspend fun load() {
         val keepRows = _state.value.partners.isNotEmpty()
@@ -227,6 +236,7 @@ fun PartnerListScreen(
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.partners, key = { it.id }) { partner ->
@@ -400,7 +410,8 @@ fun PartnerDetailScreen(
                     modifier = Modifier.padding(padding),
                 ) {
                     LazyColumn(
-                        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+                        Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(horizontal = 16.dp, top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item {
@@ -538,7 +549,7 @@ fun PartnerDetailScreen(
                                             order.vehiclePlate?.let { hu.autotherm.autocrm.ui.common.PlateBadge(it) }
                                             Text("#" + order.number, style = MonoSmall, color = Steel500)
                                         }
-                                        Text(formatMoney(order.totalMinor, order.currency), style = MonoSmall)
+                                        Text(hu.autotherm.autocrm.util.formatMoneyOrDash(order.totalMinor, order.currency), style = MonoSmall)
                                     }
                                     Text(order.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
                                     StatusBadge(order.stageLabel, if (order.stageIsTerminal) Tone.Done else Tone.Cold)

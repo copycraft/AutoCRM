@@ -240,6 +240,8 @@ pub struct LeaveBalance {
     pub remaining: i32,
     pub sick_days: i32,
     pub unpaid_days: i32,
+    /// Igazolatlan: working days absent without leave.
+    pub unexcused_days: i32,
     pub other_days: i32,
 }
 
@@ -276,13 +278,14 @@ async fn leave_summary(
     let items = staff
         .into_iter()
         .map(|e| {
-            let mut days = [0i32; 4]; // annual, sick, unpaid, other
+            let mut days = [0i32; 5]; // annual, sick, unpaid, other, unexcused
             for a in all.iter().filter(|a| a.employee_id == e.id) {
                 let n = working_days(a.start_date, a.end_date, Some(year));
                 match LeaveKind::parse(&a.kind) {
                     Some(LeaveKind::Annual) => days[0] += n,
                     Some(LeaveKind::Sick) => days[1] += n,
                     Some(LeaveKind::Unpaid) => days[2] += n,
+                    Some(LeaveKind::Unexcused) => days[4] += n,
                     Some(LeaveKind::Other) | None => days[3] += n,
                 }
             }
@@ -295,6 +298,7 @@ async fn leave_summary(
                 remaining: e.annual_leave_days - days[0],
                 sick_days: days[1],
                 unpaid_days: days[2],
+                unexcused_days: days[4],
                 other_days: days[3],
             }
         })
@@ -338,11 +342,19 @@ async fn upload_absence_file(
     let (content_type, ext) = super::incoming_invoices::sniff(&body)
         .filter(|(_, ext)| *ext != "xml")
         .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
-    let random: [u8; 12] = rand::random();
-    let key = format!(
-        "absences/{}/{id}-{}.{ext}",
-        row.employee_id,
-        hex::encode(random)
+    let folder = crate::media::layout::employee_folder_of(&state, row.employee_id).await?;
+    let key = crate::media::layout::join(
+        &crate::media::layout::absence_dir(&folder),
+        &format!(
+            "{}_{}",
+            row.start_date,
+            crate::media::layout::file_name(
+                Some(&name),
+                "igazolas",
+                &crate::media::layout::random_tag(),
+                ext
+            )
+        ),
     );
     let size = body.len() as i64;
     state

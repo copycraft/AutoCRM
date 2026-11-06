@@ -22,12 +22,13 @@ import { StageRail, StageHistoryList, TravellerStrip } from '@/components/ui/Sta
 import {
   OrderForm,
   orderPatchBody,
-  orderSpecBody,
   type OrderFormValues,
 } from '@/components/forms/OrderForm';
-import type { SpecForm } from '@/components/forms/BuildSpecSection';
+import { QuestionnaireView, useQuestionnaire } from '@/components/spec/QuestionnaireView';
 import { CoolingSerial } from '@/components/orders/VehicleExtras';
 import { ItemsSection } from '@/components/forms/ItemsSection';
+import { ModulesSection } from '@/components/orders/ModulesSection';
+import { CopyOrderDialog } from '@/components/orders/CopyOrderDialog';
 import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
 import { configApi, ordersApi, usersApi } from '@/lib/api/endpoints';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
@@ -41,6 +42,7 @@ import {
   canSendEmail,
   canUploadMedia,
   useAuth,
+  canViewInvoices,
 } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
@@ -48,7 +50,7 @@ import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
 import { Timeline } from '@/components/timeline/Timeline';
 import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
 import { useRecentRecords } from '@/hooks/useRecent';
-import type { PatchOrder } from '@/lib/api/types';
+import type { Answers, PatchOrder } from '@/lib/api/types';
 import { isBlockerOpen } from '@/lib/utils/blockers';
 import { RawImportPanel } from '@/components/migration/RawImportPanel';
 import { useSearchParams } from 'next/navigation';
@@ -59,8 +61,8 @@ import { VehicleLocations } from '@/components/yard/YardBoard';
 import { OrderIncidents } from '@/components/incidents/Incidents';
 import { useRouteId } from '@/hooks/useRouteId';
 
-type Tab = 'data' | 'photos' | 'documents' | 'comments' | 'items' | 'invoices' | 'stages' | 'blockers' | 'audit';
-const TABS: Tab[] = ['data', 'photos', 'documents', 'comments', 'items', 'invoices', 'stages', 'blockers', 'audit'];
+type Tab = 'data' | 'modules' | 'photos' | 'documents' | 'comments' | 'items' | 'invoices' | 'stages' | 'blockers' | 'audit';
+const TABS: Tab[] = ['data', 'modules', 'photos', 'documents', 'comments', 'items', 'invoices', 'stages', 'blockers', 'audit'];
 
 /** Enum values render from the server's lookups; unknown ones read as themselves. */
 
@@ -81,6 +83,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
   const t = useTranslations('orders');
   const tc = useTranslations('common');
   const ts = useTranslations('spec');
+  const questionnaire = useQuestionnaire();
+  const tmod = useTranslations('modules');
+  const trep = useTranslations('repeat');
+  const [copyOpen, setCopyOpen] = useState(false);
   const tt = useTranslations('tasks');
   const ter = useTranslations('errors');
   const ti2 = useTranslations('invoices');
@@ -144,18 +150,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
   });
 
   const patch = useMutation({
-    // The order and its build spec are two requests: PATCH is a field diff, the spec is a
-    // whole-row replace whose shape depends on the project type. The spec goes second, so
-    // a rejected order edit never writes a spec for a project type that did not stick.
-    mutationFn: async ({
-      body,
-      spec,
-    }: {
-      body: PatchOrder;
-      spec: ReturnType<typeof orderSpecBody>;
-    }) => {
+    // The order and its questionnaire are two requests: PATCH is a field diff, the answers
+    // a whole replace checked against the project type. The answers go second, so they are
+    // checked against the type that actually stuck.
+    mutationFn: async ({ body, answers }: { body: PatchOrder; answers: Answers }) => {
       await ordersApi.patch(id, body);
-      if (spec) await ordersApi.putSpec(id, spec);
+      await ordersApi.putSpec(id, { answers });
     },
     onSuccess: () => {
       setEditing(false);
@@ -198,7 +198,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
     image_counts,
     related,
     vehicles,
-    spec,
+    spec_answers,
     photo_category,
     vehicle_locations,
     comment_count,
@@ -218,11 +218,13 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
   const openBlockers = blockers.filter(isBlockerOpen);
   const tabs: { key: Tab; label: string }[] = [
     { key: 'data', label: open_incidents > 0 ? `${t('tabsData')} ⚠` : t('tabsData') },
+    { key: 'modules', label: tmod('tab') },
     { key: 'photos', label: `${tm('photosTab')} (${photoCount})` },
     { key: 'documents', label: tm('documentsTab') },
     { key: 'comments', label: `${tm('commentsTab')} (${comment_count})` },
     { key: 'items', label: `${t('tabsItems')} (${items.length})` },
-    { key: 'invoices', label: ti2('tab') },
+    // Invoices only for someone who may see them (0061).
+    ...(canViewInvoices(user) ? [{ key: 'invoices' as Tab, label: ti2('tab') }] : []),
     { key: 'stages', label: t('tabsStages') },
     { key: 'blockers', label: `${t('tabsBlockers')} (${openBlockers.length})` },
     { key: 'audit', label: t('tabsAudit') },
@@ -266,6 +268,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
                     {tc('edit')}
                   </button>
                 )}
+                {canEdit && (
+                  <button className="btn-secondary btn-sm" onClick={() => setCopyOpen(true)}>
+                    {trep('button')}
+                  </button>
+                )}
                 {canStage && (
                   <button className="btn-secondary btn-sm lg:hidden" onClick={() => setStageOpen(true)}>
                     {t('changeStage')}
@@ -307,18 +314,14 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
               <OrderForm
                 initial={order}
                 initialPartner={{ id: partner.id, name: partner.name }}
-                initialSpec={spec}
+                initialAnswers={spec_answers}
                 currencyLocked={items.length > 0}
                 submitLabel={tc('save')}
-                onSubmit={(
-                  v: OrderFormValues,
-                  contactDirty: boolean,
-                  specForm: SpecForm | null,
-                ) =>
+                onSubmit={(v: OrderFormValues, contactDirty: boolean) =>
                   patch
                     .mutateAsync({
                       body: orderPatchBody(order, v, user?.id, contactDirty, items.length > 0),
-                      spec: orderSpecBody(v, specForm),
+                      answers: v.spec_answers,
                     })
                     .then(() => undefined)
                 }
@@ -342,6 +345,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
                   </div>
                 </section>
 
+                {value && (
                 <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
                   <h2 className="text-section font-semibold">{t('valueSection')}</h2>
                   <div className="mt-3 flex flex-wrap items-baseline gap-x-8 gap-y-3">
@@ -368,6 +372,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
                     )}
                   </div>
                 </section>
+                )}
 
                 <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
                   <h2 className="text-section font-semibold">{t('imagesSection')}</h2>
@@ -414,65 +419,27 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
                   </div>
                 </section>
 
-                {spec && (
-                  <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
-                    <h2 className="text-section font-semibold">
-                      {spec.form === 'cooling' ? ts('coolingTitle') : ts('heatingTitle')}
-                    </h2>
-                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <Info
-                        label={ts('targetTemp')}
-                        value={spec.target_temp_c != null ? `${spec.target_temp_c} °C` : '—'}
-                        mono
-                      />
-                      <Info
-                        label={ts('insulation')}
-                        value={spec.insulation_mm != null ? `${spec.insulation_mm} mm` : '—'}
-                        mono
-                      />
-                      {spec.form === 'cooling' ? (
-                        <>
-                          <Info label={ts('coolingUnitMake')} value={spec.cooling_unit_make ?? '—'} />
-                          <Info
-                            label={ts('coolingUnitModel')}
-                            value={spec.cooling_unit_model ?? '—'}
+                {/* The build questionnaire, grouped by the sections asked for this job. The
+                    cooling unit's serial is filed from the phone, or here. */}
+                <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
+                  <h2 className="text-section font-semibold">{ts('title')}</h2>
+                  <div className="mt-3">
+                    <QuestionnaireView
+                      questionnaire={questionnaire.data}
+                      projectTypeId={order.project_type_id ?? null}
+                      answers={spec_answers}
+                      renderAnswer={(q, value) =>
+                        q.key === 'cooling_unit_serial' ? (
+                          <CoolingSerial
+                            orderId={id}
+                            value={typeof value === 'string' ? value : null}
+                            editable={canUploadMedia(user)}
                           />
-                          <Info label={ts('atpClass')} value={spec.atp_class ?? '—'} mono />
-                          <Info
-                            label={ts('compartments')}
-                            value={spec.compartments != null ? String(spec.compartments) : '—'}
-                            mono
-                          />
-                          <Info
-                            label={ts('defrost')}
-                            value={spec.defrost ? lookupLabel(lookups?.defrost_modes, spec.defrost) : '—'}
-                          />
-                          <Info
-                            label={ts('electricStandby')}
-                            value={spec.electric_standby ? tc('yes') : tc('no')}
-                          />
-                          <CoolingSerial orderId={id} value={spec.cooling_unit_serial} editable={canUploadMedia(user)} />
-                        </>
-                      ) : (
-                        <>
-                          <Info label={ts('heaterMake')} value={spec.heater_make ?? '—'} />
-                          <Info label={ts('heaterModel')} value={spec.heater_model ?? '—'} />
-                          <Info
-                            label={ts('heatOutput')}
-                            value={spec.heat_output_kw != null ? `${spec.heat_output_kw} kW` : '—'}
-                            mono
-                          />
-                          <Info label={ts('fuel')} value={spec.fuel ? lookupLabel(lookups?.heating_fuels, spec.fuel) : '—'} />
-                          <Info
-                            label={ts('thermostat')}
-                            value={spec.thermostat ? tc('yes') : tc('no')}
-                          />
-                        </>
-                      )}
-                      <Info label={ts('notes')} value={spec.notes ?? '—'} />
-                    </div>
-                  </section>
-                )}
+                        ) : undefined
+                      }
+                    />
+                  </div>
+                </section>
 
                 {/* V2.2: a warranty job with no link to the job it repairs is the kind of
                     connection nobody reconstructs later. */}
@@ -509,6 +476,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
                 )}
               </div>
             )}
+          </Tabs.Content>
+
+          <Tabs.Content value="modules">
+            <ModulesSection orderId={id} />
           </Tabs.Content>
 
           <Tabs.Content value="photos">
@@ -681,7 +652,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
                 </p>
                 <p className="mt-1 font-mono">{order.number}</p>
                 <p className="font-mono">
-                  <Money minor={value.total_minor} currency={currency} />
+                  <Money minor={value?.total_minor} currency={currency} />
                 </p>
               </div>
             </div>
@@ -703,6 +674,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
         stage={stage}
         assigneeName={assigneeName}
       />
+      {copyOpen && (
+        <CopyOrderDialog
+          source={{ id: order.id, number: order.number, title: order.title }}
+          onClose={() => setCopyOpen(false)}
+        />
+      )}
     </AppShell>
   );
 }

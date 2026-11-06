@@ -1,8 +1,8 @@
-//! Newsletter and quotation mail, without touching the network.
+//! Newsletter and manual mail, without touching the network.
 //!
-//! The blast inserts one row with everyone in BCC; the quotation inserts one row with the
-//! hero band and the lead's PDF. Delivery itself is the worker's job and is covered by
-//! the email tests — here the queueing, the audience math and the HTML are asserted.
+//! The blast inserts one row with everyone in BCC. Delivery itself is the worker's job and
+//! is covered by the email tests — here the queueing, the audience math and the HTML are
+//! asserted.
 
 mod common;
 
@@ -10,9 +10,7 @@ use autocrm::domain::role::Role;
 use autocrm::repo::emails;
 use autocrm::repo::leads::LeadInput;
 use autocrm::repo::{leads, newsletter};
-use autocrm::service::email::{
-    self, ComposeRequest, NewsletterRequest, QuotationRequest, triggers,
-};
+use autocrm::service::email::{self, ComposeRequest, NewsletterRequest, triggers};
 
 async fn office(pool: &sqlx::PgPool) -> autocrm::service::auth::AuthUser {
     common::user(pool, Role::Office).await
@@ -170,76 +168,6 @@ async fn a_blast_with_variables_is_refused(pool: sqlx::PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
-async fn a_quotation_shouts_and_quotes_the_lead(pool: sqlx::PgPool) {
-    let state = common::state(pool.clone());
-    let user = office(&pool).await;
-    let lead = leads::insert(&state.db, &lead_with_quote("vevo@example.hu"), user.user_id)
-        .await
-        .unwrap();
-
-    let id = email::send_quotation(
-        &state,
-        &user,
-        lead.id,
-        &QuotationRequest {
-            subject: None,
-            body: None,
-            hero: None,
-            body_markdown: false,
-            attachment_document_ids: vec![],
-            followup_step_ids: None,
-        },
-    )
-    .await
-    .unwrap();
-
-    let mail = emails::find(&state.db, id).await.unwrap().unwrap();
-    assert_eq!(mail.to_address, "vevo@example.hu");
-    assert_eq!(mail.trigger, triggers::QUOTATION);
-    assert_eq!(mail.subject, "Árajánlatunk: Harom Sprinter hutose");
-    assert!(mail.body_html.contains("Megjött az Autotherm árajánlatod!"));
-    assert!(mail.body_html.contains("background-color:#b91c1c"));
-    assert!(
-        mail.body_text.contains("1270000.00 HUF"),
-        "{}",
-        mail.body_text
-    );
-    assert!(mail.body_text.contains("2026.12.31."));
-}
-
-#[sqlx::test(migrations = "./migrations")]
-async fn a_quotation_without_an_address_names_the_lead(pool: sqlx::PgPool) {
-    let state = common::state(pool.clone());
-    let user = office(&pool).await;
-    let mut input = lead_with_quote("x@y.zz");
-    input.contact_email = None;
-    let lead = leads::insert(&state.db, &input, user.user_id)
-        .await
-        .unwrap();
-
-    let err = email::send_quotation(
-        &state,
-        &user,
-        lead.id,
-        &QuotationRequest {
-            subject: None,
-            body: None,
-            hero: None,
-            body_markdown: false,
-            attachment_document_ids: vec![],
-            followup_step_ids: None,
-        },
-    )
-    .await
-    .unwrap_err();
-    assert!(
-        err.to_string()
-            .contains(&format!("lead #{} has no email", lead.id)),
-        "{err}"
-    );
-}
-
-#[sqlx::test(migrations = "./migrations")]
 async fn manual_markdown_compose_renders_html(pool: sqlx::PgPool) {
     let state = common::state(pool.clone());
     let user = office(&pool).await;
@@ -319,7 +247,7 @@ async fn a_blast_carries_attachments_hero_and_inline_images(pool: sqlx::PgPool) 
 
     let mail = emails::find(&state.db, id).await.unwrap().unwrap();
     assert!(mail.body_html.contains("Arajánlatok mindenkinek!"));
-    assert!(mail.body_html.contains("background-color:#b91c1c"));
+    assert!(mail.body_html.contains("src=\"cid:autotherm-logo\""));
     assert!(
         mail.body_html.contains(&format!("src=\"cid:doc-{img}\"")),
         "{}",

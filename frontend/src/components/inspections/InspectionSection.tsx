@@ -14,7 +14,7 @@ import { IncidentDialog } from '@/components/incidents/Incidents';
 import { qk } from '@/lib/query/provider';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { errorMessage } from '@/lib/api/errors';
-import { canChangeStage, useAuth } from '@/lib/auth/context';
+import { canHandleHandovers, useAuth } from '@/lib/auth/context';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -269,7 +269,7 @@ function ComparisonView({
   });
   // Reviewing needs the capability, and only a draft check-in takes verdicts:
   // a signed inspection is locked (the API answers 422 `locked`).
-  const review = canChangeStage(user) && query.data?.checkin.inspection.status === 'draft';
+  const review = canHandleHandovers(user) && query.data?.checkin.inspection.status === 'draft';
   // The verdict buttons are the server's verdict list, not a local table.
   const { data: lookups } = useLookups();
   const verdictOptions = lookups?.verdicts ?? [];
@@ -341,7 +341,7 @@ function ComparisonView({
                         {ti('logged')}: {incidentByDamage.get(damage.id)!.title}
                       </StatusBadge>
                     ) : (
-                      canChangeStage(user) && (
+                      canHandleHandovers(user) && (
                         <button
                           type="button"
                           className="btn-secondary btn-sm"
@@ -564,7 +564,7 @@ function NoteComposer({ inspectionId }: { inspectionId: number }) {
       void qc.invalidateQueries({ queryKey: qk.inspection(inspectionId) });
     },
   });
-  if (!canChangeStage(user)) return null;
+  if (!canHandleHandovers(user)) return null;
   if (!open) {
     return (
       <button type="button" className="btn-ghost btn-sm" onClick={() => setOpen(true)}>

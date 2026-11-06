@@ -7,8 +7,9 @@ use autocrm::domain::role::Role;
 use autocrm::repo::leads::LeadInput;
 use autocrm::repo::{emails, followups};
 use autocrm::service::auth::AuthUser;
-use autocrm::service::email::{self, QuotationRequest, triggers};
+use autocrm::service::email::triggers;
 use autocrm::service::followups::send_due;
+use autocrm::service::leads::{QuotationRecord, record_quotation};
 use sqlx::PgPool;
 
 fn lead(email: Option<&str>) -> LeadInput {
@@ -29,13 +30,28 @@ fn lead(email: Option<&str>) -> LeadInput {
     }
 }
 
-fn quotation(steps: Option<Vec<i64>>) -> QuotationRequest {
-    QuotationRequest {
-        subject: None,
-        body: None,
-        hero: None,
-        body_markdown: false,
-        attachment_document_ids: vec![],
+/// The quotation PDF the sales manager uploaded: a document row without bytes, which
+/// recording never reads.
+async fn quote_pdf(pool: &PgPool, lead_id: i64) -> i64 {
+    sqlx::query_scalar(
+        "INSERT INTO documents (lead_id, kind, filename, content_type, storage_key, content_hash, byte_size)
+         VALUES ($1, 'other', 'ajanlat.pdf', 'application/pdf', 'test/fake',
+                 digest($1::text, 'sha256'), 10)
+         RETURNING id",
+    )
+    .bind(lead_id)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+fn quotation(document_id: i64, steps: Option<Vec<i64>>) -> QuotationRecord {
+    QuotationRecord {
+        document_id,
+        quoted_value_minor: Some(127_000_000),
+        currency: Some(autocrm::domain::money::Currency::HUF),
+        quote_valid_until: None,
+        sent_on: None,
         followup_step_ids: steps,
     }
 }
@@ -76,7 +92,8 @@ async fn make_first_due(pool: &PgPool, lead_id: i64) -> i64 {
 #[sqlx::test(migrations = "./migrations")]
 async fn a_quotation_schedules_the_sequence_and_due_letters_go_out(pool: PgPool) {
     let (state, user, lead_id) = setup(&pool, Some("vevo@example.hu")).await;
-    email::send_quotation(&state, &user, lead_id, &quotation(None))
+    let pdf = quote_pdf(&pool, lead_id).await;
+    record_quotation(&state, &user, lead_id, &quotation(pdf, None))
         .await
         .unwrap();
 
@@ -110,9 +127,14 @@ async fn a_quotation_schedules_the_sequence_and_due_letters_go_out(pool: PgPool)
         .fetch_one(&pool)
         .await
         .unwrap();
-    email::send_quotation(&state, &user, lead_id, &quotation(Some(vec![two_weeks])))
-        .await
-        .unwrap();
+    record_quotation(
+        &state,
+        &user,
+        lead_id,
+        &quotation(pdf, Some(vec![two_weeks])),
+    )
+    .await
+    .unwrap();
     let rows = followups::for_lead(&pool, lead_id).await.unwrap();
     let scheduled: Vec<&str> = rows
         .iter()
@@ -127,7 +149,8 @@ async fn a_quotation_schedules_the_sequence_and_due_letters_go_out(pool: PgPool)
 #[sqlx::test(migrations = "./migrations")]
 async fn a_decided_lead_gets_no_more_letters(pool: PgPool) {
     let (state, user, lead_id) = setup(&pool, Some("vevo@example.hu")).await;
-    email::send_quotation(&state, &user, lead_id, &quotation(None))
+    let pdf = quote_pdf(&pool, lead_id).await;
+    record_quotation(&state, &user, lead_id, &quotation(pdf, None))
         .await
         .unwrap();
 
@@ -161,7 +184,7 @@ async fn a_decided_lead_gets_no_more_letters(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn no_address_is_a_skip_with_a_reason_and_the_kill_switch_holds_everything(pool: PgPool) {
     let (state, user, lead_id) = setup(&pool, None).await;
-    // The quotation itself needs an address; schedule by hand instead.
+    // Recording a quotation with follow-ups needs an address; schedule by hand instead.
     let _ = user;
     followups::schedule(
         &pool,
@@ -192,4 +215,68 @@ async fn no_address_is_a_skip_with_a_reason_and_the_kill_switch_holds_everything
     let row = &followups::for_lead(&pool, lead_id).await.unwrap()[0];
     assert_eq!(row.status, "skipped");
     assert_eq!(row.note.as_deref(), Some("nincs e-mail cím a leadhez"));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_recorded_quotation_files_the_pdf_sets_the_price_and_sends_nothing(pool: PgPool) {
+    let (state, user, lead_id) = setup(&pool, Some("vevo@example.hu")).await;
+    let pdf = quote_pdf(&pool, lead_id).await;
+    let lead = record_quotation(&state, &user, lead_id, &quotation(pdf, Some(vec![])))
+        .await
+        .unwrap();
+    assert_eq!(lead.quoted_value_minor, Some(127_000_000));
+    assert_eq!(lead.currency.as_deref(), Some("HUF"));
+
+    let kind: String = sqlx::query_scalar("SELECT kind::text FROM documents WHERE id = $1")
+        .bind(pdf)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(kind, "quote");
+    // The customer got the quotation from a person's own mailbox: nothing is queued here.
+    let queued: i64 = sqlx::query_scalar("SELECT count(*) FROM email_messages WHERE lead_id = $1")
+        .bind(lead_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(queued, 0);
+    assert!(
+        followups::for_lead(&pool, lead_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn a_quotation_from_another_lead_or_without_an_address_is_refused(pool: PgPool) {
+    let (state, user, lead_id) = setup(&pool, None).await;
+    let pdf = quote_pdf(&pool, lead_id).await;
+
+    // Follow-ups with nowhere to go are refused up front, naming the lead.
+    let err = record_quotation(&state, &user, lead_id, &quotation(pdf, None))
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains(&format!("lead #{lead_id} has no email")),
+        "{err}"
+    );
+    // Without follow-ups the same quotation is fine.
+    record_quotation(&state, &user, lead_id, &quotation(pdf, Some(vec![])))
+        .await
+        .unwrap();
+
+    let (_, _, other) = setup(&pool, Some("masik@example.hu")).await;
+    let err = record_quotation(&state, &user, other, &quotation(pdf, None))
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("document of this lead"), "{err}");
+
+    let mut future = quotation(pdf, Some(vec![]));
+    future.sent_on = Some(chrono::Utc::now().date_naive() + chrono::TimeDelta::days(3));
+    let err = record_quotation(&state, &user, lead_id, &future)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("future"), "{err}");
 }

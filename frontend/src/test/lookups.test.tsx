@@ -43,8 +43,6 @@ describe('server-driven lookups', () => {
       'verdicts',
       'walkaround_kinds',
       'fuel_levels',
-      'heating_fuels',
-      'defrost_modes',
       'order_relations',
       'task_entity_types',
       'currencies',

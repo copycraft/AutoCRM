@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 use autocrm::config::Config;
 use autocrm::media::storage::Storage;
 use autocrm::migration::client::MiniCrmClient;
-use autocrm::migration::extract::{Extractor, write_atomic};
+use autocrm::migration::extract::{ExtractOptions, Extractor, write_atomic};
 use autocrm::migration::load::Mapping;
 use autocrm::migration::{fetch, load, manifest, reconcile};
 use autocrm::{AppState, db};
@@ -32,7 +32,28 @@ enum Command {
         /// into order_notes (V1.3); leave them on unless the account has none.
         #[arg(long)]
         no_todos: bool,
-        #[arg(long, default_value_t = 50)]
+        /// Skip `ToDo/{id}` for each to-do: the comments under it, its attachments and when
+        /// it was created are only there. One request per to-do.
+        #[arg(long)]
+        no_todo_details: bool,
+        /// Skip each card's status path (`ProjectHistory`). One request per card.
+        #[arg(long)]
+        no_status_history: bool,
+        /// Skip the cards linked to each card (an enquiry and its order). One request per card.
+        #[arg(long)]
+        no_connections: bool,
+        /// Only the cards' own contacts, not every person filed under their companies.
+        #[arg(long)]
+        no_business_contacts: bool,
+        /// Every contact in the account, also those with no card (newsletter lists too).
+        #[arg(long)]
+        all_contacts: bool,
+        /// Refresh an earlier full run: fetch again only what changed since this time
+        /// (Hungarian time, "2026-11-20" or "2026-11-20 18:00:00"). For cutover day.
+        #[arg(long)]
+        since: Option<String>,
+        /// MiniCRM allows 60 a minute on Api/R3 and answers 429 above it.
+        #[arg(long, default_value_t = 55)]
         requests_per_minute: u32,
     },
     /// M2a: list every file referenced in the raw data. Check the counts against MiniCRM's UI.
@@ -91,7 +112,7 @@ async fn app_state() -> anyhow::Result<AppState> {
     let config = Config::from_env()?;
     let pool = db::connect(&config).await?;
     db::migrate(&pool).await?;
-    let storage = Storage::new(&config.s3);
+    let storage = Storage::from_config(&config);
     Ok(AppState {
         db: pool,
         config: Arc::new(config),
@@ -110,10 +131,25 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Command::Extract {
             no_todos,
+            no_todo_details,
+            no_status_history,
+            no_connections,
+            no_business_contacts,
+            all_contacts,
+            since,
             requests_per_minute,
         } => {
-            let client = minicrm_client(requests_per_minute)?;
-            let summary = Extractor::new(&client, &raw, !no_todos).run().await?;
+            let client = minicrm_client(requests_per_minute.min(60))?;
+            let options = ExtractOptions {
+                todos: !no_todos,
+                todo_details: !no_todos && !no_todo_details,
+                status_history: !no_status_history,
+                connections: !no_connections,
+                business_contacts: !no_business_contacts,
+                all_contacts,
+                since,
+            };
+            let summary = Extractor::new(&client, &raw, options).run().await?;
             println!("{}", serde_json::to_string_pretty(&summary)?);
         }
         Command::Manifest => {

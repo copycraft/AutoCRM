@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT section_id, project_type_id FROM spec_section_project_types\n          ORDER BY section_id, project_type_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "section_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_type_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "1f7341835b89db87acda30f2ec6d52d7de78c8caf40118c7a1c0720c943a3765"
+}

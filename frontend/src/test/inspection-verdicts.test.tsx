@@ -31,7 +31,7 @@ vi.mock('@/lib/auth/context', async (orig) => ({
       role: 'office',
       must_change_password: false,
       session_kind: 'web',
-      capabilities: ['edit_orders', 'change_stages', 'upload_media', 'comment'],
+      capabilities: ['edit_orders', 'change_stages', 'handle_handovers', 'upload_media', 'comment'],
     },
   }),
 }));

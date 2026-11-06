@@ -11,11 +11,26 @@ private val HU = Locale("hu", "HU")
 private val BUDAPEST: ZoneId = ZoneId.of("Europe/Budapest")
 
 /**
+ * Today's date in the business timezone. All day-level comparisons (overdue badges,
+ * "Lejárt / Ma" grouping, the widget) and [relativeDay] must use the same zone — a phone
+ * set to any zone east or west of Budapest would label a due date late while the adjacent
+ * "holnap" text says otherwise, and the badge would flicker on the day boundary.
+ */
+fun businessToday(): LocalDate = LocalDate.now(BUDAPEST)
+
+/** [businessToday] as the ISO string most comparisons use directly. */
+fun businessTodayIso(): String = businessToday().toString()
+
+/**
  * Money as the web client shows it (frontend/src/lib/utils/format.ts): integer minor units
  * in, grouped whole units out, fraction appended as a string. Integer arithmetic only —
  * never divide into floating point (HUF 4 850 000 stored as 485000000 must not wobble).
  * HUF fillér render when nonzero; whole-forint amounts render without decimals.
  */
+/** An amount the server may have left out (no right to see prices, 0061): a dash then. */
+fun formatMoneyOrDash(minor: Long?, currency: String): String =
+    minor?.let { formatMoney(it, currency) } ?: "—"
+
 fun formatMoney(minor: Long, currency: String): String {
     val negative = minor < 0
     val abs = if (negative) -minor else minor

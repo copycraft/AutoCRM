@@ -38,6 +38,10 @@ pub mod triggers {
     pub const NEWSLETTER_CONFIRM: &str = "newsletter_confirm";
     /// Internal alert to the office for a lead the website filed.
     pub const WEBSITE_LEAD_ALERT: &str = "website_lead_alert";
+    /// Internal letter to a department head: work released to the department (0059).
+    pub const MODULE_RELEASED: &str = "module_released";
+    /// The quotation letter the CRM used to send. Quotations now go out from a person's
+    /// own mailbox; the key stays for the letters already on record.
     pub const QUOTATION: &str = "quotation";
     pub const NUDGE_BLOCKER: &str = "nudge_blocker";
     pub const STAGE_CHANGED: &str = "stage_changed";
@@ -744,190 +748,6 @@ pub async fn send_manual(
     Ok(id)
 }
 
-/// A quotation letter for a lead: the one letter that shouts. Hero band on top, the
-/// lead's quotation PDF attached, sent by the staff member as themselves.
-///
-/// The price and validity lines appear when the lead carries them; the PDF is
-/// authoritative either way, so a lead without a quoted price still sends. Anything the
-/// office writes by hand goes through `{{variable}}` rendering first, then Markdown when
-/// asked — the same pipeline as a manual letter.
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
-pub struct QuotationRequest {
-    pub subject: Option<String>,
-    pub body: Option<String>,
-    /// The hero band. Defaults to the shout; the office can tone it down per send.
-    pub hero: Option<String>,
-    #[serde(default)]
-    pub body_markdown: bool,
-    #[serde(default)]
-    pub attachment_document_ids: Vec<i64>,
-    /// Follow-up letters to schedule (ids of `/followup-steps`), counted from this send.
-    /// Omitted: every active default step. `[]`: none. Any still waiting from an earlier
-    /// quotation of the lead are cancelled either way.
-    #[serde(default)]
-    pub followup_step_ids: Option<Vec<i64>>,
-}
-
-pub async fn send_quotation(
-    state: &AppState,
-    user: &AuthUser,
-    lead_id: i64,
-    req: &QuotationRequest,
-) -> AppResult<i64> {
-    let mut tx = state.db.begin().await?;
-    let lead = leads::find(&mut *tx, lead_id)
-        .await?
-        .ok_or(AppError::NotFound("lead"))?;
-
-    // The lead's own contact first, the partner's mailbox as fallback. No address
-    // anywhere is a data problem, and the error names the lead.
-    let mut to: Option<String> = lead
-        .contact_email
-        .clone()
-        .and_then(|e| normalize_address(&e));
-    if to.is_none()
-        && let Some(pid) = lead.partner_id
-        && let Some(p) = partners::find(&mut *tx, pid).await?
-    {
-        to = p.email.and_then(|e| normalize_address(&e));
-    }
-    let to = to.ok_or_else(|| {
-        AppError::validation(format!(
-            "lead #{} has no email address: add a contact email first",
-            lead.id
-        ))
-    })?;
-
-    let about = About {
-        lead_id: Some(lead_id),
-        ..Default::default()
-    };
-    let values = template_values(
-        &mut tx,
-        &about,
-        Some(&user.display_name),
-        state.config.business_tz,
-    )
-    .await?;
-
-    let mut default_body = String::from(
-        "Tisztelt {{contact.name}}!\n\nKöszönjük érdeklődését ({{lead.title}}). \
-         Árajánlatunkat mellékelten küldjük.",
-    );
-    if values.contains_key("lead.quoted_total") {
-        default_body.push_str("\n\nAjánlott ár: {{lead.quoted_total}}");
-    }
-    if values.contains_key("lead.quote_valid_until") {
-        default_body.push_str("\nAz ajánlat érvényes: {{lead.quote_valid_until}}");
-    }
-    default_body.push_str("\n\nKérdés esetén állunk rendelkezésére.");
-
-    let subject_src = req
-        .subject
-        .clone()
-        .unwrap_or_else(|| "Árajánlatunk: {{lead.title}}".into());
-    let body_src = req.body.clone().unwrap_or(default_body);
-    if req.body_markdown && body_src.contains("{{") {
-        // Same rule as manual mail: Markdown and templates do not mix, because a value
-        // containing asterisks would format the letter by accident.
-        return Err(AppError::validation(
-            "body_markdown does not combine with {{variables}}: write the Markdown body directly",
-        ));
-    }
-    let subject = template::render(&subject_src, &values);
-    let body = template::render(&body_src, &values);
-    let mut unresolved = subject.unresolved.clone();
-    unresolved.extend(body.unresolved.iter().cloned());
-    unresolved.sort();
-    unresolved.dedup();
-    if !unresolved.is_empty() {
-        return Err(AppError::validation(format!(
-            "unresolved template variables: {}",
-            unresolved.join(", ")
-        )));
-    }
-
-    let hero = req
-        .hero
-        .clone()
-        .unwrap_or_else(|| "Megjött az Autotherm árajánlatod!".into());
-    if hero.trim().is_empty() {
-        return Err(AppError::validation("hero is required"));
-    }
-    let body_html = if req.body_markdown {
-        template::markdown_to_html_hero(&hero, &body.output)
-    } else {
-        template::email_html_hero(&hero, &body.output)
-    };
-
-    let mut attachments = Vec::new();
-    if !req.attachment_document_ids.is_empty() {
-        let owner = documents::Owner::Lead(lead_id);
-        let ids = distinct_ids(&req.attachment_document_ids);
-        let docs = documents::find_many(&mut *tx, &ids).await?;
-        if docs.len() != ids.len() || docs.iter().any(|d| !owner.owns(d)) {
-            return Err(AppError::validation(
-                "attachments must be documents of this lead",
-            ));
-        }
-        attachments = docs
-            .into_iter()
-            .map(|d| AttachmentRef {
-                document_id: d.id,
-                filename: Some(d.filename),
-                byte_size: Some(d.byte_size),
-                mode: None,
-                content_id: None,
-            })
-            .collect();
-    }
-
-    let (from, reply_to) = manual_sender(&state.config.email, user)?;
-    let id = emails::insert(
-        &mut *tx,
-        &NewEmail {
-            order_id: None,
-            lead_id: Some(lead_id),
-            partner_id: None,
-            blocker_id: None,
-            template_key: None,
-            trigger: triggers::QUOTATION,
-            sent_by: Some(user.user_id),
-            idempotency_key: None,
-            to_address: &to,
-            cc: &[],
-            bcc: &[],
-            from_address: &from,
-            reply_to: reply_to.as_deref(),
-            subject: &template::single_line(&subject.output),
-            body_html: &body_html,
-            body_text: &body.output,
-            attachments: json!(attachments),
-            send_after: None,
-        },
-    )
-    .await?
-    .ok_or_else(|| AppError::internal("email insert returned no id"))?;
-    crate::service::followups::schedule_for_quotation(
-        &mut tx,
-        lead_id,
-        req.followup_step_ids.as_deref(),
-        Utc::now(),
-        user.user_id,
-    )
-    .await?;
-    jobs::enqueue(
-        &mut *tx,
-        "send_email",
-        json!({ "email_id": id }),
-        None,
-        Some(&format!("send_email:{id}")),
-    )
-    .await?;
-    tx.commit().await?;
-    Ok(id)
-}
-
 /// A newsletter blast: one row, everyone in BCC, nobody sees the list.
 ///
 /// Bodies are literal — a blast has no single partner or lead, so `{{variables}}` have
@@ -994,8 +814,8 @@ pub async fn send_newsletter(
     );
     let footer_text = format!("\n\n---\nLeiratkozás: {unsubscribe_url}");
     let footer_html = format!(
-        "<p style=\"margin:16px 0 0 0;font-size:11px;line-height:1.5;color:#8a847a;\">\
-         <a href=\"{unsubscribe_url}\" style=\"color:#8a847a;\">Leiratkozás a hírlevélről</a></p>"
+        "<p style=\"margin:20px 0 0 0;font-size:12px;line-height:1.5;color:#64748b;\">\
+         <a href=\"{unsubscribe_url}\" style=\"color:#64748b;\">Leiratkozás a hírlevélről</a></p>"
     );
     let body_text = format!("{}{}", body.output, footer_text);
     let rendered_html = match (req.hero.as_deref().map(str::trim), req.body_markdown) {
@@ -1006,8 +826,7 @@ pub async fn send_newsletter(
         (_, true) => template::markdown_to_html(&body.output),
         (_, false) => template::text_to_html(&body.output),
     };
-    let mut body_html = rendered_html;
-    body_html = body_html.replace("</body></html>", &format!("{footer_html}</body></html>"));
+    let mut body_html = template::append_to_content(&rendered_html, &footer_html);
 
     let mut attachments = Vec::new();
     if !req.attachment_document_ids.is_empty() {
@@ -1388,7 +1207,8 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
         // per-recipient cap exist to protect outsiders, and would hold a lead alert until
         // Monday or cancel the fourth one of the day. The kill switch and the suppression
         // list still apply.
-        let internal_alert = email.trigger == triggers::WEBSITE_LEAD_ALERT;
+        let internal_alert = email.trigger == triggers::WEBSITE_LEAD_ALERT
+            || email.trigger == triggers::MODULE_RELEASED;
         let window = SendWindow {
             start: settings.send_window_start,
             end: if internal_alert {
@@ -1509,7 +1329,7 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
     } else {
         let mut text = String::from("\n\nLetölthető fájlok (7 napig érvényes):\n");
         let mut html = String::from(
-            "<p style=\"margin:0 0 12px 0;font-size:14px;line-height:1.6;color:#292524;\">\
+            "<p style=\"margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1e293b;\">\
              Letölthető fájlok (7 napig érvényes):<br>\n",
         );
         for d in docs.iter().filter(|d| regular.contains(&d.id)) {
@@ -1523,7 +1343,7 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
                 .await?;
             text.push_str(&format!("- {}: {}\n", d.filename, url));
             html.push_str(&format!(
-                "<a href=\"{}\" style=\"color:#1d4ed8;\">{}</a><br>\n",
+                "<a href=\"{}\" style=\"color:#274fe2;\">{}</a><br>\n",
                 template::escape_html(&url),
                 template::escape_html(&d.filename)
             ));
@@ -1537,8 +1357,17 @@ pub async fn deliver(state: &AppState, mailer: &Mailer, email_id: i64) -> anyhow
         }
         html.push_str("</p>");
         body_text.push_str(&text);
-        body_html = body_html.replace("</body></html>", &format!("{html}</body></html>"));
+        body_html = template::append_to_content(&body_html, &html);
         emails::set_bodies(&mut *tx, email_id, &body_text, &body_html).await?;
+    }
+    // The logo in the header travels with the letter, like the author's inline images.
+    if body_html.contains(template::LOGO_SRC) {
+        outgoing.push(OutgoingAttachment {
+            filename: "autotherm-logo.png".into(),
+            content_type: "image/png".into(),
+            bytes: template::LOGO_PNG.to_vec(),
+            content_id: Some(template::LOGO_CID.into()),
+        });
     }
 
     emails::mark_sending(&mut *tx, email_id).await?;
@@ -1756,6 +1585,7 @@ mod tests {
             must_change_password: false,
             hr_access: false,
             permissions: vec![],
+            role_grid: None,
         }
     }
 

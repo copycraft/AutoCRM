@@ -55,7 +55,7 @@ struct ChatBody {
 )]
 async fn chat(
     State(state): State<AppState>,
-    Auth(_): Auth,
+    Auth(me): Auth,
     ApiJson(b): ApiJson<ChatBody>,
 ) -> AppResult<Json<AssistantReply>> {
     let ai = state.config.ai.as_ref().ok_or_else(|| {
@@ -74,6 +74,6 @@ async fn chat(
     }
     let today = crate::service::business_today(state.config.business_tz).to_string();
     Ok(Json(
-        assistant::chat(&state.db, ai, &b.messages, &today).await?,
+        assistant::chat(&state.db, &me, ai, &b.messages, &today).await?,
     ))
 }

@@ -8,7 +8,7 @@ use autocrm::repo::leads::LeadInput;
 use autocrm::repo::timeline::{self, TimelineEntity};
 use autocrm::repo::{followups, invoices, lost_reasons, newsletter};
 use autocrm::service::auth::AuthUser;
-use autocrm::service::email::{self, QuotationRequest};
+use autocrm::service::leads::{QuotationRecord, record_quotation};
 use autocrm::service::{mailbox, newsletter as sends, reminders};
 use sqlx::PgPool;
 
@@ -53,7 +53,7 @@ fn raw(from: &str, in_reply_to: Option<&str>, message_id: &str) -> Vec<u8> {
 }
 
 #[sqlx::test(migrations = "./migrations")]
-async fn a_reply_to_our_quotation_stops_its_follow_ups_and_lands_on_the_history(pool: PgPool) {
+async fn a_reply_to_our_follow_up_stops_the_rest_and_lands_on_the_history(pool: PgPool) {
     let (state, user) = setup(&pool).await;
     let lead = autocrm::service::leads::create(
         &state.db,
@@ -64,22 +64,45 @@ async fn a_reply_to_our_quotation_stops_its_follow_ups_and_lands_on_the_history(
     )
     .await
     .unwrap();
-    email::send_quotation(
+    // The quotation went out from the sales manager's own mailbox; only its PDF is here.
+    let pdf: i64 = sqlx::query_scalar(
+        "INSERT INTO documents (lead_id, kind, filename, content_type, storage_key, content_hash, byte_size)
+         VALUES ($1, 'quote', 'ajanlat.pdf', 'application/pdf', 'test/fake', digest('x', 'sha256'), 10)
+         RETURNING id",
+    )
+    .bind(lead.id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    record_quotation(
         &state,
         &user,
         lead.id,
-        &QuotationRequest {
-            subject: None,
-            body: None,
-            hero: None,
-            body_markdown: false,
-            attachment_document_ids: vec![],
+        &QuotationRecord {
+            document_id: pdf,
+            quoted_value_minor: None,
+            currency: None,
+            quote_valid_until: None,
+            sent_on: None,
             followup_step_ids: None,
         },
     )
     .await
     .unwrap();
-    // The quotation as the worker would have left it once sent.
+    // The first follow-up goes out from the CRM, which is what the customer answers.
+    sqlx::query(
+        "UPDATE lead_followups SET due_at = now() - interval '1 minute'
+          WHERE id = (SELECT id FROM lead_followups WHERE lead_id = $1 ORDER BY due_at LIMIT 1)",
+    )
+    .bind(lead.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        autocrm::service::followups::send_due(&state).await.unwrap(),
+        1
+    );
+    // The follow-up as the worker would have left it once sent.
     let email_id: i64 = sqlx::query_scalar(
         "UPDATE email_messages SET status = 'sent', provider_id = '<email-77.abc@autotherm.hu>'
           WHERE lead_id = $1 RETURNING id",
@@ -107,9 +130,12 @@ async fn a_reply_to_our_quotation_stops_its_follow_ups_and_lands_on_the_history(
     assert_eq!((lead_id, reply_to), (Some(lead.id), Some(email_id)));
 
     let rows = followups::for_lead(&pool, lead.id).await.unwrap();
-    assert!(rows.iter().all(|f| f.status == "cancelled"), "{rows:?}");
+    let waiting: Vec<_> = rows.iter().filter(|f| f.status != "sent").collect();
+    assert_eq!(waiting.len(), 2, "{rows:?}");
+    assert!(waiting.iter().all(|f| f.status == "cancelled"), "{rows:?}");
     assert!(
-        rows.iter()
+        waiting
+            .iter()
             .all(|f| f.note.as_deref() == Some("az ügyfél válaszolt"))
     );
 

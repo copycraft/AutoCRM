@@ -40,6 +40,20 @@ pub struct ApplicationRow {
     pub resume_content_type: String,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// The job ad it came through (0064), and the channel it was sorted into.
+    pub ad_id: Option<i64>,
+    pub channel: Option<String>,
+}
+
+/// Where an application came from, as the listing's page saw it (0064).
+#[derive(Debug, Clone, Default)]
+pub struct ApplicationSource {
+    pub ad_id: Option<i64>,
+    pub channel: Option<String>,
+    pub utm_source: Option<String>,
+    pub utm_medium: Option<String>,
+    pub utm_campaign: Option<String>,
+    pub referrer: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +67,7 @@ pub struct ApplicationInput {
     pub resume_key: String,
     pub resume_filename: String,
     pub resume_content_type: String,
+    pub source: ApplicationSource,
 }
 
 const POSTING_SELECT: &str = "SELECT p.id, p.title, p.description, p.location, p.slug, p.status,
@@ -61,7 +76,7 @@ const POSTING_SELECT: &str = "SELECT p.id, p.title, p.description, p.location, p
      FROM job_postings p";
 
 const APPLICATION_COLUMNS: &str = "id, posting_id, full_name, email, phone, age, city, message,
-        resume_key, resume_filename, resume_content_type, notes, created_at";
+        resume_key, resume_filename, resume_content_type, notes, created_at, ad_id, channel";
 
 pub async fn list_postings(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<PostingRow>> {
     sqlx::query_as(&format!(
@@ -202,8 +217,9 @@ pub async fn insert_application(
     sqlx::query_as(&format!(
         "INSERT INTO job_applications
              (posting_id, full_name, email, phone, age, city, message,
-              resume_key, resume_filename, resume_content_type)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+              resume_key, resume_filename, resume_content_type,
+              ad_id, channel, utm_source, utm_medium, utm_campaign, referrer)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING {APPLICATION_COLUMNS}"
     ))
     .bind(posting_id)
@@ -216,6 +232,12 @@ pub async fn insert_application(
     .bind(&a.resume_key)
     .bind(&a.resume_filename)
     .bind(&a.resume_content_type)
+    .bind(a.source.ad_id)
+    .bind(&a.source.channel)
+    .bind(&a.source.utm_source)
+    .bind(&a.source.utm_medium)
+    .bind(&a.source.utm_campaign)
+    .bind(&a.source.referrer)
     .fetch_one(db)
     .await
 }

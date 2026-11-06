@@ -85,9 +85,14 @@ class OrderPhotoViewModel(
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
-    /** Set once by the screen; the queue count is per order. */
+    /** Set once by the screen — or again if the order changes; the collector never stacks. */
+    private var observeJob: kotlinx.coroutines.Job? = null
     fun observe(orderId: Long) {
-        viewModelScope.launch {
+        // `LaunchedEffect(orderId)` cancels the effect, not a ViewModel-scope collector
+        // launched by the previous call: two live collectors would fight over `_state`
+        // (two orders' pending counts flickering) whenever the order id ever changes.
+        observeJob?.cancel()
+        observeJob = viewModelScope.launch {
             queue.forOrder(orderId).collect { rows ->
                 _state.value = _state.value.copy(pending = rows.size, pendingFiles = rows.map { it.filePath })
             }

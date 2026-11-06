@@ -15,9 +15,9 @@ import { LeadForm, leadPatchBody, type LeadFormValues } from '@/components/forms
 import { TaskList } from '@/components/tasks/TaskList';
 import { LeadStageDialog } from '@/components/forms/LeadStageDialog';
 import { LeadConvertDialog } from '@/components/forms/LeadConvertDialog';
-import { QuotationDialog } from '@/components/email/QuotationDialog';
+import { QuoteUploadDialog } from '@/components/leads/QuoteUploadDialog';
 import { stageTone } from '@/lib/utils/stages';
-import { configApi, leadsApi, partnersApi, usersApi } from '@/lib/api/endpoints';
+import { configApi, leadsApi, mediaApi, partnersApi, usersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { canAdmin, canEditLeads, useAuth } from '@/lib/auth/context';
 import { daysSince } from '@/lib/utils/format';
@@ -35,6 +35,8 @@ import { leadSourcesApi } from '@/lib/api/endpoints';
 import { canComment, canSendEmail, canUploadMedia } from '@/lib/auth/context';
 import { Conversation } from '@/components/leads/Conversation';
 import { useRouteId } from '@/hooks/useRouteId';
+import { LeadSpecSection } from '@/components/spec/LeadSpecSection';
+import type { Document as LeadDocument } from '@/lib/api/types';
 
 /** A quote whose validity has passed. Plain YYYY-MM-DD compared against the Budapest
  * calendar date — a UTC date would flip the badge around midnight for "today". */
@@ -278,7 +280,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } | Pr
                       <h2 className="text-section font-semibold">{t('quoteSection')}</h2>
                       {editable && (
                         <button className="btn-primary btn-sm" onClick={() => setQuotationOpen(true)}>
-                          {t('sendQuotation')}
+                          {t('uploadQuote')}
                         </button>
                       )}
                     </div>
@@ -309,6 +311,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } | Pr
                           )
                         }
                       />
+                      <Info label={t('quoteDocument')} value={<QuoteFile documents={documents} empty={t('quoteNoDocument')} />} />
                     </div>
                     {lead.quote_fx_rate && lead.quote_fx_day && lead.quoted_value_minor != null && (
                       <p className="mt-2 font-mono text-metadata text-steel-500">
@@ -339,6 +342,16 @@ export default function LeadDetailPage({ params }: { params: { id: string } | Pr
                   </div>
                 </section>
               )}
+
+              {/* The build questionnaire: filled while selling, asked again on conversion
+                  for whatever required answer is still missing. Keyed so a save elsewhere
+                  (the convert dialog) restarts it from the stored answers. */}
+              <LeadSpecSection
+                key={JSON.stringify(detail.data.spec)}
+                leadId={id}
+                spec={detail.data.spec}
+                editable={editable}
+              />
 
               <section className="border-t border-steel-200 pt-5 first:border-t-0 first:pt-0">
                 <h2 className="text-section font-semibold">{tcv('title')}</h2>
@@ -379,7 +392,12 @@ export default function LeadDetailPage({ params }: { params: { id: string } | Pr
                 <LeadConvertDialog leadId={id} detail={detail.data} onClose={() => setConvertOpen(false)} />
               )}
               {quotationOpen && (
-                <QuotationDialog leadId={id} detail={detail.data} onClose={() => setQuotationOpen(false)} />
+                <QuoteUploadDialog
+                  leadId={id}
+                  detail={detail.data}
+                  hasEmail={!!lead.contact_email || !!partnerQuery.data?.partner.email}
+                  onClose={() => setQuotationOpen(false)}
+                />
               )}
             </>
           );
@@ -399,3 +417,26 @@ function Info({ label, value, mono }: { label: string; value: React.ReactNode; m
 }
 
 
+
+/** The lead's quotation file: the newest document filed as `quote`, downloadable. */
+function QuoteFile({ documents, empty }: { documents: LeadDocument[]; empty: string }) {
+  const quote = documents
+    .filter((d) => d.kind === 'quote')
+    .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))[0];
+  if (!quote) return <>{empty}</>;
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className="text-left font-medium text-cold underline-offset-2 hover:underline"
+        onClick={async () => {
+          const { url } = await mediaApi.downloadDocument(quote.id);
+          window.location.href = url;
+        }}
+      >
+        {quote.filename}
+      </button>
+      <DateDisplay value={quote.uploaded_at} className="text-metadata text-steel-500" />
+    </span>
+  );
+}

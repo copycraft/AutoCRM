@@ -1,0 +1,4824 @@
+diff --git a/README.md b/README.md
+index 05dac25..9d7edac 100644
+--- a/README.md
++++ b/README.md
+@@ -64,6 +64,7 @@ works without it.
+ | `VIN_DECODER_ONLINE=true` | Make and model from NHTSA when a VIN is read (the offline reading always works) |
+ | `NAV_SUPPLIER_BANK_ACCOUNT_EUR` | A separate account on EUR invoices and proformas |
+ | `EMAIL_MODE=smtp` | Real delivery. Otherwise mail is dry-run: rows are written and bodies logged |
++| `STORAGE_BACKEND=fs` + `STORAGE_DIR` | Files as plain files in project folders on a mounted (NFS) share instead of the object store. See [Files on an NFS share](#files-on-an-nfs-share) |
+ 
+ Automatic mail (nudges, follow-ups, reminders, confirmations, alerts) also needs the kill
+ switch turned on in Beállítások. It is off by default, and mail queued while it is off is
+@@ -139,6 +140,66 @@ cd backend && cargo run -- fx-backfill --from 2010-01-01 --to 2026-09-11
+ **Email check.** `cargo run -- email-test --to you@autotherm.hu` sends one message straight
+ through the configured transport and prints what the server said.
+ 
++## Files on an NFS share
++
++With `STORAGE_BACKEND=fs`, every file the system keeps is a plain file under `STORAGE_DIR`,
++filed where a person browsing the share would look for it:
++
++```text
++projektek/2026/2026-0042_Kovacs-Kft_ABC-123/      one folder per order (number_customer_plate)
++    ajanlat/                                       the enquiry's quotation and files
++    dokumentumok/{terv,cad,tanusitvany,video,egyeb}/
++    szamlazas/{szamlak,sztornok,dijbekerok}/       invoice, storno and proforma PDFs
++    fotok/{bevetel,gyartas,atadas-meo,atadas-atvetel,marketing}/
++    atadas-atvetel/2026-10-19_atvetel_ABC-123_17/{fotok,alairasok,videok}/
++    torolt/…                                       deleted in the app
++    .elonezet/                                     previews and thumbnails (regenerable)
++ajanlatok/2026/L000123_Kovacs-Kft/                 enquiries that have not become an order
++hr/dolgozok/0012_Nagy-Peter/{profilkep,dokumentumok/<fajta>,tavollet}/
++hr/toborzas/0003_Villanyszerelo/                   CVs, per job posting
++bejovo-szamlak/2026/10/                            incoming supplier invoices, by month
++migracio/eredeti/                                  MiniCRM downloads, until re-sorted
++```
++
++Names are ASCII (accents dropped) and end in the first eight characters of the file's
++sha256, so two `IMG_0001.jpg` never collide. A folder is named once, from what was known
++then, and kept: renaming the customer later does not split the project. Intake photos are
++read-only files. Each night the worker re-files anything out of place (an enquiry that
++became an order, a deleted photo, a walkaround's signature) and clears aborted uploads.
++
++Uploads and downloads go through the API (`<PUBLIC_BASE_URL>/api/files/<signed token>`),
++with the same three upload steps the web app and the phone always used, so neither needed
++to change. Uploads are written under `.tmp/` and linked into place only when size and
++sha256 match.
++
++**Mounting.** Mount the export on the server, e.g. in `/etc/fstab`:
++
++```text
++nas.local:/volume1/autocrm  /srv/autocrm-files  nfs4  rw,hard,noatime,_netdev  0  0
++```
++
++then `STORAGE_BACKEND=fs` and `STORAGE_DIR=/srv/autocrm-files`. Outside `APP_ENV=dev` the
++server refuses to start (and to write) unless `STORAGE_DIR` is on a mounted filesystem of
++its own, so a share that failed to mount never fills the local disk; `STORAGE_REQUIRE_MOUNT`
++overrides that. The exported folder must be writable by the user the server runs as. The
++Docker demo mounts the share itself: [deploy/demo/README.md](deploy/demo/README.md).
++
++`hr/` holds medical papers and CVs: give it narrower permissions on the NAS than the rest
++of the share.
++
++**Moving from the object store.** Keep the `S3_*` settings, switch to `fs`, then copy every
++file over once, into its folder (the object store is left untouched; re-running resumes):
++
++```bash
++autocrm storage-relayout --from-s3 --dry-run
++```
++
++```bash
++autocrm storage-relayout --from-s3
++```
++
++Without `--from-s3` the same command re-sorts what is already on the share.
++
+ ## Tests
+ 
+ ```bash
+diff --git a/backend/.env.example b/backend/.env.example
+index e8e22b8..b0052a8 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -16,6 +16,21 @@ DATABASE_MAX_CONNECTIONS=10
+ # 32+ random bytes, hex or base64. Signs upload tokens. Rotate = in-flight uploads must restart.
+ UPLOAD_SIGNING_KEY=dev-only-change-me-0123456789abcdef0123456789abcdef
+ 
++# --- File storage ------------------------------------------------------------------------
++# s3 (default): an S3-compatible object store, the S3_* settings below.
++# fs: plain files in project folders under STORAGE_DIR, in production an NFS share mounted
++#     on the server (see README "Files on an NFS share"). Uploads and downloads then go
++#     through this server at <PUBLIC_BASE_URL>/api/files/...; the S3_* settings are only
++#     read by `autocrm storage-relayout --from-s3`, which copies everything over once.
++# STORAGE_BACKEND=fs
++# STORAGE_DIR=/srv/autocrm-files
++# Refuse to start or write unless STORAGE_DIR is on a mounted filesystem (Linux). Default:
++# on outside APP_ENV=dev, so a share that failed to mount never fills the local disk.
++# STORAGE_REQUIRE_MOUNT=true
++# Intake photos become read-only files for this policy (0 disables). Defaults to
++# S3_INTAKE_LOCK_YEARS.
++# STORAGE_INTAKE_LOCK_YEARS=10
++
+ S3_ENDPOINT=http://localhost:9000
+ S3_REGION=us-east-1
+ S3_BUCKET=autocrm
+diff --git a/backend/Cargo.lock b/backend/Cargo.lock
+index 49f3769..5ffec79 100644
+--- a/backend/Cargo.lock
++++ b/backend/Cargo.lock
+@@ -1689,6 +1689,12 @@ dependencies = [
+  "pin-project-lite",
+ ]
+ 
++[[package]]
++name = "http-range-header"
++version = "0.4.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
++
+ [[package]]
+ name = "httparse"
+ version = "1.10.1"
+@@ -2177,6 +2183,16 @@ version = "0.3.17"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
+ 
++[[package]]
++name = "mime_guess"
++version = "2.0.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
++dependencies = [
++ "mime",
++ "unicase",
++]
++
+ [[package]]
+ name = "minimal-lexical"
+ version = "0.2.1"
+@@ -3874,6 +3890,11 @@ dependencies = [
+  "http 1.5.0",
+  "http-body 1.1.0",
+  "http-body-util",
++ "http-range-header",
++ "httpdate",
++ "mime",
++ "mime_guess",
++ "percent-encoding",
+  "pin-project-lite",
+  "tokio",
+  "tokio-util",
+diff --git a/backend/Cargo.toml b/backend/Cargo.toml
+index 15992d4..d307253 100644
+--- a/backend/Cargo.toml
++++ b/backend/Cargo.toml
+@@ -49,7 +49,9 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
+ thiserror = "2"
+ tokio = { version = "1", features = ["full"] }
+ tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+-tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "limit", "catch-panic", "compression-gzip"] }
++# fs: files on the NFS share are served with Range and conditional requests (videos seek).
++tower = { version = "0.5", features = ["util"] }
++tower-http = { version = "0.6", features = ["trace", "request-id", "timeout", "limit", "catch-panic", "compression-gzip", "fs"] }
+ tracing = "0.1"
+ tracing-appender = "0.2"
+ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+@@ -60,7 +62,6 @@ webpki-roots = "0.26"
+ 
+ [dev-dependencies]
+ http-body-util = "0.1"
+-tower = { version = "0.5", features = ["util"] }
+ 
+ [profile.dev.package."*"]
+ # Image decoding and argon2 are unbearably slow unoptimised; our own code stays debuggable.
+diff --git a/backend/src/api/hr.rs b/backend/src/api/hr.rs
+index cd72d9d..5bcf18d 100644
+--- a/backend/src/api/hr.rs
++++ b/backend/src/api/hr.rs
+@@ -20,7 +20,7 @@ use crate::AppState;
+ use crate::domain::email::normalize_address;
+ use crate::domain::role::Capability;
+ use crate::error::{AppError, AppResult};
+-use crate::media::pipeline;
++use crate::media::{layout, pipeline};
+ use crate::repo::employees::{self, EmployeeInput, EmployeeRow};
+ use crate::repo::{audit, employee_details, employee_documents, like_pattern};
+ 
+@@ -218,10 +218,13 @@ async fn upload_document_file(
+     let (content_type, ext) = super::incoming_invoices::sniff(&body)
+         .filter(|(_, ext)| *ext != "xml")
+         .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
+-    let random: [u8; 12] = rand::random();
+-    let key = format!(
+-        "employee-documents/{id}/{doc_id}-{}.{ext}",
+-        hex::encode(random)
++    let kind = employee_documents::kind_of(&state.db, doc_id, id)
++        .await?
++        .ok_or(AppError::NotFound("document"))?;
++    let folder = layout::employee_folder_of(&state, id).await?;
++    let key = layout::join(
++        &layout::employee_document_dir(&folder, &kind, false),
++        &layout::file_name(Some(&name), "dokumentum", &layout::random_tag(), ext),
+     );
+     let size = body.len() as i64;
+     state
+@@ -616,7 +619,10 @@ async fn set_photo(
+         .map_err(|e| AppError::internal(format!("avatar task: {e}")))?
+         .map_err(|e| AppError::validation(e.to_string()))?;
+ 
+-    let key = format!("hr/employees/{id}/{:016x}.jpg", rand::random::<u64>());
++    let key = layout::join(
++        &layout::employee_photo_dir(&layout::employee_folder_of(&state, id).await?),
++        &format!("profilkep_{}.jpg", layout::random_tag()),
++    );
+     state
+         .storage
+         .put_bytes(&key, jpeg, "image/jpeg")
+diff --git a/backend/src/api/incoming_invoices.rs b/backend/src/api/incoming_invoices.rs
+index f561137..f42d37e 100644
+--- a/backend/src/api/incoming_invoices.rs
++++ b/backend/src/api/incoming_invoices.rs
+@@ -23,6 +23,7 @@ use super::{Items, optional, page_limit, page_offset, patch as patch_field, patc
+ use crate::AppState;
+ use crate::domain::role::Capability;
+ use crate::error::{AppError, AppResult};
++use crate::media::layout;
+ use crate::media::storage::content_disposition;
+ use crate::repo::incoming_invoices::{
+     self, BUCKETS, Fields, IncomingBucketCount, IncomingInvoice, KnownSupplier, NewFile,
+@@ -194,7 +195,14 @@ async fn upload(
+             format!("this file is already uploaded as incoming invoice #{existing}"),
+         ));
+     }
+-    let key = format!("incoming-invoices/{}.{ext}", hex::encode(&hash));
++    let hash_hex = hex::encode(&hash);
++    let key = layout::join(
++        &layout::incoming_invoice_dir(
++            crate::service::business_today(state.config.business_tz),
++            false,
++        ),
++        &layout::file_name(Some(&name), "szamla", layout::hash_tag(&hash_hex), ext),
++    );
+     let size = body.len() as i64;
+     state
+         .storage
+diff --git a/backend/src/api/leave.rs b/backend/src/api/leave.rs
+index dd6030d..74399fb 100644
+--- a/backend/src/api/leave.rs
++++ b/backend/src/api/leave.rs
+@@ -338,11 +338,19 @@ async fn upload_absence_file(
+     let (content_type, ext) = super::incoming_invoices::sniff(&body)
+         .filter(|(_, ext)| *ext != "xml")
+         .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
+-    let random: [u8; 12] = rand::random();
+-    let key = format!(
+-        "absences/{}/{id}-{}.{ext}",
+-        row.employee_id,
+-        hex::encode(random)
++    let folder = crate::media::layout::employee_folder_of(&state, row.employee_id).await?;
++    let key = crate::media::layout::join(
++        &crate::media::layout::absence_dir(&folder),
++        &format!(
++            "{}_{}",
++            row.start_date,
++            crate::media::layout::file_name(
++                Some(&name),
++                "igazolas",
++                &crate::media::layout::random_tag(),
++                ext
++            )
++        ),
+     );
+     let size = body.len() as i64;
+     state
+diff --git a/backend/src/api/mod.rs b/backend/src/api/mod.rs
+index c843622..4c4995b 100644
+--- a/backend/src/api/mod.rs
++++ b/backend/src/api/mod.rs
+@@ -14,6 +14,7 @@ pub mod configuration;
+ pub mod docs;
+ pub mod email;
+ pub mod extract;
++pub mod files;
+ pub mod followups;
+ pub mod hr;
+ pub mod hr_statuses;
+@@ -118,6 +119,9 @@ pub fn router(state: AppState) -> Router {
+             StatusCode::REQUEST_TIMEOUT,
+             Duration::from_secs(30),
+         ))
++        // After those two: an upload to the share runs as long as the file takes, and
++        // downloads are served byte-exact so a video can seek.
++        .merge(files::routes())
+         .layer(CatchPanicLayer::new())
+         .layer(TraceLayer::new_for_http())
+         .layer(PropagateRequestIdLayer::x_request_id())
+diff --git a/backend/src/api/recruitment.rs b/backend/src/api/recruitment.rs
+index 7edbcd3..55a3fe0 100644
+--- a/backend/src/api/recruitment.rs
++++ b/backend/src/api/recruitment.rs
+@@ -21,6 +21,7 @@ use crate::AppState;
+ use crate::domain::email::normalize_address;
+ use crate::domain::role::Capability;
+ use crate::error::{AppError, AppResult};
++use crate::media::layout;
+ use crate::media::storage::content_disposition;
+ use crate::repo::audit;
+ use crate::repo::recruitment::{self, ApplicationInput, ApplicationRow, PostingInput, PostingRow};
+@@ -736,10 +737,14 @@ async fn apply(
+         ));
+     }
+ 
+-    let key = format!(
+-        "hr/applications/{}/{:016x}.{ext}",
+-        posting.id,
+-        rand::random::<u64>()
++    let key = layout::join(
++        &layout::posting_folder_of(&state, posting.id).await?,
++        &format!(
++            "{}_{}_{}.{ext}",
++            service::business_today(state.config.business_tz),
++            layout::stem_slug(&input.full_name, 40),
++            layout::random_tag()
++        ),
+     );
+     state
+         .storage
+diff --git a/backend/src/bin/autocrm-migrate.rs b/backend/src/bin/autocrm-migrate.rs
+index 0817cc2..2a02047 100644
+--- a/backend/src/bin/autocrm-migrate.rs
++++ b/backend/src/bin/autocrm-migrate.rs
+@@ -91,7 +91,7 @@ async fn app_state() -> anyhow::Result<AppState> {
+     let config = Config::from_env()?;
+     let pool = db::connect(&config).await?;
+     db::migrate(&pool).await?;
+-    let storage = Storage::new(&config.s3);
++    let storage = Storage::from_config(&config);
+     Ok(AppState {
+         db: pool,
+         config: Arc::new(config),
+diff --git a/backend/src/config.rs b/backend/src/config.rs
+index d7f4599..828a051 100644
+--- a/backend/src/config.rs
++++ b/backend/src/config.rs
+@@ -114,6 +114,101 @@ pub struct S3Config {
+     pub intake_lock_years: u32,
+ }
+ 
++/// Where files live (`STORAGE_BACKEND`).
++#[derive(Clone)]
++pub enum StorageConfig {
++    /// An S3-compatible object store; browsers and phones upload to it directly.
++    S3(S3Config),
++    /// A directory, in production a mounted NFS share: plain files in project folders that
++    /// a person can open from the share. This server takes the uploads and serves downloads.
++    Fs(FsConfig),
++}
++
++#[derive(Debug, Clone)]
++pub struct FsConfig {
++    /// `STORAGE_DIR`, absolute.
++    pub dir: PathBuf,
++    /// Refuse to read or write unless `dir` sits on a filesystem mounted on its own (Linux):
++    /// a share that failed to mount must not quietly fill the local disk instead.
++    pub require_mount: bool,
++    /// Intake photos are made read-only files for this many years' worth of policy; 0 off.
++    pub intake_lock_years: u32,
++}
++
++impl StorageConfig {
++    pub fn intake_lock_years(&self) -> u32 {
++        match self {
++            StorageConfig::S3(c) => c.intake_lock_years,
++            StorageConfig::Fs(c) => c.intake_lock_years,
++        }
++    }
++}
++
++/// The S3 settings on their own: what `storage-relayout --from-s3` copies from after the
++/// switch to `STORAGE_BACKEND=fs`.
++pub fn s3_from_env() -> Result<S3Config, ConfigError> {
++    let mut r = Reader { errors: Vec::new() };
++    let s3 = read_s3(&mut r);
++    if r.errors.is_empty() {
++        Ok(s3)
++    } else {
++        Err(ConfigError(r.errors))
++    }
++}
++
++fn read_s3(r: &mut Reader) -> S3Config {
++    S3Config {
++        endpoint: r.optional("S3_ENDPOINT"),
++        region: r
++            .optional("S3_REGION")
++            .unwrap_or_else(|| "us-east-1".into()),
++        bucket: r.required("S3_BUCKET"),
++        access_key: r.required("S3_ACCESS_KEY"),
++        secret_key: r.required("S3_SECRET_KEY"),
++        force_path_style: r.parsed("S3_FORCE_PATH_STYLE", false),
++        intake_lock_years: r.parsed("S3_INTAKE_LOCK_YEARS", 10u32),
++    }
++}
++
++fn read_storage(r: &mut Reader, env: AppEnv) -> StorageConfig {
++    match r.optional("STORAGE_BACKEND").as_deref().unwrap_or("s3") {
++        "s3" => StorageConfig::S3(read_s3(r)),
++        "fs" => {
++            let dir = PathBuf::from(r.required("STORAGE_DIR"));
++            if !dir.as_os_str().is_empty() && !dir.is_absolute() {
++                r.errors.push(format!(
++                    "STORAGE_DIR must be an absolute path, got '{}'",
++                    dir.display()
++                ));
++            }
++            // Off in development (a plain folder on the laptop is the point there); on in
++            // staging and production, where the folder is meant to be the share.
++            let default_mount = cfg!(target_os = "linux") && env != AppEnv::Dev;
++            let require_mount = r.parsed("STORAGE_REQUIRE_MOUNT", default_mount);
++            if require_mount && !cfg!(target_os = "linux") {
++                r.errors.push(
++                    "STORAGE_REQUIRE_MOUNT=true can only be checked on Linux; set it to false"
++                        .into(),
++                );
++            }
++            let years = match Reader::var("STORAGE_INTAKE_LOCK_YEARS") {
++                Some(_) => r.parsed("STORAGE_INTAKE_LOCK_YEARS", 10u32),
++                None => r.parsed("S3_INTAKE_LOCK_YEARS", 10u32),
++            };
++            StorageConfig::Fs(FsConfig {
++                dir,
++                require_mount,
++                intake_lock_years: years,
++            })
++        }
++        other => {
++            r.errors
++                .push(format!("STORAGE_BACKEND: expected s3 or fs, got '{other}'"));
++            StorageConfig::S3(read_s3(r))
++        }
++    }
++}
++
+ /// The billing party on every invoice: us.
+ ///
+ /// NAV wants a structured address, not a line of text, so these are separate fields rather
+@@ -174,7 +269,7 @@ pub struct Config {
+     pub database_url: String,
+     pub database_max_connections: u32,
+     pub upload_signing_key: Vec<u8>,
+-    pub s3: S3Config,
++    pub storage: StorageConfig,
+     pub email: EmailConfig,
+     pub mnb_endpoint: String,
+     /// None when NAV_SIDECAR_URL is unset: invoicing is simply not configured here.
+@@ -480,17 +575,7 @@ impl Config {
+                 .push("UPLOAD_SIGNING_KEY must be at least 32 bytes".into());
+         }
+ 
+-        let s3 = S3Config {
+-            endpoint: r.optional("S3_ENDPOINT"),
+-            region: r
+-                .optional("S3_REGION")
+-                .unwrap_or_else(|| "us-east-1".into()),
+-            bucket: r.required("S3_BUCKET"),
+-            access_key: r.required("S3_ACCESS_KEY"),
+-            secret_key: r.required("S3_SECRET_KEY"),
+-            force_path_style: r.parsed("S3_FORCE_PATH_STYLE", false),
+-            intake_lock_years: r.parsed("S3_INTAKE_LOCK_YEARS", 10u32),
+-        };
++        let storage = read_storage(&mut r, env);
+ 
+         let from_automatic = r.required("EMAIL_FROM_AUTOMATIC");
+         let reply_to_default = r.required("EMAIL_REPLY_TO_DEFAULT");
+@@ -754,7 +839,7 @@ impl Config {
+             database_url,
+             database_max_connections,
+             upload_signing_key,
+-            s3,
++            storage,
+             email,
+             nav,
+             mnb_endpoint,
+@@ -797,7 +882,7 @@ pub fn test_config() -> Config {
+         database_url: String::new(),
+         database_max_connections: 1,
+         upload_signing_key: vec![7; 32],
+-        s3: S3Config {
++        storage: StorageConfig::S3(S3Config {
+             endpoint: None,
+             region: "us-east-1".into(),
+             bucket: "test".into(),
+@@ -805,7 +890,7 @@ pub fn test_config() -> Config {
+             secret_key: "test".into(),
+             force_path_style: true,
+             intake_lock_years: 0,
+-        },
++        }),
+         email: EmailConfig {
+             transport: EmailTransportConfig::DryRun,
+             from_automatic: "noreply@autotherm.hu".into(),
+diff --git a/backend/src/domain/media.rs b/backend/src/domain/media.rs
+index 0f160e4..215ac9e 100644
+--- a/backend/src/domain/media.rs
++++ b/backend/src/domain/media.rs
+@@ -78,11 +78,6 @@ pub fn thumb_source(filename: &str) -> Option<ThumbSource> {
+     }
+ }
+ 
+-/// Where a document's thumbnail is stored: next to the file, by its key.
+-pub fn document_thumb_key(storage_key: &str) -> String {
+-    format!("{storage_key}.thumb.png")
+-}
+-
+ pub const MAX_IMAGE_BYTES: i64 = 50 * 1024 * 1024;
+ pub const MAX_DOCUMENT_BYTES: i64 = 2 * 1024 * 1024 * 1024;
+ 
+@@ -107,37 +102,6 @@ pub fn document_extension(filename: &str) -> Option<String> {
+     (ok && !BLOCKED.contains(&ext.as_str())).then_some(ext)
+ }
+ 
+-/// Content-addressed object key for an original image.
+-pub fn image_storage_key(
+-    order_id: i64,
+-    category: ImageCategory,
+-    hash_hex: &str,
+-    ext: &str,
+-) -> String {
+-    format!("orders/{order_id}/{}/{hash_hex}.{ext}", category.as_str())
+-}
+-
+-pub fn image_derived_key(
+-    order_id: i64,
+-    category: ImageCategory,
+-    hash_hex: &str,
+-    variant: &str,
+-) -> String {
+-    format!(
+-        "orders/{order_id}/{}/derived/{hash_hex}.{variant}.jpg",
+-        category.as_str()
+-    )
+-}
+-
+-pub fn document_storage_key(order_id: i64, hash_hex: &str, ext: &str) -> String {
+-    format!("orders/{order_id}/documents/{hash_hex}.{ext}")
+-}
+-
+-/// V2.4: a quotation belongs to the lead it was sent for, before any order exists.
+-pub fn lead_document_storage_key(lead_id: i64, hash_hex: &str, ext: &str) -> String {
+-    format!("leads/{lead_id}/documents/{hash_hex}.{ext}")
+-}
+-
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -149,10 +113,6 @@ mod tests {
+         assert_eq!(thumb_source("fotó.jpeg"), Some(ThumbSource::Image));
+         assert_eq!(thumb_source("ajánlat.pdf"), None);
+         assert_eq!(thumb_source("README"), None);
+-        assert_eq!(
+-            document_thumb_key("orders/1/documents/ab.dxf"),
+-            "orders/1/documents/ab.dxf.thumb.png"
+-        );
+     }
+ 
+     #[test]
+@@ -169,12 +129,4 @@ mod tests {
+         assert_eq!(document_extension("noext"), None);
+         assert_eq!(document_extension("weird.p d f"), None);
+     }
+-
+-    #[test]
+-    fn keys_are_content_addressed() {
+-        assert_eq!(
+-            image_storage_key(42, ImageCategory::Intake, "abcd", "jpg"),
+-            "orders/42/intake/abcd.jpg"
+-        );
+-    }
+ }
+diff --git a/backend/src/jobs/mod.rs b/backend/src/jobs/mod.rs
+index bad053c..ff288d9 100644
+--- a/backend/src/jobs/mod.rs
++++ b/backend/src/jobs/mod.rs
+@@ -17,7 +17,7 @@ use crate::integrations::email::Mailer;
+ use crate::repo::jobs::{self, Job};
+ use crate::service::automation;
+ use crate::service::email::{self, Delivery};
+-use crate::service::invoicing;
++use crate::service::{invoicing, relocate};
+ 
+ pub mod kinds {
+     pub const SEND_EMAIL: &str = "send_email";
+@@ -52,6 +52,9 @@ pub mod kinds {
+     pub const NAV_SUBMIT_INVOICE: &str = "nav_submit_invoice";
+     /// Technically annul a data report.
+     pub const NAV_ANNUL_INVOICE: &str = "nav_annul_invoice";
++    /// Nightly, and after an enquiry becomes an order: file stored files in their project
++    /// folders on the share (STORAGE_BACKEND=fs; nothing to do on an object store).
++    pub const STORAGE_TIDY: &str = "storage_tidy";
+ }
+ 
+ const POLL_INTERVAL: Duration = Duration::from_secs(5);
+@@ -204,6 +207,13 @@ struct ConversionPayload {
+     order_id: i64,
+ }
+ 
++#[derive(Deserialize)]
++struct TidyPayload {
++    /// Only this enquiry's documents; everything when absent.
++    #[serde(default)]
++    lead_id: Option<i64>,
++}
++
+ fn payload<T: for<'de> Deserialize<'de>>(job: &Job) -> anyhow::Result<T> {
+     serde_json::from_value(job.payload.clone())
+         .map_err(|e| anyhow!("bad payload for {}: {e}", job.kind))
+@@ -296,6 +306,15 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
+             crate::service::ads::send_conversion(state, p.lead_id, p.order_id).await?;
+             Ok(Outcome::Done)
+         }
++        kinds::STORAGE_TIDY => {
++            let p: TidyPayload = payload(job)?;
++            let scope = match p.lead_id {
++                Some(id) => relocate::Scope::Lead(id),
++                None => relocate::Scope::All,
++            };
++            relocate::tidy(state, scope).await?;
++            Ok(Outcome::Done)
++        }
+         other => Err(anyhow!("unknown job kind '{other}'")),
+     }
+ }
+@@ -412,6 +431,19 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
+         )
+         .await?;
+     }
++    // Files land in their folders as they are uploaded; the night pass catches what
++    // moved since (a deleted photo, a walkaround's signature) and any MiniCRM leftovers.
++    if state.storage.as_fs().is_some()
++        && time >= NaiveTime::from_hms_opt(1, 0, 0).expect("valid time")
++    {
++        once(
++            state,
++            &format!("{}:{today}", kinds::STORAGE_TIDY),
++            kinds::STORAGE_TIDY,
++            json!({}),
++        )
++        .await?;
++    }
+     // MNB publishes the day's rates around noon.
+     if time >= NaiveTime::from_hms_opt(12, 30, 0).expect("valid time") {
+         let from = today - TimeDelta::days(10);
+diff --git a/backend/src/main.rs b/backend/src/main.rs
+index 62a225d..b5803d4 100644
+--- a/backend/src/main.rs
++++ b/backend/src/main.rs
+@@ -50,6 +50,17 @@ enum Command {
+         #[arg(long)]
+         to: String,
+     },
++    /// File every stored file in its project or general folder on the share
++    /// (STORAGE_BACKEND=fs). Safe to repeat; the worker does the same nightly.
++    StorageRelayout {
++        /// Copy every file over from the old object store (the S3_* settings) instead of
++        /// sorting what is already on the share. The object store is left as it was.
++        #[arg(long)]
++        from_s3: bool,
++        /// Only list what would move.
++        #[arg(long)]
++        dry_run: bool,
++    },
+     /// Write the OpenAPI document (the API contract) as JSON. Needs no configuration.
+     Openapi {
+         /// Output file; stdout when omitted.
+@@ -91,6 +102,9 @@ async fn main() -> anyhow::Result<()> {
+             Ok(())
+         }
+         Command::EmailTest { to } => email_test(config, to).await,
++        Command::StorageRelayout { from_s3, dry_run } => {
++            storage_relayout(config, from_s3, dry_run).await
++        }
+         Command::Openapi { .. } => unreachable!("handled before configuration is loaded"),
+     }
+ }
+@@ -170,7 +184,7 @@ async fn email_test(config: Config, to: String) -> anyhow::Result<()> {
+ async fn build_state(config: Config) -> anyhow::Result<AppState> {
+     let pool = db::connect(&config).await?;
+     db::migrate(&pool).await?;
+-    let storage = Storage::new(&config.s3);
++    let storage = Storage::from_config(&config);
+     Ok(AppState {
+         db: pool,
+         config: Arc::new(config),
+@@ -178,8 +192,79 @@ async fn build_state(config: Config) -> anyhow::Result<AppState> {
+     })
+ }
+ 
++async fn storage_relayout(config: Config, from_s3: bool, dry_run: bool) -> anyhow::Result<()> {
++    let state = build_state(config).await?;
++    let fs = state
++        .storage
++        .as_fs()
++        .context("storage-relayout files onto the share: set STORAGE_BACKEND=fs and STORAGE_DIR")?;
++    fs.check().await?;
++    let source = if from_s3 {
++        let s3 = autocrm::config::s3_from_env()?;
++        let source = Storage::S3(autocrm::media::storage::S3Store::new(&s3));
++        source
++            .check()
++            .await
++            .context("the object store to copy from (S3_*) is not reachable")?;
++        Some(source)
++    } else {
++        None
++    };
++    println!(
++        "{} files into {}{}",
++        if from_s3 { "Copying" } else { "Sorting" },
++        fs.root().display(),
++        if dry_run {
++            " (dry run: nothing changes)"
++        } else {
++            ""
++        }
++    );
++    let summary = service::relocate::run(
++        &state,
++        &service::relocate::Options {
++            scope: service::relocate::Scope::All,
++            source,
++            dry_run,
++        },
++    )
++    .await?;
++    println!(
++        "checked {}: {} in place, {} moved, {} copied, {} missing, {} failed",
++        summary.checked,
++        summary.in_place,
++        summary.moved,
++        summary.copied,
++        summary.missing,
++        summary.failed
++    );
++    if summary.missing + summary.failed > 0 {
++        println!("see the log above for each missing or failed file; running again retries them");
++    }
++    Ok(())
++}
++
+ async fn serve(config: Config) -> anyhow::Result<()> {
+     let state = build_state(config).await?;
++    // On the share, refuse to start rather than write to the wrong disk.
++    if let Some(fs) = state.storage.as_fs() {
++        fs.check().await.context("STORAGE_DIR is not usable")?;
++        match fs.mount() {
++            Ok(Some(m)) => tracing::info!(
++                dir = %fs.root().display(),
++                mount = %m.mount_point.display(),
++                fs_type = %m.fs_type,
++                source = %m.source,
++                "files on the share"
++            ),
++            _ => tracing::info!(dir = %fs.root().display(), "files in a local folder"),
++        }
++        match fs.sweep_partials().await {
++            Ok(0) => {}
++            Ok(n) => tracing::info!(removed = n, "abandoned partial uploads removed"),
++            Err(e) => tracing::warn!(error = %e, "could not clear abandoned partial uploads"),
++        }
++    }
+     // Secrets stored before 0049 were plain text; seal them once. Failing to is logged, not
+     // fatal: plain values keep working.
+     if let Err(e) = service::secrets::seal_legacy(&state.db, &state.config).await {
+diff --git a/backend/src/media/mod.rs b/backend/src/media/mod.rs
+index ccf5303..47c0a09 100644
+--- a/backend/src/media/mod.rs
++++ b/backend/src/media/mod.rs
+@@ -1,8 +1,11 @@
+-//! Media: object storage access, upload tickets, the image processing pipeline, drawing
+-//! thumbnails, HEIC conversion and ZIP downloads.
++//! Media: file storage (an object store or a mounted share), where each file is filed, upload
++//! tickets, the image processing pipeline, drawing thumbnails, HEIC conversion and ZIP
++//! downloads.
+ 
+ pub mod cad;
++pub mod fs_store;
+ pub mod heic;
++pub mod layout;
+ pub mod pipeline;
+ pub mod storage;
+ pub mod upload_token;
+diff --git a/backend/src/media/storage.rs b/backend/src/media/storage.rs
+index bace7fa..28b6cee 100644
+--- a/backend/src/media/storage.rs
++++ b/backend/src/media/storage.rs
+@@ -1,4 +1,5 @@
+-//! Thin wrapper over an S3-compatible object store (MinIO in dev, MinIO/B2 in production).
++//! Where file bytes live: an S3-compatible object store (MinIO in dev), or a mounted share
++//! of plain files in project folders (`STORAGE_BACKEND=fs`, see [`super::fs_store`]).
+ 
+ use std::time::Duration;
+ 
+@@ -16,10 +17,11 @@ use aws_sdk_s3::types::{
+ use chrono::{DateTime, Utc};
+ use serde::Serialize;
+ 
+-use crate::config::S3Config;
++use super::fs_store::FsStore;
++use crate::config::{Config, S3Config, StorageConfig};
+ 
+ #[derive(Clone)]
+-pub struct Storage {
++pub struct S3Store {
+     client: Client,
+     bucket: String,
+     intake_lock_years: u32,
+@@ -41,7 +43,7 @@ pub struct ObjectInfo {
+     pub sha256_b64: Option<String>,
+ }
+ 
+-impl Storage {
++impl S3Store {
+     pub fn new(cfg: &S3Config) -> Self {
+         let credentials = Credentials::new(
+             &cfg.access_key,
+@@ -62,7 +64,7 @@ impl Storage {
+         if let Some(endpoint) = &cfg.endpoint {
+             builder = builder.endpoint_url(endpoint);
+         }
+-        Storage {
++        S3Store {
+             client: Client::from_conf(builder.build()),
+             bucket: cfg.bucket.clone(),
+             intake_lock_years: cfg.intake_lock_years,
+@@ -239,6 +241,141 @@ impl Storage {
+     }
+ }
+ 
++/// The configured store. Every caller goes through this; which one it is matters only to
++/// the upload and download routes of the share (`api::files`) and to re-sorting.
++#[derive(Clone)]
++pub enum Storage {
++    S3(S3Store),
++    Fs(FsStore),
++}
++
++impl Storage {
++    pub fn from_config(config: &Config) -> Self {
++        match &config.storage {
++            StorageConfig::S3(c) => Storage::S3(S3Store::new(c)),
++            StorageConfig::Fs(c) => Storage::Fs(FsStore::new(
++                c,
++                &config.public_base_url,
++                &config.upload_signing_key,
++            )),
++        }
++    }
++
++    pub fn as_fs(&self) -> Option<&FsStore> {
++        match self {
++            Storage::Fs(fs) => Some(fs),
++            Storage::S3(_) => None,
++        }
++    }
++
++    pub fn intake_lock_until(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
++        match self {
++            Storage::S3(s) => s.intake_lock_until(now),
++            Storage::Fs(f) => f.intake_lock_until(now),
++        }
++    }
++
++    pub async fn lock_object(&self, key: &str, until: DateTime<Utc>) -> anyhow::Result<()> {
++        match self {
++            Storage::S3(s) => s.lock_object(key, until).await,
++            Storage::Fs(f) => f.lock_object(key, until).await,
++        }
++    }
++
++    pub async fn presign_put(
++        &self,
++        key: &str,
++        content_type: &str,
++        byte_size: i64,
++        sha256_b64: &str,
++        lock_until: Option<DateTime<Utc>>,
++        expires_in: Duration,
++    ) -> anyhow::Result<PresignedRequest> {
++        match self {
++            Storage::S3(s) => {
++                s.presign_put(
++                    key,
++                    content_type,
++                    byte_size,
++                    sha256_b64,
++                    lock_until,
++                    expires_in,
++                )
++                .await
++            }
++            Storage::Fs(f) => f.presign_put(
++                key,
++                content_type,
++                byte_size,
++                sha256_b64,
++                lock_until,
++                expires_in,
++            ),
++        }
++    }
++
++    pub async fn presign_get(
++        &self,
++        key: &str,
++        expires_in: Duration,
++        content_disposition: Option<String>,
++    ) -> anyhow::Result<String> {
++        match self {
++            Storage::S3(s) => s.presign_get(key, expires_in, content_disposition).await,
++            Storage::Fs(f) => f.presign_get(key, expires_in, content_disposition),
++        }
++    }
++
++    pub async fn head(&self, key: &str) -> anyhow::Result<Option<ObjectInfo>> {
++        match self {
++            Storage::S3(s) => s.head(key).await,
++            Storage::Fs(f) => f.head(key).await,
++        }
++    }
++
++    pub async fn get_bytes(&self, key: &str) -> anyhow::Result<Vec<u8>> {
++        match self {
++            Storage::S3(s) => s.get_bytes(key).await,
++            Storage::Fs(f) => f.get_bytes(key).await,
++        }
++    }
++
++    /// The object's bytes as a stream, for passing large files on without holding them.
++    pub async fn open(&self, key: &str) -> anyhow::Result<ByteStream> {
++        match self {
++            Storage::S3(s) => s.open(key).await,
++            Storage::Fs(f) => f.open(key).await,
++        }
++    }
++
++    /// Removes an object. Missing keys are not an error.
++    pub async fn delete(&self, key: &str) -> anyhow::Result<()> {
++        match self {
++            Storage::S3(s) => s.delete(key).await,
++            Storage::Fs(f) => f.delete(key).await,
++        }
++    }
++
++    pub async fn put_bytes(
++        &self,
++        key: &str,
++        bytes: Vec<u8>,
++        content_type: &str,
++    ) -> anyhow::Result<()> {
++        match self {
++            Storage::S3(s) => s.put_bytes(key, bytes, content_type).await,
++            Storage::Fs(f) => f.put_bytes(key, bytes).await,
++        }
++    }
++
++    pub async fn check(&self) -> anyhow::Result<()> {
++        match self {
++            Storage::S3(s) => s.check().await,
++            Storage::Fs(f) => f.check().await,
++        }
++    }
++}
++
+ /// `attachment`/`inline` Content-Disposition with a UTF-8-safe filename (RFC 6266 / 5987).
+ pub fn content_disposition(kind: &str, filename: &str) -> String {
+     let ascii: String = filename
+diff --git a/backend/src/migration/fetch.rs b/backend/src/migration/fetch.rs
+index 2419596..0134c92 100644
+--- a/backend/src/migration/fetch.rs
++++ b/backend/src/migration/fetch.rs
+@@ -142,7 +142,8 @@ async fn fetch_one(
+     let sha256 = hex::encode(Sha256::digest(&bytes));
+     let content_type = content_type_for(extension, header_type.as_deref());
+     let ext = extension.unwrap_or_else(|| extension_for(&content_type));
+-    let storage_key = format!("migration/originals/{sha256}.{ext}");
++    // Staged until loading knows the project; re-sorting then files it there.
++    let storage_key = format!("{}/{sha256}.{ext}", crate::media::layout::MIGRATION);
+     let byte_size = i64::try_from(bytes.len()).unwrap_or(i64::MAX);
+     if storage.head(&storage_key).await?.is_none() {
+         storage
+diff --git a/backend/src/repo/employee_documents.rs b/backend/src/repo/employee_documents.rs
+index 3b27835..78f72da 100644
+--- a/backend/src/repo/employee_documents.rs
++++ b/backend/src/repo/employee_documents.rs
+@@ -119,6 +119,21 @@ pub async fn set_file(
+     Ok(done.rows_affected() == 1)
+ }
+ 
++/// What kind of paper a live document of this employee is: its folder on the share.
++pub async fn kind_of(
++    db: impl PgExecutor<'_>,
++    id: i64,
++    employee_id: i64,
++) -> sqlx::Result<Option<String>> {
++    sqlx::query_scalar(
++        "SELECT kind FROM employee_documents WHERE id = $1 AND employee_id = $2 AND deleted_at IS NULL",
++    )
++    .bind(id)
++    .bind(employee_id)
++    .fetch_optional(db)
++    .await
++}
++
+ /// The stored file's key and name, when the document has one.
+ pub async fn file_of(
+     db: impl PgExecutor<'_>,
+diff --git a/backend/src/service/automation.rs b/backend/src/service/automation.rs
+index 2f8eedc..b5fcabe 100644
+--- a/backend/src/service/automation.rs
++++ b/backend/src/service/automation.rs
+@@ -10,11 +10,10 @@ use crate::AppState;
+ use crate::domain::blocker::{
+     NudgeDecision, NudgePolicy, NudgeState, decide, nudge_idempotency_key,
+ };
+-use crate::domain::media::image_derived_key;
+ use crate::domain::money::Currency;
+ use crate::error::AppResult;
+ use crate::integrations::mnb::MnbClient;
+-use crate::media::pipeline;
++use crate::media::{layout, pipeline};
+ use crate::repo::{audit, blockers, config, contacts, fx, images, orders, partners, reports};
+ use crate::service::business_today;
+ use crate::service::email::{About, AutomaticEmail, queue_automatic, triggers};
+@@ -346,8 +345,9 @@ pub async fn process_image(state: &AppState, image_id: i64) -> anyhow::Result<()
+         }
+     };
+     let hash_hex = hex::encode(&image.content_hash);
+-    let display_key = image_derived_key(image.order_id, image.category, &hash_hex, "display");
+-    let thumb_key = image_derived_key(image.order_id, image.category, &hash_hex, "thumb");
++    let display_key =
++        layout::image_derived_key(state, image.order_id, &hash_hex, "display").await?;
++    let thumb_key = layout::image_derived_key(state, image.order_id, &hash_hex, "thumb").await?;
+     state
+         .storage
+         .put_bytes(&display_key, processed.display_jpeg, "image/jpeg")
+@@ -374,8 +374,8 @@ pub async fn process_image(state: &AppState, image_id: i64) -> anyhow::Result<()
+ /// A thumbnail for a drawing or picture filed as a document (0048): DXF drawn, the preview
+ /// inside a DWG extracted, image files scaled. Anything that cannot be drawn records why.
+ pub async fn process_document(state: &AppState, document_id: i64) -> anyhow::Result<()> {
+-    use crate::domain::media::{ThumbSource, document_thumb_key, thumb_source};
+-    use crate::repo::documents;
++    use crate::domain::media::{ThumbSource, thumb_source};
++    use crate::repo::documents::{self, Owner};
+ 
+     let Some(doc) = documents::find(&state.db, document_id).await? else {
+         return Ok(());
+@@ -407,7 +407,10 @@ pub async fn process_document(state: &AppState, document_id: i64) -> anyhow::Res
+     .await?;
+     match made {
+         Ok(png) => {
+-            let key = document_thumb_key(&doc.storage_key);
++            let owner = Owner::from_about(doc.order_id, doc.lead_id)
++                .ok_or_else(|| anyhow::anyhow!("document {document_id} has no owner"))?;
++            let key =
++                layout::document_thumb_key(state, owner, &hex::encode(&doc.content_hash)).await?;
+             state.storage.put_bytes(&key, png, "image/png").await?;
+             documents::set_thumb(&state.db, document_id, Some(&key), None).await?;
+         }
+diff --git a/backend/src/service/invoicing.rs b/backend/src/service/invoicing.rs
+index e5c204c..e8cb866 100644
+--- a/backend/src/service/invoicing.rs
++++ b/backend/src/service/invoicing.rs
+@@ -25,11 +25,12 @@ use crate::domain::invoice::{
+     InvoiceKind, InvoiceStatus, PaymentMethod, line_amounts, minor_to_decimal_string,
+     split_address_line, validate_vat_rate,
+ };
+-use crate::domain::media::{DocumentKind, document_storage_key};
++use crate::domain::media::DocumentKind;
+ use crate::domain::money::{Currency, Money};
+ use crate::domain::partner::PartnerKind;
+ use crate::error::{AppError, AppResult};
+ use crate::integrations::nav::{self, NavError, NavSidecar};
++use crate::media::layout;
+ use crate::repo::documents::{self, NewDocument, Owner};
+ use crate::repo::invoices::{self, Invoice, NewInvoice, NewLine, NewProforma, Proforma};
+ use crate::repo::orders::Order;
+@@ -1151,6 +1152,7 @@ pub async fn store_invoice_pdf(state: &AppState, invoice: &Invoice) -> anyhow::R
+         state,
+         invoice.order_id,
+         DocumentKind::Invoice,
++        invoice.kind == InvoiceKind::Storno,
+         &filename,
+         pdf,
+         Some(&invoice.number),
+@@ -1197,11 +1199,12 @@ pub async fn refetch_pdf(state: &AppState, id: i64) -> AppResult<Invoice> {
+         .ok_or(AppError::NotFound("invoice"))
+ }
+ 
+-/// Stores a PDF the sidecar produced as a document of the order.
++/// Stores a PDF the sidecar produced as a document of the order, in its billing folder.
+ async fn store_pdf(
+     state: &AppState,
+     order_id: i64,
+     kind: DocumentKind,
++    storno: bool,
+     filename: &str,
+     bytes: Vec<u8>,
+     source_ref: Option<&str>,
+@@ -1209,7 +1212,20 @@ async fn store_pdf(
+     let hash = Sha256::digest(&bytes);
+     let hash_hex = hex::encode(hash);
+     let byte_size = i64::try_from(bytes.len())?;
+-    let key = document_storage_key(order_id, &hash_hex, "pdf");
++    let key = layout::document_key(
++        state,
++        Owner::Order(order_id),
++        if storno {
++            layout::Shelf::Storno
++        } else {
++            layout::Shelf::Kind(kind)
++        },
++        filename,
++        1,
++        &hash_hex,
++        "pdf",
++    )
++    .await?;
+     state
+         .storage
+         .put_bytes(&key, bytes, "application/pdf")
+@@ -1422,6 +1438,7 @@ pub async fn create_proforma(
+         state,
+         order_id,
+         DocumentKind::Proforma,
++        false,
+         &filename,
+         pdf,
+         Some(&number),
+diff --git a/backend/src/service/leads.rs b/backend/src/service/leads.rs
+index 3706b5c..cbaf856 100644
+--- a/backend/src/service/leads.rs
++++ b/backend/src/service/leads.rs
+@@ -315,6 +315,15 @@ pub async fn convert(
+     )
+     .await?;
+     crate::repo::followups::cancel_for_lead(&mut *tx, lead_id, "a lead megrendelés lett").await?;
++    // The enquiry's quotation and files join the project's folder on the share.
++    crate::repo::jobs::enqueue(
++        &mut *tx,
++        crate::jobs::kinds::STORAGE_TIDY,
++        json!({ "lead_id": lead_id }),
++        None,
++        Some(&format!("storage_tidy:lead:{lead_id}:{}", order.id)),
++    )
++    .await?;
+     audit::record(
+         &mut *tx,
+         Some(user.user_id),
+diff --git a/backend/src/service/media.rs b/backend/src/service/media.rs
+index da44112..46b0d87 100644
+--- a/backend/src/service/media.rs
++++ b/backend/src/service/media.rs
+@@ -12,10 +12,11 @@ use sha2::{Digest, Sha256};
+ 
+ use crate::AppState;
+ use crate::domain::media::{
+-    ImageCategory, MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, document_extension, document_storage_key,
+-    image_extension, image_storage_key, lead_document_storage_key, thumb_source,
++    ImageCategory, MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, document_extension, image_extension,
++    thumb_source,
+ };
+ use crate::error::{AppError, AppResult};
++use crate::media::layout;
+ use crate::media::storage::PresignedRequest;
+ use crate::media::upload_token::{self, UploadClaims, UploadTarget};
+ use crate::repo::documents::{self, Document, NewDocument, Owner};
+@@ -164,15 +165,25 @@ pub async fn request_upload(
+             } else {
+                 None
+             };
+-            (image_storage_key(order_id, *category, &hash_hex, ext), lock)
++            let key = layout::image_key(
++                state,
++                order_id,
++                *category,
++                filename.as_deref(),
++                &hash_hex,
++                ext,
++            )
++            .await?;
++            (key, lock)
+         }
+-        UploadTarget::Document { replaces, .. } => {
++        UploadTarget::Document { kind, replaces } => {
+             if req.byte_size > MAX_DOCUMENT_BYTES {
+                 return Err(AppError::validation("document is too large"));
+             }
+-            if let Some(previous) = replaces {
+-                current_version(state, owner, *previous).await?;
+-            }
++            let version = match replaces {
++                Some(previous) => current_version(state, owner, *previous).await?.version + 1,
++                None => 1,
++            };
+             let name = filename
+                 .as_deref()
+                 .ok_or_else(|| AppError::validation("filename is required for documents"))?;
+@@ -184,10 +195,8 @@ pub async fn request_upload(
+                     document_id: Some(existing.id),
+                 });
+             }
+-            let key = match owner {
+-                Owner::Order(id) => document_storage_key(id, &hash_hex, &ext),
+-                Owner::Lead(id) => lead_document_storage_key(id, &hash_hex, &ext),
+-            };
++            let key =
++                layout::document_key(state, owner, *kind, name, version, &hash_hex, &ext).await?;
+             (key, None)
+         }
+     };
+@@ -264,10 +273,17 @@ pub async fn complete_upload(
+                 "uploaded file hash differs from the declared hash",
+             ));
+         }
+-        // Store without checksum support: verify by reading the object back.
++        // A store without checksums (or the share): read it back, a chunk at a time, since
++        // a document may be 2 GB.
+         None => {
+-            let bytes = state.storage.get_bytes(&claims.storage_key).await?;
+-            if Sha256::digest(&bytes).as_slice() != hash.as_slice() {
++            let mut stream = state.storage.open(&claims.storage_key).await?;
++            let mut hasher = Sha256::new();
++            while let Some(chunk) = stream.next().await {
++                let chunk = chunk
++                    .map_err(|e| AppError::internal(format!("reading the upload back: {e}")))?;
++                hasher.update(&chunk);
++            }
++            if hasher.finalize().as_slice() != hash.as_slice() {
+                 return Err(AppError::rule(
+                     "upload_mismatch",
+                     "uploaded file hash differs from the declared hash",
+diff --git a/backend/src/service/mod.rs b/backend/src/service/mod.rs
+index b576283..be9f990 100644
+--- a/backend/src/service/mod.rs
++++ b/backend/src/service/mod.rs
+@@ -13,6 +13,7 @@ pub mod media;
+ pub mod newsletter;
+ pub mod notifications;
+ pub mod orders;
++pub mod relocate;
+ pub mod reminders;
+ pub mod secrets;
+ pub mod stages;
+diff --git a/backend/tests/common/mod.rs b/backend/tests/common/mod.rs
+index a566b2d..a375782 100644
+--- a/backend/tests/common/mod.rs
++++ b/backend/tests/common/mod.rs
+@@ -7,7 +7,9 @@ use chrono::NaiveDate;
+ use sqlx::PgPool;
+ 
+ use autocrm::AppState;
+-use autocrm::config::{AppEnv, Config, EmailConfig, EmailTransportConfig, LogFormat, S3Config};
++use autocrm::config::{
++    AppEnv, Config, EmailConfig, EmailTransportConfig, FsConfig, LogFormat, S3Config, StorageConfig,
++};
+ use autocrm::domain::partner::PartnerKind;
+ use autocrm::domain::role::Role;
+ use autocrm::media::storage::Storage;
+@@ -28,7 +30,7 @@ pub fn config() -> Config {
+         database_url: String::new(),
+         database_max_connections: 5,
+         upload_signing_key: vec![7; 32],
+-        s3: S3Config {
++        storage: StorageConfig::S3(S3Config {
+             // Unreachable by default: storage tests skip. TEST_S3_ENDPOINT=http://127.0.0.1:9000
+             // (with the docker-compose minio and its dev credentials) runs them for real.
+             endpoint: Some(
+@@ -55,7 +57,7 @@ pub fn config() -> Config {
+             .into(),
+             force_path_style: true,
+             intake_lock_years: 0,
+-        },
++        }),
+         email: EmailConfig {
+             transport: EmailTransportConfig::DryRun,
+             from_automatic: "noreply@autotherm.hu".into(),
+@@ -93,7 +95,7 @@ pub fn config() -> Config {
+ 
+ pub fn state(pool: PgPool) -> AppState {
+     let config = config();
+-    let storage = Storage::new(&config.s3);
++    let storage = Storage::from_config(&config);
+     AppState {
+         db: pool,
+         config: Arc::new(config),
+@@ -101,6 +103,29 @@ pub fn state(pool: PgPool) -> AppState {
+     }
+ }
+ 
++/// App state filing into a fresh scratch folder, the way it files onto the NFS share.
++/// Storage tests run for real with nothing else running. The folder is the caller's to
++/// remove.
++pub fn state_fs(pool: PgPool) -> (AppState, std::path::PathBuf) {
++    let dir = std::env::temp_dir().join(format!("autocrm-share-{}", rand_suffix()));
++    std::fs::create_dir_all(&dir).unwrap();
++    let mut config = config();
++    config.storage = StorageConfig::Fs(FsConfig {
++        dir: dir.clone(),
++        require_mount: false,
++        intake_lock_years: 10,
++    });
++    let storage = Storage::from_config(&config);
++    (
++        AppState {
++            db: pool,
++            config: Arc::new(config),
++            storage,
++        },
++        dir,
++    )
++}
++
+ pub async fn user(pool: &PgPool, role: Role) -> AuthUser {
+     let email = format!(
+         "{}-{}@autotherm.test",
+@@ -311,7 +336,7 @@ pub fn state_with_nav(pool: PgPool, sidecar_url: &str, supplier_tax_number: &str
+     let mut config = config();
+     // Documents are real objects: point at the dev MinIO, and let the tests that need it
+     // check whether it is actually up.
+-    config.s3 = S3Config {
++    config.storage = StorageConfig::S3(S3Config {
+         endpoint: Some(
+             std::env::var("S3_ENDPOINT").unwrap_or_else(|_| "http://localhost:9000".into()),
+         ),
+@@ -321,7 +346,7 @@ pub fn state_with_nav(pool: PgPool, sidecar_url: &str, supplier_tax_number: &str
+         secret_key: std::env::var("S3_SECRET_KEY").unwrap_or_else(|_| "autocrm-dev-secret".into()),
+         force_path_style: true,
+         intake_lock_years: 0,
+-    };
++    });
+     config.nav = Some(NavConfig {
+         sidecar_url: sidecar_url.trim_end_matches('/').to_string(),
+         sidecar_token: SIDECAR_TOKEN.into(),
+@@ -342,7 +367,7 @@ pub fn state_with_nav(pool: PgPool, sidecar_url: &str, supplier_tax_number: &str
+         proforma_prefix: "DB".into(),
+         payment_days: 8,
+     });
+-    let storage = Storage::new(&config.s3);
++    let storage = Storage::from_config(&config);
+     AppState {
+         db: pool,
+         config: Arc::new(config),
+diff --git a/deploy/demo/.env.example b/deploy/demo/.env.example
+index 563e882..445e803 100644
+--- a/deploy/demo/.env.example
++++ b/deploy/demo/.env.example
+@@ -27,3 +27,13 @@ DEMO_PASSWORD=
+ # COOKIE_SECURE=false for plain http.
+ # ALLOWED_ORIGINS=https://crm-demo.example.com,http://192.168.1.10:3000
+ # COOKIE_SECURE=false
++
++# Files on your NAS instead of the bundled object store (optional). Set NFS_SERVER and the
++# backend writes plain files in project folders onto this NFS export, browsable from the
++# share. The host needs nfs-common. FILES_UID/GID: the owner of the exported folder on the
++# NAS (the backend writes as that user). See README.md "Files on your NAS".
++# NFS_SERVER=192.168.1.20
++# NFS_EXPORT=/volume1/autocrm
++# NFS_OPTIONS=rw,nfsvers=4.1,hard,noatime
++# FILES_UID=1000
++# FILES_GID=1000
+diff --git a/deploy/demo/README.md b/deploy/demo/README.md
+index 64b345e..df389c0 100644
+--- a/deploy/demo/README.md
++++ b/deploy/demo/README.md
+@@ -26,6 +26,36 @@ header for the files hostname.
+ No tunnel of your own? Leave the rest as is, set `TUNNEL_TOKEN` from a Cloudflare tunnel
+ (hostnames → `frontend:3000` and `s3:9000`), and `setup.sh` starts cloudflared too.
+ 
++## Files on your NAS (optional)
++
++Instead of the bundled object store, the backend can write every file as a plain file in
++a project folder on an NFS share, so you can browse it from the NAS:
++
++```text
++projektek/2026/2026-0042_Kovacs-Kft_ABC-123/
++    ajanlat/  dokumentumok/<terv|cad|...>/  szamlazas/<szamlak|sztornok|dijbekerok>/
++    fotok/<bevetel|gyartas|...>/  atadas-atvetel/<nap>_<atvetel|kiadas>_<rendszam>_<id>/
++ajanlatok/2026/L000123_.../   hr/dolgozok/...   hr/toborzas/...   bejovo-szamlak/2026/10/
++```
++
++1. On the NAS: export a folder over NFS to this server (read-write), owned by the user
++   the backend should write as.
++2. Here: `sudo apt-get install -y nfs-common`
++3. In `.env`: `NFS_SERVER`, `NFS_EXPORT`, and `FILES_UID`/`FILES_GID` (that owner's ids).
++
++`setup.sh` then mounts the share through Docker; if it cannot, the backend does not start
++rather than writing elsewhere. `FILES_HOST` is no longer needed: uploads and photo links go
++through `APP_HOST`. Files already on the share are never deleted, so give a demo its own
++empty export.
++
++Switching a running stack that already has files in the object store (without `setup.sh`,
++which would wipe them): bring it up with both compose files, then copy every file into its
++folder on the share once; the object store is left as it was.
++
++```bash
++docker compose -f docker-compose.yml -f docker-compose.nfs.yml run --rm -e S3_ENDPOINT=http://s3:9000 backend autocrm storage-relayout --from-s3
++```
++
+ ## Each showing
+ 
+ ```bash
+diff --git a/deploy/demo/seed.mjs b/deploy/demo/seed.mjs
+index ac98089..0183f69 100644
+--- a/deploy/demo/seed.mjs
++++ b/deploy/demo/seed.mjs
+@@ -141,6 +141,11 @@ function signaturePng(seed) {
+  */
+ async function putToStorage(link, headers, body) {
+   const signed = new URL(link);
++  // Files on the NAS (docker-compose.nfs.yml): the link is the app's own /api/files, which
++  // BASE reaches directly.
++  if (signed.pathname.startsWith('/api/files/')) {
++    return fetch(`${BASE}${signed.pathname}`, { method: 'PUT', headers, body });
++  }
+   const local = new URL(link);
+   local.protocol = 'http:';
+   local.hostname = new URL(BASE).hostname;
+diff --git a/deploy/demo/setup.sh b/deploy/demo/setup.sh
+index 38881c6..239f01a 100755
+--- a/deploy/demo/setup.sh
++++ b/deploy/demo/setup.sh
+@@ -6,22 +6,30 @@
+ #   ./setup.sh            start fresh
+ #   ./setup.sh --build    rebuild the images first (after pulling new code)
+ #   docker compose down   stop it after the showing
++#
++# With NFS_SERVER set in .env the files go to your NAS share (docker-compose.nfs.yml).
++# Files already on the share are never deleted: point a demo at an empty export.
+ set -euo pipefail
+ cd "$(dirname "$0")"
+ set -a; . ./.env; set +a
+ : "${DEMO_PASSWORD:?set DEMO_PASSWORD in .env}"
+ 
+-if [ "${1:-}" = "--build" ]; then docker compose build; fi
++compose=(docker compose)
++if [ -n "${NFS_SERVER:-}" ]; then
++  compose+=(-f docker-compose.yml -f docker-compose.nfs.yml)
++fi
++
++if [ "${1:-}" = "--build" ]; then "${compose[@]}" build; fi
+ 
+-docker compose --profile cloudflared down --volumes --remove-orphans
+-if [ -n "${TUNNEL_TOKEN:-}" ]; then docker compose --profile cloudflared up -d; else docker compose up -d; fi
++"${compose[@]}" --profile cloudflared down --volumes --remove-orphans
++if [ -n "${TUNNEL_TOKEN:-}" ]; then "${compose[@]}" --profile cloudflared up -d; else "${compose[@]}" up -d; fi
+ 
+ 
+-docker compose run --rm --no-deps -e AUTOCRM_ADMIN_PASSWORD="$DEMO_PASSWORD" migrate \
++"${compose[@]}" run --rm --no-deps -e AUTOCRM_ADMIN_PASSWORD="$DEMO_PASSWORD" migrate \
+   autocrm create-admin --email admin@demo.local --name "Demo Admin"
+ 
+ # The other roles share the admin's password hash; nobody is asked to change it.
+-docker compose exec -T postgres psql -U autocrm -d autocrm -v ON_ERROR_STOP=1 <<'SQL'
++"${compose[@]}" exec -T postgres psql -U autocrm -d autocrm -v ON_ERROR_STOP=1 <<'SQL'
+ INSERT INTO users (email, display_name, role, password_hash, must_change_password)
+ SELECT v.email, v.name, v.role::user_role, u.password_hash, false
+ FROM users u,
+@@ -36,4 +44,5 @@ SQL
+ 
+ 
+ echo "demo ready: https://${APP_HOST}"
++if [ -n "${NFS_SERVER:-}" ]; then echo "files: ${NFS_SERVER}:${NFS_EXPORT} (projektek/, hr/, ...)"; fi
+ echo "showcase data (leads, orders, walkarounds, staff): node seed.mjs"
+diff --git a/frontend/next.config.js b/frontend/next.config.js
+index 4ecfc30..40570f6 100644
+--- a/frontend/next.config.js
++++ b/frontend/next.config.js
+@@ -32,6 +32,9 @@ const nextConfig = {
+   // A self-contained server (`node server.js`) for deployment; see build.sh.
+   output: 'standalone',
+   experimental: {
++    // With files on the NFS share (STORAGE_BACKEND=fs) uploads and downloads pass through
++    // this /api proxy, and a 2 GB drawing over the shop wifi outlasts the 30 s default.
++    proxyTimeout: 30 * 60 * 1000,
+     // Barrel files: import only the icons/helpers actually used, not the whole index.
+     optimizePackageImports: [
+       'lucide-react',
+diff --git a/frontend/src/lib/upload.ts b/frontend/src/lib/upload.ts
+index e6adc28..44fd447 100644
+--- a/frontend/src/lib/upload.ts
++++ b/frontend/src/lib/upload.ts
+@@ -4,7 +4,8 @@
+ // already on the record is recognised by its hash instead of stored twice.
+ //
+ // The object store must allow the web app's origin to PUT (CORS). MinIO does by default;
+-// on AWS S3 or Backblaze add a CORS rule for PUT from the app's address.
++// on AWS S3 or Backblaze add a CORS rule for PUT from the app's address. With files on the
++// NFS share the PUT goes to this app's own /api/files, so there is nothing to allow.
+ 
+ import { mediaApi } from '@/lib/api/endpoints';
+ import type { components } from '@/lib/api/schema.gen';
+diff --git a/backend/migrations/0052_storage_folders.sql b/backend/migrations/0052_storage_folders.sql
+new file mode 100644
+index 0000000..45d80ff
+--- /dev/null
++++ b/backend/migrations/0052_storage_folders.sql
+@@ -0,0 +1,53 @@
++-- Files filed per project on a browsable share (STORAGE_BACKEND=fs, usually NFS): every
++-- order, enquiry, employee and job posting gets one folder, named once from what was known
++-- then ("projektek/2026/2026-0042_Kovacs-Kft_ABC-123"), so a later rename of the customer
++-- never splits a project across two folders.
++
++CREATE TABLE storage_folders (
++    entity     TEXT NOT NULL CHECK (entity IN ('order', 'lead', 'employee', 'job_posting')),
++    entity_id  BIGINT NOT NULL,
++    folder     TEXT NOT NULL CHECK (folder ~ '^[A-Za-z0-9][A-Za-z0-9._/-]*$'),
++    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++    PRIMARY KEY (entity, entity_id)
++);
++-- lower(): the share is also browsed from Windows, where "A1" and "a1" are one folder.
++CREATE UNIQUE INDEX storage_folders_folder_key ON storage_folders (lower(folder));
++
++-- A file moved to its project folder (re-sorting, a lead becoming an order) leaves its old
++-- key here, so a download link issued before the move still finds it.
++CREATE TABLE storage_moves (
++    old_key  TEXT PRIMARY KEY,
++    new_key  TEXT NOT NULL,
++    moved_at TIMESTAMPTZ NOT NULL DEFAULT now()
++);
++CREATE INDEX storage_moves_moved_idx ON storage_moves (moved_at);
++
++-- Re-sorting moves an intake photo too: same bytes (checked against content_hash before
++-- the row changes), new place. Only a transaction that says so with
++-- `SET LOCAL autocrm.relocating = 'on'` may change the key; everything else stays frozen.
++CREATE OR REPLACE FUNCTION protect_immutable_images() RETURNS trigger AS $$
++BEGIN
++    IF TG_OP = 'DELETE' THEN
++        IF OLD.immutable THEN
++            RAISE EXCEPTION 'image % is immutable and cannot be deleted', OLD.id USING ERRCODE = 'AC001';
++        END IF;
++        RETURN OLD;
++    END IF;
++
++    IF OLD.immutable AND (
++           NEW.immutable IS DISTINCT FROM OLD.immutable
++        OR NEW.order_id IS DISTINCT FROM OLD.order_id
++        OR NEW.category IS DISTINCT FROM OLD.category
++        OR (NEW.storage_key IS DISTINCT FROM OLD.storage_key
++            AND coalesce(current_setting('autocrm.relocating', true), '') <> 'on')
++        OR NEW.content_hash IS DISTINCT FROM OLD.content_hash
++        OR NEW.byte_size IS DISTINCT FROM OLD.byte_size
++        OR NEW.uploaded_at IS DISTINCT FROM OLD.uploaded_at
++        OR NEW.uploaded_by IS DISTINCT FROM OLD.uploaded_by
++        OR NEW.deleted_at IS NOT NULL
++    ) THEN
++        RAISE EXCEPTION 'image % is immutable', OLD.id USING ERRCODE = 'AC001';
++    END IF;
++    RETURN NEW;
++END;
++$$ LANGUAGE plpgsql;
+diff --git a/backend/src/api/files.rs b/backend/src/api/files.rs
+new file mode 100644
+index 0000000..811c793
+--- /dev/null
++++ b/backend/src/api/files.rs
+@@ -0,0 +1,214 @@
++//! The share's half of presigned requests (`STORAGE_BACKEND=fs`): uploads arrive here instead
++//! of at an object store, and downloads are served from here. The token in the path is the
++//! only credential, exactly like an S3 presigned URL. With an object store configured these
++//! routes answer 404.
++//!
++//! Mounted outside the 30-second timeout and the gzip layer (`api::router`): a large drawing
++//! takes longer than that to arrive, and a video has to seek.
++
++use std::path::PathBuf;
++use std::time::Duration;
++
++use axum::Router;
++use axum::body::Body;
++use axum::extract::{Path, Request, State};
++use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
++use axum::response::{IntoResponse, Response};
++use axum::routing::get;
++use chrono::Utc;
++use futures::StreamExt;
++use tower::ServiceExt;
++use tower_http::services::ServeFile;
++
++use crate::AppState;
++use crate::media::fs_store::{Commit, CommitError, FsStore, sha256_b64};
++use crate::media::layout;
++
++/// An upload that sends nothing for this long is abandoned (its partial file goes with it).
++const IDLE: Duration = Duration::from_secs(60);
++/// A download link is good for an hour or a week; the browser may keep what it fetched.
++const CACHE: &str = "private, max-age=3600";
++
++/// Shown in the browser when asked to. Everything else is a download: a file from the
++/// share is served from the app's own address, and an uploaded HTML or SVG page must
++/// never run there.
++const INLINE: [&str; 12] = [
++    "jpg", "jpeg", "png", "webp", "gif", "heic", "pdf", "mp4", "m4v", "mov", "webm", "txt",
++];
++
++pub fn routes() -> Router<AppState> {
++    Router::new().route(
++        "/api/files/{token}",
++        get(download).head(download).put(upload),
++    )
++}
++
++fn refuse(status: StatusCode, message: &str) -> Response {
++    (status, message.to_string()).into_response()
++}
++
++async fn upload(
++    State(state): State<AppState>,
++    Path(token): Path<String>,
++    headers: HeaderMap,
++    body: Body,
++) -> Response {
++    let Some(fs) = state.storage.as_fs() else {
++        return StatusCode::NOT_FOUND.into_response();
++    };
++    // 403 like an expired S3 presignature: the phone asks for a new ticket and tries again.
++    let claims = match fs.verify_put(&token, Utc::now().timestamp()) {
++        Ok(c) => c,
++        Err(e) => return refuse(StatusCode::FORBIDDEN, &e.to_string()),
++    };
++    let declared = headers
++        .get(header::CONTENT_LENGTH)
++        .and_then(|v| v.to_str().ok())
++        .and_then(|v| v.parse::<i64>().ok());
++    if declared.is_some_and(|n| n != claims.size) {
++        return refuse(
++            StatusCode::BAD_REQUEST,
++            "Content-Length differs from the size the upload was issued for",
++        );
++    }
++
++    let mut upload = match fs.begin().await {
++        Ok(u) => u,
++        Err(e) => {
++            tracing::error!(error = %e, "file share: cannot start an upload");
++            return refuse(
++                StatusCode::SERVICE_UNAVAILABLE,
++                "file storage is unavailable",
++            );
++        }
++    };
++    let limit = u64::try_from(claims.size).unwrap_or(0);
++    let mut stream = body.into_data_stream();
++    loop {
++        match tokio::time::timeout(IDLE, stream.next()).await {
++            Err(_) => return refuse(StatusCode::REQUEST_TIMEOUT, "the upload stalled"),
++            Ok(None) => break,
++            Ok(Some(Err(e))) => {
++                return refuse(
++                    StatusCode::BAD_REQUEST,
++                    &format!("the upload broke off: {e}"),
++                );
++            }
++            Ok(Some(Ok(chunk))) => {
++                if upload.size() + chunk.len() as u64 > limit {
++                    return refuse(
++                        StatusCode::BAD_REQUEST,
++                        "more bytes than the upload was issued for",
++                    );
++                }
++                if let Err(e) = upload.write(&chunk).await {
++                    tracing::error!(error = %e, key = %claims.key, "file share: write failed");
++                    return refuse(
++                        StatusCode::SERVICE_UNAVAILABLE,
++                        "file storage is unavailable",
++                    );
++                }
++            }
++        }
++    }
++    let done = match upload.finish().await {
++        Ok(d) => d,
++        Err(e) => {
++            tracing::error!(error = %e, key = %claims.key, "file share: write failed");
++            return refuse(
++                StatusCode::SERVICE_UNAVAILABLE,
++                "file storage is unavailable",
++            );
++        }
++    };
++    if done.size != limit || sha256_b64(&done.sha256) != claims.sha256_b64 {
++        return refuse(
++            StatusCode::BAD_REQUEST,
++            "BadDigest: the file differs from the one the upload was issued for",
++        );
++    }
++    match fs
++        .commit(done, &claims.key, Commit::KeepExisting, claims.read_only)
++        .await
++    {
++        Ok(()) => StatusCode::OK.into_response(),
++        Err(CommitError::Conflict(_)) => refuse(
++            StatusCode::CONFLICT,
++            "a different file is already stored under this name",
++        ),
++        Err(CommitError::Io(e)) => {
++            tracing::error!(error = %e, key = %claims.key, "file share: could not file the upload");
++            refuse(
++                StatusCode::SERVICE_UNAVAILABLE,
++                "file storage is unavailable",
++            )
++        }
++    }
++}
++
++async fn download(
++    State(state): State<AppState>,
++    Path(token): Path<String>,
++    req: Request,
++) -> Response {
++    let Some(fs) = state.storage.as_fs() else {
++        return StatusCode::NOT_FOUND.into_response();
++    };
++    let claims = match fs.verify_get(&token, Utc::now().timestamp()) {
++        Ok(c) => c,
++        Err(e) => return refuse(StatusCode::FORBIDDEN, &e.to_string()),
++    };
++    let Some(path) = locate(&state, fs, &claims.key).await else {
++        return refuse(StatusCode::NOT_FOUND, "no such file");
++    };
++    // Range, If-Modified-Since, HEAD and the content type by extension.
++    let response = match ServeFile::new(path).oneshot(req).await {
++        Ok(r) => r,
++        Err(never) => match never {},
++    };
++    let (mut parts, body) = response.into_parts();
++    if parts.status.is_success() || parts.status == StatusCode::NOT_MODIFIED {
++        let ext = layout::ext_of(&claims.key);
++        let inline_ok = INLINE.contains(&ext.as_str());
++        let disposition = match (claims.disposition, inline_ok) {
++            (Some(d), true) => Some(d),
++            (Some(d), false) => Some(d.replacen("inline", "attachment", 1)),
++            (None, true) => None,
++            (None, false) => Some("attachment".to_string()),
++        };
++        let h = &mut parts.headers;
++        if let Some(value) = disposition.and_then(|d| HeaderValue::from_str(&d).ok()) {
++            h.insert(header::CONTENT_DISPOSITION, value);
++        }
++        h.insert(header::CACHE_CONTROL, HeaderValue::from_static(CACHE));
++        h.insert(
++            header::X_CONTENT_TYPE_OPTIONS,
++            HeaderValue::from_static("nosniff"),
++        );
++        if !inline_ok {
++            h.insert(
++                header::CONTENT_SECURITY_POLICY,
++                HeaderValue::from_static("default-src 'none'; sandbox"),
++            );
++        }
++    }
++    Response::from_parts(parts, Body::new(body))
++}
++
++/// The file behind a link; one that re-sorting moved after the link was issued is followed
++/// to where it went.
++async fn locate(state: &AppState, fs: &FsStore, key: &str) -> Option<PathBuf> {
++    let mut key = key.to_string();
++    for _ in 0..5 {
++        let path = fs.path(&key).ok()?;
++        if tokio::fs::metadata(&path).await.is_ok_and(|m| m.is_file()) {
++            return Some(path);
++        }
++        key = sqlx::query_scalar("SELECT new_key FROM storage_moves WHERE old_key = $1")
++            .bind(&key)
++            .fetch_optional(&state.db)
++            .await
++            .ok()??;
++    }
++    None
++}
+diff --git a/backend/src/media/fs_store.rs b/backend/src/media/fs_store.rs
+new file mode 100644
+index 0000000..8cafd33
+--- /dev/null
++++ b/backend/src/media/fs_store.rs
+@@ -0,0 +1,941 @@
++//! Files on a mounted filesystem, in production an NFS share: plain files in project
++//! folders ([`super::layout`]) that a person can open from the share. A key is a relative
++//! path under `STORAGE_DIR`.
++//!
++//! Browsers and phones cannot PUT to a share, so a presigned request here points at this
++//! server (`/api/files/{token}`, `api::files`). The token binds what an S3 presignature
++//! binds: one key, one size, one sha256, one expiry. An upload is written under `.tmp/` and
++//! linked into place only once its bytes match, so a half-written file never shows up in a
++//! project folder, and a file already there is never replaced by different bytes.
++
++use std::collections::HashMap;
++use std::io;
++use std::path::{Path, PathBuf};
++use std::sync::{Arc, Mutex};
++use std::time::{Duration, Instant, SystemTime};
++
++use anyhow::{Context, anyhow, bail};
++use aws_sdk_s3::primitives::ByteStream;
++use base64::Engine;
++use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
++use chrono::{DateTime, Utc};
++use hmac::{Hmac, Mac};
++use serde::de::DeserializeOwned;
++use serde::{Deserialize, Serialize};
++use sha2::{Digest, Sha256};
++use tokio::io::{AsyncReadExt, AsyncWriteExt};
++
++use super::storage::{ObjectInfo, PresignedRequest};
++use crate::config::FsConfig;
++
++/// Uploads in flight, and nothing else. Never inside a project folder.
++pub const TMP_DIR: &str = ".tmp";
++/// A partial upload this old is an aborted request's leftover.
++const STALE_PART: Duration = Duration::from_secs(24 * 3600);
++/// How long a successful mount check is trusted before /proc is read again.
++const MOUNT_RECHECK: Duration = Duration::from_secs(5);
++/// Longer than an upload ticket lives.
++const VERIFIED_FOR: Duration = Duration::from_secs(3 * 3600);
++
++/// Domain separation: an upload token never works as a download link, nor the reverse.
++const PUT_CONTEXT: &[u8] = b"autocrm-file-put-v1.";
++const GET_CONTEXT: &[u8] = b"autocrm-file-get-v1.";
++
++#[derive(Clone)]
++pub struct FsStore {
++    inner: Arc<Inner>,
++}
++
++struct Inner {
++    root: PathBuf,
++    base_url: String,
++    signing_key: Vec<u8>,
++    require_mount: bool,
++    intake_lock_years: u32,
++    mount_checked: Mutex<Option<Instant>>,
++    /// Files this process linked in after checking their sha256 (base64, size, when): the
++    /// upload's completion need not read a 2 GB drawing back off the share to know it.
++    verified: Mutex<HashMap<String, (String, u64, Instant)>>,
++}
++
++/// What an upload token allows: exactly this file, at exactly this key.
++#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
++pub struct PutClaims {
++    #[serde(rename = "k")]
++    pub key: String,
++    #[serde(rename = "t")]
++    pub content_type: String,
++    #[serde(rename = "n")]
++    pub size: i64,
++    /// Base64, the way S3's `x-amz-checksum-sha256` carries it.
++    #[serde(rename = "h")]
++    pub sha256_b64: String,
++    /// Write-once evidence: stored as a read-only file.
++    #[serde(rename = "ro", default)]
++    pub read_only: bool,
++    #[serde(rename = "e")]
++    pub expires_at: i64,
++}
++
++/// What a download link allows: this key, until then, shown this way.
++#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
++pub struct GetClaims {
++    #[serde(rename = "k")]
++    pub key: String,
++    #[serde(rename = "d", default, skip_serializing_if = "Option::is_none")]
++    pub disposition: Option<String>,
++    #[serde(rename = "e")]
++    pub expires_at: i64,
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
++pub enum TokenError {
++    #[error("malformed file link")]
++    Malformed,
++    #[error("file link signature is invalid")]
++    BadSignature,
++    #[error("file link has expired")]
++    Expired,
++}
++
++#[derive(Debug, thiserror::Error)]
++pub enum CommitError {
++    #[error("a different file is already stored at {0}")]
++    Conflict(String),
++    #[error(transparent)]
++    Io(#[from] io::Error),
++}
++
++/// What happens when the key is taken.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum Commit {
++    /// Derived copies, generated PDFs, HR papers: the new bytes win (never over a
++    /// read-only file).
++    Replace,
++    /// Uploads and moves: the same bytes again is success, different bytes a conflict.
++    KeepExisting,
++}
++
++/// The filesystem a path lives on, from `/proc/self/mountinfo`.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub struct MountInfo {
++    pub mount_point: PathBuf,
++    pub fs_type: String,
++    pub source: String,
++}
++
++impl FsStore {
++    pub fn new(cfg: &FsConfig, public_base_url: &str, signing_key: &[u8]) -> Self {
++        FsStore {
++            inner: Arc::new(Inner {
++                root: cfg.dir.clone(),
++                base_url: public_base_url.trim_end_matches('/').to_string(),
++                signing_key: signing_key.to_vec(),
++                require_mount: cfg.require_mount,
++                intake_lock_years: cfg.intake_lock_years,
++                mount_checked: Mutex::new(None),
++                verified: Mutex::new(HashMap::new()),
++            }),
++        }
++    }
++
++    pub fn root(&self) -> &Path {
++        &self.inner.root
++    }
++
++    /// The file behind a key. Keys come from the layout, but a bad one must still never
++    /// reach outside the root.
++    pub fn path(&self, key: &str) -> anyhow::Result<PathBuf> {
++        validate_key(key)?;
++        Ok(self.inner.root.join(key))
++    }
++
++    pub fn intake_lock_until(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
++        (self.inner.intake_lock_years > 0).then(|| {
++            now + chrono::TimeDelta::days(365 * i64::from(self.inner.intake_lock_years) + 2)
++        })
++    }
++
++    /// A share has no retention dates: write-once means a read-only file. Real WORM, if
++    /// wanted, belongs to the NAS (snapshots, a locked dataset).
++    pub async fn lock_object(&self, key: &str, _until: DateTime<Utc>) -> anyhow::Result<()> {
++        set_read_only(&self.path(key)?, true)
++            .await
++            .with_context(|| format!("making {key} read-only"))
++    }
++
++    // ── Signed links ──────────────────────────────────────────────────────────
++
++    pub fn presign_put(
++        &self,
++        key: &str,
++        content_type: &str,
++        byte_size: i64,
++        sha256_b64: &str,
++        lock_until: Option<DateTime<Utc>>,
++        expires_in: Duration,
++    ) -> anyhow::Result<PresignedRequest> {
++        validate_key(key)?;
++        let claims = PutClaims {
++            key: key.to_string(),
++            content_type: content_type.to_string(),
++            size: byte_size,
++            sha256_b64: sha256_b64.to_string(),
++            read_only: lock_until.is_some(),
++            expires_at: expiry(expires_in),
++        };
++        let token = sign(&self.inner.signing_key, PUT_CONTEXT, &claims);
++        Ok(PresignedRequest {
++            method: "PUT".into(),
++            url: format!("{}/api/files/{token}", self.inner.base_url),
++            headers: vec![("content-type".into(), content_type.to_string())],
++        })
++    }
++
++    pub fn presign_get(
++        &self,
++        key: &str,
++        expires_in: Duration,
++        content_disposition: Option<String>,
++    ) -> anyhow::Result<String> {
++        validate_key(key)?;
++        let claims = GetClaims {
++            key: key.to_string(),
++            disposition: content_disposition,
++            expires_at: expiry(expires_in),
++        };
++        let token = sign(&self.inner.signing_key, GET_CONTEXT, &claims);
++        Ok(format!("{}/api/files/{token}", self.inner.base_url))
++    }
++
++    pub fn verify_put(&self, token: &str, now_unix: i64) -> Result<PutClaims, TokenError> {
++        let claims: PutClaims = verify(&self.inner.signing_key, PUT_CONTEXT, token)?;
++        if claims.expires_at < now_unix {
++            return Err(TokenError::Expired);
++        }
++        Ok(claims)
++    }
++
++    pub fn verify_get(&self, token: &str, now_unix: i64) -> Result<GetClaims, TokenError> {
++        let claims: GetClaims = verify(&self.inner.signing_key, GET_CONTEXT, token)?;
++        if claims.expires_at < now_unix {
++            return Err(TokenError::Expired);
++        }
++        Ok(claims)
++    }
++
++    // ── Reading ───────────────────────────────────────────────────────────────
++
++    pub async fn head(&self, key: &str) -> anyhow::Result<Option<ObjectInfo>> {
++        match tokio::fs::metadata(self.path(key)?).await {
++            Ok(meta) if meta.is_file() => Ok(Some(ObjectInfo {
++                size: i64::try_from(meta.len()).unwrap_or(i64::MAX),
++                // Known only for what this process checked on the way in; otherwise a caller
++                // that must be sure reads the file back.
++                sha256_b64: self.verified_hash(key, meta.len()),
++            })),
++            Ok(_) => Ok(None),
++            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
++            Err(e) => Err(anyhow!("stat {key}: {e}")),
++        }
++    }
++
++    pub async fn get_bytes(&self, key: &str) -> anyhow::Result<Vec<u8>> {
++        tokio::fs::read(self.path(key)?)
++            .await
++            .with_context(|| format!("reading {key}"))
++    }
++
++    pub async fn open(&self, key: &str) -> anyhow::Result<ByteStream> {
++        ByteStream::from_path(self.path(key)?)
++            .await
++            .map_err(|e| anyhow!("opening {key}: {e}"))
++    }
++
++    // ── Writing ───────────────────────────────────────────────────────────────
++
++    /// Starts an upload under `.tmp/`; [`FsStore::commit`] puts it in place.
++    pub async fn begin(&self) -> io::Result<Upload> {
++        self.ensure_mounted()?;
++        let dir = self.inner.root.join(TMP_DIR);
++        tokio::fs::create_dir_all(&dir).await?;
++        let random: [u8; 12] = rand::random();
++        let path = dir.join(format!("{}.part", hex::encode(random)));
++        let file = tokio::fs::OpenOptions::new()
++            .write(true)
++            .create_new(true)
++            .open(&path)
++            .await?;
++        Ok(Upload {
++            path: Some(path),
++            file: Some(file),
++            hasher: Sha256::new(),
++            size: 0,
++        })
++    }
++
++    /// Moves a finished upload to `key`, creating the folders on the way.
++    pub async fn commit(
++        &self,
++        mut done: Finished,
++        key: &str,
++        mode: Commit,
++        read_only: bool,
++    ) -> Result<(), CommitError> {
++        self.ensure_mounted()?;
++        let dest = self
++            .path(key)
++            .map_err(|e| io::Error::other(e.to_string()))?;
++        if let Some(parent) = dest.parent() {
++            tokio::fs::create_dir_all(parent).await?;
++        }
++        let src = done.path().to_path_buf();
++        match mode {
++            Commit::Replace => {
++                if let Ok(meta) = tokio::fs::metadata(&dest).await
++                    && meta.permissions().readonly()
++                {
++                    return Err(CommitError::Io(io::Error::new(
++                        io::ErrorKind::PermissionDenied,
++                        format!("{key} is write-once"),
++                    )));
++                }
++                tokio::fs::rename(&src, &dest).await?;
++                self.forget(key);
++            }
++            // A hard link is "create unless it exists" in one step, which NFS does
++            // atomically on the server; a rename would silently replace.
++            Commit::KeepExisting => match tokio::fs::hard_link(&src, &dest).await {
++                Ok(()) => {
++                    let _ = tokio::fs::remove_file(&src).await;
++                }
++                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
++                    same_or_conflict(&dest, &done.sha256, key).await?;
++                    self.remember(key, &done);
++                    return Ok(());
++                }
++                Err(_) => {
++                    // A filesystem without hard links: look, then rename.
++                    if tokio::fs::try_exists(&dest).await? {
++                        same_or_conflict(&dest, &done.sha256, key).await?;
++                        self.remember(key, &done);
++                        return Ok(());
++                    }
++                    tokio::fs::rename(&src, &dest).await?;
++                }
++            },
++        }
++        done.disarm();
++        if read_only {
++            set_read_only(&dest, true).await?;
++        }
++        if mode == Commit::KeepExisting {
++            self.remember(key, &done);
++        }
++        Ok(())
++    }
++
++    fn remember(&self, key: &str, done: &Finished) {
++        let mut verified = self
++            .inner
++            .verified
++            .lock()
++            .unwrap_or_else(|p| p.into_inner());
++        verified.retain(|_, (_, _, at)| at.elapsed() < VERIFIED_FOR);
++        verified.insert(
++            key.to_string(),
++            (sha256_b64(&done.sha256), done.size, Instant::now()),
++        );
++    }
++
++    fn forget(&self, key: &str) {
++        let mut verified = self
++            .inner
++            .verified
++            .lock()
++            .unwrap_or_else(|p| p.into_inner());
++        verified.remove(key);
++    }
++
++    fn verified_hash(&self, key: &str, size: u64) -> Option<String> {
++        let verified = self
++            .inner
++            .verified
++            .lock()
++            .unwrap_or_else(|p| p.into_inner());
++        verified
++            .get(key)
++            .filter(|(_, n, at)| *n == size && at.elapsed() < VERIFIED_FOR)
++            .map(|(hash, _, _)| hash.clone())
++    }
++
++    pub async fn put_bytes(&self, key: &str, bytes: Vec<u8>) -> anyhow::Result<()> {
++        let mut upload = self.begin().await.context("starting a write")?;
++        upload.write(&bytes).await?;
++        let done = upload.finish().await?;
++        self.commit(done, key, Commit::Replace, false)
++            .await
++            .with_context(|| format!("storing {key}"))
++    }
++
++    /// Copies a stream from elsewhere (the old object store) to `key`, checked against the
++    /// recorded size and sha256 where they are known.
++    pub async fn write_stream(
++        &self,
++        key: &str,
++        mut stream: ByteStream,
++        expect_size: Option<i64>,
++        expect_sha256: Option<&[u8]>,
++        read_only: bool,
++    ) -> anyhow::Result<()> {
++        let mut upload = self.begin().await.context("starting a write")?;
++        while let Some(chunk) = stream.next().await {
++            let chunk = chunk.map_err(|e| anyhow!("reading the source of {key}: {e}"))?;
++            upload.write(&chunk).await?;
++        }
++        let done = upload.finish().await?;
++        if let Some(size) = expect_size
++            && i64::try_from(done.size).ok() != Some(size)
++        {
++            bail!("{key}: {} bytes arrived, {size} were recorded", done.size);
++        }
++        if let Some(hash) = expect_sha256
++            && done.sha256.as_slice() != hash
++        {
++            bail!("{key}: the bytes do not match the recorded sha256");
++        }
++        self.commit(done, key, Commit::KeepExisting, read_only)
++            .await
++            .with_context(|| format!("storing {key}"))
++    }
++
++    /// Gives a file a second name: a hard link, so nothing is copied and the old name keeps
++    /// working until it is deleted. Falls back to a copy where links are not supported.
++    pub async fn link(&self, from: &str, to: &str) -> anyhow::Result<()> {
++        self.ensure_mounted()?;
++        let src = self.path(from)?;
++        let dest = self.path(to)?;
++        if let Some(parent) = dest.parent() {
++            tokio::fs::create_dir_all(parent).await?;
++        }
++        match tokio::fs::hard_link(&src, &dest).await {
++            Ok(()) => Ok(()),
++            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
++                let (_, hash) = hash_file(&src).await?;
++                same_or_conflict(&dest, &hash, to).await?;
++                Ok(())
++            }
++            Err(e) if e.kind() == io::ErrorKind::NotFound => Err(anyhow!("{from} does not exist")),
++            Err(_) => {
++                let read_only = tokio::fs::metadata(&src).await?.permissions().readonly();
++                let stream = self.open(from).await?;
++                self.write_stream(to, stream, None, None, read_only).await
++            }
++        }
++    }
++
++    /// Removes a file, then any folders it leaves empty. Missing files are not an error.
++    pub async fn delete(&self, key: &str) -> anyhow::Result<()> {
++        let path = self.path(key)?;
++        self.forget(key);
++        match tokio::fs::remove_file(&path).await {
++            Ok(()) => {}
++            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
++            // Windows refuses to remove a read-only file; Linux only asks the folder.
++            Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
++                set_read_only(&path, false).await?;
++                tokio::fs::remove_file(&path)
++                    .await
++                    .with_context(|| format!("deleting {key}"))?;
++            }
++            Err(e) => return Err(anyhow!("deleting {key}: {e}")),
++        }
++        let mut dir = path.parent().map(Path::to_path_buf);
++        while let Some(d) = dir {
++            if d == self.inner.root || tokio::fs::remove_dir(&d).await.is_err() {
++                break;
++            }
++            dir = d.parent().map(Path::to_path_buf);
++        }
++        Ok(())
++    }
++
++    // ── Health ────────────────────────────────────────────────────────────────
++
++    /// The folder exists, is the share (when required), and takes a write.
++    pub async fn check(&self) -> anyhow::Result<()> {
++        let meta = tokio::fs::metadata(&self.inner.root)
++            .await
++            .with_context(|| format!("STORAGE_DIR {}", self.inner.root.display()))?;
++        if !meta.is_dir() {
++            bail!("STORAGE_DIR {} is not a folder", self.inner.root.display());
++        }
++        let mut probe = self.begin().await.context("writing to STORAGE_DIR")?;
++        probe.write(b"ok").await?;
++        drop(probe.finish().await?);
++        Ok(())
++    }
++
++    /// The filesystem STORAGE_DIR is on, for the startup log. `None` off Linux.
++    pub fn mount(&self) -> io::Result<Option<MountInfo>> {
++        mount_of(&self.inner.root)
++    }
++
++    /// Deletes partial uploads left by requests that died, returning how many.
++    pub async fn sweep_partials(&self) -> io::Result<usize> {
++        let dir = self.inner.root.join(TMP_DIR);
++        let mut entries = match tokio::fs::read_dir(&dir).await {
++            Ok(e) => e,
++            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(0),
++            Err(e) => return Err(e),
++        };
++        let mut removed = 0;
++        while let Some(entry) = entries.next_entry().await? {
++            let stale = entry
++                .metadata()
++                .await
++                .ok()
++                .and_then(|m| m.modified().ok())
++                .and_then(|t| SystemTime::now().duration_since(t).ok())
++                .is_some_and(|age| age > STALE_PART);
++            if stale && tokio::fs::remove_file(entry.path()).await.is_ok() {
++                removed += 1;
++            }
++        }
++        Ok(removed)
++    }
++
++    /// An unmounted share leaves an empty local folder behind; writing there would fill the
++    /// server's disk and hide the files from the NAS. Refuse instead.
++    fn ensure_mounted(&self) -> io::Result<()> {
++        if !self.inner.require_mount {
++            return Ok(());
++        }
++        let mut checked = self
++            .inner
++            .mount_checked
++            .lock()
++            .unwrap_or_else(|p| p.into_inner());
++        if checked.is_some_and(|t| t.elapsed() < MOUNT_RECHECK) {
++            return Ok(());
++        }
++        match mount_of(&self.inner.root)? {
++            Some(m) if m.mount_point != Path::new("/") => {
++                *checked = Some(Instant::now());
++                Ok(())
++            }
++            _ => Err(io::Error::other(format!(
++                "STORAGE_DIR {} is not on a mounted share (is the NFS mount up?); refusing to write to the local disk",
++                self.inner.root.display()
++            ))),
++        }
++    }
++}
++
++/// An upload being written under `.tmp/`. Dropped unfinished, the partial file goes too.
++pub struct Upload {
++    path: Option<PathBuf>,
++    file: Option<tokio::fs::File>,
++    hasher: Sha256,
++    size: u64,
++}
++
++impl Upload {
++    pub async fn write(&mut self, chunk: &[u8]) -> io::Result<()> {
++        let file = self.file.as_mut().expect("upload is open until finish");
++        file.write_all(chunk).await?;
++        self.hasher.update(chunk);
++        self.size += chunk.len() as u64;
++        Ok(())
++    }
++
++    pub fn size(&self) -> u64 {
++        self.size
++    }
++
++    /// Flushes to the server (on NFS, `fsync` is the commit) and closes the file.
++    pub async fn finish(mut self) -> io::Result<Finished> {
++        let mut file = self.file.take().expect("upload is open until finish");
++        file.flush().await?;
++        file.sync_all().await?;
++        drop(file);
++        Ok(Finished {
++            path: self.path.take(),
++            size: self.size,
++            sha256: std::mem::take(&mut self.hasher).finalize().into(),
++        })
++    }
++}
++
++impl Drop for Upload {
++    fn drop(&mut self) {
++        if let Some(path) = self.path.take() {
++            let _ = std::fs::remove_file(path);
++        }
++    }
++}
++
++/// A complete upload not yet in place. Dropped without a commit, it is removed.
++pub struct Finished {
++    path: Option<PathBuf>,
++    pub size: u64,
++    pub sha256: [u8; 32],
++}
++
++impl Finished {
++    fn path(&self) -> &Path {
++        self.path.as_deref().expect("finished upload has a path")
++    }
++
++    fn disarm(&mut self) {
++        self.path = None;
++    }
++}
++
++impl Drop for Finished {
++    fn drop(&mut self) {
++        if let Some(path) = self.path.take() {
++            let _ = std::fs::remove_file(path);
++        }
++    }
++}
++
++/// Keys are relative, `/`-separated, and stay under the root.
++pub fn validate_key(key: &str) -> anyhow::Result<()> {
++    let ok = !key.is_empty()
++        && key.len() <= 1024
++        && !key.starts_with('/')
++        && !key.contains(['\\', '\0', ':'])
++        && key
++            .split('/')
++            .all(|seg| !seg.is_empty() && seg != "." && seg != "..");
++    if ok {
++        Ok(())
++    } else {
++        Err(anyhow!("invalid storage key {key:?}"))
++    }
++}
++
++pub async fn hash_file(path: &Path) -> io::Result<(u64, [u8; 32])> {
++    let mut file = tokio::fs::File::open(path).await?;
++    let mut hasher = Sha256::new();
++    let mut buf = vec![0u8; 256 * 1024];
++    let mut size = 0u64;
++    loop {
++        let n = file.read(&mut buf).await?;
++        if n == 0 {
++            break;
++        }
++        hasher.update(&buf[..n]);
++        size += n as u64;
++    }
++    Ok((size, hasher.finalize().into()))
++}
++
++async fn same_or_conflict(dest: &Path, sha256: &[u8; 32], key: &str) -> Result<(), CommitError> {
++    let (_, existing) = hash_file(dest).await?;
++    if &existing == sha256 {
++        Ok(())
++    } else {
++        Err(CommitError::Conflict(key.to_string()))
++    }
++}
++
++async fn set_read_only(path: &Path, read_only: bool) -> io::Result<()> {
++    let mut perms = tokio::fs::metadata(path).await?.permissions();
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::PermissionsExt;
++        // Owner, group and the share's readers keep reading; nobody writes.
++        perms.set_mode(if read_only { 0o444 } else { 0o644 });
++    }
++    #[cfg(not(unix))]
++    perms.set_readonly(read_only);
++    tokio::fs::set_permissions(path, perms).await
++}
++
++fn expiry(expires_in: Duration) -> i64 {
++    Utc::now().timestamp() + i64::try_from(expires_in.as_secs()).unwrap_or(i64::MAX / 2)
++}
++
++fn mac(key: &[u8], context: &[u8], payload: &str) -> Hmac<Sha256> {
++    let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC accepts keys of any length");
++    mac.update(context);
++    mac.update(payload.as_bytes());
++    mac
++}
++
++fn sign<T: Serialize>(key: &[u8], context: &[u8], claims: &T) -> String {
++    let payload = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims).expect("claims serialize"));
++    let signature = URL_SAFE_NO_PAD.encode(mac(key, context, &payload).finalize().into_bytes());
++    format!("{payload}.{signature}")
++}
++
++fn verify<T: DeserializeOwned>(key: &[u8], context: &[u8], token: &str) -> Result<T, TokenError> {
++    let (payload, signature) = token.split_once('.').ok_or(TokenError::Malformed)?;
++    let signature = URL_SAFE_NO_PAD
++        .decode(signature)
++        .map_err(|_| TokenError::Malformed)?;
++    mac(key, context, payload)
++        .verify_slice(&signature)
++        .map_err(|_| TokenError::BadSignature)?;
++    let bytes = URL_SAFE_NO_PAD
++        .decode(payload)
++        .map_err(|_| TokenError::Malformed)?;
++    serde_json::from_slice(&bytes).map_err(|_| TokenError::Malformed)
++}
++
++/// Base64 sha256 as the PUT token carries it.
++pub fn sha256_b64(hash: &[u8]) -> String {
++    STANDARD.encode(hash)
++}
++
++#[cfg(target_os = "linux")]
++pub fn mount_of(path: &Path) -> io::Result<Option<MountInfo>> {
++    let path = std::fs::canonicalize(path)?;
++    let table = std::fs::read_to_string("/proc/self/mountinfo")?;
++    // The deepest mount containing the path; of two at the same point, the later one
++    // (it is on top).
++    Ok(parse_mountinfo(&table)
++        .into_iter()
++        .filter(|m| path.starts_with(&m.mount_point))
++        .max_by_key(|m| m.mount_point.components().count()))
++}
++
++#[cfg(not(target_os = "linux"))]
++pub fn mount_of(_path: &Path) -> io::Result<Option<MountInfo>> {
++    Ok(None)
++}
++
++/// `/proc/self/mountinfo`: `id parent dev root mountpoint options [optional…] - fstype source superoptions`.
++pub fn parse_mountinfo(table: &str) -> Vec<MountInfo> {
++    table
++        .lines()
++        .filter_map(|line| {
++            let fields: Vec<&str> = line.split(' ').collect();
++            let mount_point = fields.get(4)?;
++            let dash = fields.iter().position(|f| *f == "-")?;
++            Some(MountInfo {
++                mount_point: PathBuf::from(unescape_mount(mount_point)),
++                fs_type: fields.get(dash + 1)?.to_string(),
++                source: unescape_mount(fields.get(dash + 2)?),
++            })
++        })
++        .collect()
++}
++
++/// The kernel writes space, tab, newline and backslash as `\040`, `\011`, `\012`, `\134`.
++fn unescape_mount(s: &str) -> String {
++    let bytes = s.as_bytes();
++    let mut out = Vec::with_capacity(bytes.len());
++    let mut i = 0;
++    while i < bytes.len() {
++        if bytes[i] == b'\\'
++            && i + 3 < bytes.len()
++            && bytes[i + 1..i + 4]
++                .iter()
++                .all(|b| (b'0'..=b'7').contains(b))
++        {
++            let v = (bytes[i + 1] - b'0') * 64 + (bytes[i + 2] - b'0') * 8 + (bytes[i + 3] - b'0');
++            out.push(v);
++            i += 4;
++        } else {
++            out.push(bytes[i]);
++            i += 1;
++        }
++    }
++    String::from_utf8_lossy(&out).into_owned()
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn store(dir: &Path) -> FsStore {
++        FsStore::new(
++            &FsConfig {
++                dir: dir.to_path_buf(),
++                require_mount: false,
++                intake_lock_years: 10,
++            },
++            "https://crm.example.com/",
++            b"test-key-test-key-test-key-test-key!",
++        )
++    }
++
++    fn scratch() -> PathBuf {
++        let dir = std::env::temp_dir().join(format!(
++            "autocrm-fs-{}",
++            hex::encode(rand::random::<[u8; 8]>())
++        ));
++        std::fs::create_dir_all(&dir).unwrap();
++        dir
++    }
++
++    #[test]
++    fn keys_stay_under_the_root() {
++        assert!(validate_key("projektek/2026/2026-0042_Kovacs/fotok/a_1.jpg").is_ok());
++        for bad in [
++            "",
++            "/etc/passwd",
++            "a/../../b",
++            "a//b",
++            "a/./b",
++            "C:/x",
++            "a\\b",
++            "a/",
++        ] {
++            assert!(validate_key(bad).is_err(), "{bad:?} must be refused");
++        }
++    }
++
++    #[test]
++    fn tokens_bind_their_purpose_and_expire() {
++        let dir = scratch();
++        let s = store(&dir);
++        let put = s
++            .presign_put(
++                "a/b.jpg",
++                "image/jpeg",
++                3,
++                "AAAA",
++                None,
++                Duration::from_secs(60),
++            )
++            .unwrap();
++        assert_eq!(put.method, "PUT");
++        let token = put.url.rsplit('/').next().unwrap();
++        assert!(put.url.starts_with("https://crm.example.com/api/files/"));
++        let now = Utc::now().timestamp();
++        let claims = s.verify_put(token, now).unwrap();
++        assert_eq!((claims.key.as_str(), claims.size), ("a/b.jpg", 3));
++        // An upload token is not a download link, and the other way round.
++        assert_eq!(s.verify_get(token, now), Err(TokenError::BadSignature));
++        let get = s
++            .presign_get("a/b.jpg", Duration::from_secs(60), None)
++            .unwrap();
++        let get_token = get.rsplit('/').next().unwrap();
++        assert!(s.verify_get(get_token, now).is_ok());
++        assert_eq!(
++            s.verify_put(get_token, now).unwrap_err(),
++            TokenError::BadSignature
++        );
++        assert_eq!(s.verify_get(get_token, now + 61), Err(TokenError::Expired));
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++
++    #[tokio::test]
++    async fn uploads_land_whole_and_never_replace_other_bytes() {
++        let dir = scratch();
++        let s = store(&dir);
++        let key = "projektek/2026/x/fotok/bevetel/a_12345678.jpg";
++
++        let mut up = s.begin().await.unwrap();
++        up.write(b"first").await.unwrap();
++        let done = up.finish().await.unwrap();
++        s.commit(done, key, Commit::KeepExisting, true)
++            .await
++            .unwrap();
++        assert_eq!(s.get_bytes(key).await.unwrap(), b"first");
++        // Checked on the way in, so completing the upload need not read it back.
++        assert_eq!(
++            s.head(key).await.unwrap().unwrap().sha256_b64,
++            Some(sha256_b64(&Sha256::digest(b"first")))
++        );
++        assert!(
++            std::fs::metadata(s.path(key).unwrap())
++                .unwrap()
++                .permissions()
++                .readonly()
++        );
++
++        // The same bytes again: fine. Different bytes: refused, original untouched.
++        let mut again = s.begin().await.unwrap();
++        again.write(b"first").await.unwrap();
++        s.commit(
++            again.finish().await.unwrap(),
++            key,
++            Commit::KeepExisting,
++            true,
++        )
++        .await
++        .unwrap();
++        let mut other = s.begin().await.unwrap();
++        other.write(b"other").await.unwrap();
++        let err = s
++            .commit(
++                other.finish().await.unwrap(),
++                key,
++                Commit::KeepExisting,
++                false,
++            )
++            .await
++            .unwrap_err();
++        assert!(matches!(err, CommitError::Conflict(_)));
++        assert_eq!(s.get_bytes(key).await.unwrap(), b"first");
++        // Nor does a plain write go over write-once evidence.
++        assert!(s.put_bytes(key, b"other".to_vec()).await.is_err());
++
++        // Nothing left behind in .tmp, and deleting prunes the emptied folders.
++        assert_eq!(std::fs::read_dir(dir.join(TMP_DIR)).unwrap().count(), 0);
++        s.delete(key).await.unwrap();
++        assert!(!dir.join("projektek").exists());
++        assert!(s.head(key).await.unwrap().is_none());
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++
++    #[tokio::test]
++    async fn an_abandoned_upload_leaves_nothing() {
++        let dir = scratch();
++        let s = store(&dir);
++        let mut up = s.begin().await.unwrap();
++        up.write(b"half").await.unwrap();
++        drop(up);
++        assert_eq!(std::fs::read_dir(dir.join(TMP_DIR)).unwrap().count(), 0);
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++
++    #[tokio::test]
++    async fn links_move_without_copying() {
++        let dir = scratch();
++        let s = store(&dir);
++        s.put_bytes("orders/1/intake/abc.jpg", b"photo".to_vec())
++            .await
++            .unwrap();
++        s.link(
++            "orders/1/intake/abc.jpg",
++            "projektek/2026/p/fotok/bevetel/abc_1.jpg",
++        )
++        .await
++        .unwrap();
++        // Linking again onto the same bytes is a no-op.
++        s.link(
++            "orders/1/intake/abc.jpg",
++            "projektek/2026/p/fotok/bevetel/abc_1.jpg",
++        )
++        .await
++        .unwrap();
++        s.delete("orders/1/intake/abc.jpg").await.unwrap();
++        assert!(!dir.join("orders").exists());
++        assert_eq!(
++            s.get_bytes("projektek/2026/p/fotok/bevetel/abc_1.jpg")
++                .await
++                .unwrap(),
++            b"photo"
++        );
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++
++    #[test]
++    fn mountinfo_finds_the_share() {
++        let table = "\
++22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw
++40 22 0:45 / /srv/autocrm\\040files rw,relatime shared:20 - nfs4 nas:/export/autocrm rw,vers=4.1
++";
++        let mounts = parse_mountinfo(table);
++        assert_eq!(mounts.len(), 2);
++        assert_eq!(mounts[1].mount_point, PathBuf::from("/srv/autocrm files"));
++        assert_eq!(mounts[1].fs_type, "nfs4");
++        assert_eq!(mounts[1].source, "nas:/export/autocrm");
++    }
++}
+diff --git a/backend/src/media/layout.rs b/backend/src/media/layout.rs
+new file mode 100644
+index 0000000..5be3457
+--- /dev/null
++++ b/backend/src/media/layout.rs
+@@ -0,0 +1,680 @@
++//! Where each file is filed: one folder per project (an order), per enquiry (a lead), per
++//! employee and per job posting, named for a person browsing the share.
++//!
++//! ```text
++//! projektek/2026/2026-0042_Kovacs-Kft_ABC-123/
++//!     ajanlat/                         the quotation and other files of the enquiry
++//!     dokumentumok/{terv,cad,tanusitvany,video,egyeb}/
++//!     szamlazas/{szamlak,sztornok,dijbekerok}/
++//!     fotok/{bevetel,gyartas,atadas-meo,atadas-atvetel,marketing}/
++//!     atadas-atvetel/2026-10-19_atvetel_ABC-123_17/{fotok,alairasok,videok}/
++//!     torolt/…                         deleted in the app (the app keeps them too)
++//!     .elonezet/                       previews and thumbnails, regenerated at will
++//! ajanlatok/2026/L000123_Kovacs-Kft/   an enquiry that has not become an order
++//! hr/dolgozok/0012_Nagy-Peter/{profilkep,dokumentumok/<fajta>,tavollet}/
++//! hr/toborzas/0003_Villanyszerelo/
++//! bejovo-szamlak/2026/10/
++//! migracio/eredeti/                    MiniCRM downloads, until re-sorting files them
++//! ```
++//!
++//! Names are ASCII (accents folded, anything else a dash), so they survive NFS, SMB, ZIP
++//! files and scripts alike. A folder is named once and the name kept in `storage_folders`:
++//! renaming the customer later never splits a project in two. A file name ends in the first
++//! characters of its sha256, so two different "IMG_0001.jpg" never collide and the same
++//! upload twice lands on the same name.
++
++use chrono::{DateTime, Datelike, NaiveDate, Utc};
++use sqlx::PgPool;
++
++use crate::AppState;
++use crate::domain::media::{DocumentKind, ImageCategory};
++use crate::repo::documents::Owner;
++
++pub const PROJECTS: &str = "projektek";
++pub const ENQUIRIES: &str = "ajanlatok";
++pub const EMPLOYEES: &str = "hr/dolgozok";
++pub const POSTINGS: &str = "hr/toborzas";
++pub const INCOMING_INVOICES: &str = "bejovo-szamlak";
++/// MiniCRM files are fetched before anyone knows which project they belong to.
++pub const MIGRATION: &str = "migracio/eredeti";
++pub const PREVIEWS: &str = ".elonezet";
++pub const DELETED: &str = "torolt";
++/// The enquiry's files, inside the project it became.
++pub const QUOTE: &str = "ajanlat";
++
++// ── Names ─────────────────────────────────────────────────────────────────────
++
++/// A folder-name part: letters and digits, words joined by `-`, at most `max` characters.
++pub fn slug(s: &str, max: usize) -> String {
++    clean(s, max, false)
++}
++
++/// A file-name stem: like [`slug`], but `_` survives ("IMG_0001").
++pub fn stem_slug(s: &str, max: usize) -> String {
++    clean(s, max, true)
++}
++
++fn clean(s: &str, max: usize, keep_underscore: bool) -> String {
++    let mut out = String::with_capacity(s.len().min(max));
++    let mut gap = false;
++    for c in s.chars() {
++        let folded = fold(c);
++        for m in folded.chars() {
++            if m.is_ascii_alphanumeric() || (keep_underscore && m == '_') {
++                if gap && !out.is_empty() {
++                    out.push('-');
++                }
++                out.push(m);
++                gap = false;
++            } else {
++                gap = true;
++            }
++        }
++    }
++    out.truncate(max);
++    out.trim_end_matches(['-', '_']).to_string()
++}
++
++/// Accented Latin letters to their plain form; anything else unknown becomes a gap.
++fn fold(c: char) -> String {
++    if c.is_ascii() {
++        return c.to_string();
++    }
++    let lower = c.to_lowercase().next().unwrap_or(c);
++    let base = match lower {
++        'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' | 'ā' | 'ą' | 'ă' => "a",
++        'é' | 'è' | 'ê' | 'ë' | 'ē' | 'ę' | 'ě' => "e",
++        'í' | 'ì' | 'î' | 'ï' | 'ī' => "i",
++        'ó' | 'ò' | 'ô' | 'ö' | 'ő' | 'õ' | 'ø' | 'ō' => "o",
++        'ú' | 'ù' | 'û' | 'ü' | 'ű' | 'ū' | 'ů' => "u",
++        'ý' | 'ÿ' => "y",
++        'ç' | 'č' | 'ć' => "c",
++        'š' | 'ś' | 'ş' | 'ș' => "s",
++        'ž' | 'ź' | 'ż' => "z",
++        'ñ' | 'ń' | 'ň' => "n",
++        'ř' => "r",
++        'ď' => "d",
++        'ť' | 'ț' => "t",
++        'ł' | 'ľ' | 'ĺ' => "l",
++        'ğ' => "g",
++        'ß' => "ss",
++        'æ' => "ae",
++        'œ' => "oe",
++        _ => return " ".into(),
++    };
++    if c.is_uppercase() && lower != 'ß' {
++        base.to_uppercase()
++    } else {
++        base.to_string()
++    }
++}
++
++fn join_parts(parts: &[String]) -> String {
++    parts
++        .iter()
++        .filter(|p| !p.is_empty())
++        .cloned()
++        .collect::<Vec<_>>()
++        .join("_")
++}
++
++/// `projektek/2026/2026-0042_Kovacs-Kft_ABC-123`.
++pub fn order_folder(year: i32, number: &str, partner: &str, plate: Option<&str>) -> String {
++    let mut name = join_parts(&[
++        slug(number, 30),
++        slug(partner, 40),
++        plate.map(|p| slug(p, 16)).unwrap_or_default(),
++    ]);
++    if name.is_empty() {
++        name = "projekt".into();
++    }
++    format!("{PROJECTS}/{year}/{name}")
++}
++
++/// `ajanlatok/2026/L000123_Kovacs-Kft`.
++pub fn lead_folder(year: i32, lead_id: i64, name: &str) -> String {
++    let name = join_parts(&[format!("L{lead_id:06}"), slug(name, 40)]);
++    format!("{ENQUIRIES}/{year}/{name}")
++}
++
++/// `hr/dolgozok/0012_Nagy-Peter`.
++pub fn employee_folder(employee_id: i64, name: &str) -> String {
++    let name = join_parts(&[format!("{employee_id:04}"), slug(name, 40)]);
++    format!("{EMPLOYEES}/{name}")
++}
++
++/// `hr/toborzas/0003_Villanyszerelo`.
++pub fn posting_folder(posting_id: i64, title: &str) -> String {
++    let name = join_parts(&[format!("{posting_id:04}"), slug(title, 40)]);
++    format!("{POSTINGS}/{name}")
++}
++
++pub fn category_dir(category: ImageCategory) -> &'static str {
++    match category {
++        ImageCategory::Intake => "bevetel",
++        ImageCategory::Production => "gyartas",
++        ImageCategory::Completion => "atadas-meo",
++        ImageCategory::Marketing => "marketing",
++        ImageCategory::Inspection => "atadas-atvetel",
++    }
++}
++
++/// What a document is, as far as its folder goes. Invoices, stornos and proformas are
++/// all PDFs NAV's sidecar rendered, but the bookkeeper looks for them apart.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum Shelf {
++    Kind(DocumentKind),
++    Storno,
++}
++
++impl From<DocumentKind> for Shelf {
++    fn from(kind: DocumentKind) -> Self {
++        Shelf::Kind(kind)
++    }
++}
++
++/// A document's folder inside its project.
++pub fn shelf_dir(shelf: Shelf) -> &'static str {
++    match shelf {
++        Shelf::Kind(DocumentKind::Design) => "dokumentumok/terv",
++        Shelf::Kind(DocumentKind::Cad) => "dokumentumok/cad",
++        Shelf::Kind(DocumentKind::Certificate) => "dokumentumok/tanusitvany",
++        Shelf::Kind(DocumentKind::Video) => "dokumentumok/video",
++        Shelf::Kind(DocumentKind::Other) => "dokumentumok/egyeb",
++        Shelf::Kind(DocumentKind::Invoice) => "szamlazas/szamlak",
++        Shelf::Storno => "szamlazas/sztornok",
++        Shelf::Kind(DocumentKind::Proforma) => "szamlazas/dijbekerok",
++    }
++}
++
++/// One walkaround's folder: `atadas-atvetel/2026-10-19_atvetel_ABC-123_17`. Checkout is
++/// "Átvétel" in the app, checkin "Kiadás".
++pub fn inspection_dir(project: &str, on: NaiveDate, kind: &str, plate: &str, id: i64) -> String {
++    let kind = match kind {
++        "checkout" => "atvetel",
++        "checkin" => "kiadas",
++        _ => "szemle",
++    };
++    let name = join_parts(&[on.to_string(), kind.into(), slug(plate, 16), id.to_string()]);
++    format!("{project}/atadas-atvetel/{name}")
++}
++
++/// What a file is within a walkaround folder.
++pub fn inspection_part(dir: &str, part: InspectionPart) -> String {
++    let sub = match part {
++        InspectionPart::Photo => "fotok",
++        InspectionPart::Signature => "alairasok",
++        InspectionPart::Video => "videok",
++    };
++    format!("{dir}/{sub}")
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum InspectionPart {
++    Photo,
++    Signature,
++    Video,
++}
++
++/// HR paper kinds (`employee_documents.kind`).
++pub fn employee_document_dir_name(kind: &str) -> &'static str {
++    match kind {
++        "medical" => "orvosi",
++        "contract" => "szerzodes",
++        "licence" => "engedely",
++        "training" => "kepzes",
++        _ => "egyeb",
++    }
++}
++
++/// `rel` inside `folder`, or inside its `torolt/` when the record is deleted in the app.
++fn within(folder: &str, rel: &str, deleted: bool) -> String {
++    match (deleted, rel.is_empty()) {
++        (false, true) => folder.to_string(),
++        (false, false) => format!("{folder}/{rel}"),
++        (true, true) => format!("{folder}/{DELETED}"),
++        (true, false) => format!("{folder}/{DELETED}/{rel}"),
++    }
++}
++
++pub fn photo_dir(project: &str, category: ImageCategory, deleted: bool) -> String {
++    within(
++        project,
++        &format!("fotok/{}", category_dir(category)),
++        deleted,
++    )
++}
++
++pub fn document_dir(project: &str, shelf: impl Into<Shelf>, deleted: bool) -> String {
++    within(project, shelf_dir(shelf.into()), deleted)
++}
++
++pub fn previews_dir(folder: &str) -> String {
++    format!("{folder}/{PREVIEWS}")
++}
++
++pub fn employee_photo_dir(folder: &str) -> String {
++    format!("{folder}/profilkep")
++}
++
++pub fn employee_document_dir(folder: &str, kind: &str, deleted: bool) -> String {
++    within(
++        folder,
++        &format!("dokumentumok/{}", employee_document_dir_name(kind)),
++        deleted,
++    )
++}
++
++pub fn absence_dir(folder: &str) -> String {
++    format!("{folder}/tavollet")
++}
++
++/// `bejovo-szamlak/2026/10`, by the day it was filed.
++pub fn incoming_invoice_dir(filed_on: NaiveDate, deleted: bool) -> String {
++    let month = format!("{:04}/{:02}", filed_on.year(), filed_on.month());
++    if deleted {
++        format!("{INCOMING_INVOICES}/{DELETED}/{month}")
++    } else {
++        format!("{INCOMING_INVOICES}/{month}")
++    }
++}
++
++/// The first eight characters of a hex hash: enough to tell files apart in one folder.
++pub fn hash_tag(hash_hex: &str) -> &str {
++    &hash_hex[..hash_hex.len().min(8)]
++}
++
++/// A tag for files with no hash to hand (HR papers), random like their keys always were.
++pub fn random_tag() -> String {
++    hex::encode(rand::random::<[u8; 4]>())
++}
++
++/// `<stem>_<tag>.<ext>`; the stem from the original file name, or `fallback`.
++pub fn file_name(original: Option<&str>, fallback: &str, tag: &str, ext: &str) -> String {
++    let stem = original
++        .map(|f| f.rsplit(['/', '\\']).next().unwrap_or(f))
++        .map(|f| f.rsplit_once('.').map_or(f, |(stem, _)| stem))
++        .map(|s| stem_slug(s, 60))
++        .filter(|s| !s.is_empty())
++        .unwrap_or_else(|| fallback.to_string());
++    if ext.is_empty() {
++        format!("{stem}_{tag}")
++    } else {
++        format!("{stem}_{tag}.{ext}")
++    }
++}
++
++pub fn photo_name(original: Option<&str>, hash_hex: &str, ext: &str) -> String {
++    file_name(original, "foto", hash_tag(hash_hex), ext)
++}
++
++/// A later version says so: `terv_v2_1a2b3c4d.pdf`.
++pub fn document_name(filename: &str, version: i32, hash_hex: &str, ext: &str) -> String {
++    let tag = if version > 1 {
++        format!("v{version}_{}", hash_tag(hash_hex))
++    } else {
++        hash_tag(hash_hex).to_string()
++    };
++    file_name(Some(filename), "dokumentum", &tag, ext)
++}
++
++/// `.elonezet/<hash16>.<variant>.<ext>`.
++pub fn derived_name(hash_hex: &str, variant: &str, ext: &str) -> String {
++    format!("{}.{variant}.{ext}", &hash_hex[..hash_hex.len().min(16)])
++}
++
++/// The extension a stored key ends in, lower case; `bin` when there is none.
++pub fn ext_of(key: &str) -> String {
++    let base = key.rsplit('/').next().unwrap_or(key);
++    match base.rsplit_once('.') {
++        Some((stem, ext))
++            if !stem.is_empty()
++                && !ext.is_empty()
++                && ext.len() <= 10
++                && ext.chars().all(|c| c.is_ascii_alphanumeric()) =>
++        {
++            ext.to_ascii_lowercase()
++        }
++        _ => "bin".into(),
++    }
++}
++
++/// The folder a key is in.
++pub fn parent(key: &str) -> &str {
++    key.rsplit_once('/').map_or("", |(dir, _)| dir)
++}
++
++pub fn join(dir: &str, name: &str) -> String {
++    format!("{dir}/{name}")
++}
++
++// ── Folders, named once ──────────────────────────────────────────────────────
++
++async fn existing(db: &PgPool, entity: &str, id: i64) -> sqlx::Result<Option<String>> {
++    sqlx::query_scalar("SELECT folder FROM storage_folders WHERE entity = $1 AND entity_id = $2")
++        .bind(entity)
++        .bind(id)
++        .fetch_optional(db)
++        .await
++}
++
++/// The folder already named for this record, or `wanted` (with the id appended when another
++/// record took that name first).
++async fn assign(db: &PgPool, entity: &str, id: i64, wanted: String) -> sqlx::Result<String> {
++    if let Some(folder) = existing(db, entity, id).await? {
++        return Ok(folder);
++    }
++    let fallback = format!("{wanted}_{id}");
++    for candidate in [wanted, fallback] {
++        let inserted = sqlx::query_scalar::<_, String>(
++            "INSERT INTO storage_folders (entity, entity_id, folder) VALUES ($1, $2, $3)
++             ON CONFLICT (entity, entity_id) DO NOTHING RETURNING folder",
++        )
++        .bind(entity)
++        .bind(id)
++        .bind(&candidate)
++        .fetch_optional(db)
++        .await;
++        match inserted {
++            Ok(Some(folder)) => return Ok(folder),
++            // Named by a request running at the same moment.
++            Ok(None) => {
++                if let Some(folder) = existing(db, entity, id).await? {
++                    return Ok(folder);
++                }
++            }
++            Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {}
++            Err(e) => return Err(e),
++        }
++    }
++    Err(sqlx::Error::Protocol(format!(
++        "no free storage folder name for {entity} {id}"
++    )))
++}
++
++fn local_year(state: &AppState, at: DateTime<Utc>) -> i32 {
++    at.with_timezone(&state.config.business_tz).year()
++}
++
++/// The project folder of an order.
++pub async fn order_folder_of(state: &AppState, order_id: i64) -> sqlx::Result<String> {
++    if let Some(folder) = existing(&state.db, "order", order_id).await? {
++        return Ok(folder);
++    }
++    let (number, created_at, partner, plate): (String, DateTime<Utc>, String, Option<String>) =
++        sqlx::query_as(
++            "SELECT o.number, o.created_at, p.name, o.vehicle_plate
++               FROM orders o JOIN partners p ON p.id = o.partner_id
++              WHERE o.id = $1",
++        )
++        .bind(order_id)
++        .fetch_one(&state.db)
++        .await?;
++    let wanted = order_folder(
++        local_year(state, created_at),
++        &number,
++        &partner,
++        plate.as_deref(),
++    );
++    assign(&state.db, "order", order_id, wanted).await
++}
++
++/// An enquiry's own folder (before, or without, an order).
++pub async fn lead_folder_of(state: &AppState, lead_id: i64) -> sqlx::Result<String> {
++    if let Some(folder) = existing(&state.db, "lead", lead_id).await? {
++        return Ok(folder);
++    }
++    let (created_at, name): (DateTime<Utc>, String) = sqlx::query_as(
++        "SELECT l.created_at, coalesce(p.name, nullif(btrim(l.contact_name), ''), l.title)
++           FROM leads l LEFT JOIN partners p ON p.id = l.partner_id
++          WHERE l.id = $1",
++    )
++    .bind(lead_id)
++    .fetch_one(&state.db)
++    .await?;
++    let wanted = lead_folder(local_year(state, created_at), lead_id, &name);
++    assign(&state.db, "lead", lead_id, wanted).await
++}
++
++pub async fn employee_folder_of(state: &AppState, employee_id: i64) -> sqlx::Result<String> {
++    if let Some(folder) = existing(&state.db, "employee", employee_id).await? {
++        return Ok(folder);
++    }
++    let name: String = sqlx::query_scalar("SELECT full_name FROM employees WHERE id = $1")
++        .bind(employee_id)
++        .fetch_one(&state.db)
++        .await?;
++    assign(
++        &state.db,
++        "employee",
++        employee_id,
++        employee_folder(employee_id, &name),
++    )
++    .await
++}
++
++pub async fn posting_folder_of(state: &AppState, posting_id: i64) -> sqlx::Result<String> {
++    if let Some(folder) = existing(&state.db, "job_posting", posting_id).await? {
++        return Ok(folder);
++    }
++    let title: String = sqlx::query_scalar("SELECT title FROM job_postings WHERE id = $1")
++        .bind(posting_id)
++        .fetch_one(&state.db)
++        .await?;
++    assign(
++        &state.db,
++        "job_posting",
++        posting_id,
++        posting_folder(posting_id, &title),
++    )
++    .await
++}
++
++/// The order an enquiry became; the first, when one enquiry became several (V2.7).
++pub async fn order_of_lead(db: &PgPool, lead_id: i64) -> sqlx::Result<Option<i64>> {
++    sqlx::query_scalar("SELECT id FROM orders WHERE lead_id = $1 ORDER BY id LIMIT 1")
++        .bind(lead_id)
++        .fetch_optional(db)
++        .await
++}
++
++/// The folder an owner's previews go in: the project's, or the enquiry's while it has none.
++pub async fn owner_folder(state: &AppState, owner: Owner) -> sqlx::Result<String> {
++    match owner {
++        Owner::Order(id) => order_folder_of(state, id).await,
++        Owner::Lead(id) => match order_of_lead(&state.db, id).await? {
++            Some(order_id) => order_folder_of(state, order_id).await,
++            None => lead_folder_of(state, id).await,
++        },
++    }
++}
++
++// ── Keys ──────────────────────────────────────────────────────────────────────
++
++pub async fn image_dir(
++    state: &AppState,
++    order_id: i64,
++    category: ImageCategory,
++    deleted: bool,
++) -> sqlx::Result<String> {
++    Ok(photo_dir(
++        &order_folder_of(state, order_id).await?,
++        category,
++        deleted,
++    ))
++}
++
++/// Where an owner's document of this kind goes. An enquiry's files are filed as a whole in
++/// `ajanlat/` of the project it became, or in its own folder before that.
++pub async fn document_dir_of(
++    state: &AppState,
++    owner: Owner,
++    shelf: Shelf,
++    deleted: bool,
++) -> sqlx::Result<String> {
++    match owner {
++        Owner::Order(id) => Ok(document_dir(
++            &order_folder_of(state, id).await?,
++            shelf,
++            deleted,
++        )),
++        Owner::Lead(id) => match order_of_lead(&state.db, id).await? {
++            Some(order_id) => Ok(within(
++                &order_folder_of(state, order_id).await?,
++                QUOTE,
++                deleted,
++            )),
++            None => Ok(within(&lead_folder_of(state, id).await?, "", deleted)),
++        },
++    }
++}
++
++pub async fn image_key(
++    state: &AppState,
++    order_id: i64,
++    category: ImageCategory,
++    original_filename: Option<&str>,
++    hash_hex: &str,
++    ext: &str,
++) -> sqlx::Result<String> {
++    Ok(join(
++        &image_dir(state, order_id, category, false).await?,
++        &photo_name(original_filename, hash_hex, ext),
++    ))
++}
++
++/// A display copy or thumbnail of a photo: `.elonezet/` of its project.
++pub async fn image_derived_key(
++    state: &AppState,
++    order_id: i64,
++    hash_hex: &str,
++    variant: &str,
++) -> sqlx::Result<String> {
++    Ok(join(
++        &previews_dir(&order_folder_of(state, order_id).await?),
++        &derived_name(hash_hex, variant, "jpg"),
++    ))
++}
++
++pub async fn document_key(
++    state: &AppState,
++    owner: Owner,
++    shelf: impl Into<Shelf>,
++    filename: &str,
++    version: i32,
++    hash_hex: &str,
++    ext: &str,
++) -> sqlx::Result<String> {
++    Ok(join(
++        &document_dir_of(state, owner, shelf.into(), false).await?,
++        &document_name(filename, version, hash_hex, ext),
++    ))
++}
++
++pub async fn document_thumb_key(
++    state: &AppState,
++    owner: Owner,
++    hash_hex: &str,
++) -> sqlx::Result<String> {
++    Ok(join(
++        &previews_dir(&owner_folder(state, owner).await?),
++        &derived_name(hash_hex, "thumb", "png"),
++    ))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn names_are_plain_ascii_a_person_can_read() {
++        assert_eq!(slug("Kovács és Társa Kft.", 40), "Kovacs-es-Tarsa-Kft");
++        assert_eq!(slug("ŐRSÉGI ÜZEMÁG", 40), "ORSEGI-UZEMAG");
++        assert_eq!(slug("ABC 123", 16), "ABC-123");
++        assert_eq!(slug("  --  ", 10), "");
++        assert_eq!(slug("Straße/Weg", 20), "Strasse-Weg");
++        assert_eq!(stem_slug("IMG_0001 (2)", 60), "IMG_0001-2");
++        assert_eq!(slug("abcdefghij-klm", 11), "abcdefghij");
++    }
++
++    #[test]
++    fn project_folders() {
++        assert_eq!(
++            order_folder(2026, "2026-0042", "Kovács Kft.", Some("abc-123")),
++            "projektek/2026/2026-0042_Kovacs-Kft_abc-123"
++        );
++        assert_eq!(
++            order_folder(2026, "2026-0043", "Hűtő Bt", None),
++            "projektek/2026/2026-0043_Huto-Bt"
++        );
++        assert_eq!(
++            lead_folder(2026, 123, "Nagy Péter"),
++            "ajanlatok/2026/L000123_Nagy-Peter"
++        );
++        assert_eq!(
++            employee_folder(12, "Nagy Péter"),
++            "hr/dolgozok/0012_Nagy-Peter"
++        );
++        assert_eq!(
++            posting_folder(3, "Villanyszerelő (B)"),
++            "hr/toborzas/0003_Villanyszerelo-B"
++        );
++    }
++
++    #[test]
++    fn folders_inside_a_project() {
++        let p = "projektek/2026/2026-0042_Kovacs-Kft";
++        assert_eq!(
++            photo_dir(p, ImageCategory::Intake, false),
++            "projektek/2026/2026-0042_Kovacs-Kft/fotok/bevetel"
++        );
++        assert_eq!(
++            document_dir(p, DocumentKind::Cad, true),
++            "projektek/2026/2026-0042_Kovacs-Kft/torolt/dokumentumok/cad"
++        );
++        assert_eq!(
++            previews_dir(p),
++            "projektek/2026/2026-0042_Kovacs-Kft/.elonezet"
++        );
++        assert_eq!(
++            incoming_invoice_dir(NaiveDate::from_ymd_opt(2026, 3, 9).unwrap(), false),
++            "bejovo-szamlak/2026/03"
++        );
++    }
++
++    #[test]
++    fn file_names_keep_the_original_and_a_piece_of_the_hash() {
++        let h = "9f2c4be1aa00ffee";
++        assert_eq!(
++            photo_name(Some("IMG_0001.JPG"), h, "jpg"),
++            "IMG_0001_9f2c4be1.jpg"
++        );
++        assert_eq!(photo_name(None, h, "jpg"), "foto_9f2c4be1.jpg");
++        assert_eq!(
++            photo_name(Some("../../x/Árvíztűrő.heic"), h, "heic"),
++            "Arvizturo_9f2c4be1.heic"
++        );
++        assert_eq!(
++            document_name("Ajánlat.pdf", 1, h, "pdf"),
++            "Ajanlat_9f2c4be1.pdf"
++        );
++        assert_eq!(
++            document_name("terv.dxf", 3, h, "dxf"),
++            "terv_v3_9f2c4be1.dxf"
++        );
++        assert_eq!(
++            derived_name(h, "thumb", "jpg"),
++            "9f2c4be1aa00ffee.thumb.jpg"
++        );
++    }
++
++    #[test]
++    fn extensions_and_parents() {
++        assert_eq!(ext_of("orders/1/intake/ab.JPG"), "jpg");
++        assert_eq!(ext_of("orders/1/documents/ab.dxf.thumb.png"), "png");
++        assert_eq!(ext_of("a/README"), "bin");
++        assert_eq!(ext_of("a/.hidden"), "bin");
++        assert_eq!(parent("a/b/c.jpg"), "a/b");
++        assert_eq!(parent("c.jpg"), "");
++    }
++}
+diff --git a/backend/src/service/relocate.rs b/backend/src/service/relocate.rs
+new file mode 100644
+index 0000000..d4325fd
+--- /dev/null
++++ b/backend/src/service/relocate.rs
+@@ -0,0 +1,838 @@
++//! Re-sorting: puts every stored file where [`layout`] says it belongs. Photos and their
++//! previews, documents, invoices, stornos and proformas, walkaround signatures and videos,
++//! HR papers, CVs and incoming invoices: everything with a row is filed in a project folder
++//! or in one of the general ones.
++//!
++//! Runs from `autocrm storage-relayout` (once after switching to the share; `--from-s3`
++//! copies every file over from the old object store on the way), daily in the worker, and
++//! right after an enquiry becomes an order, so its files join the project.
++//!
++//! A file counts as in place when it is in its expected folder, whatever its name; only
++//! files elsewhere move. On the share a move is a hard link, the row update, then removing
++//! the old name once no row points at it: the bytes are never copied and never missing.
++//! The old key stays in `storage_moves`, so a download link issued before still works.
++
++use std::collections::{HashMap, HashSet};
++
++use chrono::{DateTime, NaiveDate, Utc};
++use serde_json::json;
++use sqlx::PgPool;
++
++use crate::AppState;
++use crate::domain::media::{DocumentKind, ImageCategory};
++use crate::media::layout::{self, InspectionPart, Shelf};
++use crate::media::storage::Storage;
++use crate::repo::audit;
++use crate::repo::documents::Owner;
++
++/// Held while re-sorting, so the worker and a hand-started run never move the same file.
++const LOCK_ID: i64 = 0x6175_746f_6669_6c65; // "autofile"
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum Scope {
++    All,
++    /// An enquiry's documents, after it became an order.
++    Lead(i64),
++}
++
++pub struct Options {
++    pub scope: Scope,
++    /// Copy from here (the old object store) instead of moving within the share.
++    pub source: Option<Storage>,
++    /// Report what would move; touch nothing.
++    pub dry_run: bool,
++}
++
++#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
++pub struct Summary {
++    pub checked: usize,
++    pub in_place: usize,
++    pub moved: usize,
++    pub copied: usize,
++    pub missing: usize,
++    pub failed: usize,
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++enum Column {
++    ImageOriginal,
++    ImageDisplay,
++    ImageThumb,
++    Document,
++    DocumentThumb,
++    EmployeePhoto,
++    EmployeeDocument,
++    Absence,
++    Application,
++    IncomingInvoice,
++}
++
++impl Column {
++    fn update_sql(self) -> &'static str {
++        match self {
++            Column::ImageOriginal => {
++                "UPDATE images SET storage_key = $3 WHERE id = $1 AND storage_key = $2"
++            }
++            Column::ImageDisplay => {
++                "UPDATE images SET display_key = $3 WHERE id = $1 AND display_key = $2"
++            }
++            Column::ImageThumb => {
++                "UPDATE images SET thumb_key = $3 WHERE id = $1 AND thumb_key = $2"
++            }
++            Column::Document => {
++                "UPDATE documents SET storage_key = $3 WHERE id = $1 AND storage_key = $2"
++            }
++            Column::DocumentThumb => {
++                "UPDATE documents SET thumb_key = $3 WHERE id = $1 AND thumb_key = $2"
++            }
++            Column::EmployeePhoto => {
++                "UPDATE employees SET photo_key = $3 WHERE id = $1 AND photo_key = $2"
++            }
++            Column::EmployeeDocument => {
++                "UPDATE employee_documents SET file_key = $3 WHERE id = $1 AND file_key = $2"
++            }
++            Column::Absence => "UPDATE absences SET file_key = $3 WHERE id = $1 AND file_key = $2",
++            Column::Application => {
++                "UPDATE job_applications SET resume_key = $3 WHERE id = $1 AND resume_key = $2"
++            }
++            Column::IncomingInvoice => {
++                "UPDATE incoming_invoices SET file_key = $3 WHERE id = $1 AND file_key = $2"
++            }
++        }
++    }
++}
++
++/// One stored file and where it belongs.
++#[derive(Debug, Clone)]
++struct Placement {
++    column: Column,
++    id: i64,
++    key: String,
++    dir: String,
++    /// The name it gets if it has to move.
++    name: String,
++    sha256: Option<Vec<u8>>,
++    size: Option<i64>,
++    /// Intake evidence: read-only on the share, and its move is audited.
++    evidence_of_order: Option<i64>,
++}
++
++impl Placement {
++    fn target(&self) -> String {
++        if layout::parent(&self.key) == self.dir {
++            self.key.clone()
++        } else {
++            layout::join(&self.dir, &self.name)
++        }
++    }
++}
++
++/// Folder names, looked up once per run.
++struct Folders<'a> {
++    state: &'a AppState,
++    orders: HashMap<i64, String>,
++    employees: HashMap<i64, String>,
++    postings: HashMap<i64, String>,
++}
++
++impl<'a> Folders<'a> {
++    fn new(state: &'a AppState) -> Self {
++        Folders {
++            state,
++            orders: HashMap::new(),
++            employees: HashMap::new(),
++            postings: HashMap::new(),
++        }
++    }
++
++    async fn order(&mut self, id: i64) -> sqlx::Result<String> {
++        if let Some(f) = self.orders.get(&id) {
++            return Ok(f.clone());
++        }
++        let f = layout::order_folder_of(self.state, id).await?;
++        self.orders.insert(id, f.clone());
++        Ok(f)
++    }
++
++    async fn employee(&mut self, id: i64) -> sqlx::Result<String> {
++        if let Some(f) = self.employees.get(&id) {
++            return Ok(f.clone());
++        }
++        let f = layout::employee_folder_of(self.state, id).await?;
++        self.employees.insert(id, f.clone());
++        Ok(f)
++    }
++
++    async fn posting(&mut self, id: i64) -> sqlx::Result<String> {
++        if let Some(f) = self.postings.get(&id) {
++            return Ok(f.clone());
++        }
++        let f = layout::posting_folder_of(self.state, id).await?;
++        self.postings.insert(id, f.clone());
++        Ok(f)
++    }
++
++    fn local_date(&self, at: DateTime<Utc>) -> NaiveDate {
++        at.with_timezone(&self.state.config.business_tz)
++            .date_naive()
++    }
++}
++
++/// The walkaround a photo, signature or video belongs to.
++#[derive(Debug, Clone)]
++struct Walkaround {
++    id: i64,
++    kind: String,
++    plate: String,
++    created_at: DateTime<Utc>,
++}
++
++#[derive(sqlx::FromRow)]
++struct ImageRow {
++    id: i64,
++    order_id: i64,
++    category: ImageCategory,
++    storage_key: String,
++    display_key: Option<String>,
++    thumb_key: Option<String>,
++    original_filename: Option<String>,
++    content_hash: Vec<u8>,
++    byte_size: i64,
++    immutable: bool,
++    deleted: bool,
++    inspection_id: Option<i64>,
++    inspection_kind: Option<String>,
++    inspection_plate: Option<String>,
++    inspection_created_at: Option<DateTime<Utc>>,
++}
++
++#[derive(sqlx::FromRow)]
++struct DocumentRow {
++    id: i64,
++    order_id: Option<i64>,
++    lead_id: Option<i64>,
++    kind: DocumentKind,
++    filename: String,
++    version: i32,
++    storage_key: String,
++    thumb_key: Option<String>,
++    content_hash: Vec<u8>,
++    byte_size: i64,
++    deleted: bool,
++    storno: bool,
++    inspection_part: Option<String>,
++    inspection_id: Option<i64>,
++    inspection_kind: Option<String>,
++    inspection_plate: Option<String>,
++    inspection_created_at: Option<DateTime<Utc>>,
++}
++
++fn walkaround(
++    id: Option<i64>,
++    kind: Option<String>,
++    plate: Option<String>,
++    created_at: Option<DateTime<Utc>>,
++) -> Option<Walkaround> {
++    Some(Walkaround {
++        id: id?,
++        kind: kind?,
++        plate: plate?,
++        created_at: created_at?,
++    })
++}
++
++async fn walkaround_dir(
++    folders: &mut Folders<'_>,
++    order_id: i64,
++    w: &Walkaround,
++    part: InspectionPart,
++) -> sqlx::Result<String> {
++    let project = folders.order(order_id).await?;
++    let on = folders.local_date(w.created_at);
++    Ok(layout::inspection_part(
++        &layout::inspection_dir(&project, on, &w.kind, &w.plate, w.id),
++        part,
++    ))
++}
++
++async fn image_placements(folders: &mut Folders<'_>, out: &mut Vec<Placement>) -> sqlx::Result<()> {
++    let rows: Vec<ImageRow> = sqlx::query_as(
++        "SELECT i.id, i.order_id, i.category, i.storage_key, i.display_key, i.thumb_key,
++                i.original_filename, i.content_hash, i.byte_size, i.immutable,
++                i.deleted_at IS NOT NULL AS deleted,
++                ins.id AS inspection_id, ins.kind AS inspection_kind,
++                ins.vehicle_plate AS inspection_plate, ins.created_at AS inspection_created_at
++           FROM images i
++           LEFT JOIN inspection_photos ip ON ip.image_id = i.id
++           LEFT JOIN inspections ins ON ins.id = ip.inspection_id
++          ORDER BY i.id",
++    )
++    .fetch_all(&folders.state.db)
++    .await?;
++    for r in rows {
++        let hash_hex = hex::encode(&r.content_hash);
++        let project = folders.order(r.order_id).await?;
++        let walk = walkaround(
++            r.inspection_id,
++            r.inspection_kind,
++            r.inspection_plate,
++            r.inspection_created_at,
++        );
++        let dir = match (&walk, r.deleted) {
++            (Some(w), false) => {
++                walkaround_dir(folders, r.order_id, w, InspectionPart::Photo).await?
++            }
++            _ => layout::photo_dir(&project, r.category, r.deleted),
++        };
++        out.push(Placement {
++            column: Column::ImageOriginal,
++            id: r.id,
++            name: layout::photo_name(
++                r.original_filename.as_deref(),
++                &hash_hex,
++                &layout::ext_of(&r.storage_key),
++            ),
++            key: r.storage_key,
++            dir,
++            sha256: Some(r.content_hash.clone()),
++            size: Some(r.byte_size),
++            evidence_of_order: r.immutable.then_some(r.order_id),
++        });
++        let previews = layout::previews_dir(&project);
++        for (column, key, variant) in [
++            (Column::ImageDisplay, r.display_key, "display"),
++            (Column::ImageThumb, r.thumb_key, "thumb"),
++        ] {
++            if let Some(key) = key {
++                out.push(Placement {
++                    column,
++                    id: r.id,
++                    key,
++                    dir: previews.clone(),
++                    name: layout::derived_name(&hash_hex, variant, "jpg"),
++                    sha256: None,
++                    size: None,
++                    evidence_of_order: None,
++                });
++            }
++        }
++    }
++    Ok(())
++}
++
++async fn document_placements(
++    folders: &mut Folders<'_>,
++    scope: Scope,
++    out: &mut Vec<Placement>,
++) -> sqlx::Result<()> {
++    let lead = match scope {
++        Scope::All => None,
++        Scope::Lead(id) => Some(id),
++    };
++    let rows: Vec<DocumentRow> = sqlx::query_as(
++        "SELECT DISTINCT ON (d.id)
++                d.id, d.order_id, d.lead_id, d.kind, d.filename, d.version, d.storage_key,
++                d.thumb_key, d.content_hash, d.byte_size, d.deleted_at IS NOT NULL AS deleted,
++                coalesce(inv.kind::text = 'storno', false) AS storno,
++                CASE WHEN sig.id IS NOT NULL THEN 'signature'
++                     WHEN vid.id IS NOT NULL THEN 'video' END AS inspection_part,
++                ins.id AS inspection_id, ins.kind AS inspection_kind,
++                ins.vehicle_plate AS inspection_plate, ins.created_at AS inspection_created_at
++           FROM documents d
++           LEFT JOIN invoices inv ON inv.document_id = d.id
++           LEFT JOIN inspection_signatures sig ON sig.document_id = d.id
++           LEFT JOIN inspection_videos vid ON vid.document_id = d.id
++           LEFT JOIN inspections ins ON ins.id = coalesce(sig.inspection_id, vid.inspection_id)
++          WHERE $1::bigint IS NULL OR d.lead_id = $1
++          ORDER BY d.id",
++    )
++    .bind(lead)
++    .fetch_all(&folders.state.db)
++    .await?;
++    for r in rows {
++        let Some(owner) = Owner::from_about(r.order_id, r.lead_id) else {
++            continue;
++        };
++        let hash_hex = hex::encode(&r.content_hash);
++        let shelf = if r.storno {
++            Shelf::Storno
++        } else {
++            Shelf::Kind(r.kind)
++        };
++        let walk = walkaround(
++            r.inspection_id,
++            r.inspection_kind,
++            r.inspection_plate,
++            r.inspection_created_at,
++        );
++        let part = match r.inspection_part.as_deref() {
++            Some("signature") => Some(InspectionPart::Signature),
++            Some("video") => Some(InspectionPart::Video),
++            _ => None,
++        };
++        let dir = match (owner, &walk, part, r.deleted) {
++            (Owner::Order(order_id), Some(w), Some(part), false) => {
++                walkaround_dir(folders, order_id, w, part).await?
++            }
++            (Owner::Order(order_id), _, _, deleted) => {
++                layout::document_dir(&folders.order(order_id).await?, shelf, deleted)
++            }
++            (Owner::Lead(_), _, _, deleted) => {
++                layout::document_dir_of(folders.state, owner, shelf, deleted).await?
++            }
++        };
++        out.push(Placement {
++            column: Column::Document,
++            id: r.id,
++            name: layout::document_name(
++                &r.filename,
++                r.version,
++                &hash_hex,
++                &layout::ext_of(&r.storage_key),
++            ),
++            key: r.storage_key,
++            dir,
++            sha256: Some(r.content_hash.clone()),
++            size: Some(r.byte_size),
++            evidence_of_order: None,
++        });
++        if let Some(key) = r.thumb_key {
++            out.push(Placement {
++                column: Column::DocumentThumb,
++                id: r.id,
++                key,
++                dir: layout::previews_dir(&layout::owner_folder(folders.state, owner).await?),
++                name: layout::derived_name(&hash_hex, "thumb", "png"),
++                sha256: None,
++                size: None,
++                evidence_of_order: None,
++            });
++        }
++    }
++    Ok(())
++}
++
++#[derive(sqlx::FromRow)]
++struct PaperRow {
++    id: i64,
++    employee_id: i64,
++    kind: String,
++    file_name: Option<String>,
++    file_key: String,
++    file_size: Option<i64>,
++    deleted: bool,
++}
++
++#[derive(sqlx::FromRow)]
++struct AbsenceFileRow {
++    id: i64,
++    employee_id: i64,
++    start_date: NaiveDate,
++    file_name: Option<String>,
++    file_key: String,
++    file_size: Option<i64>,
++}
++
++#[derive(sqlx::FromRow)]
++struct IncomingRow {
++    id: i64,
++    created_at: DateTime<Utc>,
++    file_name: Option<String>,
++    file_key: String,
++    file_hash: Option<Vec<u8>>,
++    file_size: Option<i64>,
++    deleted: bool,
++}
++
++async fn hr_placements(folders: &mut Folders<'_>, out: &mut Vec<Placement>) -> sqlx::Result<()> {
++    let db = &folders.state.db;
++    let photos: Vec<(i64, String)> = sqlx::query_as(
++        "SELECT id, photo_key FROM employees WHERE photo_key IS NOT NULL ORDER BY id",
++    )
++    .fetch_all(db)
++    .await?;
++    let papers: Vec<PaperRow> = sqlx::query_as(
++        "SELECT id, employee_id, kind, file_name, file_key, file_size, deleted_at IS NOT NULL AS deleted
++           FROM employee_documents WHERE file_key IS NOT NULL ORDER BY id",
++    )
++    .fetch_all(db)
++    .await?;
++    let absences: Vec<AbsenceFileRow> = sqlx::query_as(
++        "SELECT id, employee_id, start_date, file_name, file_key, file_size
++           FROM absences WHERE file_key IS NOT NULL ORDER BY id",
++    )
++    .fetch_all(db)
++    .await?;
++    let resumes: Vec<(i64, i64, String, DateTime<Utc>, String)> = sqlx::query_as(
++        "SELECT id, posting_id, full_name, created_at, resume_key FROM job_applications ORDER BY id",
++    )
++    .fetch_all(db)
++    .await?;
++
++    for (id, key) in photos {
++        out.push(Placement {
++            column: Column::EmployeePhoto,
++            id,
++            dir: layout::employee_photo_dir(&folders.employee(id).await?),
++            name: format!("profilkep_{}.jpg", layout::random_tag()),
++            key,
++            sha256: None,
++            size: None,
++            evidence_of_order: None,
++        });
++    }
++    for PaperRow {
++        id,
++        employee_id,
++        kind,
++        file_name,
++        file_key: key,
++        file_size: size,
++        deleted,
++    } in papers
++    {
++        let folder = folders.employee(employee_id).await?;
++        out.push(Placement {
++            column: Column::EmployeeDocument,
++            id,
++            dir: layout::employee_document_dir(&folder, &kind, deleted),
++            name: layout::file_name(
++                file_name.as_deref(),
++                "dokumentum",
++                &layout::random_tag(),
++                &layout::ext_of(&key),
++            ),
++            key,
++            sha256: None,
++            size,
++            evidence_of_order: None,
++        });
++    }
++    for AbsenceFileRow {
++        id,
++        employee_id,
++        start_date: start,
++        file_name,
++        file_key: key,
++        file_size: size,
++    } in absences
++    {
++        let folder = folders.employee(employee_id).await?;
++        out.push(Placement {
++            column: Column::Absence,
++            id,
++            dir: layout::absence_dir(&folder),
++            name: format!(
++                "{start}_{}",
++                layout::file_name(
++                    file_name.as_deref(),
++                    "igazolas",
++                    &layout::random_tag(),
++                    &layout::ext_of(&key),
++                )
++            ),
++            key,
++            sha256: None,
++            size,
++            evidence_of_order: None,
++        });
++    }
++    for (id, posting_id, full_name, created_at, key) in resumes {
++        let on = folders.local_date(created_at);
++        out.push(Placement {
++            column: Column::Application,
++            id,
++            dir: folders.posting(posting_id).await?,
++            name: format!(
++                "{on}_{}_{}.{}",
++                layout::stem_slug(&full_name, 40),
++                layout::random_tag(),
++                layout::ext_of(&key)
++            ),
++            key,
++            sha256: None,
++            size: None,
++            evidence_of_order: None,
++        });
++    }
++    Ok(())
++}
++
++async fn incoming_invoice_placements(
++    folders: &mut Folders<'_>,
++    out: &mut Vec<Placement>,
++) -> sqlx::Result<()> {
++    let rows: Vec<IncomingRow> = sqlx::query_as(
++        "SELECT id, created_at, file_name, file_key, file_hash, file_size,
++                    deleted_at IS NOT NULL AS deleted
++               FROM incoming_invoices WHERE file_key IS NOT NULL ORDER BY id",
++    )
++    .fetch_all(&folders.state.db)
++    .await?;
++    for IncomingRow {
++        id,
++        created_at,
++        file_name,
++        file_key: key,
++        file_hash: hash,
++        file_size: size,
++        deleted,
++    } in rows
++    {
++        let tag = hash
++            .as_deref()
++            .map(|h| layout::hash_tag(&hex::encode(h)).to_string())
++            .unwrap_or_else(layout::random_tag);
++        out.push(Placement {
++            column: Column::IncomingInvoice,
++            id,
++            dir: layout::incoming_invoice_dir(folders.local_date(created_at), deleted),
++            name: layout::file_name(file_name.as_deref(), "szamla", &tag, &layout::ext_of(&key)),
++            key,
++            sha256: hash,
++            size,
++            evidence_of_order: None,
++        });
++    }
++    Ok(())
++}
++
++/// Every key a row points at: what may not be deleted.
++async fn referenced_keys(db: &PgPool) -> sqlx::Result<HashSet<String>> {
++    let keys: Vec<String> = sqlx::query_scalar(
++        "SELECT k FROM (
++            SELECT storage_key AS k FROM images
++            UNION ALL SELECT display_key FROM images
++            UNION ALL SELECT thumb_key FROM images
++            UNION ALL SELECT storage_key FROM documents
++            UNION ALL SELECT thumb_key FROM documents
++            UNION ALL SELECT photo_key FROM employees
++            UNION ALL SELECT file_key FROM employee_documents
++            UNION ALL SELECT file_key FROM absences
++            UNION ALL SELECT resume_key FROM job_applications
++            UNION ALL SELECT file_key FROM incoming_invoices
++         ) refs WHERE k IS NOT NULL",
++    )
++    .fetch_all(db)
++    .await?;
++    Ok(keys.into_iter().collect())
++}
++
++/// Points the row at its new key. False when the row changed meanwhile (nothing written).
++async fn record_move(
++    state: &AppState,
++    p: &Placement,
++    target: &str,
++    forward: bool,
++) -> sqlx::Result<bool> {
++    let mut tx = state.db.begin().await?;
++    if p.column == Column::ImageOriginal {
++        // The one way past the write-once trigger (0052): same bytes, new place.
++        sqlx::query("SET LOCAL autocrm.relocating = 'on'")
++            .execute(&mut *tx)
++            .await?;
++    }
++    let done = sqlx::query(p.column.update_sql())
++        .bind(p.id)
++        .bind(&p.key)
++        .bind(target)
++        .execute(&mut *tx)
++        .await?;
++    if done.rows_affected() == 0 {
++        return Ok(false);
++    }
++    if forward {
++        sqlx::query(
++            "INSERT INTO storage_moves (old_key, new_key) VALUES ($1, $2)
++             ON CONFLICT (old_key) DO UPDATE SET new_key = EXCLUDED.new_key, moved_at = now()",
++        )
++        .bind(&p.key)
++        .bind(target)
++        .execute(&mut *tx)
++        .await?;
++    }
++    if let Some(order_id) = p.evidence_of_order {
++        audit::record(
++            &mut *tx,
++            None,
++            "order",
++            order_id,
++            "image_relocated",
++            json!({ "image_id": p.id, "from": p.key, "to": target }),
++        )
++        .await?;
++    }
++    tx.commit().await?;
++    Ok(true)
++}
++
++/// Files every stored file in its folder. Needs `STORAGE_BACKEND=fs`.
++pub async fn run(state: &AppState, opts: &Options) -> anyhow::Result<Summary> {
++    let fs = state
++        .storage
++        .as_fs()
++        .ok_or_else(|| anyhow::anyhow!("re-sorting files needs STORAGE_BACKEND=fs"))?;
++
++    // One run at a time. A transaction's lock, not a session's: a run cut short (the
++    // worker's job timeout) rolls the transaction back and the lock goes with it, instead of
++    // staying on a pooled connection forever.
++    let mut lock = state.db.begin().await?;
++    let locked: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
++        .bind(LOCK_ID)
++        .fetch_one(&mut *lock)
++        .await?;
++    if !locked {
++        tracing::info!("files are being re-sorted elsewhere; skipping");
++        return Ok(Summary::default());
++    }
++    let result = sort(state, fs, opts).await;
++    let _ = lock.rollback().await;
++    result
++}
++
++async fn sort(
++    state: &AppState,
++    fs: &crate::media::fs_store::FsStore,
++    opts: &Options,
++) -> anyhow::Result<Summary> {
++    let mut folders = Folders::new(state);
++    let mut placements = Vec::new();
++    if opts.scope == Scope::All {
++        image_placements(&mut folders, &mut placements).await?;
++    }
++    document_placements(&mut folders, opts.scope, &mut placements).await?;
++    if opts.scope == Scope::All {
++        hr_placements(&mut folders, &mut placements).await?;
++        incoming_invoice_placements(&mut folders, &mut placements).await?;
++    }
++
++    let mut summary = Summary::default();
++    // (old key, new key, read-only) of every move within the share.
++    let mut moved: Vec<(String, String, bool)> = Vec::new();
++    for p in &placements {
++        summary.checked += 1;
++        let target = p.target();
++        match &opts.source {
++            None => {
++                if target == p.key {
++                    summary.in_place += 1;
++                    continue;
++                }
++                if opts.dry_run {
++                    tracing::info!(from = %p.key, to = %target, "would move");
++                    summary.moved += 1;
++                    continue;
++                }
++                if fs.head(&p.key).await?.is_none() {
++                    tracing::warn!(key = %p.key, "re-sorting: the file is missing");
++                    summary.missing += 1;
++                    continue;
++                }
++                if let Err(e) = fs.link(&p.key, &target).await {
++                    tracing::error!(from = %p.key, to = %target, error = %e, "re-sorting: could not move");
++                    summary.failed += 1;
++                    continue;
++                }
++                match record_move(state, p, &target, true).await {
++                    Ok(true) => {
++                        summary.moved += 1;
++                        moved.push((p.key.clone(), target, p.evidence_of_order.is_some()));
++                    }
++                    // Changed under us: leave it for the next run.
++                    Ok(false) => {}
++                    Err(e) => {
++                        tracing::error!(key = %p.key, error = %e, "re-sorting: could not update the row");
++                        summary.failed += 1;
++                    }
++                }
++            }
++            Some(source) => {
++                if fs.head(&target).await?.is_some() {
++                    // Copied by an earlier run that stopped before the row changed.
++                    if target == p.key {
++                        summary.in_place += 1;
++                    } else if !opts.dry_run && record_move(state, p, &target, false).await? {
++                        summary.copied += 1;
++                    }
++                    continue;
++                }
++                if opts.dry_run {
++                    tracing::info!(from = %p.key, to = %target, "would copy");
++                    summary.copied += 1;
++                    continue;
++                }
++                let stream = match source.open(&p.key).await {
++                    Ok(s) => s,
++                    Err(e) => {
++                        tracing::warn!(key = %p.key, error = %e, "copying: not in the object store");
++                        summary.missing += 1;
++                        continue;
++                    }
++                };
++                let read_only = p.evidence_of_order.is_some();
++                if let Err(e) = fs
++                    .write_stream(&target, stream, p.size, p.sha256.as_deref(), read_only)
++                    .await
++                {
++                    tracing::error!(from = %p.key, to = %target, error = %e, "copying failed");
++                    summary.failed += 1;
++                    continue;
++                }
++                if target != p.key && !record_move(state, p, &target, false).await? {
++                    continue;
++                }
++                summary.copied += 1;
++            }
++        }
++    }
++
++    // Old names nothing points at any more. A file several rows shared (a MiniCRM download
++    // attached to two orders) goes only once every row has moved.
++    if !moved.is_empty() {
++        let referenced = referenced_keys(&state.db).await?;
++        for (old, new, read_only) in &moved {
++            if referenced.contains(old) {
++                continue;
++            }
++            if let Err(e) = fs.delete(old).await {
++                tracing::warn!(key = %old, error = %e, "re-sorting: could not remove the old name");
++            }
++            // Windows clears read-only on the shared file to delete one of its names.
++            if *read_only {
++                let _ = fs.lock_object(new, Utc::now()).await;
++            }
++        }
++    }
++    Ok(summary)
++}
++
++/// The worker's daily pass: re-sort, forget forwarding older than any link, and clear
++/// uploads that died half way. Nothing to do on an object store.
++pub async fn tidy(state: &AppState, scope: Scope) -> anyhow::Result<()> {
++    let Some(fs) = state.storage.as_fs() else {
++        return Ok(());
++    };
++    let summary = run(
++        state,
++        &Options {
++            scope,
++            source: None,
++            dry_run: false,
++        },
++    )
++    .await?;
++    if summary.moved + summary.missing + summary.failed > 0 {
++        tracing::info!(?summary, ?scope, "files re-sorted");
++    }
++    if scope == Scope::All {
++        // Download links live a week at most.
++        sqlx::query("DELETE FROM storage_moves WHERE moved_at < now() - interval '30 days'")
++            .execute(&state.db)
++            .await?;
++        let swept = fs.sweep_partials().await?;
++        if swept > 0 {
++            tracing::info!(swept, "abandoned partial uploads removed");
++        }
++    }
++    Ok(())
++}
+diff --git a/backend/tests/file_share.rs b/backend/tests/file_share.rs
+new file mode 100644
+index 0000000..6c4beda
+--- /dev/null
++++ b/backend/tests/file_share.rs
+@@ -0,0 +1,527 @@
++//! Files on the share (STORAGE_BACKEND=fs): every upload lands in its project folder by the
++//! same three steps the phone and the browser always took, downloads come back through the
++//! signed links, and re-sorting files whatever was stored before in its folder.
++
++mod common;
++
++use std::path::Path;
++use std::time::Duration;
++
++use autocrm::AppState;
++use autocrm::api;
++use autocrm::domain::invoice::InvoiceKind;
++use autocrm::domain::media::{DocumentKind, ImageCategory};
++use autocrm::domain::role::Role;
++use autocrm::media::upload_token::UploadTarget;
++use autocrm::repo::documents::{self, NewDocument, Owner};
++use autocrm::repo::images::{self, NewImage};
++use autocrm::repo::invoices::{self, NewInvoice};
++use autocrm::service::auth::AuthUser;
++use autocrm::service::media::{
++    Completed, UploadRequest, UploadResponse, complete_upload, request_upload,
++};
++use autocrm::service::relocate::{self, Options, Scope};
++use axum::body::Body;
++use axum::http::{Request, StatusCode, header};
++use chrono::NaiveDate;
++use http_body_util::BodyExt;
++use sha2::{Digest, Sha256};
++use sqlx::PgPool;
++use tower::ServiceExt;
++
++/// The path part of a link the server signed for PUBLIC_BASE_URL.
++fn path_of(url: &str) -> &str {
++    url.strip_prefix("http://localhost:3000")
++        .expect("link on the public address")
++}
++
++async fn send(
++    state: &AppState,
++    req: Request<Body>,
++) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
++    let response = api::router(state.clone()).oneshot(req).await.unwrap();
++    let status = response.status();
++    let headers = response.headers().clone();
++    let body = response
++        .into_body()
++        .collect()
++        .await
++        .unwrap()
++        .to_bytes()
++        .to_vec();
++    (status, headers, body)
++}
++
++/// Ticket, PUT to the share, complete: the phone's three steps.
++async fn upload(
++    state: &AppState,
++    user: &AuthUser,
++    owner: Owner,
++    target: UploadTarget,
++    filename: &str,
++    content_type: &str,
++    bytes: &[u8],
++) -> Completed {
++    let ticket = request_upload(
++        state,
++        user,
++        owner,
++        UploadRequest {
++            target,
++            filename: Some(filename.into()),
++            content_type: content_type.into(),
++            byte_size: bytes.len() as i64,
++            sha256: hex::encode(Sha256::digest(bytes)),
++        },
++    )
++    .await
++    .unwrap();
++    let UploadResponse::Upload { ticket, upload, .. } = ticket else {
++        panic!("expected an upload ticket");
++    };
++    assert_eq!(upload.method, "PUT");
++    let mut req = Request::builder().method("PUT").uri(path_of(&upload.url));
++    for (name, value) in &upload.headers {
++        req = req.header(name, value);
++    }
++    let (status, _, body) = send(state, req.body(Body::from(bytes.to_vec())).unwrap()).await;
++    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
++    complete_upload(state, user, &ticket).await.unwrap()
++}
++
++fn on_share(dir: &Path, key: &str) -> Vec<u8> {
++    std::fs::read(dir.join(key)).unwrap_or_else(|e| panic!("{key} on the share: {e}"))
++}
++
++#[sqlx::test(migrations = "./migrations")]
++async fn uploads_are_plain_files_in_the_project_folder(pool: PgPool) {
++    let (state, dir) = common::state_fs(pool.clone());
++    let user = common::user(&pool, Role::Office).await;
++    let partner_id = common::partner(&pool, "Kovács és Társa Kft.", None).await;
++    let mut fields = common::fields(partner_id, "HUF");
++    fields.vehicle_plate = Some("ABC 123".into());
++    let mut tx = pool.begin().await.unwrap();
++    let order = autocrm::service::orders::create_in_tx(
++        &mut tx,
++        user.user_id,
++        NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
++        fields,
++        vec![],
++        None,
++    )
++    .await
++    .unwrap();
++    tx.commit().await.unwrap();
++
++    let photo = b"not really a jpeg, but bytes are bytes".to_vec();
++    let Completed::Image { image, created } = upload(
++        &state,
++        &user,
++        Owner::Order(order.id),
++        UploadTarget::Image {
++            category: ImageCategory::Intake,
++        },
++        "IMG_0001.JPG",
++        "image/jpeg",
++        &photo,
++    )
++    .await
++    else {
++        panic!("expected an image");
++    };
++    assert!(created);
++    let project = format!("{}_Kovacs-es-Tarsa-Kft_ABC-123", order.number);
++    assert!(
++        image.storage_key.starts_with("projektek/")
++            && image
++                .storage_key
++                .contains(&format!("/{project}/fotok/bevetel/IMG_0001_")),
++        "{}",
++        image.storage_key
++    );
++    assert_eq!(on_share(&dir, &image.storage_key), photo);
++    // Evidence is a read-only file.
++    assert!(
++        std::fs::metadata(dir.join(&image.storage_key))
++            .unwrap()
++            .permissions()
++            .readonly()
++    );
++
++    let drawing = b"0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n".to_vec();
++    let Completed::Document { document, .. } = upload(
++        &state,
++        &user,
++        Owner::Order(order.id),
++        UploadTarget::Document {
++            kind: DocumentKind::Cad,
++            replaces: None,
++        },
++        "Alváz terv.dxf",
++        "image/vnd.dxf",
++        &drawing,
++    )
++    .await
++    else {
++        panic!("expected a document");
++    };
++    assert!(
++        document
++            .storage_key
++            .contains(&format!("/{project}/dokumentumok/cad/Alvaz-terv_")),
++        "{}",
++        document.storage_key
++    );
++
++    // The signed download link serves the file, as an attachment unless it is safe inline.
++    let link = state
++        .storage
++        .presign_get(&document.storage_key, Duration::from_secs(60), None)
++        .await
++        .unwrap();
++    let (status, headers, body) = send(
++        &state,
++        Request::get(path_of(&link)).body(Body::empty()).unwrap(),
++    )
++    .await;
++    assert_eq!(status, StatusCode::OK);
++    assert_eq!(body, drawing);
++    assert_eq!(headers[header::CONTENT_DISPOSITION], "attachment");
++    assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
++
++    // Ranges, for videos that seek.
++    let photo_link = state
++        .storage
++        .presign_get(&image.storage_key, Duration::from_secs(60), None)
++        .await
++        .unwrap();
++    let (status, _, body) = send(
++        &state,
++        Request::get(path_of(&photo_link))
++            .header(header::RANGE, "bytes=0-2")
++            .body(Body::empty())
++            .unwrap(),
++    )
++    .await;
++    assert_eq!(status, StatusCode::PARTIAL_CONTENT);
++    assert_eq!(body, b"not");
++
++    std::fs::remove_dir_all(dir).ok();
++}
++
++#[sqlx::test(migrations = "./migrations")]
++async fn the_share_takes_only_the_file_the_ticket_was_for(pool: PgPool) {
++    let (state, dir) = common::state_fs(pool.clone());
++    let user = common::user(&pool, Role::Office).await;
++    let order = common::order(&pool, &user, "HUF", vec![]).await;
++    let bytes = b"the real photo".to_vec();
++    let UploadResponse::Upload { upload, .. } = request_upload(
++        &state,
++        &user,
++        Owner::Order(order.id),
++        UploadRequest {
++            target: UploadTarget::Image {
++                category: ImageCategory::Production,
++            },
++            filename: Some("a.jpg".into()),
++            content_type: "image/jpeg".into(),
++            byte_size: bytes.len() as i64,
++            sha256: hex::encode(Sha256::digest(&bytes)),
++        },
++    )
++    .await
++    .unwrap() else {
++        panic!("expected an upload ticket");
++    };
++    let put = |body: &[u8], uri: &str| {
++        Request::builder()
++            .method("PUT")
++            .uri(uri)
++            .body(Body::from(body.to_vec()))
++            .unwrap()
++    };
++    let uri = path_of(&upload.url).to_string();
++    // Same length, other bytes; then a forged token.
++    let (status, _, _) = send(&state, put(b"the fake photo", &uri)).await;
++    assert_eq!(status, StatusCode::BAD_REQUEST);
++    let (status, _, _) = send(&state, put(&bytes, &format!("{uri}x"))).await;
++    assert_eq!(status, StatusCode::FORBIDDEN);
++    // Nothing was filed, and nothing half-written is left behind.
++    assert!(!dir.join("projektek").exists());
++    assert_eq!(std::fs::read_dir(dir.join(".tmp")).unwrap().count(), 0);
++    // A download link is not an upload ticket.
++    let (status, _, _) = send(
++        &state,
++        put(&bytes, &uri.replace("/api/files/", "/api/files/x")),
++    )
++    .await;
++    assert_eq!(status, StatusCode::FORBIDDEN);
++    std::fs::remove_dir_all(dir).ok();
++}
++
++#[sqlx::test(migrations = "./migrations")]
++async fn re_sorting_files_what_was_stored_before(pool: PgPool) {
++    let (state, dir) = common::state_fs(pool.clone());
++    let user = common::user(&pool, Role::Office).await;
++    let order = common::order(&pool, &user, "HUF", vec![]).await;
++
++    // As the old layout stored them: an intake photo, and an invoice and its storno.
++    let photo = b"intake photo".to_vec();
++    let photo_hash = Sha256::digest(&photo).to_vec();
++    let old_photo = format!(
++        "orders/{}/intake/{}.jpg",
++        order.id,
++        hex::encode(&photo_hash)
++    );
++    state
++        .storage
++        .put_bytes(&old_photo, photo.clone(), "image/jpeg")
++        .await
++        .unwrap();
++    let mut tx = pool.begin().await.unwrap();
++    let (image, _) = images::insert(
++        &mut tx,
++        &NewImage {
++            order_id: order.id,
++            category: ImageCategory::Intake,
++            storage_key: &old_photo,
++            content_type: "image/jpeg",
++            original_filename: Some("IMG_7.jpg"),
++            content_hash: &photo_hash,
++            byte_size: photo.len() as i64,
++            uploaded_by: Some(user.user_id),
++            source_ref: None,
++        },
++    )
++    .await
++    .unwrap();
++    tx.commit().await.unwrap();
++
++    let mut stored = Vec::new();
++    let mut original = None;
++    let day = NaiveDate::from_ymd_opt(2026, 9, 10).unwrap();
++    for (number, kind, sign) in [
++        ("AT2026-0001", InvoiceKind::Invoice, 1),
++        ("AT2026-0002", InvoiceKind::Storno, -1),
++    ] {
++        let pdf = format!("%PDF {number}").into_bytes();
++        let hash = Sha256::digest(&pdf).to_vec();
++        let key = format!("orders/{}/documents/{}.pdf", order.id, hex::encode(&hash));
++        state
++            .storage
++            .put_bytes(&key, pdf.clone(), "application/pdf")
++            .await
++            .unwrap();
++        let mut conn = pool.acquire().await.unwrap();
++        let (doc, _) = documents::insert(
++            &mut conn,
++            &NewDocument {
++                owner: Owner::Order(order.id),
++                vehicle_id: None,
++                kind: DocumentKind::Invoice,
++                filename: &format!("{number}.pdf"),
++                content_type: "application/pdf",
++                storage_key: &key,
++                content_hash: &hash,
++                byte_size: pdf.len() as i64,
++                uploaded_by: None,
++                source_ref: Some(number),
++                previous_version_id: None,
++                version: 1,
++            },
++        )
++        .await
++        .unwrap();
++        let mut tx = pool.begin().await.unwrap();
++        let invoice = invoices::insert(
++            &mut tx,
++            &NewInvoice {
++                order_id: order.id,
++                number,
++                kind,
++                original_invoice_id: original,
++                currency: "HUF",
++                issue_date: day,
++                delivery_date: day,
++                payment_date: None,
++                payment_method: "TRANSFER",
++                net_amount: sign * 100_000,
++                vat_amount: sign * 27_000,
++                gross_amount: sign * 127_000,
++                created_by: Some(user.user_id),
++            },
++        )
++        .await
++        .unwrap();
++        if original.is_none() {
++            sqlx::query("UPDATE invoices SET status = 'issued', issued_at = now() WHERE id = $1")
++                .bind(invoice.id)
++                .execute(&mut *tx)
++                .await
++                .unwrap();
++            original = Some(invoice.id);
++        }
++        tx.commit().await.unwrap();
++        let mut conn = pool.acquire().await.unwrap();
++        invoices::set_document(&mut conn, invoice.id, doc.id)
++            .await
++            .unwrap();
++        stored.push((doc.id, key));
++    }
++
++    // A link handed out before the move.
++    let old_link = state
++        .storage
++        .presign_get(&old_photo, Duration::from_secs(60), None)
++        .await
++        .unwrap();
++
++    let opts = Options {
++        scope: Scope::All,
++        source: None,
++        dry_run: false,
++    };
++    let first = relocate::run(&state, &opts).await.unwrap();
++    assert_eq!(
++        (first.moved, first.failed, first.missing),
++        (3, 0, 0),
++        "{first:?}"
++    );
++
++    let image = images::find(&pool, image.id).await.unwrap().unwrap();
++    assert!(
++        image.storage_key.contains("/fotok/bevetel/IMG_7_"),
++        "{}",
++        image.storage_key
++    );
++    assert_eq!(on_share(&dir, &image.storage_key), photo);
++    let invoice_doc = documents::find(&pool, stored[0].0).await.unwrap().unwrap();
++    let storno_doc = documents::find(&pool, stored[1].0).await.unwrap().unwrap();
++    assert!(
++        invoice_doc
++            .storage_key
++            .contains("/szamlazas/szamlak/AT2026-0001_"),
++        "{}",
++        invoice_doc.storage_key
++    );
++    assert!(
++        storno_doc
++            .storage_key
++            .contains("/szamlazas/sztornok/AT2026-0002_"),
++        "{}",
++        storno_doc.storage_key
++    );
++    // The old tree is gone entirely, folders included.
++    assert!(!dir.join("orders").exists());
++
++    // The link from before still finds the photo.
++    let (status, _, body) = send(
++        &state,
++        Request::get(path_of(&old_link))
++            .body(Body::empty())
++            .unwrap(),
++    )
++    .await;
++    assert_eq!(status, StatusCode::OK);
++    assert_eq!(body, photo);
++
++    // Evidence moved, and the move is on record.
++    let audited: i64 = sqlx::query_scalar(
++        "SELECT count(*) FROM audit_log WHERE action = 'image_relocated' AND entity_id = $1",
++    )
++    .bind(order.id)
++    .fetch_one(&pool)
++    .await
++    .unwrap();
++    assert_eq!(audited, 1);
++
++    let again = relocate::run(&state, &opts).await.unwrap();
++    assert_eq!((again.moved, again.in_place), (0, 3), "{again:?}");
++    std::fs::remove_dir_all(dir).ok();
++}
++
++#[sqlx::test(migrations = "./migrations")]
++async fn an_enquirys_files_join_the_project_it_becomes(pool: PgPool) {
++    let (state, dir) = common::state_fs(pool.clone());
++    let user = common::user(&pool, Role::Office).await;
++    let partner_id = common::partner(&pool, "Hűtő Bt", None).await;
++    let lead = autocrm::service::leads::create(
++        &pool,
++        &user,
++        autocrm::repo::leads::LeadInput {
++            title: "Sprinter hűtés".into(),
++            partner_id: Some(partner_id),
++            contact_id: None,
++            contact_name: None,
++            contact_email: None,
++            contact_phone: None,
++            source: None,
++            source_detail: None,
++            description: None,
++            assigned_to: None,
++            quoted_value_minor: None,
++            currency: None,
++            quote_valid_until: None,
++        },
++        &[],
++        NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
++    )
++    .await
++    .unwrap();
++    let quote = b"%PDF quotation".to_vec();
++    let Completed::Document { document, .. } = upload(
++        &state,
++        &user,
++        Owner::Lead(lead.id),
++        UploadTarget::Document {
++            kind: DocumentKind::Other,
++            replaces: None,
++        },
++        "Árajánlat.pdf",
++        "application/pdf",
++        &quote,
++    )
++    .await
++    else {
++        panic!("expected a document");
++    };
++    assert!(
++        document.storage_key.starts_with("ajanlatok/")
++            && document
++                .storage_key
++                .contains(&format!("/L{:06}_Huto-Bt/Arajanlat_", lead.id)),
++        "{}",
++        document.storage_key
++    );
++
++    let order = autocrm::service::leads::convert(
++        &pool,
++        &user,
++        lead.id,
++        NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
++        autocrm::service::leads::Conversion {
++            partner_id: Some(partner_id),
++            fields: common::fields(partner_id, "HUF"),
++            items: vec![],
++        },
++    )
++    .await
++    .unwrap();
++    relocate::tidy(&state, Scope::Lead(lead.id)).await.unwrap();
++
++    let moved = documents::find(&pool, document.id).await.unwrap().unwrap();
++    assert!(
++        moved.storage_key.contains(&format!(
++            "/{}_Huto-Bt_ABC-123/ajanlat/Arajanlat_",
++            order.number
++        )),
++        "{}",
++        moved.storage_key
++    );
++    assert_eq!(on_share(&dir, &moved.storage_key), quote);
++    assert!(
++        !dir.join("ajanlatok").exists(),
++        "the empty enquiry folder is cleared away"
++    );
++    std::fs::remove_dir_all(dir).ok();
++}
+diff --git a/deploy/demo/docker-compose.nfs.yml b/deploy/demo/docker-compose.nfs.yml
+new file mode 100644
+index 0000000..58cd694
+--- /dev/null
++++ b/deploy/demo/docker-compose.nfs.yml
+@@ -0,0 +1,28 @@
++# Files on your NAS over NFS instead of the bundled object store: plain files in project
++# folders that you can open from the share. setup.sh adds this file when NFS_SERVER is set
++# in .env; by hand:
++#
++#   docker compose -f docker-compose.yml -f docker-compose.nfs.yml up -d
++#
++# Docker mounts the share itself (the host needs `sudo apt-get install -y nfs-common`). If
++# the mount fails, the backend does not start: it never writes the files anywhere else.
++services:
++  migrate:
++    environment: &files-env
++      STORAGE_BACKEND: fs
++      STORAGE_DIR: /srv/autocrm-files
++
++  backend:
++    # The owner of the exported folder on the NAS: the backend writes as this user.
++    user: "${FILES_UID:-65534}:${FILES_GID:-65534}"
++    environment: *files-env
++    volumes:
++      - files:/srv/autocrm-files
++
++volumes:
++  files:
++    driver: local
++    driver_opts:
++      type: nfs
++      o: "addr=${NFS_SERVER},${NFS_OPTIONS:-rw,nfsvers=4.1,hard,noatime}"
++      device: ":${NFS_EXPORT:?set NFS_EXPORT in .env, e.g. /volume1/autocrm}"

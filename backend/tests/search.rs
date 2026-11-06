@@ -94,7 +94,7 @@ async fn partner_phone_variants_all_match(pool: PgPool) {
             rows.iter().any(|p| p.id == id),
             "partner list misses query {query:?}"
         );
-        let hits = search::partners(&pool, query, 8).await.unwrap();
+        let hits = search::partners(&pool, query, 8, true).await.unwrap();
         assert!(
             hits.iter().any(|p| p.id == id),
             "global search misses query {query:?}"
@@ -152,7 +152,7 @@ async fn digitless_query_matches_nothing_extra(pool: PgPool) {
     .await
     .unwrap();
     assert!(rows.is_empty());
-    let hits = search::partners(&pool, "zzz-no-such-partner", 8)
+    let hits = search::partners(&pool, "zzz-no-such-partner", 8, true)
         .await
         .unwrap();
     assert!(hits.is_empty());

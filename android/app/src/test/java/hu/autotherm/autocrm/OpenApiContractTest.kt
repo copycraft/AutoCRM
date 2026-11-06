@@ -148,7 +148,7 @@ class OpenApiContractTest {
     fun `the order detail still carries the fields the phone shows`() {
         assertHasFields(
             "OrderDetail",
-            "order", "partner", "stage", "items", "value", "blockers", "vehicles", "spec",
+            "order", "partner", "stage", "items", "value", "blockers", "vehicles", "spec_answers",
             "image_counts",
         )
         assertHasFields("Order", "id", "number", "title", "vehicle_plate", "vehicle_vin", "due_date")
@@ -167,8 +167,20 @@ class OpenApiContractTest {
     }
 
     @Test
-    fun `the build spec and the quotation are still where the phone looks`() {
-        assertHasFields("OrderSpec", "form", "target_temp_c", "cooling_unit_make", "heater_make")
+    fun `the build questionnaire and the quotation are still where the phone looks`() {
+        assertHasFields(
+            "Section", "id", "key", "title", "position", "is_active", "shown_when",
+            "project_type_ids", "questions",
+        )
+        assertHasFields(
+            "Question", "id", "section_id", "key", "label", "help", "kind", "unit", "options",
+            "min_value", "max_value", "required", "position", "is_active",
+        )
+        assertHasFields("LeadSpec", "project_type_id", "answers")
+        assertHasFields("LeadDetail", "spec")
+        assertHasFields("OrderDetail", "spec_answers")
+        assertHasFields("OrderBody", "spec_answers")
+        assertHasFields("SpecAnswers", "answers")
         assertHasFields("Lead", "quoted_value_minor", "currency", "quote_valid_until")
     }
 
@@ -261,7 +273,7 @@ class OpenApiContractTest {
         assertHasFields("Comparison", "checkin", "checkout", "suggestions")
         assertHasFields(
             "Lookups", "damage_types", "severities", "verdicts", "walkaround_kinds",
-            "fuel_levels", "heating_fuels", "defrost_modes", "order_relations",
+            "fuel_levels", "order_relations",
             "task_entity_types", "currencies", "invoice_payment_methods", "annulment_codes",
             "image_categories", "email_themes", "error_texts",
         )
@@ -290,6 +302,8 @@ class OpenApiContractTest {
             "/inspections/{id}/sign", "/inspections/{id}/notes",
             "/inspections/{id}/comparison", "/inspections/{id}/verdicts",
             "/inspections/templates", "/config/lookups",
+            "/config/questionnaire", "/leads/{id}/spec", "/leads/{id}/convert",
+            "/orders/{id}/cooling-serial",
         )
         for (path in required) {
             assertTrue("the API no longer serves $path", paths.containsKey(path))

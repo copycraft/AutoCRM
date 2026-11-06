@@ -73,12 +73,28 @@ async fn global(
     } else {
         Vec::new()
     };
+    // Each group only for someone who may see what it shows (0061): enquiries and the
+    // correspondence are sales, a contact's row is their email and phone.
+    let sales = me.can(Capability::ViewSales);
+    let contacts = me.can(Capability::ViewContacts);
     Ok(Json(GlobalResults {
         orders: search::orders(&state.db, needle, PER_GROUP).await?,
-        partners: search::partners(&state.db, needle, PER_GROUP).await?,
-        leads: search::leads(&state.db, needle, PER_GROUP).await?,
-        contacts: search::contacts(&state.db, needle, PER_GROUP).await?,
-        emails: search::emails(&state.db, needle, PER_GROUP).await?,
+        partners: search::partners(&state.db, needle, PER_GROUP, contacts).await?,
+        leads: if sales {
+            search::leads(&state.db, needle, PER_GROUP).await?
+        } else {
+            Vec::new()
+        },
+        contacts: if contacts {
+            search::contacts(&state.db, needle, PER_GROUP).await?
+        } else {
+            Vec::new()
+        },
+        emails: if sales {
+            search::emails(&state.db, needle, PER_GROUP).await?
+        } else {
+            Vec::new()
+        },
         employees,
     }))
 }

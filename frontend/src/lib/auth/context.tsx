@@ -128,3 +128,34 @@ export function canIssueInvoices(user: SessionUser | null): boolean {
 export function canComment(user: SessionUser | null): boolean {
   return hasCapability(user, 'comment');
 }
+
+// Seeing (0061): the server leaves out what these say no to; the screens follow, so nobody
+// is shown an empty table or a 403 where a menu item could simply be absent.
+export function canViewPrices(user: SessionUser | null): boolean {
+  return hasCapability(user, 'view_prices');
+}
+
+export function canViewInvoices(user: SessionUser | null): boolean {
+  return hasCapability(user, 'view_invoices');
+}
+
+export function canViewIncomingInvoices(user: SessionUser | null): boolean {
+  return hasCapability(user, 'view_incoming_invoices');
+}
+
+export function canViewSales(user: SessionUser | null): boolean {
+  return hasCapability(user, 'view_sales');
+}
+
+export function canViewContacts(user: SessionUser | null): boolean {
+  return hasCapability(user, 'view_contacts');
+}
+
+export function canViewBusinessReports(user: SessionUser | null): boolean {
+  return hasCapability(user, 'view_business_reports');
+}
+
+/// Átvétel and átadás: the walkaround protocols (0063).
+export function canHandleHandovers(user: SessionUser | null): boolean {
+  return hasCapability(user, 'handle_handovers');
+}

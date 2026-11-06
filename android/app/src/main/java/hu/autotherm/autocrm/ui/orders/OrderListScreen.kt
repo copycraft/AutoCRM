@@ -1,6 +1,6 @@
 package hu.autotherm.autocrm.ui.orders
 
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.Sort
 import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -24,6 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -94,9 +97,9 @@ class OrderListViewModel(
     init {
         // First paint must not wait for the debounce: previously every list opened
         // 300 ms late for no reason.
-        viewModelScope.launch { load() }
+        loadNow()
         viewModelScope.launch {
-            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { load() }
+            queryFlow.drop(1).debounce(300).distinctUntilChanged().collect { loadNow() }
         }
     }
 
@@ -131,18 +134,18 @@ class OrderListViewModel(
         if (sort == _state.value.sort) return
         _state.value = _state.value.copy(sort = sort)
         prefs?.edit()?.putString("orders_sort", sort)?.apply()
-        viewModelScope.launch { load() }
+        loadNow()
     }
 
     fun toggleOpenOnly() {
         _state.value = _state.value.copy(openOnly = !_state.value.openOnly)
         prefs?.edit()?.putBoolean("orders_open_only", _state.value.openOnly)?.apply()
-        viewModelScope.launch { load() }
+        loadNow()
     }
 
-    fun refresh() = viewModelScope.launch { load() }
+    fun refresh() = loadNow()
 
-    fun retry() = viewModelScope.launch { load() }
+    fun retry() = loadNow()
 
     fun loadMore() {
         val s = _state.value
@@ -166,6 +169,15 @@ class OrderListViewModel(
                 _state.value = _state.value.copy(loadingMore = false, error = describeError(e))
             }
         }
+    }
+
+    // Launched loads are tracked so a slower older request can never overwrite the result
+    // of a newer one (change the sort, then type — the response order is not guaranteed).
+    private var loadJob: kotlinx.coroutines.Job? = null
+
+    private fun loadNow() {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch { load() }
     }
 
     private suspend fun load() {
@@ -200,7 +212,7 @@ class OrderListViewModel(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun OrderListScreen(
     viewModel: OrderListViewModel,
@@ -270,7 +282,7 @@ fun OrderListScreen(
                 title = "Munkák",
                 // The header answers "how bad is it": how many, and how many are late.
                 subtitle = if (state.orders.isNotEmpty()) {
-                    val today = java.time.LocalDate.now().toString()
+                    val today = hu.autotherm.autocrm.util.businessTodayIso()
                     val late = state.orders.count { !it.stageIsTerminal && it.dueDate != null && it.dueDate < today }
                     "${state.orders.size}${if (state.hasMore) "+" else ""} munka" + if (late > 0) " · $late lejárt" else ""
                 } else {
@@ -295,7 +307,9 @@ fun OrderListScreen(
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 onSearch = viewModel::refresh,
             )
-            Row(
+            // One row, not two: the sort is a chip with a menu, so the list starts 48dp higher
+            // on the screen people open most. Wraps rather than clips at the largest sizes.
+            androidx.compose.foundation.layout.FlowRow(
                 Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -309,25 +323,41 @@ fun OrderListScreen(
                     onClick = { if (state.openOnly) viewModel.toggleOpenOnly() },
                     label = { Text("Mind") },
                 )
-            }
-            // What comes first: the newest job, the nearest deadline, or the van stuck longest.
-            androidx.compose.foundation.lazy.LazyRow(
-                Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                val sorts = listOf("-created_at" to "Legújabb", "due_date" to "Határidő szerint", "stage_entered_at" to "Régóta áll")
-                items(sorts.size) { i ->
-                    val (key, label) = sorts[i]
-                    FilterChip(
-                        selected = state.sort == key,
-                        onClick = { viewModel.setSort(key) },
-                        label = { Text(label) },
-                        leadingIcon = if (state.sort == key) {
-                            { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Sort, contentDescription = null) }
-                        } else {
-                            null
+                // What comes first: the newest job, the nearest deadline, or the van stuck longest.
+                val sorts = listOf(
+                    Triple("-created_at", "Legújabb", "Legújabb elöl"),
+                    Triple("due_date", "Határidő", "Legközelebbi határidő elöl"),
+                    Triple("stage_entered_at", "Régóta áll", "Legrégebben álló elöl"),
+                )
+                var sortOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                androidx.compose.foundation.layout.Box {
+                    androidx.compose.material3.AssistChip(
+                        onClick = { sortOpen = true },
+                        label = { Text(sorts.firstOrNull { it.first == state.sort }?.second ?: "Rendezés") },
+                        leadingIcon = {
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Rendezés", modifier = Modifier.size(18.dp))
+                        },
+                        trailingIcon = {
+                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
                         },
                     )
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = sortOpen,
+                        onDismissRequest = { sortOpen = false },
+                    ) {
+                        sorts.forEach { (key, _, long) ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(long) },
+                                onClick = {
+                                    sortOpen = false
+                                    viewModel.setSort(key)
+                                },
+                                leadingIcon = {
+                                    if (state.sort == key) Icon(Icons.Filled.Check, contentDescription = null)
+                                },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -358,6 +388,7 @@ fun OrderListScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         state = topScroll,
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(fab = canEdit),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.orders, key = { it.id }) { order ->
@@ -420,7 +451,7 @@ private fun OrderCard(
                 Text(order.number, style = MonoSmall, color = Steel500)
             }
             Text(
-                formatMoney(order.totalMinor, order.currency),
+                hu.autotherm.autocrm.util.formatMoneyOrDash(order.totalMinor, order.currency),
                 style = MonoSmall,
             )
         }
@@ -438,7 +469,7 @@ private fun OrderCard(
                 StatusBadge("$pendingPhotos fotó feltöltésre vár", Tone.Cold)
             }
             order.dueDate?.let { due ->
-                val late = !order.stageIsTerminal && runCatching { java.time.LocalDate.parse(due).isBefore(java.time.LocalDate.now()) }.getOrDefault(false)
+                val late = !order.stageIsTerminal && runCatching { java.time.LocalDate.parse(due).isBefore(hu.autotherm.autocrm.util.businessToday()) }.getOrDefault(false)
                 StatusBadge(
                     (if (late) "Lejárt: " else "Határidő: ") + hu.autotherm.autocrm.util.relativeDay(due),
                     if (late) Tone.Signal else Tone.Cold,

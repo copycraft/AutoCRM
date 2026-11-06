@@ -31,6 +31,7 @@ import hu.autotherm.autocrm.ui.theme.Steel900
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 
 /**
  * One line at the bottom of the screen, for anything that happened after the screen was
@@ -230,10 +231,26 @@ fun AppPullToRefresh(
     content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    // The pull indicator answers a pull. Refetches the screen starts by itself (a search
+    // being typed, a filter chip) already show in the top bar; the indicator dropping down
+    // over the rows on every keystroke made the list look like it was reloading from zero.
+    var pulled by remember { mutableStateOf(false) }
+    val refreshing by androidx.compose.runtime.rememberUpdatedState(isRefreshing)
+    LaunchedEffect(pulled) {
+        if (!pulled) return@LaunchedEffect
+        // Wait for the refetch to start (a ViewModel may launch it a frame later, or not at
+        // all), then for it to end.
+        kotlinx.coroutines.withTimeoutOrNull(1_000) {
+            androidx.compose.runtime.snapshotFlow { refreshing }.first { it }
+        }
+        androidx.compose.runtime.snapshotFlow { refreshing }.first { !it }
+        pulled = false
+    }
     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-        isRefreshing = isRefreshing,
+        isRefreshing = isRefreshing && pulled,
         onRefresh = {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            pulled = true
             onRefresh()
         },
         modifier = modifier,

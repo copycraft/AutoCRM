@@ -20,7 +20,7 @@ use crate::AppState;
 use crate::domain::email::normalize_address;
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
-use crate::media::pipeline;
+use crate::media::{layout, pipeline};
 use crate::repo::employees::{self, EmployeeInput, EmployeeRow};
 use crate::repo::{audit, employee_details, employee_documents, like_pattern};
 
@@ -218,10 +218,13 @@ async fn upload_document_file(
     let (content_type, ext) = super::incoming_invoices::sniff(&body)
         .filter(|(_, ext)| *ext != "xml")
         .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
-    let random: [u8; 12] = rand::random();
-    let key = format!(
-        "employee-documents/{id}/{doc_id}-{}.{ext}",
-        hex::encode(random)
+    let kind = employee_documents::kind_of(&state.db, doc_id, id)
+        .await?
+        .ok_or(AppError::NotFound("document"))?;
+    let folder = layout::employee_folder_of(&state, id).await?;
+    let key = layout::join(
+        &layout::employee_document_dir(&folder, &kind, false),
+        &layout::file_name(Some(&name), "dokumentum", &layout::random_tag(), ext),
     );
     let size = body.len() as i64;
     state
@@ -616,7 +619,10 @@ async fn set_photo(
         .map_err(|e| AppError::internal(format!("avatar task: {e}")))?
         .map_err(|e| AppError::validation(e.to_string()))?;
 
-    let key = format!("hr/employees/{id}/{:016x}.jpg", rand::random::<u64>());
+    let key = layout::join(
+        &layout::employee_photo_dir(&layout::employee_folder_of(&state, id).await?),
+        &format!("profilkep_{}.jpg", layout::random_tag()),
+    );
     state
         .storage
         .put_bytes(&key, jpeg, "image/jpeg")

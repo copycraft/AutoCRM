@@ -16,7 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ManageSearch
+import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -257,7 +257,7 @@ class OrderEditViewModel(private val api: AutoCrmApi) : ViewModel() {
                             assignedTo = s.assignedTo,
                             projectTypeId = s.projectTypeId,
                             currency = s.currency,
-                            valuationDate = LocalDate.now().toString(),
+                            valuationDate = hu.autotherm.autocrm.util.businessTodayIso(),
                             vehicleMake = blankToNull(s.vehicleMake),
                             vehicleModel = blankToNull(s.vehicleModel),
                             vehiclePlate = blankToNull(s.vehiclePlate),
@@ -392,7 +392,7 @@ fun OrderEditScreen(
                                 )
                             } else {
                                 IconButton(onClick = viewModel::decodeVin) {
-                                    Icon(Icons.Filled.ManageSearch, contentDescription = "Alvázszám kiolvasása")
+                                    Icon(Icons.AutoMirrored.Filled.ManageSearch, contentDescription = "Alvázszám kiolvasása")
                                 }
                             }
                         }

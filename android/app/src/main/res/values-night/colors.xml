@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dark panel (Theme.kt DarkBg): a phone in dark mode no longer opens on a white
+         window before the first frame. -->
+    <color name="panel">#101415</color>
+</resources>

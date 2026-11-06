@@ -115,23 +115,32 @@ describe('InvoicesSection', () => {
     expect(screen.getByText('Készpénz')).toBeInTheDocument();
   });
 
-  it('issues a cash invoice when cash is chosen, nothing extra by default', async () => {
+  it('sends the order to the Számlázó as a draft instead of issuing on the spot', async () => {
     withInvoices([]);
     const create = vi.spyOn(invoicesApi, 'create').mockResolvedValue(f.submittingInvoice);
+    const getDraft = vi.spyOn(invoicesApi, 'getDraft').mockRejectedValue(new Error('404'));
+    const putDraft = vi.spyOn(invoicesApi, 'putDraft').mockResolvedValue({
+      order_id: 3,
+      vat_rate: null,
+      issue_date: null,
+      delivery_date: null,
+      payment_date: null,
+      payment_method: null,
+      created_by: 1,
+      created_at: '2026-11-03T10:00:00Z',
+      updated_at: '2026-11-03T10:00:00Z',
+    });
     try {
       renderPage(<InvoicesSection orderId={3} currency="HUF" />);
-      fireEvent.click(await screen.findByRole('button', { name: 'Számla kiállítása' }));
-      const dialog = await screen.findByRole('dialog');
-      const method = within(dialog).getByLabelText('Fizetési mód');
-      // The methods arrive with the server's lookups, a beat after the dialog.
-      await waitFor(() => expect((method as HTMLSelectElement).value).toBe('TRANSFER'));
-      fireEvent.change(method, { target: { value: 'CASH' } });
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Számla kiállítása' }));
-      await waitFor(() =>
-        expect(create).toHaveBeenCalledWith(3, expect.objectContaining({ payment_method: 'CASH' })),
-      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Számlázóba' }));
+      // No draft yet: one is filed with every term left to its default.
+      await waitFor(() => expect(putDraft).toHaveBeenCalledWith(3, {}));
+      expect(getDraft).toHaveBeenCalledWith(3);
+      expect(create).not.toHaveBeenCalled();
     } finally {
       create.mockRestore();
+      getDraft.mockRestore();
+      putDraft.mockRestore();
     }
   });
 });

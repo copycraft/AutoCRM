@@ -33,6 +33,8 @@ import { errorMessage } from '@/lib/api/errors';
 import { canChangeStage, canEditOrders, useAuth } from '@/lib/auth/context';
 import { stageTone } from '@/lib/utils/stages';
 import { DateDisplay } from '@/components/ui/DateDisplay';
+import { BucketList } from '@/components/tags/BucketList';
+import { WithStatusAside, countMap, stageGroups } from '@/components/tables/StatusAside';
 import type { OrderSummary, StageDefinition } from '@/lib/api/types';
 
 
@@ -45,6 +47,7 @@ export default function OrdersPage() {
   const tn = useTranslations('navigation');
   const tq = useTranslations('qol');
   const ter = useTranslations('errors');
+  const ts = useTranslations('statusList');
   const locale = useLocale();
   const { user } = useAuth();
   useRememberList('orders');
@@ -95,6 +98,16 @@ export default function OrdersPage() {
     for (const d of stagesQuery.data?.items ?? []) m.set(d.key, d);
     return m;
   }, [stagesQuery.data]);
+  const stageCounts = useQuery({
+    queryKey: qk.orders('stage-counts'),
+    queryFn: () => ordersApi.stageCounts(),
+  });
+  // A closed stage under "open only" would show nothing: picking one lifts that filter.
+  const pickStage = (key: string) => {
+    setStage(key);
+    if (defs.get(key)?.is_terminal) setOpenOnly(false);
+    resetOffset();
+  };
 
   const query = useQuery({
     queryKey: qk.orders({
@@ -273,6 +286,25 @@ export default function OrdersPage() {
           )
         }
       />
+      <WithStatusAside
+        aside={
+          <>
+            <BucketList
+              title={ts('orders')}
+              groups={stageGroups(stagesQuery.data?.items, { open: ts('open'), won: ts('won'), lost: ts('lost') })}
+              counts={countMap(stageCounts.data?.items)}
+              value={stage}
+              onChange={pickStage}
+              allLabel={ts('allOrders')}
+            />
+            {stagesQuery.isError && (
+              <p className="mt-2 text-metadata text-steel-900" role="alert">
+                {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
+              </p>
+            )}
+          </>
+        }
+      >
       <SavedViewsBar listKey="orders" />
       <FilterBar onClear={clear}>
         <FilterField label={tc('search')}>
@@ -285,21 +317,6 @@ export default function OrdersPage() {
               resetOffset();
             }}
           />
-        </FilterField>
-        <FilterField label={t('stageFilter')}>
-          <select className="input" value={stage} disabled={stagesQuery.isLoading} onChange={(e) => { setStage(e.target.value); resetOffset(); }}>
-            <option value="">{tc('all')}</option>
-            {(stagesQuery.data?.items ?? []).map((d) => (
-              <option key={d.key} value={d.key}>
-                {d.label_hu}
-              </option>
-            ))}
-          </select>
-          {stagesQuery.isError && (
-            <span className="text-metadata text-steel-900" role="alert">
-              {errorMessage(stagesQuery.error, ter, ter('unknownError'))}
-            </span>
-          )}
         </FilterField>
         <div className="flex min-w-44 flex-col gap-1">
           <PartnerPicker value={partner} onChange={(p) => { setPartner(p); setPartnerId(p ? String(p.id) : ''); resetOffset(); }} label={t('partnerFilter')} />
@@ -398,6 +415,7 @@ export default function OrdersPage() {
           </div>
         </>
       )}
+      </WithStatusAside>
     </AppShell>
   );
 }

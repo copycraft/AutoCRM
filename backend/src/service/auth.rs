@@ -76,6 +76,9 @@ pub struct AuthUser {
     pub hr_access: bool,
     /// Capabilities an admin granted this user on top of the role.
     pub permissions: Vec<Capability>,
+    /// The role's set as the admin's grid has it (0061), read with the session. None:
+    /// the defaults in `Role::can` (tests, internal callers that build a user by hand).
+    pub role_grid: Option<Vec<Capability>>,
 }
 
 impl AuthUser {
@@ -88,7 +91,13 @@ impl AuthUser {
     }
 
     pub fn can(&self, capability: Capability) -> bool {
-        self.role.can(capability)
+        // Admins are not in the grid: nobody can untick the last admin out of the system.
+        let from_role = match (&self.role_grid, self.role) {
+            (_, Role::Admin) => true,
+            (Some(grid), _) => grid.contains(&capability),
+            (None, role) => role.can(capability),
+        };
+        from_role
             || (capability == Capability::AccessHr && self.hr_access)
             || (capability.grantable() && self.permissions.contains(&capability))
     }
@@ -338,6 +347,7 @@ pub async fn authenticate(db: &PgPool, token: &str) -> AppResult<AuthUser> {
         must_change_password: session.must_change_password,
         hr_access: session.hr_access,
         permissions: parse_permissions(&session.permissions),
+        role_grid: Some(parse_permissions(&session.role_permissions)),
     })
 }
 

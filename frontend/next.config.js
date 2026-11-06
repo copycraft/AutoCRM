@@ -32,6 +32,9 @@ const nextConfig = {
   // A self-contained server (`node server.js`) for deployment; see build.sh.
   output: 'standalone',
   experimental: {
+    // With files on the NFS share (STORAGE_BACKEND=fs) uploads and downloads pass through
+    // this /api proxy, and a 2 GB drawing over the shop wifi outlasts the 30 s default.
+    proxyTimeout: 30 * 60 * 1000,
     // Barrel files: import only the icons/helpers actually used, not the whole index.
     optimizePackageImports: [
       'lucide-react',

@@ -120,8 +120,13 @@ class IncomingListViewModel(private val api: AutoCrmApi) : ViewModel() {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
+    // Launched loads are tracked so a slower older request can never overwrite a newer
+    // one's result (rapid bucket taps, or a bucket tap while the IME-search load runs).
+    private var loadJob: kotlinx.coroutines.Job? = null
+
     fun load() {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             val keepRows = _state.value.items.isNotEmpty()
             _state.value = _state.value.copy(
                 loading = !keepRows,
@@ -225,11 +230,15 @@ fun IncomingListScreen(
                     actionLabel = if (onScan != null) "Szkennelés" else null,
                     onAction = onScan,
                 )
-                else -> PullToRefreshBox(
+                else -> hu.autotherm.autocrm.ui.common.AppPullToRefresh(
                     isRefreshing = state.refreshing,
                     onRefresh = { viewModel.load() },
                 ) {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = hu.autotherm.autocrm.ui.common.listPadding(fab = true),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         items(state.items, key = { it.id }) { invoice ->
                             IncomingRow(invoice = invoice, onOpen = { onOpen(invoice.id) })
                         }
@@ -368,7 +377,7 @@ class IncomingDetailViewModel(private val api: AutoCrmApi) : ViewModel() {
         }
         viewModelScope.launch {
             try {
-                val today = java.time.LocalDate.now().toString()
+                val today = hu.autotherm.autocrm.util.businessTodayIso()
                 val updated = api.patchIncomingInvoice(
                     id,
                     patchOf("paid_amount" to gross, "paid_on" to today),

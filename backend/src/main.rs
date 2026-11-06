@@ -50,6 +50,17 @@ enum Command {
         #[arg(long)]
         to: String,
     },
+    /// File every stored file in its project or general folder on the share
+    /// (STORAGE_BACKEND=fs). Safe to repeat; the worker does the same nightly.
+    StorageRelayout {
+        /// Copy every file over from the old object store (the S3_* settings) instead of
+        /// sorting what is already on the share. The object store is left as it was.
+        #[arg(long)]
+        from_s3: bool,
+        /// Only list what would move.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Write the OpenAPI document (the API contract) as JSON. Needs no configuration.
     Openapi {
         /// Output file; stdout when omitted.
@@ -91,6 +102,9 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Command::EmailTest { to } => email_test(config, to).await,
+        Command::StorageRelayout { from_s3, dry_run } => {
+            storage_relayout(config, from_s3, dry_run).await
+        }
         Command::Openapi { .. } => unreachable!("handled before configuration is loaded"),
     }
 }
@@ -170,7 +184,7 @@ async fn email_test(config: Config, to: String) -> anyhow::Result<()> {
 async fn build_state(config: Config) -> anyhow::Result<AppState> {
     let pool = db::connect(&config).await?;
     db::migrate(&pool).await?;
-    let storage = Storage::new(&config.s3);
+    let storage = Storage::from_config(&config);
     Ok(AppState {
         db: pool,
         config: Arc::new(config),
@@ -178,8 +192,79 @@ async fn build_state(config: Config) -> anyhow::Result<AppState> {
     })
 }
 
+async fn storage_relayout(config: Config, from_s3: bool, dry_run: bool) -> anyhow::Result<()> {
+    let state = build_state(config).await?;
+    let fs = state
+        .storage
+        .as_fs()
+        .context("storage-relayout files onto the share: set STORAGE_BACKEND=fs and STORAGE_DIR")?;
+    fs.check().await?;
+    let source = if from_s3 {
+        let s3 = autocrm::config::s3_from_env()?;
+        let source = Storage::S3(autocrm::media::storage::S3Store::new(&s3));
+        source
+            .check()
+            .await
+            .context("the object store to copy from (S3_*) is not reachable")?;
+        Some(source)
+    } else {
+        None
+    };
+    println!(
+        "{} files into {}{}",
+        if from_s3 { "Copying" } else { "Sorting" },
+        fs.root().display(),
+        if dry_run {
+            " (dry run: nothing changes)"
+        } else {
+            ""
+        }
+    );
+    let summary = service::relocate::run(
+        &state,
+        &service::relocate::Options {
+            scope: service::relocate::Scope::All,
+            source,
+            dry_run,
+        },
+    )
+    .await?;
+    println!(
+        "checked {}: {} in place, {} moved, {} copied, {} missing, {} failed",
+        summary.checked,
+        summary.in_place,
+        summary.moved,
+        summary.copied,
+        summary.missing,
+        summary.failed
+    );
+    if summary.missing + summary.failed > 0 {
+        println!("see the log above for each missing or failed file; running again retries them");
+    }
+    Ok(())
+}
+
 async fn serve(config: Config) -> anyhow::Result<()> {
     let state = build_state(config).await?;
+    // On the share, refuse to start rather than write to the wrong disk.
+    if let Some(fs) = state.storage.as_fs() {
+        fs.check().await.context("STORAGE_DIR is not usable")?;
+        match fs.mount() {
+            Ok(Some(m)) => tracing::info!(
+                dir = %fs.root().display(),
+                mount = %m.mount_point.display(),
+                fs_type = %m.fs_type,
+                source = %m.source,
+                "files on the share"
+            ),
+            _ => tracing::info!(dir = %fs.root().display(), "files in a local folder"),
+        }
+        match fs.sweep_partials().await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(removed = n, "abandoned partial uploads removed"),
+            Err(e) => tracing::warn!(error = %e, "could not clear abandoned partial uploads"),
+        }
+    }
     // Secrets stored before 0049 were plain text; seal them once. Failing to is logged, not
     // fatal: plain values keep working.
     if let Err(e) = service::secrets::seal_legacy(&state.db, &state.config).await {

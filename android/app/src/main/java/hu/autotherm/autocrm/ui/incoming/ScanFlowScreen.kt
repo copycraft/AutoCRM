@@ -122,6 +122,9 @@ class ScanFlowViewModel(
     }
 
     fun removePage(path: String) {
+        // Mid-build a removed page is exactly what the running downscale needs: refuse
+        // while the PDF is being prepared (the strip's ✕ is disabled with it).
+        if (_state.value.working) return
         viewModelScope.launch(Dispatchers.IO) {
             File(path).delete()
         }
@@ -161,6 +164,8 @@ class ScanFlowViewModel(
     }
 
     fun retryPending(path: String, onUploaded: (Long) -> Unit) {
+        // A concurrent second upload would tear the "working" flag down independently.
+        if (_state.value.working) return
         val pdf = File(path)
         if (!pdf.exists()) {
             loadPending()
@@ -272,6 +277,7 @@ fun ScanFlowScreen(
                             )
                             IconButton(
                                 onClick = { viewModel.removePage(path) },
+                                enabled = !state.working,
                                 modifier = Modifier.align(Alignment.TopEnd),
                             ) {
                                 Icon(Icons.Filled.Close, contentDescription = "Oldal törlése")
@@ -307,10 +313,10 @@ fun ScanFlowScreen(
                                     color = Steel500,
                                 )
                             }
-                            IconButton(onClick = { viewModel.retryPending(path, onUploaded) }) {
+                            IconButton(onClick = { viewModel.retryPending(path, onUploaded) }, enabled = !state.working) {
                                 Icon(Icons.Filled.Upload, contentDescription = "Újra feltöltés")
                             }
-                            IconButton(onClick = { viewModel.deletePending(path) }) {
+                            IconButton(onClick = { viewModel.deletePending(path) }, enabled = !state.working) {
                                 Icon(Icons.Filled.Close, contentDescription = "Törlés")
                             }
                         }

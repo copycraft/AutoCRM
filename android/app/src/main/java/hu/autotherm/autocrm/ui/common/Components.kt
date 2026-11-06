@@ -825,7 +825,7 @@ fun DateField(
     )
     if (quickPicks.isNotEmpty() && enabled) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val today = java.time.LocalDate.now()
+            val today = hu.autotherm.autocrm.util.businessToday()
             quickPicks.forEach { (pickLabel, days) ->
                 val day = today.plusDays(days).toString()
                 androidx.compose.material3.FilterChip(
@@ -1029,6 +1029,15 @@ fun PlateBadge(plate: String, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * The space around a list's rows, given to the list as content padding (not as a modifier):
+ * rows scroll all the way to the edges instead of vanishing at an invisible line, the first
+ * card's shadow is not cut off, and the last row can be scrolled clear of the floating
+ * "new" button ([fab]) instead of ending underneath it.
+ */
+fun listPadding(fab: Boolean = false, horizontal: androidx.compose.ui.unit.Dp = 0.dp, top: androidx.compose.ui.unit.Dp = 4.dp) =
+    PaddingValues(start = horizontal, end = horizontal, top = top, bottom = if (fab) 96.dp else 24.dp)
 
 /** The labelled "new" button lists float: says what it makes, not just "+". */
 @Composable

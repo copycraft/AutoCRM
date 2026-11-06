@@ -142,7 +142,8 @@ async fn fetch_one(
     let sha256 = hex::encode(Sha256::digest(&bytes));
     let content_type = content_type_for(extension, header_type.as_deref());
     let ext = extension.unwrap_or_else(|| extension_for(&content_type));
-    let storage_key = format!("migration/originals/{sha256}.{ext}");
+    // Staged until loading knows the project; re-sorting then files it there.
+    let storage_key = format!("{}/{sha256}.{ext}", crate::media::layout::MIGRATION);
     let byte_size = i64::try_from(bytes.len()).unwrap_or(i64::MAX);
     if storage.head(&storage_key).await?.is_none() {
         storage
