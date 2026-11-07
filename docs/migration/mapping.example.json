@@ -1,0 +1,78 @@
+{
+  "categories": {
+    "12": "order",
+    "15": "lead",
+    "20": "skip"
+  },
+  "order_statuses": {
+    "3001": "intake",
+    "3002": "design",
+    "3003": "production",
+    "3004": "meo",
+    "3005": "completed",
+    "3006": "cancelled"
+  },
+  "lead_statuses": {
+    "2001": "new",
+    "2002": "contacted",
+    "2003": "quoted",
+    "2004": "won",
+    "2005": "lost"
+  },
+  "default_order_stage": "completed",
+  "default_lead_stage": "lost",
+  "image_fields": {
+    "$.Atveteli_fotok[]": "intake",
+    "$.Gyartasi_fotok[]": "production",
+    "$.MEO_fotok[]": "completion",
+    "$.Referencia_kepek[]": "marketing"
+  },
+  "default_image_category": "production",
+  "default_currency": "HUF",
+  "order_currency_field": "Penznem",
+  "order_value_field": "Osszeg",
+
+  "order_number_field": "Sorszam",
+
+  "order_fields": {
+    "vehicle_make": "Jarmu_marka",
+    "vehicle_model": "Jarmu_tipus",
+    "vehicle_plate": "Rendszam",
+    "vehicle_vin": "Alvazszam",
+    "description": "Leiras",
+    "due_date": "Hatarido",
+    "project_type": "Projekttipus",
+    "assignee": "Felelos"
+  },
+
+  "vehicle_plate_from_title": "[A-Z]{3}-?[0-9]{3}",
+
+  "partner_fields": {
+    "tax_number": "VatNumber",
+    "eu_tax_number": "EuVatNumber",
+    "country": "CountryId",
+    "default_currency": "Penznem",
+    "postal_code": "PostalCode",
+    "city": "City",
+    "address_line": "Address",
+    "notes": "Comment"
+  },
+
+  "countries": {
+    "Magyarország": "HU",
+    "Deutschland": "DE",
+    "Österreich": "AT"
+  },
+
+  "project_types": {
+    "Hutofelepitmeny": "refrigerated_body",
+    "Furgon": "van_conversion",
+    "Hutogep": "unit_install",
+    "Javitas": "repair"
+  },
+
+  "assignees": {
+    "77": "gyartas@autotherm.hu",
+    "78": "iroda@autotherm.hu"
+  }
+}
