@@ -1,7 +1,8 @@
-//! HR recruitment: job listings with a generic public application form. HR (anyone with
-//! `AccessHr`) writes the listing, publishes it and shares its link. Applicants need no
-//! login: the form posts their details and resume, and that creates their profile. HR then
-//! reads profiles, keeps notes and deletes the ones that do not get the job.
+//! HR recruitment: job listings with a generic public application form. Whoever does the
+//! hiring (`ManageRecruitment`, which `hr_access` brings) writes the listing, publishes it
+//! and shares its link. Applicants need no login: the form posts their details and resume,
+//! and that creates their profile. HR then reads profiles, keeps notes and deletes the ones
+//! that do not get the job.
 
 use std::time::Duration;
 
@@ -159,7 +160,7 @@ async fn list_jobs(
     State(state): State<AppState>,
     Auth(me): Auth,
 ) -> AppResult<Json<Items<JobPosting>>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let rows = recruitment::list_postings(&state.db).await?;
     Ok(Items::new(
         rows.into_iter().map(|r| present_job(&state, r)).collect(),
@@ -177,7 +178,7 @@ async fn create_job(
     Auth(me): Auth,
     ApiJson(b): ApiJson<JobBody>,
 ) -> AppResult<(StatusCode, Json<JobPosting>)> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let input = merge_job(None, b)?;
     let slug = format!("{:016x}", rand::random::<u64>());
     let mut tx = state.db.begin().await?;
@@ -208,7 +209,7 @@ async fn job_detail(
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<JobPosting>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let row = recruitment::find_posting(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("job"))?;
@@ -227,7 +228,7 @@ async fn update_job(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<JobBody>,
 ) -> AppResult<Json<JobPosting>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let mut tx = state.db.begin().await?;
     recruitment::lock_posting(&mut *tx, id)
         .await?
@@ -265,7 +266,7 @@ async fn delete_job(
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<StatusCode> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let mut tx = state.db.begin().await?;
     recruitment::lock_posting(&mut *tx, id)
         .await?
@@ -295,7 +296,7 @@ async fn set_status(
     id: i64,
     status: &str,
 ) -> AppResult<Json<JobPosting>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let mut tx = state.db.begin().await?;
     recruitment::lock_posting(&mut *tx, id)
         .await?
@@ -424,7 +425,7 @@ async fn job_applications(
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<Items<Application>>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     recruitment::find_posting(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("job"))?;
@@ -455,7 +456,7 @@ async fn update_application(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<ApplicationPatch>,
 ) -> AppResult<Json<Application>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let current = recruitment::find_application(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("application"))?;
@@ -478,7 +479,7 @@ async fn delete_application(
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<StatusCode> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let mut tx = state.db.begin().await?;
     let key = recruitment::delete_application(&mut *tx, id)
         .await?

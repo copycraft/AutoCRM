@@ -6,6 +6,11 @@ export const zAbsenceFileUrl = z.object({
     url: z.string()
 });
 
+export const zAcceptInvite = z.object({
+    password: z.string(),
+    theme: z.string()
+});
+
 export const zAddItem = z.object({
     description: z.string(),
     quantity: z.string(),
@@ -349,7 +354,9 @@ export const zCapability = z.enum([
     'view_contacts',
     'view_business_reports',
     'view_all_modules',
-    'handle_handovers'
+    'handle_handovers',
+    'manage_leave',
+    'manage_recruitment'
 ]);
 
 /**
@@ -983,6 +990,8 @@ export const zErrorCode = z.enum([
     'totp_required',
     'totp_invalid',
     'last_admin',
+    'invite_used',
+    'invite_expired',
     'stage_gate',
     'note_required',
     'invalid_transition',
@@ -1466,6 +1475,19 @@ export const zInspectionDetail = z.object({
     zone_titles: z.record(z.string()),
     tyres: z.array(zInspectionTyre),
     videos: z.array(zInspectionVideoView)
+});
+
+/**
+ * Who the link is for, while it can still be used.
+ */
+export const zInviteInfo = z.object({
+    email: z.string(),
+    display_name: z.string(),
+    expires_at: z.string().datetime()
+});
+
+export const zInviteSent = z.object({
+    expires_at: z.string().datetime()
 });
 
 export const zInvoiceDraft = z.object({
@@ -3889,7 +3911,8 @@ export const zPickerOrder = z.object({
 export const zPreferencesBody = z.object({
     density: z.string().nullish(),
     page_size: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }).nullish(),
-    email_signature: z.string().nullish()
+    email_signature: z.string().nullish(),
+    theme: z.string().nullish()
 });
 
 /**
@@ -4138,11 +4161,39 @@ export const zRole = z.enum([
     'viewer'
 ]);
 
+/**
+ * A colleague as everyone may see them: who sent a letter, who a job is assigned to.
+ */
+export const zColleague = z.object({
+    id: z.number().int(),
+    display_name: z.string(),
+    role: zRole,
+    is_active: z.boolean()
+});
+
 export const zCreateUser = z.object({
     email: z.string(),
     display_name: z.string(),
     role: zRole,
     temporary_password: z.string()
+});
+
+export const zInviteUser = z.object({
+    email: z.string(),
+    display_name: z.string(),
+    role: zRole
+});
+
+/**
+ * The list envelope: `{"items": [...]}`.
+ */
+export const zItemsColleague = z.object({
+    items: z.array(z.object({
+        id: z.number().int(),
+        display_name: z.string(),
+        role: zRole,
+        is_active: z.boolean()
+    }))
 });
 
 /**
@@ -4983,6 +5034,11 @@ export const zUser = z.object({
     updated_at: z.string().datetime()
 });
 
+export const zInvited = z.object({
+    user: zUser,
+    expires_at: z.string().datetime()
+});
+
 export const zUserDepartments = z.object({
     departments: z.array(zDepartmentSeat)
 });
@@ -4992,6 +5048,7 @@ export const zUserSettings = z.object({
     density: z.string(),
     page_size: z.number().int().min(-2147483648, { message: 'Invalid value: Expected int32 to be >= -2147483648' }).max(2147483647, { message: 'Invalid value: Expected int32 to be <= 2147483647' }),
     email_signature: z.string().nullish(),
+    theme: z.string(),
     updated_at: z.string().datetime()
 });
 
@@ -5249,6 +5306,10 @@ export const zWeeklyRecipients = z.object({
     recipients: z.array(z.string())
 });
 
+export const zWelcome = z.object({
+    user: zSessionUser
+});
+
 export const zWorkloadDay = z.object({
     date: z.string().date(),
     placed: z.number().int(),
@@ -5460,6 +5521,8 @@ export const zUsersResetTwoFactorPath = z.object({
  * Two-factor sign-in switched off (a lost phone); the person can set it up again
  */
 export const zUsersResetTwoFactorResponse = z.void();
+
+export const zUsersColleaguesResponse = zItemsColleague;
 
 export const zUsersListRolesResponse = zItemsRoleGrid;
 
@@ -7693,3 +7756,27 @@ export const zPartnersHistoryQuery = z.object({
 });
 
 export const zPartnersHistoryResponse = zItemsVatCheck;
+
+export const zUsersInviteUserBody = zInviteUser;
+
+export const zUsersInviteUserResponse = zInvited;
+
+export const zUsersResendInvitePath = z.object({
+    id: z.number().int()
+});
+
+export const zUsersResendInviteResponse = zInviteSent;
+
+export const zAuthInviteInfoPath = z.object({
+    token: z.string()
+});
+
+export const zAuthInviteInfoResponse = zInviteInfo;
+
+export const zAuthAcceptInviteBody = zAcceptInvite;
+
+export const zAuthAcceptInvitePath = z.object({
+    token: z.string()
+});
+
+export const zAuthAcceptInviteResponse = zWelcome;

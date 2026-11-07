@@ -1,15 +1,13 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { errorMessage } from '@/lib/api/errors';
-import { usersApi } from '@/lib/api/endpoints';
-import { qk } from '@/lib/query/provider';
-import { canAdmin, useAuth } from '@/lib/auth/context';
+import { useAuth } from '@/lib/auth/context';
+import { useColleagues } from '@/hooks/useColleagues';
 
-// Assignee picker that respects the backend capability model:
-// GET /users is admin-only (ManageUsers), so non-admins get a
-// "me / unassigned" choice instead of a user dropdown. No fake data.
+// Assignee picker. The names come from GET /colleagues, which every signed-in user may
+// read, so anyone who may assign (the backend checks EditLeads / EditOrders) can pick a
+// colleague — not only admins. Inactive accounts are not offered.
 export function AssigneeField({
   value,
   onChange,
@@ -31,35 +29,7 @@ export function AssigneeField({
   const { user } = useAuth();
   const tc = useTranslations('common');
   const ter = useTranslations('errors');
-  const isAdmin = canAdmin(user);
-
-  const usersQuery = useQuery({
-    queryKey: qk.users,
-    queryFn: () => usersApi.list(),
-    enabled: isAdmin,
-    retry: false,
-  });
-
-  if (!isAdmin) {
-    const rawValue = value === null ? '' : String(value);
-    return (
-      <label className="flex min-w-44 flex-col gap-1">
-        <span className="text-metadata font-medium text-steel-500">{label}</span>
-        <select
-          className="input"
-          value={!allowEmpty && rawValue === '' && allowAll ? 'all' : rawValue}
-          onChange={(e) => {
-            const v = e.target.value;
-            onChange(v === 'me' ? 'me' : v === 'all' ? 'all' : v === '' ? null : Number(v));
-          }}
-        >
-          {allowAll && <option value="all">{tc('all')}</option>}
-          {allowEmpty && <option value="">{tc('unassigned')}</option>}
-          {user && <option value="me">{tc('mineOnly')}</option>}
-        </select>
-      </label>
-    );
-  }
+  const colleagues = useColleagues();
 
   const raw = value === 'me' || value === 'all' ? value : (value ?? '');
   const shown = !allowEmpty && raw === '' && allowAll ? 'all' : raw;
@@ -70,7 +40,7 @@ export function AssigneeField({
       <select
         className="input"
         value={shown}
-        disabled={usersQuery.isLoading}
+        disabled={colleagues.isLoading}
         onChange={(e) => {
           const v = e.target.value;
           onChange(v === 'me' ? 'me' : v === 'all' ? 'all' : v === '' ? null : Number(v));
@@ -79,7 +49,7 @@ export function AssigneeField({
         {allowAll && <option value="all">{tc('all')}</option>}
         {allowEmpty && <option value="">{tc('unassigned')}</option>}
         {user && <option value="me">{tc('mineOnly')}</option>}
-        {usersQuery.data?.items
+        {colleagues.data?.items
           .filter((u) => u.is_active)
           .map((u) => (
             <option key={u.id} value={u.id}>
@@ -87,9 +57,9 @@ export function AssigneeField({
             </option>
           ))}
       </select>
-      {usersQuery.isError && (
+      {colleagues.isError && (
         <span className="text-metadata text-steel-900" role="alert">
-          {errorMessage(usersQuery.error, ter, ter('unknownError'))}
+          {errorMessage(colleagues.error, ter, ter('unknownError'))}
         </span>
       )}
     </label>

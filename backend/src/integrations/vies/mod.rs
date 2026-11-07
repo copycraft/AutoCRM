@@ -260,9 +260,19 @@ impl Transport for HttpTransport {
             .timeout(timeout)
             .send()
             .await
-            .map_err(|e| if e.is_timeout() { "CLIENT_TIMEOUT" } else { "NETWORK_ERROR" }.to_string())?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    "CLIENT_TIMEOUT"
+                } else {
+                    "NETWORK_ERROR"
+                }
+                .to_string()
+            })?;
         let status = response.status().as_u16();
-        let text = response.text().await.map_err(|_| "NETWORK_ERROR".to_string())?;
+        let text = response
+            .text()
+            .await
+            .map_err(|_| "NETWORK_ERROR".to_string())?;
         Ok((status, text))
     }
 }
@@ -323,7 +333,9 @@ pub struct ViesClient<T: Transport = HttpTransport> {
 
 impl<T: Transport> Clone for ViesClient<T> {
     fn clone(&self) -> Self {
-        ViesClient { inner: self.inner.clone() }
+        ViesClient {
+            inner: self.inner.clone(),
+        }
     }
 }
 
@@ -430,7 +442,13 @@ impl<T: Transport> ViesClient<T> {
         let mut retried_requester = false;
         let mut retries = 0u32;
 
-        let finish = |status, error_code: Option<String>, verdict: Option<parse::Verdict>, raw, requester: &Option<(String, String)>, attempts, hints: Vec<String>| {
+        let finish = |status,
+                      error_code: Option<String>,
+                      verdict: Option<parse::Verdict>,
+                      raw,
+                      requester: &Option<(String, String)>,
+                      attempts,
+                      hints: Vec<String>| {
             let v = verdict.unwrap_or(parse::Verdict {
                 valid: false,
                 name: None,
@@ -458,7 +476,15 @@ impl<T: Transport> ViesClient<T> {
             if let Some(d) = deadline {
                 let left = d.saturating_duration_since(Instant::now());
                 if left.is_zero() {
-                    break finish(VatCheckStatus::Unavailable, Some("CLIENT_TIMEOUT".into()), None, serde_json::Value::Null, &requester, attempts, hints);
+                    break finish(
+                        VatCheckStatus::Unavailable,
+                        Some("CLIENT_TIMEOUT".into()),
+                        None,
+                        serde_json::Value::Null,
+                        &requester,
+                        attempts,
+                        hints,
+                    );
                 }
                 timeout = timeout.min(left);
             }
@@ -485,10 +511,19 @@ impl<T: Transport> ViesClient<T> {
             let response = {
                 let gate = self.country_gate(&vat.country_code);
                 let _country = gate.acquire().await.expect("semaphore never closed");
-                let _global = self.inner.global.acquire().await.expect("semaphore never closed");
+                let _global = self
+                    .inner
+                    .global
+                    .acquire()
+                    .await
+                    .expect("semaphore never closed");
                 self.inner
                     .transport
-                    .call(path, Some(serde_json::to_value(&request).expect("serialisable")), timeout)
+                    .call(
+                        path,
+                        Some(serde_json::to_value(&request).expect("serialisable")),
+                        timeout,
+                    )
                     .await
             };
             let (http_status, reply, raw) = match response {
@@ -499,7 +534,13 @@ impl<T: Transport> ViesClient<T> {
                 Err(code) => (None, Reply::Fault(code), serde_json::Value::Null),
             };
             let code = match &reply {
-                Reply::Verdict(v) => if v.valid { "VALID" } else { "INVALID" },
+                Reply::Verdict(v) => {
+                    if v.valid {
+                        "VALID"
+                    } else {
+                        "INVALID"
+                    }
+                }
                 Reply::Fault(c) => c.as_str(),
             };
             tracing::info!(
@@ -513,7 +554,11 @@ impl<T: Transport> ViesClient<T> {
 
             let code = match reply {
                 Reply::Verdict(v) => {
-                    let status = if v.valid { VatCheckStatus::Valid } else { VatCheckStatus::Invalid };
+                    let status = if v.valid {
+                        VatCheckStatus::Valid
+                    } else {
+                        VatCheckStatus::Invalid
+                    };
                     break finish(status, None, Some(v), raw, &requester, attempts, hints);
                 }
                 Reply::Fault(code) => code,
@@ -524,7 +569,15 @@ impl<T: Transport> ViesClient<T> {
                     if code == "IP_BLOCKED" {
                         tracing::error!(alert = true, "VIES has blocked this server's IP address");
                     }
-                    break finish(VatCheckStatus::Error, Some(code), None, raw, &requester, attempts, hints);
+                    break finish(
+                        VatCheckStatus::Error,
+                        Some(code),
+                        None,
+                        raw,
+                        &requester,
+                        attempts,
+                        hints,
+                    );
                 }
                 Class::RequesterRejected => {
                     if requester.is_some() && !retried_requester {
@@ -537,7 +590,15 @@ impl<T: Transport> ViesClient<T> {
                         // Not a VIES-side failure: retry at once, outside the attempt budget.
                         continue;
                     }
-                    break finish(VatCheckStatus::Error, Some(code), None, raw, &requester, attempts, hints);
+                    break finish(
+                        VatCheckStatus::Error,
+                        Some(code),
+                        None,
+                        raw,
+                        &requester,
+                        attempts,
+                        hints,
+                    );
                 }
                 Class::RetryOnce => {
                     let first = !retried_unknown;
@@ -546,7 +607,10 @@ impl<T: Transport> ViesClient<T> {
                 }
                 Class::Retry => {
                     if code == "MS_UNAVAILABLE"
-                        && self.status().await.is_some_and(|s| s.is_down(&vat.country_code))
+                        && self
+                            .status()
+                            .await
+                            .is_some_and(|s| s.is_down(&vat.country_code))
                     {
                         false
                     } else {
@@ -555,15 +619,35 @@ impl<T: Transport> ViesClient<T> {
                 }
             };
             if !retry || retries + 1 >= config.max_attempts {
-                break finish(VatCheckStatus::Unavailable, Some(code), None, raw, &requester, attempts, hints);
+                break finish(
+                    VatCheckStatus::Unavailable,
+                    Some(code),
+                    None,
+                    raw,
+                    &requester,
+                    attempts,
+                    hints,
+                );
             }
 
             let step = config.backoff_base * 2u32.pow(retries);
             let jitter_cap = (config.backoff_base / 2).as_millis() as u64;
-            let jitter = Duration::from_millis(if jitter_cap == 0 { 0 } else { rand::rng().random_range(0..=jitter_cap) });
+            let jitter = Duration::from_millis(if jitter_cap == 0 {
+                0
+            } else {
+                rand::rng().random_range(0..=jitter_cap)
+            });
             let wait = step + jitter;
             if deadline.is_some_and(|d| Instant::now() + wait >= d) {
-                break finish(VatCheckStatus::Unavailable, Some(code), None, raw, &requester, attempts, hints);
+                break finish(
+                    VatCheckStatus::Unavailable,
+                    Some(code),
+                    None,
+                    raw,
+                    &requester,
+                    attempts,
+                    hints,
+                );
             }
             retries += 1;
             tokio::time::sleep(wait).await;

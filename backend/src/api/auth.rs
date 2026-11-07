@@ -14,7 +14,7 @@ use super::extract::{
 };
 use super::{Items, optional};
 use crate::AppState;
-use crate::domain::role::{Capability, Role};
+use crate::domain::role::{Capability, Role, holds};
 use crate::domain::{ics, totp};
 use crate::error::{AppError, AppResult};
 use crate::integrations::google;
@@ -96,12 +96,7 @@ impl SessionUser {
                 let grants = auth::parse_permissions(&user.permissions);
                 Capability::ALL
                     .into_iter()
-                    .filter(|c| {
-                        user.role == Role::Admin
-                            || grid.contains(c)
-                            || (*c == Capability::AccessHr && user.hr_access)
-                            || grants.contains(c)
-                    })
+                    .filter(|c| holds(user.role, Some(grid), user.hr_access, &grants, *c))
                     .collect()
             },
         }
@@ -123,6 +118,40 @@ impl From<AuthUser> for SessionUser {
             capabilities,
         }
     }
+}
+
+/// The signed-in user for a session just opened: the role's set as the admin's grid has it.
+/// Shared by the password login and the invitation page (`api::onboarding`).
+pub(super) async fn session_user(
+    state: &AppState,
+    user: &User,
+    kind: SessionKind,
+) -> AppResult<SessionUser> {
+    let grid: Vec<String> =
+        sqlx::query_scalar("SELECT capability FROM role_permissions WHERE role = $1")
+            .bind(user.role)
+            .fetch_all(&state.db)
+            .await?;
+    Ok(SessionUser::from_user(
+        user,
+        kind,
+        &auth::parse_permissions(&grid),
+    ))
+}
+
+/// The httpOnly cookie a web sign-in sets. Until the absolute cap, not `expires_at`: the
+/// cookie is never re-issued, and the server's sliding `expires_at` already enforces the
+/// idle timeout.
+pub(super) fn session_cookie(state: &AppState, token: String) -> Cookie<'static> {
+    let now = chrono::Utc::now();
+    let max_age = auth::cookie_max_age_secs(SessionKind::Web, now, now);
+    Cookie::build((SESSION_COOKIE, token))
+        .http_only(true)
+        .secure(state.config.cookie_secure)
+        .same_site(SameSite::Lax)
+        .path("/")
+        .max_age(cookie::time::Duration::seconds(max_age))
+        .build()
 }
 
 #[derive(Serialize, ToSchema)]
@@ -184,25 +213,10 @@ async fn login(
     )
     .await;
 
-    let grid: Vec<String> =
-        sqlx::query_scalar("SELECT capability FROM role_permissions WHERE role = $1")
-            .bind(outcome.user.role)
-            .fetch_all(&state.db)
-            .await?;
-    let user = SessionUser::from_user(&outcome.user, body.client, &auth::parse_permissions(&grid));
+    let user = session_user(&state, &outcome.user, body.client).await?;
     match body.client {
         SessionKind::Web => {
-            // Until the absolute cap, not `expires_at`: the cookie is never re-issued, and
-            // the server's sliding `expires_at` already enforces the idle timeout.
-            let now = chrono::Utc::now();
-            let max_age = auth::cookie_max_age_secs(SessionKind::Web, now, now);
-            let cookie = Cookie::build((SESSION_COOKIE, outcome.token))
-                .http_only(true)
-                .secure(state.config.cookie_secure)
-                .same_site(SameSite::Lax)
-                .path("/")
-                .max_age(cookie::time::Duration::seconds(max_age))
-                .build();
+            let cookie = session_cookie(&state, outcome.token);
             Ok((
                 jar.add(cookie),
                 Json(LoginResponse {
@@ -319,6 +333,7 @@ fn default_preferences(user_id: i64) -> UserSettings {
         density: "comfortable".into(),
         page_size: 50,
         email_signature: None,
+        theme: "system".into(),
         // Not "now": no row exists, so there is no update time to report.
         updated_at: DateTime::default(),
     }
@@ -344,6 +359,8 @@ struct PreferencesBody {
     page_size: Option<i32>,
     /// Absent keeps it; empty removes it.
     email_signature: Option<String>,
+    /// `system`, `light` or `dark` (0066). Absent keeps it.
+    theme: Option<String>,
 }
 
 #[utoipa::path(
@@ -381,12 +398,15 @@ async fn put_preferences(
             (!s.trim().is_empty()).then_some(s)
         }
     };
+    let theme = b.theme.unwrap_or(current.theme);
+    crate::service::onboarding::check_theme(&theme)?;
     let saved = config::upsert_user_settings(
         &state.db,
         user.user_id,
         &density,
         page_size,
         signature.as_deref(),
+        &theme,
     )
     .await?;
     Ok(Json(saved))
@@ -554,15 +574,7 @@ async fn google_callback(
     };
     tracing::info!(user_id, session_id = outcome.session_id, "login via google");
     alert_new_device(&state, &outcome, None, ua.as_deref(), ip.as_deref()).await;
-    let now = Utc::now();
-    let max_age = auth::cookie_max_age_secs(SessionKind::Web, now, now);
-    let cookie = Cookie::build((SESSION_COOKIE, outcome.token))
-        .http_only(true)
-        .secure(state.config.cookie_secure)
-        .same_site(SameSite::Lax)
-        .path("/")
-        .max_age(cookie::time::Duration::seconds(max_age))
-        .build();
+    let cookie = session_cookie(&state, outcome.token);
     (jar.add(cookie), login_page(&state, None)).into_response()
 }
 

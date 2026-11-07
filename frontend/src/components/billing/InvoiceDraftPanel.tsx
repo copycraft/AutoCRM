@@ -300,7 +300,7 @@ function InvoicePaper({ preview: p }: { preview: InvoicePreview }) {
   const method = lookups?.invoice_payment_methods?.find((m) => m.key === p.payment_method)?.label_hu ?? p.payment_method;
   return (
     <div className="card overflow-hidden">
-      <div className="flex items-center justify-between bg-steel-900 px-4 py-3 text-white">
+      <div className="flex items-center justify-between bg-steel-900 px-4 py-3 text-surface">
         <span className="font-semibold tracking-wide">{t('draftPaperTitle')}</span>
         <span className="text-metadata opacity-80">{t('draftPaperNotIssued')}</span>
       </div>

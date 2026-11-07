@@ -96,6 +96,8 @@ internal val ERROR_TEXT: Map<String, String> = mapOf(
     "totp_required" to "Adja meg a hitelesítő alkalmazás hatjegyű kódját is.",
     "totp_invalid" to "Hibás vagy már felhasznált egyszer használatos kód.",
     "last_admin" to "Az utolsó aktív adminisztrátor nem tiltható le.",
+    "invite_used" to "Ezt a meghívó linket már felhasználták. Jelentkezzen be, vagy kérjen újat a rendszergazdától.",
+    "invite_expired" to "Ez a meghívó link lejárt. Kérjen újat a rendszergazdától.",
     "stage_gate" to "A megrendelés nem léphet tovább, mert egy szükséges feltétel még nem teljesült.",
     "note_required" to "A visszalépéshez indoklás szükséges.",
     "invalid_transition" to "Ez a fázisváltás nem engedélyezett.",

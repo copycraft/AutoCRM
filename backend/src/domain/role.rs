@@ -96,9 +96,11 @@ pub enum Capability {
     /// Technically annul a data report. Admin only: it says the report should never have
     /// existed, and a person then has to approve it in NAV's own portal.
     AnnulInvoices,
-    /// The HR module: the staff directory with personal phone numbers. Admins always have
-    /// it; anyone else needs the per-user `hr_access` flag an admin sets, which is checked
-    /// in `AuthUser`, because a role alone cannot say it.
+    /// The HR module: the staff directory with personal phone numbers, the documents and
+    /// the checklists. Admins always have it; anyone else needs the per-user `hr_access`
+    /// flag an admin sets, which is checked in [`holds`], because a role alone cannot say
+    /// it. The flag also brings [`ManageLeave`](Capability::ManageLeave) and
+    /// [`ManageRecruitment`](Capability::ManageRecruitment): the whole module.
     AccessHr,
     /// Write comments on orders and leads. The shop floor talks about jobs too, so
     /// designers may; viewers read only.
@@ -120,10 +122,17 @@ pub enum Capability {
     /// Átvétel and átadás: the walkaround protocols when a vehicle comes in and goes back,
     /// signatures included (0063). Was `ChangeStages`; taking a car in is not planning it.
     HandleHandovers,
+    /// Leave and absences: record them, attach the doctor's note, read the yearly summary.
+    /// The staff list comes with it by name only — no phone numbers, no documents — so a
+    /// workshop head can keep their people's leave without the rest of HR.
+    ManageLeave,
+    /// Recruitment: job listings, their ads and what they cost, and the applicants with
+    /// their resumes. An office hand can run the hiring without the staff directory.
+    ManageRecruitment,
 }
 
 impl Capability {
-    pub const ALL: [Capability; 25] = {
+    pub const ALL: [Capability; 27] = {
         use Capability::*;
         [
             ManageUsers,
@@ -151,6 +160,8 @@ impl Capability {
             ViewBusinessReports,
             ViewAllModules,
             HandleHandovers,
+            ManageLeave,
+            ManageRecruitment,
         ]
     };
 
@@ -159,6 +170,14 @@ impl Capability {
     /// admin role itself. Not `AccessHr` either: that has its own `hr_access` flag.
     pub fn grantable(self) -> bool {
         !matches!(self, Capability::ManageUsers | Capability::AccessHr)
+    }
+
+    /// What the per-user `hr_access` flag gives: the whole HR module, its parts included.
+    pub fn comes_with_hr_access(self) -> bool {
+        matches!(
+            self,
+            Capability::AccessHr | Capability::ManageLeave | Capability::ManageRecruitment
+        )
     }
 
     /// The stored and serialized name, e.g. `edit_orders`.
@@ -182,7 +201,7 @@ impl Role {
         use Role::*;
         match capability {
             ManageUsers | ManageSettings | ManageConfiguration | OperateSystem | AnnulInvoices
-            | AccessHr => matches!(self, Admin),
+            | AccessHr | ManageLeave | ManageRecruitment => matches!(self, Admin),
             EditOrders | DeleteMedia | ViewOriginalImages => matches!(self, Admin | Office),
             EditLeads => matches!(self, Admin | Office | Sales),
             EditPartners | SendEmail => matches!(self, Admin | Office | Sales | Accountant),
@@ -212,11 +231,35 @@ impl Role {
     }
 }
 
+/// Whether a person holds a capability — the one rule the session check and the `me`
+/// response both use, so the screens show exactly what the API will accept.
+///
+/// - Admins hold everything (they are not in the grid: nobody can untick the last admin).
+/// - Otherwise the role's set: the admin's grid when loaded (`grid`), else the defaults.
+/// - `hr_access` brings the HR module ([`Capability::comes_with_hr_access`]).
+/// - Per-user grants add any [`Capability::grantable`] one.
+pub fn holds(
+    role: Role,
+    grid: Option<&[Capability]>,
+    hr_access: bool,
+    grants: &[Capability],
+    capability: Capability,
+) -> bool {
+    let from_role = match (grid, role) {
+        (_, Role::Admin) => true,
+        (Some(grid), _) => grid.contains(&capability),
+        (None, role) => role.can(capability),
+    };
+    from_role
+        || (hr_access && capability.comes_with_hr_access())
+        || (capability.grantable() && grants.contains(&capability))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const WRITES: [Capability; 17] = {
+    const WRITES: [Capability; 19] = {
         use Capability::*;
         [
             ManageUsers,
@@ -236,8 +279,52 @@ mod tests {
             AnnulInvoices,
             AccessHr,
             Comment,
+            ManageLeave,
+            ManageRecruitment,
         ]
     };
+
+    #[test]
+    fn hr_access_brings_the_whole_module_and_its_parts_can_be_granted_alone() {
+        use Capability::*;
+        let none: &[Capability] = &[];
+        for cap in [AccessHr, ManageLeave, ManageRecruitment] {
+            assert!(holds(Role::Office, Some(none), true, none, cap), "{cap:?}");
+            assert!(
+                !holds(Role::Office, Some(none), false, none, cap),
+                "{cap:?}"
+            );
+        }
+        assert!(!holds(Role::Office, Some(none), true, none, ViewPrices));
+
+        // A workshop head with leave only: not the directory, not the hiring.
+        let leave = [ManageLeave];
+        assert!(holds(
+            Role::Designer,
+            Some(none),
+            false,
+            &leave,
+            ManageLeave
+        ));
+        assert!(!holds(Role::Designer, Some(none), false, &leave, AccessHr));
+        assert!(!holds(
+            Role::Designer,
+            Some(none),
+            false,
+            &leave,
+            ManageRecruitment
+        ));
+
+        // AccessHr is the flag's alone: a stored grant of it does nothing.
+        assert!(!holds(
+            Role::Office,
+            Some(none),
+            false,
+            &[AccessHr],
+            AccessHr
+        ));
+        assert!(ManageLeave.grantable() && ManageRecruitment.grantable());
+    }
 
     #[test]
     fn viewer_cannot_write_anything_and_admin_has_everything() {

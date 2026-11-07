@@ -184,7 +184,7 @@ export function YardCanvas({ canMove, canConfigure }: { canMove: boolean; canCon
                 disabled={disabled}
                 className={cn(
                   'rounded-md px-3 py-1 text-sm font-medium transition-colors',
-                  tool === tl ? 'bg-steel-900 text-white' : 'text-steel-600 hover:bg-steel-100',
+                  tool === tl ? 'bg-steel-900 text-surface' : 'text-steel-600 hover:bg-steel-100',
                   disabled && 'cursor-not-allowed opacity-40 hover:bg-transparent',
                 )}
                 onClick={() => setTool(tl)}

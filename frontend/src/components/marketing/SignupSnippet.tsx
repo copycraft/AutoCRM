@@ -29,7 +29,7 @@ export function SignupSnippet({ tagId, tagLabel }: { tagId: number; tagLabel: st
     <div className="mt-4 border-t border-steel-200 pt-4" data-testid="signup-snippet">
       <h3 className="text-body font-semibold">{t('signupTitle', { tag: tagLabel })}</h3>
       <p className="mb-2 text-metadata text-steel-500">{t('signupHint')}</p>
-      <pre className="max-h-48 overflow-auto rounded-lg bg-steel-900 p-2 font-mono text-[11px] leading-snug text-white">{code}</pre>
+      <pre className="max-h-48 overflow-auto rounded-lg bg-steel-900 p-2 font-mono text-[11px] leading-snug text-surface">{code}</pre>
       <button
         type="button"
         className="btn-ghost btn-sm mt-2"

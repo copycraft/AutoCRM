@@ -225,6 +225,20 @@ pub const ERROR_CODES: &[ErrorCode] = &[
         "Az utolsó aktív adminisztrátor nem tiltható le.",
         "The last active admin cannot be deactivated.",
     ),
+    code(
+        "invite_used",
+        422,
+        false,
+        "Ezt a meghívó linket már felhasználták. Jelentkezzen be, vagy kérjen újat a rendszergazdától.",
+        "This invitation link was already used.",
+    ),
+    code(
+        "invite_expired",
+        422,
+        false,
+        "Ez a meghívó link lejárt. Kérjen újat a rendszergazdától.",
+        "This invitation link has expired.",
+    ),
     // Stages and leads.
     code(
         "stage_gate",

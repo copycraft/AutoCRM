@@ -13,6 +13,7 @@ pub mod media;
 pub mod modules;
 pub mod newsletter;
 pub mod notifications;
+pub mod onboarding;
 pub mod orders;
 pub mod questionnaire;
 pub mod relocate;
@@ -21,6 +22,7 @@ pub mod repeat_order;
 pub mod secrets;
 pub mod stages;
 pub mod vat;
+pub mod visibility;
 pub mod weekly_report;
 
 use chrono::{NaiveDate, Utc};

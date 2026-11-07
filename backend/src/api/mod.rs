@@ -33,10 +33,11 @@ pub mod modules;
 pub mod newsletter;
 pub mod newsletter_tags;
 pub mod notifications;
+pub mod onboarding;
 pub mod openapi;
 pub mod orders;
-pub mod questionnaire;
 pub mod partners;
+pub mod questionnaire;
 pub mod raw_import;
 pub mod recruitment;
 pub mod reports;
@@ -48,7 +49,6 @@ pub mod timeline;
 pub mod users;
 pub mod vat;
 pub mod vehicles;
-pub mod visibility;
 pub mod yard;
 
 use std::time::Duration;
@@ -117,6 +117,8 @@ pub fn api_routes() -> OpenApiRouter<AppState> {
         // 0049
         .merge(ads::routes())
         .merge(vat::routes())
+        // 0066
+        .merge(onboarding::routes())
 }
 
 pub fn router(state: AppState) -> Router {

@@ -974,7 +974,10 @@ pub async fn annul_invoice(
             ANNULMENT_CODES.join(", ")
         )));
     }
-    let reason = crate::api::required("reason", &req.reason)?;
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        return Err(AppError::validation("reason is required"));
+    }
 
     let mut tx = state.db.begin().await?;
     let invoice = invoices::lock(&mut tx, invoice_id)

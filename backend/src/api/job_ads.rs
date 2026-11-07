@@ -1,6 +1,6 @@
 //! Job ads (0064): a job listing run as ads on Facebook, Instagram, Google…, each with its
 //! own tracked link, and our own numbers on which ad brings visits and applicants. Nothing
-//! is sent to the ad platforms. HR work: `AccessHr`, like the listings themselves.
+//! is sent to the ad platforms. HR work: `ManageRecruitment`, like the listings.
 
 use axum::Json;
 use axum::extract::State;
@@ -114,7 +114,7 @@ async fn list_ads(
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<JobAdsReport>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let posting = recruitment::find_posting(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("job"))?;
@@ -194,7 +194,7 @@ async fn create_ad(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<JobAdBody>,
 ) -> AppResult<(StatusCode, Json<JobAdView>)> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let posting = recruitment::find_posting(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("job"))?;
@@ -232,7 +232,7 @@ async fn update_ad(
     ApiPath(id): ApiPath<i64>,
     ApiJson(b): ApiJson<JobAdBody>,
 ) -> AppResult<Json<JobAdView>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageRecruitment)?;
     let current = job_ads::find(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("job ad"))?;

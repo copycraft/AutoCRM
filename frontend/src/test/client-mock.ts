@@ -12,6 +12,9 @@ const EXACT: Record<string, Handler> = {
   '/auth/preferences': () => f.userSettings,
   '/auth/sessions': () => ({ items: [] }),
   '/users': () => ({ items: [f.user, f.officeUser] }),
+  '/colleagues': () => ({
+    items: [f.user, f.officeUser].map((u) => ({ id: u.id, display_name: u.display_name, role: u.role, is_active: u.is_active })),
+  }),
   '/roles': () => ({ items: [] }),
   '/departments': () => ({ items: [] }),
   '/departments/members': () => ({ items: [] }),

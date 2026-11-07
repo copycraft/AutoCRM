@@ -69,11 +69,16 @@ pub fn split_address(address: &str) -> AddressParts {
         postal_code = Some(caps[1].to_string());
         parts.remove(i);
         // The city is then the line without digits.
-        if let Some(j) = parts.iter().position(|p| !p.chars().any(|c| c.is_ascii_digit())) {
+        if let Some(j) = parts
+            .iter()
+            .position(|p| !p.chars().any(|c| c.is_ascii_digit()))
+        {
             city = Some(parts.remove(j));
         }
     } else if parts.len() >= 2
-        && parts.last().is_some_and(|p| p.chars().next().is_some_and(char::is_alphabetic))
+        && parts
+            .last()
+            .is_some_and(|p| p.chars().next().is_some_and(char::is_alphabetic))
     {
         // No postal code at all (Irish addresses often end "..., DUBLIN 4"): the last part
         // is the town.
@@ -107,11 +112,19 @@ mod tests {
         );
         assert_eq!(
             split_address("1055 BUDAPEST, KOSSUTH LAJOS TÉR 1-3. "),
-            s(Some("1055"), Some("BUDAPEST"), Some("KOSSUTH LAJOS TÉR 1-3."))
+            s(
+                Some("1055"),
+                Some("BUDAPEST"),
+                Some("KOSSUTH LAJOS TÉR 1-3.")
+            )
         );
         assert_eq!(
             split_address("KOSSUTH LAJOS TÉR 1-3.\nBUDAPEST\n1055"),
-            s(Some("1055"), Some("BUDAPEST"), Some("KOSSUTH LAJOS TÉR 1-3."))
+            s(
+                Some("1055"),
+                Some("BUDAPEST"),
+                Some("KOSSUTH LAJOS TÉR 1-3.")
+            )
         );
         assert_eq!(
             split_address("VIA ROMA 1 \n00100 ROMA RM\n"),
@@ -131,7 +144,11 @@ mod tests {
     fn without_a_postal_code_the_last_part_is_the_town() {
         assert_eq!(
             split_address("3RD FLOOR, GORDON HOUSE, BARROW STREET, DUBLIN 4"),
-            s(None, Some("DUBLIN 4"), Some("3RD FLOOR, GORDON HOUSE, BARROW STREET"))
+            s(
+                None,
+                Some("DUBLIN 4"),
+                Some("3RD FLOOR, GORDON HOUSE, BARROW STREET")
+            )
         );
     }
 

@@ -3,6 +3,8 @@
 use chrono::{DateTime, Utc};
 use sqlx::PgExecutor;
 
+use crate::domain::role::Capability;
+
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct NotificationRow {
     pub id: i64,
@@ -14,48 +16,40 @@ pub struct NotificationRow {
     pub read_at: Option<DateTime<Utc>>,
 }
 
-/// One notification for every active user whose role is in `roles`. Returns how many.
+/// One notification for every active user who holds `need`. Returns how many.
+///
+/// The audience is a right, not a list of roles: whoever the admin's grid or a per-user
+/// grant lets do the work hears about it, and nobody else. The rule is
+/// `domain::role::holds`, in SQL — admins; the role's set in the grid; per-user grants of a
+/// grantable one; `hr_access` for the HR module and its parts.
 pub async fn broadcast(
     db: impl PgExecutor<'_>,
-    roles: &[&str],
+    need: Capability,
     kind: &str,
     title: &str,
     body: Option<&str>,
     link: Option<&str>,
 ) -> sqlx::Result<u64> {
-    let roles: Vec<String> = roles.iter().map(|r| r.to_string()).collect();
+    // Null for one that cannot be granted (AccessHr, ManageUsers): neither the grid nor a
+    // grant can hold it, so only admins and, for HR, the flag count.
+    let grantable = need.grantable().then(|| need.key());
     let result = sqlx::query(
         "INSERT INTO notifications (user_id, kind, title, body, link)
-         SELECT id, $2, $3, $4, $5 FROM users WHERE is_active AND role::text = ANY($1)",
-    )
-    .bind(roles)
-    .bind(kind)
-    .bind(title)
-    .bind(body)
-    .bind(link)
-    .execute(db)
-    .await?;
-    Ok(result.rows_affected())
-}
-
-/// One notification for every active user who can open the HR module: admins, and users an
-/// admin gave `hr_access`. Returns how many.
-pub async fn broadcast_hr(
-    db: impl PgExecutor<'_>,
-    kind: &str,
-    title: &str,
-    body: Option<&str>,
-    link: Option<&str>,
-) -> sqlx::Result<u64> {
-    let result = sqlx::query(
-        "INSERT INTO notifications (user_id, kind, title, body, link)
-         SELECT id, $1, $2, $3, $4 FROM users
-         WHERE is_active AND (role::text = 'admin' OR hr_access)",
+         SELECT u.id, $1, $2, $3, $4 FROM users u
+         WHERE u.is_active AND (
+             u.role::text = 'admin'
+             OR ($6 AND u.hr_access)
+             OR $5 = ANY(u.permissions)
+             OR EXISTS (SELECT 1 FROM role_permissions rp
+                        WHERE rp.role = u.role AND rp.capability = $5)
+         )",
     )
     .bind(kind)
     .bind(title)
     .bind(body)
     .bind(link)
+    .bind(grantable)
+    .bind(need.comes_with_hr_access())
     .execute(db)
     .await?;
     Ok(result.rows_affected())

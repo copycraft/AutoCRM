@@ -114,21 +114,35 @@ mod tests {
     #[test]
     fn dashes_become_none() {
         let body = r#"{"valid":true,"name":"---","address":"---","requestIdentifier":""}"#;
-        let (Reply::Verdict(v), _) = parse_check_reply(200, body) else { panic!() };
-        assert_eq!((v.name, v.address, v.request_identifier), (None, None, None));
+        let (Reply::Verdict(v), _) = parse_check_reply(200, body) else {
+            panic!()
+        };
+        assert_eq!(
+            (v.name, v.address, v.request_identifier),
+            (None, None, None)
+        );
     }
 
     #[test]
     fn invalid_number_is_a_verdict() {
-        let (Reply::Verdict(v), _) = parse_check_reply(200, r#"{"valid":false}"#) else { panic!() };
+        let (Reply::Verdict(v), _) = parse_check_reply(200, r#"{"valid":false}"#) else {
+            panic!()
+        };
         assert!(!v.valid);
     }
 
     #[test]
     fn error_wrappers_win_over_http_status() {
-        let body = r#"{"actionSucceed":false,"errorWrappers":[{"error":"MS_UNAVAILABLE","message":"x"}]}"#;
-        assert_eq!(parse_check_reply(200, body).0, Reply::Fault("MS_UNAVAILABLE".into()));
-        assert_eq!(parse_check_reply(500, body).0, Reply::Fault("MS_UNAVAILABLE".into()));
+        let body =
+            r#"{"actionSucceed":false,"errorWrappers":[{"error":"MS_UNAVAILABLE","message":"x"}]}"#;
+        assert_eq!(
+            parse_check_reply(200, body).0,
+            Reply::Fault("MS_UNAVAILABLE".into())
+        );
+        assert_eq!(
+            parse_check_reply(500, body).0,
+            Reply::Fault("MS_UNAVAILABLE".into())
+        );
     }
 
     #[test]
@@ -144,6 +158,9 @@ mod tests {
             parse_check_reply(200, r#"{"countryCode":"HU"}"#).0,
             Reply::Fault("PARSE_ERROR".into())
         );
-        assert_eq!(parse_check_reply(200, "not json").0, Reply::Fault("PARSE_ERROR".into()));
+        assert_eq!(
+            parse_check_reply(200, "not json").0,
+            Reply::Fault("PARSE_ERROR".into())
+        );
     }
 }

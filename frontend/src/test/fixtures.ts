@@ -83,6 +83,8 @@ export const sessionUser: SessionUser = {
     'view_business_reports',
     'view_all_modules',
     'handle_handovers',
+    'manage_leave',
+    'manage_recruitment',
   ],
 };
 
@@ -104,6 +106,7 @@ export const userSettings: UserSettings = {
   user_id: 1,
   density: 'comfortable',
   page_size: 25,
+  theme: 'system',
   updated_at: NOW,
 };
 

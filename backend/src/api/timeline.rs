@@ -75,11 +75,11 @@ async fn history(
     let limit = q.limit.unwrap_or(300).clamp(1, 1000);
     let mut events = timeline::list(&state.db, entity, id, limit).await?;
     // What this person may not see is left out of the history too (0061).
-    events.retain(|e| super::visibility::history_entry_visible(&me, &e.kind, &e.action));
+    events.retain(|e| crate::service::visibility::history_entry_visible(&me, &e.kind, &e.action));
     if !me.can(Capability::ViewPrices) {
         events
             .iter_mut()
-            .for_each(|e| super::visibility::scrub_money(&mut e.changes));
+            .for_each(|e| crate::service::visibility::scrub_money(&mut e.changes));
     }
 
     let users = ids_in(&events, USER_FIELDS);

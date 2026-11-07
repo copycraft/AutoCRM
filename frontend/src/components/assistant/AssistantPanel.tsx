@@ -46,7 +46,7 @@ export function AssistantPanel() {
       {!open && (
         <button
           type="button"
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-steel-900 px-4 py-3 text-body font-medium text-white shadow-lg hover:bg-steel-900/90"
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-steel-900 px-4 py-3 text-body font-medium text-surface shadow-lg hover:bg-steel-900/90"
           onClick={() => setOpen(true)}
           aria-label={t('title')}
         >
@@ -185,7 +185,7 @@ function TurnView({ turn, onNavigate }: { turn: Turn; onNavigate: () => void }) 
   const t = useTranslations('assistant');
   if (turn.role === 'user') {
     return (
-      <div className="ml-10 rounded-2xl rounded-br-sm bg-steel-900 px-3 py-2 text-body text-white whitespace-pre-wrap">
+      <div className="ml-10 rounded-2xl rounded-br-sm bg-steel-900 px-3 py-2 text-body text-surface whitespace-pre-wrap">
         {turn.content}
       </div>
     );

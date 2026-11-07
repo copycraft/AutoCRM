@@ -2,15 +2,13 @@
 
 use sqlx::PgPool;
 
+use crate::domain::role::Capability;
 use crate::error::AppResult;
 use crate::repo::leads::Lead;
 use crate::repo::notifications;
 
 /// Notifications older than this are deleted whenever a new one is raised.
 const KEEP_DAYS: i32 = 60;
-
-/// Who is told about a new lead: everyone who can edit leads (admins and office).
-const LEAD_AUDIENCE: &[&str] = &["admin", "office"];
 
 fn short(text: &str, max: usize) -> String {
     let text = text.trim();
@@ -21,7 +19,7 @@ fn short(text: &str, max: usize) -> String {
     format!("{}…", cut.trim_end())
 }
 
-/// A lead came in from the website: tell the people who work leads.
+/// A lead came in from the website: tell the people who work leads (`EditLeads`).
 pub async fn lead_arrived(db: &PgPool, lead: &Lead) -> AppResult<u64> {
     let who = lead.contact_name.as_deref().unwrap_or("Ismeretlen");
     let body = match lead
@@ -35,7 +33,7 @@ pub async fn lead_arrived(db: &PgPool, lead: &Lead) -> AppResult<u64> {
     };
     let n = notifications::broadcast(
         db,
-        LEAD_AUDIENCE,
+        Capability::EditLeads,
         "lead",
         "Új érdeklődés a weboldalról",
         Some(&body),
@@ -46,15 +44,17 @@ pub async fn lead_arrived(db: &PgPool, lead: &Lead) -> AppResult<u64> {
     Ok(n)
 }
 
-/// Someone applied through a job listing's form: tell the people who work in HR.
+/// Someone applied through a job listing's form: tell the people who do the hiring
+/// (`ManageRecruitment`, which `hr_access` brings too).
 pub async fn application_arrived(
     db: &PgPool,
     posting_id: i64,
     job_title: &str,
     applicant: &str,
 ) -> AppResult<u64> {
-    let n = notifications::broadcast_hr(
+    let n = notifications::broadcast(
         db,
+        Capability::ManageRecruitment,
         "application",
         "Új jelentkezés",
         Some(&format!("{applicant}: {}", short(job_title, 120))),
@@ -66,7 +66,8 @@ pub async fn application_arrived(
 }
 
 /// The monthly VIES re-check found a partner's EU VAT number no longer valid: reverse
-/// charge and intra-EU supply to them are off until someone sorts it out.
+/// charge and intra-EU supply to them are off until someone sorts it out: the people who
+/// invoice (`IssueInvoices`), since the 0% EU invoice is what stops.
 pub async fn vat_number_invalidated(
     db: &PgPool,
     partner: &crate::repo::partners::Partner,
@@ -74,7 +75,7 @@ pub async fn vat_number_invalidated(
 ) -> AppResult<u64> {
     let n = notifications::broadcast(
         db,
-        LEAD_AUDIENCE,
+        Capability::IssueInvoices,
         "vat_invalid",
         "Érvénytelenné vált EU adószám",
         Some(&format!(

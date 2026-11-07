@@ -30,6 +30,14 @@ export const authApi = {
 // ── Users (admin) ──
 export const usersApi = {
   list: (): Promise<S['Items_User']> => request('/users', s.zUsersListResponse),
+  /** Everyone's name, for any signed-in user (assignees, "sent by"); `list` is admin-only. */
+  colleagues: (): Promise<S['Items_Colleague']> => request('/colleagues', s.zUsersColleaguesResponse),
+  /** A new account set up by its owner: the invitation letter goes out at once (0066). */
+  invite: (body: S['InviteUser']): Promise<S['Invited']> =>
+    request('/users/invite', s.zUsersInviteUserResponse, { method: 'POST', body }),
+  /** The letter again with a new link; older links stop working. */
+  resendInvite: (id: number): Promise<S['InviteSent']> =>
+    request(`/users/${id}/invite`, s.zUsersResendInviteResponse, { method: 'POST' }),
   // 0061: what each role may see and do, as the admin's grid has it.
   roles: (): Promise<S['Items_RoleGrid']> => request('/roles', s.zUsersListRolesResponse),
   setRole: (role: string, capabilities: S['Capability'][]): Promise<S['RoleGrid']> =>
@@ -717,6 +725,15 @@ export const incidentsApi = {
 // ── Batch 0049 ──────────────────────────────────────────────────────────────
 
 // Sign-in methods, two-factor sign-in and the calendar feed (own account).
+/** The invitation page (0066): no sign-in, the link's token is the proof. */
+export const onboardingApi = {
+  info: (token: string): Promise<S['InviteInfo']> =>
+    request(`/onboarding/${encodeURIComponent(token)}`, s.zAuthInviteInfoResponse),
+  /** Sets the look and the password, and signs this browser in (session cookie). */
+  accept: (token: string, body: S['AcceptInvite']): Promise<S['Welcome']> =>
+    request(`/onboarding/${encodeURIComponent(token)}`, s.zAuthAcceptInviteResponse, { method: 'POST', body }),
+};
+
 export const accountApi = {
   providers: (): Promise<S['Providers']> => request('/auth/providers', s.zAuthProvidersResponse),
   twoFactor: (): Promise<S['TwoFactorStatus']> => request('/auth/two-factor', s.zAuthTwoFactorStatusResponse),

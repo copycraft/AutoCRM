@@ -13,6 +13,8 @@ import { errorMessage } from '@/lib/api/errors';
 import { usePreferences } from '@/hooks/usePreferences';
 import type { UserSettings } from '@/lib/api/types';
 import { CalendarCard, SignatureCard, TwoFactorCard } from '@/components/account/AccountSecurity';
+import { ThemePicker } from '@/components/account/ThemePicker';
+import { isTheme, type Theme } from '@/lib/theme';
 
 export default function PreferencesPage() {
   const t = useTranslations('preferences');
@@ -47,6 +49,7 @@ export default function PreferencesPage() {
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
         <div className="space-y-4">
+        <ThemeCard initial={query.data} />
         <PreferencesForm
           initial={query.data}
           savedTick={savedTick}
@@ -60,6 +63,43 @@ export default function PreferencesPage() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+/** The look: applied the moment it is picked, saved with the preferences right away. */
+function ThemeCard({ initial }: { initial: UserSettings }) {
+  const t = useTranslations('theme');
+  const ter = useTranslations('errors');
+  const qc = useQueryClient();
+  const [theme, setTheme] = useState<Theme>(isTheme(initial.theme) ? initial.theme : 'system');
+  const [error, setError] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: (next: Theme) => authApi.savePreferences({ theme: next }),
+    onSuccess: (prefs) => {
+      setError(null);
+      qc.setQueryData(qk.preferences, prefs);
+    },
+    onError: (e) => setError(errorMessage(e, ter, ter('unknownError'))),
+  });
+  return (
+    <section className="card">
+      <div className="card-header">
+        <h2 className="text-section font-semibold">{t('label')}</h2>
+        <p className="text-metadata text-steel-500">{t('hint')}</p>
+      </div>
+      <div className="card-content space-y-3">
+        <ThemePicker
+          value={theme}
+          onChange={(next) => {
+            setTheme(next);
+            save.mutate(next);
+          }}
+        />
+        {error && (
+          <p className="rounded-lg bg-steel-200/50 px-3 py-2 text-body text-steel-900" role="alert">{error}</p>
+        )}
+      </div>
+    </section>
   );
 }
 

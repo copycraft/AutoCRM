@@ -9,7 +9,7 @@ import { accountApi, modulesApi, usersApi } from '@/lib/api/endpoints';
 import { DepartmentChip } from '@/components/orders/ModulesSection';
 import { qk } from '@/lib/query/provider';
 import { ApiError, errorMessage } from '@/lib/api/errors';
-import { canAdmin, useAuth } from '@/lib/auth/context';
+import { canManageUsers, useAuth } from '@/lib/auth/context';
 import { useRestoreFocus } from '@/hooks/useRestoreFocus';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -30,7 +30,7 @@ function useRoleGrid(): Map<Role, Set<Capability>> {
 export function UsersAdmin() {
   const { user, isLoading } = useAuth();
   if (isLoading) return <LoadingState />;
-  if (!canAdmin(user)) return <ErrorState error={new ApiError('forbidden', 403, 'forbidden')} />;
+  if (!canManageUsers(user)) return <ErrorState error={new ApiError('forbidden', 403, 'forbidden')} />;
   return (
     <>
       <UserTable meId={user!.id} />
@@ -74,6 +74,13 @@ function UserTable({ meId }: { meId: number }) {
   const revoke = useMutation({
     mutationFn: (id: number) => usersApi.revokeSessions(id),
     onSuccess: () => toast.success(t('sessionsRevoked')),
+    onError: (e) => toast.error(errorMessage(e, ter, ter('unknownError'))),
+  });
+
+  // The invitation letter again (0066): for an account never set up, or a forgotten password.
+  const invite = useMutation({
+    mutationFn: (u: User) => usersApi.resendInvite(u.id),
+    onSuccess: (_, u) => toast.success(t('invited', { email: u.email })),
     onError: (e) => toast.error(errorMessage(e, ter, ter('unknownError'))),
   });
 
@@ -200,6 +207,18 @@ function UserTable({ meId }: { meId: number }) {
                         <button className="btn-ghost btn-sm" onClick={() => setGranting(u)}>
                           {t('permissions')}
                           {u.permissions.length > 0 && ' ' + t('permissionsExtra', { count: u.permissions.length })}
+                        </button>
+                      )}
+                      {u.is_active && (
+                        <button
+                          className="btn-ghost btn-sm"
+                          disabled={invite.isPending}
+                          onClick={() => {
+                            const ask = u.must_change_password ? 'resendInviteConfirm' : 'setupLinkConfirm';
+                            if (window.confirm(t(ask, { name: u.display_name, email: u.email }))) invite.mutate(u);
+                          }}
+                        >
+                          {u.must_change_password ? t('resendInvite') : t('setupLink')}
                         </button>
                       )}
                       <button className="btn-ghost btn-sm" onClick={() => setResetting(u)}>
@@ -482,19 +501,20 @@ function CreateUserDialog({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<Role>('viewer');
+  // Invitation (0066) by default: the colleague sets their own look and password from the
+  // letter. A temporary password stays for someone without a mailbox of their own.
+  const [mode, setMode] = useState<'invite' | 'password'>('invite');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const create = useMutation({
-    mutationFn: () =>
-      usersApi.create({
-        email: email.trim(),
-        display_name: displayName.trim(),
-        role,
-        temporary_password: password,
-      }),
+    mutationFn: async () => {
+      const base = { email: email.trim(), display_name: displayName.trim(), role };
+      if (mode === 'invite') await usersApi.invite(base);
+      else await usersApi.create({ ...base, temporary_password: password });
+    },
     onSuccess: () => {
-      toast.success(t('created'));
+      toast.success(mode === 'invite' ? t('invited', { email: email.trim() }) : t('created'));
       void qc.invalidateQueries({ queryKey: qk.users });
       onClose();
     },
@@ -504,14 +524,25 @@ function CreateUserDialog({ onClose }: { onClose: () => void }) {
   return (
     <FormDialog
       title={t('newUser')}
-      description={t('passwordChangeRequired')}
+      description={mode === 'invite' ? t('inviteHint') : t('passwordChangeRequired')}
       error={error}
       busy={create.isPending}
-      canSubmit={email.trim() !== '' && displayName.trim() !== '' && password !== ''}
-      submitLabel={tc('create')}
+      canSubmit={email.trim() !== '' && displayName.trim() !== '' && (mode === 'invite' || password !== '')}
+      submitLabel={mode === 'invite' ? t('sendInvite') : tc('create')}
       onSubmit={() => create.mutate()}
       onClose={onClose}
     >
+      <fieldset className="space-y-1">
+        <legend className="label">{t('onboardingMode')}</legend>
+        <label className="flex items-center gap-2 text-body">
+          <input type="radio" name="nu-mode" checked={mode === 'invite'} onChange={() => setMode('invite')} />
+          {t('modeInvite')}
+        </label>
+        <label className="flex items-center gap-2 text-body">
+          <input type="radio" name="nu-mode" checked={mode === 'password'} onChange={() => setMode('password')} />
+          {t('modePassword')}
+        </label>
+      </fieldset>
       <div>
         <label className="label" htmlFor="nu-name">
           {t('displayName')} *
@@ -536,7 +567,9 @@ function CreateUserDialog({ onClose }: { onClose: () => void }) {
           ))}
         </select>
       </div>
-      <PasswordField id="nu-password" label={t('temporaryPassword')} value={password} onChange={setPassword} />
+      {mode === 'password' && (
+        <PasswordField id="nu-password" label={t('temporaryPassword')} value={password} onChange={setPassword} />
+      )}
     </FormDialog>
   );
 }

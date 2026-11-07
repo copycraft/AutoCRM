@@ -111,7 +111,14 @@ describe('Users page', () => {
   });
 
   it('is closed to everyone but admins', async () => {
-    asUser({ ...f.sessionUser, role: 'office', hr_access: true });
+    // As the server sends an office user: `manage_users` is the admin role's alone, never
+    // granted, and the page asks for that right rather than for the role's name.
+    asUser({
+      ...f.sessionUser,
+      role: 'office',
+      hr_access: true,
+      capabilities: f.sessionUser.capabilities.filter((c) => c !== 'manage_users'),
+    });
     renderPage(<UsersAdmin />);
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByText('Nagy Anna')).not.toBeInTheDocument();

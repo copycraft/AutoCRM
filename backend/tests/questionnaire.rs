@@ -101,7 +101,12 @@ async fn the_client_types_and_the_seeded_sections_are_there(pool: PgPool) {
         .collect();
     assert_eq!(
         active,
-        ["Doboz", "Furgon szigetelés", "Halottszállító", "Egyedi projekt"]
+        [
+            "Doboz",
+            "Furgon szigetelés",
+            "Halottszállító",
+            "Egyedi projekt"
+        ]
     );
 
     let (status, qn) = call(&pool, "GET", "/api/config/questionnaire", &office, None).await;
@@ -172,7 +177,13 @@ async fn converting_refuses_until_the_required_answers_are_in(pool: PgPool) {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{err}");
     assert_eq!(err["error"]["code"], "spec_incomplete");
     let message = err["error"]["message"].as_str().unwrap();
-    for key in ["box_width_mm", "box_height_mm", "cool_temp_c", "freezes", "heat_temp_c"] {
+    for key in [
+        "box_width_mm",
+        "box_height_mm",
+        "cool_temp_c",
+        "freezes",
+        "heat_temp_c",
+    ] {
         assert!(message.contains(key), "{message} should name {key}");
     }
     let orders: i64 = sqlx::query_scalar("SELECT count(*) FROM orders WHERE lead_id = $1")
@@ -199,7 +210,10 @@ async fn converting_refuses_until_the_required_answers_are_in(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{err}");
     assert!(
-        err["error"]["message"].as_str().unwrap().ends_with("freeze_temp_c"),
+        err["error"]["message"]
+            .as_str()
+            .unwrap()
+            .ends_with("freeze_temp_c"),
         "{err}"
     );
 
@@ -223,7 +237,14 @@ async fn converting_refuses_until_the_required_answers_are_in(pool: PgPool) {
     assert_eq!(order["project_type_id"], box_type, "the lead's type");
     let order_id = order["id"].as_i64().unwrap();
 
-    let (_, detail) = call(&pool, "GET", &format!("/api/orders/{order_id}"), &office, None).await;
+    let (_, detail) = call(
+        &pool,
+        "GET",
+        &format!("/api/orders/{order_id}"),
+        &office,
+        None,
+    )
+    .await;
     let answers = &detail["spec_answers"];
     assert_eq!(answers["cool_temp_c"], -18.5);
     assert_eq!(answers["freeze_temp_c"], -22);
@@ -257,7 +278,10 @@ async fn answers_are_checked_and_hidden_ones_dropped_on_the_order(pool: PgPool) 
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{err}");
     assert!(
-        err["error"]["message"].as_str().unwrap().contains("cool_temp_c"),
+        err["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("cool_temp_c"),
         "{err}"
     );
 

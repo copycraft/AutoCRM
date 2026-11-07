@@ -8,15 +8,17 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      // Each colour is a role, not a shade, set per theme in globals.css (light by default,
+      // dark under [data-theme]). `<alpha-value>` keeps modifiers like `bg-steel-900/80`.
       colors: {
-        panel: '#F7F8F7',
-        surface: '#FFFFFF',
-        'steel-900': '#1B2327',
-        'steel-500': '#6B767C',
-        'steel-200': '#D5DBDC',
-        signal: '#E8590C',
-        cold: '#0F5C7A',
-        done: '#2F7A3E',
+        panel: 'rgb(var(--c-panel) / <alpha-value>)',
+        surface: 'rgb(var(--c-surface) / <alpha-value>)',
+        'steel-900': 'rgb(var(--c-steel-900) / <alpha-value>)',
+        'steel-500': 'rgb(var(--c-steel-500) / <alpha-value>)',
+        'steel-200': 'rgb(var(--c-steel-200) / <alpha-value>)',
+        signal: 'rgb(var(--c-signal) / <alpha-value>)',
+        cold: 'rgb(var(--c-cold) / <alpha-value>)',
+        done: 'rgb(var(--c-done) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['var(--font-plex-sans)', 'system-ui', 'sans-serif'],

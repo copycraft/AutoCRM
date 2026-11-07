@@ -10,6 +10,8 @@ import { Sidebar } from './Sidebar';
 import { DetailSkeleton } from '@/components/ui/LoadingState';
 import { OfflineBanner } from './OfflineBanner';
 import { ShortcutHelpDialog, useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
+import { usePreferences } from '@/hooks/usePreferences';
+import { applyTheme, isTheme } from '@/lib/theme';
 
 // CommandPalette pulls in radix-dialog + search + debounce. It is only needed
 // when the user hits Ctrl+K, so split it out — it was inflating every page's
@@ -53,6 +55,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [helpOpen, setHelpOpen] = useState(false);
 
   useGlobalShortcuts({ onHelp: () => setHelpOpen(true) });
+
+  // The look follows the person, not the browser: a new device takes their saved theme
+  // as soon as preferences arrive (and keeps it for the next reload).
+  const theme = usePreferences().data?.theme;
+  useEffect(() => {
+    if (isTheme(theme)) applyTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.replace(`/${locale}/login`);

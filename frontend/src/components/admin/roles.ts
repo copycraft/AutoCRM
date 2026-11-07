@@ -36,6 +36,8 @@ export const GRANTABLE: Capability[] = [
   'comment',
   'send_email',
   'issue_invoices',
+  'manage_leave',
+  'manage_recruitment',
   'annul_invoices',
   'manage_configuration',
   'manage_settings',

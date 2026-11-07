@@ -1,4 +1,5 @@
-//! What a person may see (0061), applied to what the API sends.
+//! What a person may see (0061), applied to whatever leaves the server — the API handlers'
+//! answers and the assistant's alike, which is why it is a service and not part of `api`.
 //!
 //! Hiding on a screen is not enough: the phone keeps what it was sent in its cache, and the
 //! JSON is one tap away in any browser. So the handlers leave out, here, what a person has

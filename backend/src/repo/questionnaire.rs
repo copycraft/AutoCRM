@@ -237,14 +237,13 @@ pub async fn set_lead_spec(
 
 /// An order's answers; empty when it has none (or there is no such order).
 pub async fn order_answers(db: impl PgExecutor<'_>, order_id: i64) -> sqlx::Result<Answers> {
-    Ok(sqlx::query_scalar!(
-        "SELECT spec_answers FROM orders WHERE id = $1",
-        order_id
+    Ok(
+        sqlx::query_scalar!("SELECT spec_answers FROM orders WHERE id = $1", order_id)
+            .fetch_optional(db)
+            .await?
+            .map(object)
+            .unwrap_or_default(),
     )
-    .fetch_optional(db)
-    .await?
-    .map(object)
-    .unwrap_or_default())
 }
 
 pub async fn set_order_answers(

@@ -454,7 +454,8 @@ pub async fn convert(
         given.extend(answers);
     }
     let qn = crate::repo::questionnaire::load(&mut tx).await?;
-    let answers = crate::service::questionnaire::clean(&qn, project_type_id, &given, &lead_answers)?;
+    let answers =
+        crate::service::questionnaire::clean(&qn, project_type_id, &given, &lead_answers)?;
     crate::service::questionnaire::require_complete(&qn, project_type_id, &answers)?;
     crate::repo::questionnaire::set_lead_spec(&mut *tx, lead_id, project_type_id, &answers).await?;
 

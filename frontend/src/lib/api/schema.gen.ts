@@ -340,6 +340,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/colleagues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everyone's name, for any signed-in user: picking an assignee, reading who sent or wrote
+         *     something. Managing accounts (`GET /users`, with email, grants and 2FA) stays
+         *     `ManageUsers`; knowing a colleague's name is not account management.
+         */
+        get: operations["users_colleagues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/roles": {
         parameters: {
             query?: never;
@@ -448,6 +469,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * The system settings: the outbound mail server, its sign-in name, where alerts go.
+         *     `ManageSettings`, like changing them — none of it is anyone else's business.
+         */
         get: operations["configuration_get_settings"];
         put: operations["configuration_put_settings"];
         post?: never;
@@ -2640,6 +2665,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * The staff. With `AccessHr`, the directory itself. With only `ManageLeave`, the people by
+         *     name — to record their leave — without their email, phone numbers or HR status, and
+         *     `q` matches the name alone: a search by phone number would tell whose number it is.
+         */
         get: operations["hr_list"];
         put?: never;
         post: operations["hr_create"];
@@ -4885,6 +4915,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A new account, set up by its owner: the letter goes out at once with a one-time link
+         *     (7 days). The account has no usable password until the link is used.
+         */
+        post: operations["users_invite_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The letter again, with a new link; older links stop working. For an account that never
+         *     got set up, or one whose owner forgot the password. Their password stays until the new
+         *     link is used.
+         */
+        post: operations["users_resend_invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/onboarding/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["auth_invite_info"];
+        put?: never;
+        /**
+         * Sets the password and the look, spends the link and signs this browser in (the httpOnly
+         *     session cookie, as at login). Other sessions of the account end.
+         */
+        post: operations["auth_accept_invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4925,6 +5016,11 @@ export interface components {
         AbsenceFileUrl: {
             /** @description Presigned, expires after one hour; opens in the browser. */
             url: string;
+        };
+        AcceptInvite: {
+            password: string;
+            /** @description `system`, `light` or `dark`. */
+            theme: string;
         };
         AddItem: {
             description: string;
@@ -5422,7 +5518,7 @@ export interface components {
          *     any [`Capability::grantable`] one to a single user on top of it (`users.permissions`).
          * @enum {string}
          */
-        Capability: "manage_users" | "manage_settings" | "manage_configuration" | "operate_system" | "edit_partners" | "edit_leads" | "edit_orders" | "change_stages" | "manage_blockers" | "upload_media" | "delete_media" | "view_original_images" | "send_email" | "issue_invoices" | "annul_invoices" | "access_hr" | "comment" | "view_prices" | "view_invoices" | "view_incoming_invoices" | "view_sales" | "view_contacts" | "view_business_reports" | "view_all_modules" | "handle_handovers";
+        Capability: "manage_users" | "manage_settings" | "manage_configuration" | "operate_system" | "edit_partners" | "edit_leads" | "edit_orders" | "change_stages" | "manage_blockers" | "upload_media" | "delete_media" | "view_original_images" | "send_email" | "issue_invoices" | "annul_invoices" | "access_hr" | "comment" | "view_prices" | "view_invoices" | "view_incoming_invoices" | "view_sales" | "view_contacts" | "view_business_reports" | "view_all_modules" | "handle_handovers" | "manage_leave" | "manage_recruitment";
         /**
          * @description One document in the invoice's chain at NAV.
          *
@@ -5504,6 +5600,14 @@ export interface components {
             tasks_created: number;
             /** @description The linked account was switched off. */
             user_deactivated: boolean;
+        };
+        /** @description A colleague as everyone may see them: who sent a letter, who a job is assigned to. */
+        Colleague: {
+            /** Format: int64 */
+            id: number;
+            display_name: string;
+            role: components["schemas"]["Role"];
+            is_active: boolean;
         };
         Comment: {
             /** Format: int64 */
@@ -6313,7 +6417,7 @@ export interface components {
          * @description Every machine code `error.code` can carry. `x-error-catalog` gives each one's HTTP status, whether a retry can succeed, and the user-facing text.
          * @enum {string}
          */
-        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "domain_taken" | "assistant_unavailable" | "template_in_use" | "status_required" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "totp_required" | "totp_invalid" | "last_admin" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "eu_vat_number_required" | "eu_vat_number_invalid" | "eu_vat_check_unavailable" | "nav_rejected" | "nav_unreachable" | "overpayment" | "spec_incomplete" | "not_issued" | "pdf_unavailable";
+        ErrorCode: "unauthenticated" | "forbidden" | "not_found" | "validation" | "too_many_requests" | "duplicate" | "overlap" | "domain_taken" | "assistant_unavailable" | "template_in_use" | "status_required" | "invalid_reference" | "constraint_violation" | "immutable" | "internal" | "password_change_required" | "wrong_password" | "totp_required" | "totp_invalid" | "last_admin" | "invite_used" | "invite_expired" | "stage_gate" | "note_required" | "invalid_transition" | "intake_slip_missing" | "use_conversion" | "lead_converted" | "stage_required" | "currency_locked" | "already_resolved" | "not_resolved" | "upload_missing" | "upload_mismatch" | "invalid_ticket" | "already_attached" | "checkout_open" | "checkout_required" | "locked" | "signatures_required" | "verdicts_pending" | "not_cancellable" | "not_retryable" | "not_failed" | "invoicing_not_configured" | "invoice_exists" | "invoice_in_flight" | "invoice_data_missing" | "fx_rate_missing" | "not_stornoable" | "not_annullable" | "no_items" | "eu_vat_number_required" | "eu_vat_number_invalid" | "eu_vat_check_unavailable" | "nav_rejected" | "nav_unreachable" | "overpayment" | "spec_incomplete" | "not_issued" | "pdf_unavailable";
         ErrorDetail: {
             /** @description Stable machine-readable code, e.g. `validation`, `stage_gate`, `currency_locked`. */
             code: string;
@@ -6925,6 +7029,30 @@ export interface components {
             /** @description Presigned, served inline for the video player; expires after one hour. */
             url?: string | null;
         };
+        /** @description Who the link is for, while it can still be used. */
+        InviteInfo: {
+            email: string;
+            display_name: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        InviteSent: {
+            /** Format: date-time */
+            expires_at: string;
+        };
+        InviteUser: {
+            email: string;
+            display_name: string;
+            role: components["schemas"]["Role"];
+        };
+        Invited: {
+            user: components["schemas"]["User"];
+            /**
+             * Format: date-time
+             * @description When the letter's link stops working.
+             */
+            expires_at: string;
+        };
         Invoice: {
             /** Format: int64 */
             id: number;
@@ -7439,6 +7567,16 @@ export interface components {
                 due_days: number;
                 /** Format: int32 */
                 position: number;
+            }[];
+        };
+        /** @description The list envelope: `{"items": [...]}`. */
+        Items_Colleague: {
+            items: {
+                /** Format: int64 */
+                id: number;
+                display_name: string;
+                role: components["schemas"]["Role"];
+                is_active: boolean;
             }[];
         };
         /** @description The list envelope: `{"items": [...]}`. */
@@ -10309,6 +10447,8 @@ export interface components {
             page_size?: number | null;
             /** @description Absent keeps it; empty removes it. */
             email_signature?: string | null;
+            /** @description `system`, `light` or `dark` (0066). Absent keeps it. */
+            theme?: string | null;
         };
         /** @description A request the client must perform exactly as described: every header listed is signed. */
         PresignedRequest: {
@@ -11481,6 +11621,8 @@ export interface components {
             page_size: number;
             /** @description Put under hand-written mail when the composer opens (0049). Plain text. */
             email_signature?: string | null;
+            /** @description How the app looks (0066): `system` follows the device, or `light` / `dark`. */
+            theme: string;
             /** Format: date-time */
             updated_at: string;
         };
@@ -11744,6 +11886,9 @@ export interface components {
         WeeklyRecipients: {
             /** @description Who gets the Monday report; empty turns it off. */
             recipients: string[];
+        };
+        Welcome: {
+            user: components["schemas"]["SessionUser"];
         };
         WorkloadDay: {
             /** Format: date */
@@ -12817,6 +12962,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    users_colleagues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_Colleague"];
+                };
             };
             /** @description Client error; see `error.code` */
             "4XX": {
@@ -26803,6 +26985,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Items_VatCheck"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    users_invite_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteUser"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invited"];
+                };
+            };
+            /** @description The address already has an account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    users_resend_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteSent"];
+                };
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    auth_invite_info: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteInfo"];
+                };
+            };
+            /** @description No such link, or a newer one replaced it */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `invite_used` or `invite_expired` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Client error; see `error.code` */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    auth_accept_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInvite"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Welcome"];
                 };
             };
             /** @description Client error; see `error.code` */

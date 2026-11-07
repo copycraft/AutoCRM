@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
+import { THEME_BOOT_SCRIPT } from '@/lib/theme';
 
 const plexSans = IBM_Plex_Sans({
   subsets: ['latin', 'latin-ext'],
@@ -24,7 +25,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
+    // suppressHydrationWarning: the theme script below sets data-theme before React loads.
     <html suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className={`${plexSans.variable} ${plexMono.variable}`}>{children}</body>
     </html>
   );

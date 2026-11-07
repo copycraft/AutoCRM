@@ -46,7 +46,11 @@ async fn stub_vies() -> (String, Arc<AtomicUsize>) {
 /// VIES pointed at the stub.
 async fn state(pool: &PgPool, allow_override: bool) -> (AppState, Arc<AtomicUsize>) {
     let (url, calls) = stub_vies().await;
-    let mut state = common::state_with_nav(pool.clone(), "http://127.0.0.1:9", common::MOCK_SUPPLIER_TAX_NUMBER);
+    let mut state = common::state_with_nav(
+        pool.clone(),
+        "http://127.0.0.1:9",
+        common::MOCK_SUPPLIER_TAX_NUMBER,
+    );
     let mut config = (*state.config).clone();
     config.vies.base_url = url;
     config.vies.backoff_base = Duration::ZERO;
@@ -88,7 +92,10 @@ async fn eu_order(pool: &PgPool, eu_number: Option<&str>) -> (i64, i64) {
 }
 
 fn zero_vat() -> IssueRequest {
-    IssueRequest { vat_rate: Some("0".parse().unwrap()), ..IssueRequest::default() }
+    IssueRequest {
+        vat_rate: Some("0".parse().unwrap()),
+        ..IssueRequest::default()
+    }
 }
 
 fn rule_code(e: AppError) -> &'static str {
@@ -99,7 +106,10 @@ fn rule_code(e: AppError) -> &'static str {
 }
 
 async fn invoice_count(pool: &PgPool) -> i64 {
-    sqlx::query_scalar("SELECT count(*) FROM invoices").fetch_one(pool).await.unwrap()
+    sqlx::query_scalar("SELECT count(*) FROM invoices")
+        .fetch_one(pool)
+        .await
+        .unwrap()
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -109,8 +119,14 @@ async fn a_valid_number_lets_the_invoice_through_and_is_kept_with_it(pool: PgPoo
     let user = common::user(&pool, Role::Admin).await;
     let _ = user_id;
 
-    let invoice = invoicing::create_invoice(&state, &user, order_id, &zero_vat()).await.unwrap();
-    assert_eq!(calls.load(Ordering::SeqCst), 1, "no check on file: VIES is asked now");
+    let invoice = invoicing::create_invoice(&state, &user, order_id, &zero_vat())
+        .await
+        .unwrap();
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "no check on file: VIES is asked now"
+    );
 
     let (check_id, status): (Option<i64>, String) = sqlx::query_as(
         "SELECT i.vat_check_id, c.status FROM invoices i JOIN vat_checks c ON c.id = i.vat_check_id WHERE i.id = $1",
@@ -148,8 +164,14 @@ async fn a_fresh_verdict_on_file_is_reused(pool: PgPool) {
     .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 
-    invoicing::create_invoice(&state, &user, order_id, &zero_vat()).await.unwrap();
-    assert_eq!(calls.load(Ordering::SeqCst), 1, "a VALID answer inside 24 h is enough");
+    invoicing::create_invoice(&state, &user, order_id, &zero_vat())
+        .await
+        .unwrap();
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "a VALID answer inside 24 h is enough"
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -176,9 +198,14 @@ async fn a_stale_verdict_is_asked_again(pool: PgPool) {
     // The table is append-only, so age the answer by shrinking the window instead.
     let mut config = (*state.config).clone();
     config.vies_invoice_max_age_hours = 0;
-    let state = AppState { config: Arc::new(config), ..state };
+    let state = AppState {
+        config: Arc::new(config),
+        ..state
+    };
 
-    invoicing::create_invoice(&state, &user, order_id, &zero_vat()).await.unwrap();
+    invoicing::create_invoice(&state, &user, order_id, &zero_vat())
+        .await
+        .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 2);
 }
 
@@ -190,7 +217,9 @@ async fn an_invalid_number_blocks_and_draws_no_number(pool: PgPool) {
     let mut req = zero_vat();
     // Even with overrides on: INVALID is a verdict, not an outage.
     req.vat_override_reason = Some("ügyfél kérte".into());
-    let e = invoicing::create_invoice(&state, &user, order_id, &req).await.unwrap_err();
+    let e = invoicing::create_invoice(&state, &user, order_id, &req)
+        .await
+        .unwrap_err();
     assert_eq!(rule_code(e), "eu_vat_number_invalid");
     assert_eq!(invoice_count(&pool).await, 0);
 }
@@ -204,15 +233,21 @@ async fn an_outage_blocks_unless_overridden_with_a_reason(pool: PgPool) {
     req.vat_override_reason = Some("VIES leállás, a vevő igazolta".into());
 
     // Overrides off: a reason changes nothing.
-    let e = invoicing::create_invoice(&state, &user, order_id, &req).await.unwrap_err();
+    let e = invoicing::create_invoice(&state, &user, order_id, &req)
+        .await
+        .unwrap_err();
     assert_eq!(rule_code(e), "eu_vat_check_unavailable");
     assert_eq!(invoice_count(&pool).await, 0);
 
     // Overrides on: no reason, no invoice; with one, it goes through and says why.
     let (state, _) = self::state(&pool, true).await;
-    let e = invoicing::create_invoice(&state, &user, order_id, &zero_vat()).await.unwrap_err();
+    let e = invoicing::create_invoice(&state, &user, order_id, &zero_vat())
+        .await
+        .unwrap_err();
     assert_eq!(rule_code(e), "eu_vat_check_unavailable");
-    let invoice = invoicing::create_invoice(&state, &user, order_id, &req).await.unwrap();
+    let invoice = invoicing::create_invoice(&state, &user, order_id, &req)
+        .await
+        .unwrap();
     let reason: Option<String> =
         sqlx::query_scalar("SELECT vat_override_reason FROM invoices WHERE id = $1")
             .bind(invoice.id)
@@ -227,7 +262,9 @@ async fn no_eu_number_means_no_zero_rate_eu_invoice(pool: PgPool) {
     let (state, calls) = state(&pool, false).await;
     let (order_id, _) = eu_order(&pool, None).await;
     let user = common::user(&pool, Role::Admin).await;
-    let e = invoicing::create_invoice(&state, &user, order_id, &zero_vat()).await.unwrap_err();
+    let e = invoicing::create_invoice(&state, &user, order_id, &zero_vat())
+        .await
+        .unwrap_err();
     assert_eq!(rule_code(e), "eu_vat_number_required");
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
@@ -238,8 +275,13 @@ async fn a_vat_charging_invoice_is_not_gated(pool: PgPool) {
     // Even an INVALID number: with VAT charged, no EU treatment is claimed.
     let (order_id, _) = eu_order(&pool, Some("DE200")).await;
     let user = common::user(&pool, Role::Admin).await;
-    let req = IssueRequest { vat_rate: Some("0.27".parse().unwrap()), ..IssueRequest::default() };
-    let invoice = invoicing::create_invoice(&state, &user, order_id, &req).await.unwrap();
+    let req = IssueRequest {
+        vat_rate: Some("0.27".parse().unwrap()),
+        ..IssueRequest::default()
+    };
+    let invoice = invoicing::create_invoice(&state, &user, order_id, &req)
+        .await
+        .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     let check: Option<i64> = sqlx::query_scalar("SELECT vat_check_id FROM invoices WHERE id = $1")
         .bind(invoice.id)

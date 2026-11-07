@@ -78,7 +78,11 @@ fn config(url: String) -> Config {
 
 /// Runs a sweep to the end, batch after batch, as the worker would.
 async fn sweep_all(pool: &PgPool, c: &Config, mode: SweepMode) -> (usize, usize, usize) {
-    let mut p = SweepPayload { mode, after_id: 0, checked_before: Some(chrono::Utc::now()) };
+    let mut p = SweepPayload {
+        mode,
+        after_id: 0,
+        checked_before: Some(chrono::Utc::now()),
+    };
     let (mut checked, mut flagged, mut invalidated) = (0, 0, 0);
     loop {
         let r = vat::sweep(pool, c, &p).await.unwrap();
@@ -126,7 +130,11 @@ async fn the_import_backfill_respects_the_caps_and_never_says_invalid(pool: PgPo
             .fetch_all(&pool)
             .await
             .unwrap();
-    assert_eq!(statuses, vec![("VALID".to_string(), 50)], "throttling must never read as INVALID");
+    assert_eq!(
+        statuses,
+        vec![("VALID".to_string(), 50)],
+        "throttling must never read as INVALID"
+    );
     let by: Vec<String> = sqlx::query_scalar("SELECT DISTINCT created_by FROM vat_checks")
         .fetch_all(&pool)
         .await
@@ -139,7 +147,10 @@ async fn the_import_backfill_respects_the_caps_and_never_says_invalid(pool: PgPo
     assert_eq!(stub.max_in_flight.load(Ordering::SeqCst), 1);
     let started = stub.started.lock().unwrap();
     let tightest = started.windows(2).map(|w| w[1] - w[0]).min().unwrap();
-    assert!(tightest >= SPACING - Duration::from_millis(5), "calls {tightest:?} apart");
+    assert!(
+        tightest >= SPACING - Duration::from_millis(5),
+        "calls {tightest:?} apart"
+    );
 
     // Run again: nothing left to do.
     assert_eq!(sweep_all(&pool, &c, SweepMode::Backfill).await.0, 0);
@@ -154,19 +165,22 @@ async fn unavailable_is_asked_again_then_flagged_after_a_day(pool: PgPool) {
 
     stub.down.store(true, Ordering::SeqCst);
     sweep_all(&pool, &c, SweepMode::Backfill).await;
-    let status: Vec<String> = sqlx::query_scalar("SELECT vat_status FROM partners WHERE id = ANY($1) ORDER BY id")
-        .bind(vec![recovers, stays_down])
-        .fetch_all(&pool)
-        .await
-        .unwrap();
+    let status: Vec<String> =
+        sqlx::query_scalar("SELECT vat_status FROM partners WHERE id = ANY($1) ORDER BY id")
+            .bind(vec![recovers, stays_down])
+            .fetch_all(&pool)
+            .await
+            .unwrap();
     assert_eq!(status, vec!["UNAVAILABLE", "UNAVAILABLE"]);
 
     // A day has passed for one of them.
-    sqlx::query("UPDATE partners SET vat_unavailable_since = now() - interval '25 hours' WHERE id = $1")
-        .bind(stays_down)
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE partners SET vat_unavailable_since = now() - interval '25 hours' WHERE id = $1",
+    )
+    .bind(stays_down)
+    .execute(&pool)
+    .await
+    .unwrap();
     stub.down.store(false, Ordering::SeqCst);
     let (checked, flagged, _) = sweep_all(&pool, &c, SweepMode::Unavailable).await;
     assert_eq!((checked, flagged), (1, 1));
@@ -184,7 +198,10 @@ async fn unavailable_is_asked_again_then_flagged_after_a_day(pool: PgPool) {
     assert!(rows[1].1, "a day of UNAVAILABLE needs a person");
 
     // Flagged partners are left alone by later sweeps.
-    assert_eq!(sweep_all(&pool, &c, SweepMode::Unavailable).await, (0, 0, 0));
+    assert_eq!(
+        sweep_all(&pool, &c, SweepMode::Unavailable).await,
+        (0, 0, 0)
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -192,7 +209,9 @@ async fn a_valid_number_going_invalid_raises_a_notification(pool: PgPool) {
     let (url, stub) = stub_vies().await;
     let c = config(url);
     let office = common::user(&pool, Role::Office).await;
-    let active = common::order(&pool, &office, "HUF", vec![]).await.partner_id;
+    let active = common::order(&pool, &office, "HUF", vec![])
+        .await
+        .partner_id;
     let idle = common::partner(&pool, "Régi ügyfél", None).await;
     for id in [active, idle] {
         sqlx::query("UPDATE partners SET eu_tax_number = $2, country = 'DE' WHERE id = $1")
@@ -204,11 +223,13 @@ async fn a_valid_number_going_invalid_raises_a_notification(pool: PgPool) {
     }
     sweep_all(&pool, &c, SweepMode::Backfill).await;
     // Both were checked a while ago.
-    sqlx::query("UPDATE partners SET vat_checked_at = now() - interval '40 days' WHERE id = ANY($1)")
-        .bind(vec![active, idle])
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE partners SET vat_checked_at = now() - interval '40 days' WHERE id = ANY($1)",
+    )
+    .bind(vec![active, idle])
+    .execute(&pool)
+    .await
+    .unwrap();
 
     stub.invalid_now.store(true, Ordering::SeqCst);
     let (checked, _, invalidated) = sweep_all(&pool, &c, SweepMode::Revalidate).await;

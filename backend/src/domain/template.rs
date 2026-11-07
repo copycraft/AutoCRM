@@ -56,6 +56,15 @@ pub const VARIABLES: &[(&str, &str)] = &[
     ("login.device", "Bejelentkező eszköz"),
     ("login.ip", "Bejelentkezés IP-címe"),
     ("login.time", "Bejelentkezés időpontja"),
+    // Resolved by the invitation letter (0066), the only one that carries them.
+    ("invite.name", "Meghívott munkatárs neve"),
+    ("invite.email", "Meghívott fiók e-mail-címe"),
+    ("invite.by", "Meghívó munkatárs neve"),
+    (
+        "invite.url",
+        "Meghívó link (megjelenés és jelszó beállítása)",
+    ),
+    ("invite.expires", "Meghívó link érvényessége"),
     // Resolved by the department letter (0059), the only one that carries them.
     ("module.department", "Részleg neve"),
     ("module.event", "Kiadva vagy módosult"),

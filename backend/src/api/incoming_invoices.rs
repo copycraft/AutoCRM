@@ -146,26 +146,6 @@ struct UploadQuery {
     filename: String,
 }
 
-/// What a file is, from its first bytes; the Content-Type header is only a hint.
-pub(crate) fn sniff(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
-    if bytes.starts_with(b"%PDF") {
-        Some(("application/pdf", "pdf"))
-    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        Some(("image/jpeg", "jpg"))
-    } else if bytes.starts_with(b"\x89PNG") {
-        Some(("image/png", "png"))
-    } else if bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
-        Some(("image/webp", "webp"))
-    } else if bytes.trim_ascii_start().starts_with(b"<?xml")
-        || bytes.trim_ascii_start().starts_with(b"<")
-    {
-        // NAV online invoice XML, as suppliers' systems send it.
-        Some(("application/xml", "xml"))
-    } else {
-        None
-    }
-}
-
 /// One supplier invoice: the raw file as the body (PDF, JPEG, PNG, WebP or XML, up to
 /// 25 MB), its name in `?filename=`. It lands on Nyitott számla with nothing filled in.
 /// The same file twice is refused, naming the invoice that already holds it.
@@ -190,7 +170,7 @@ async fn upload(
     }
     let name = super::required("filename", &q.filename)?;
     let name: String = name.chars().take(200).collect();
-    let (content_type, ext) = sniff(&body)
+    let (content_type, ext) = crate::media::sniff::incoming_invoice(&body)
         .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG, WebP or XML files"))?;
     let hash = Sha256::digest(&body).to_vec();
     if let Some(existing) = incoming_invoices::by_hash(&state.db, &hash).await? {
@@ -466,23 +446,6 @@ async fn file_url(
         .presign_get(&key, URL_TTL, Some(content_disposition("inline", &name)))
         .await?;
     Ok(Json(FileUrl { url }))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::sniff;
-
-    #[test]
-    fn files_are_told_apart_by_their_first_bytes() {
-        assert_eq!(sniff(b"%PDF-1.7 ...").map(|s| s.1), Some("pdf"));
-        assert_eq!(sniff(&[0xFF, 0xD8, 0xFF, 0xE0]).map(|s| s.1), Some("jpg"));
-        assert_eq!(sniff(b"\x89PNG\r\n").map(|s| s.1), Some("png"));
-        assert_eq!(
-            sniff(b"  <?xml version=\"1.0\"?>").map(|s| s.1),
-            Some("xml")
-        );
-        assert_eq!(sniff(b"MZ\x90\x00"), None);
-    }
 }
 
 #[derive(Deserialize, ToSchema)]

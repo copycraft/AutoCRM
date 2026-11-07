@@ -133,7 +133,15 @@ pub async fn save_order(
     repo::set_order_answers(&mut *conn, order_id, &answers).await?;
     let diff = changes(&before, &answers);
     if diff.as_object().is_some_and(|m| !m.is_empty()) {
-        audit::record(&mut *conn, Some(user_id), "order", order_id, "spec_set", diff).await?;
+        audit::record(
+            &mut *conn,
+            Some(user_id),
+            "order",
+            order_id,
+            "spec_set",
+            diff,
+        )
+        .await?;
     }
     Ok(answers)
 }
@@ -177,7 +185,15 @@ pub async fn set_order_answer(
     repo::set_order_answers(&mut *conn, order_id, &answers).await?;
     let diff = changes(&before, &answers);
     if diff.as_object().is_some_and(|m| !m.is_empty()) {
-        audit::record(&mut *conn, Some(user_id), "order", order_id, "spec_set", diff).await?;
+        audit::record(
+            &mut *conn,
+            Some(user_id),
+            "order",
+            order_id,
+            "spec_set",
+            diff,
+        )
+        .await?;
     }
     Ok(answers)
 }

@@ -330,7 +330,14 @@ async fn dispatch(state: &AppState, mailer: &Mailer, job: &Job) -> anyhow::Resul
                 "VAT sweep batch done"
             );
             if let Some(next) = report.next {
-                jobs::enqueue(&state.db, kinds::VAT_SWEEP, serde_json::to_value(next)?, None, None).await?;
+                jobs::enqueue(
+                    &state.db,
+                    kinds::VAT_SWEEP,
+                    serde_json::to_value(next)?,
+                    None,
+                    None,
+                )
+                .await?;
             }
             Ok(Outcome::Done)
         }
@@ -464,10 +471,19 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
         .await?;
     }
     // EU VAT numbers VIES could not answer for are asked again every quarter hour.
-    let minute = local_now.format("%M").to_string().parse::<u32>().unwrap_or(0);
+    let minute = local_now
+        .format("%M")
+        .to_string()
+        .parse::<u32>()
+        .unwrap_or(0);
     once(
         state,
-        &format!("{}:unavailable:{}:{}", kinds::VAT_SWEEP, local_now.format("%Y-%m-%dT%H"), minute / 15),
+        &format!(
+            "{}:unavailable:{}:{}",
+            kinds::VAT_SWEEP,
+            local_now.format("%Y-%m-%dT%H"),
+            minute / 15
+        ),
         kinds::VAT_SWEEP,
         json!({ "mode": "unavailable" }),
     )
@@ -476,7 +492,11 @@ async fn schedule_tick(state: &AppState) -> anyhow::Result<()> {
     if time >= NaiveTime::from_hms_opt(3, 0, 0).expect("valid time") {
         once(
             state,
-            &format!("{}:revalidate:{}", kinds::VAT_SWEEP, local_now.format("%Y-%m")),
+            &format!(
+                "{}:revalidate:{}",
+                kinds::VAT_SWEEP,
+                local_now.format("%Y-%m")
+            ),
             kinds::VAT_SWEEP,
             json!({ "mode": "revalidate", "checked_before": Utc::now() }),
         )

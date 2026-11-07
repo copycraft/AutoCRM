@@ -147,7 +147,8 @@ impl<'a> Extractor<'a> {
         let file = self.path(rel);
         if !fresh && file.exists() {
             let text = tokio::fs::read_to_string(&file).await?;
-            return serde_json::from_str(&text).with_context(|| format!("corrupt {}", file.display()));
+            return serde_json::from_str(&text)
+                .with_context(|| format!("corrupt {}", file.display()));
         }
         let ids = self.client.search_ids(api_path).await?;
         write_atomic(&file, &serde_json::to_vec(&ids)?).await?;
@@ -161,7 +162,12 @@ impl<'a> Extractor<'a> {
         // The first request doubles as the credential check: every account has categories,
         // so a 404 here means the API is not reachable with these details at all.
         let Some(categories) = self
-            .fetch("Api/R3/Category", "categories.json", since.is_some(), &mut summary)
+            .fetch(
+                "Api/R3/Category",
+                "categories.json",
+                since.is_some(),
+                &mut summary,
+            )
             .await?
         else {
             bail!(
@@ -253,11 +259,19 @@ impl<'a> Extractor<'a> {
                 if let Some(cid) = project.get("ContactId").and_then(as_i64) {
                     contact_ids.insert(cid);
                 }
-                if let Some(bid) = project.get("BusinessId").and_then(as_i64).filter(|b| *b > 0) {
+                if let Some(bid) = project
+                    .get("BusinessId")
+                    .and_then(as_i64)
+                    .filter(|b| *b > 0)
+                {
                     contact_ids.insert(bid);
                 }
-                let trashed = project.get("Deleted").and_then(as_i64).is_some_and(|d| d != 0);
-                self.project_extras(*id, trashed, fresh, &mut summary).await?;
+                let trashed = project
+                    .get("Deleted")
+                    .and_then(as_i64)
+                    .is_some_and(|d| d != 0);
+                self.project_extras(*id, trashed, fresh, &mut summary)
+                    .await?;
             }
             if i % 100 == 0 {
                 tracing::info!(done = i, total = project_ids.len(), "projects");
@@ -313,7 +327,11 @@ impl<'a> Extractor<'a> {
                 continue;
             };
             summary.contacts_fetched += 1;
-            if let Some(business) = contact.get("BusinessId").and_then(as_i64).filter(|b| *b > 0) {
+            if let Some(business) = contact
+                .get("BusinessId")
+                .and_then(as_i64)
+                .filter(|b| *b > 0)
+            {
                 queue.push(business);
             }
             let is_business = contact.get("Type").and_then(Value::as_str) == Some("Business");

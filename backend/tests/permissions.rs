@@ -62,7 +62,7 @@ fn money_in(v: &Value, path: &str, out: &mut Vec<String>) {
         Value::Object(map) => {
             for (k, x) in map {
                 let here = format!("{path}.{k}");
-                if autocrm::api::visibility::is_money_key(k) && !x.is_null() {
+                if autocrm::service::visibility::is_money_key(k) && !x.is_null() {
                     out.push(format!("{here} = {x}"));
                 }
                 money_in(x, &here, out);

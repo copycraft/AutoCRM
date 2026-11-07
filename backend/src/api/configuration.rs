@@ -376,11 +376,14 @@ async fn update_project_type(
     Ok(Json(updated))
 }
 
+/// The system settings: the outbound mail server, its sign-in name, where alerts go.
+/// `ManageSettings`, like changing them — none of it is anyone else's business.
 #[utoipa::path(
     get, path = "/settings", tag = "configuration",
     responses((status = 200, body = Settings))
 )]
-async fn get_settings(State(state): State<AppState>, Auth(_): Auth) -> AppResult<Json<Settings>> {
+async fn get_settings(State(state): State<AppState>, Auth(me): Auth) -> AppResult<Json<Settings>> {
+    me.require(Capability::ManageSettings)?;
     Ok(Json(config::settings(&state.db).await?))
 }
 

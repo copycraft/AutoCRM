@@ -17,9 +17,10 @@ import { LeadStageDialog } from '@/components/forms/LeadStageDialog';
 import { LeadConvertDialog } from '@/components/forms/LeadConvertDialog';
 import { QuoteUploadDialog } from '@/components/leads/QuoteUploadDialog';
 import { stageTone } from '@/lib/utils/stages';
-import { configApi, leadsApi, mediaApi, partnersApi, usersApi } from '@/lib/api/endpoints';
+import { configApi, leadsApi, mediaApi, partnersApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
-import { canAdmin, canEditLeads, useAuth } from '@/lib/auth/context';
+import { canEditLeads, useAuth } from '@/lib/auth/context';
+import { colleagueName, useColleagues } from '@/hooks/useColleagues';
 import { daysSince } from '@/lib/utils/format';
 import { DateDisplay } from '@/components/ui/DateDisplay';
 import { EmailValue, PhoneValue } from '@/components/ui/ContactLinks';
@@ -93,17 +94,8 @@ export default function LeadDetailPage({ params }: { params: { id: string } | Pr
     queryKey: partnerId !== null ? qk.partner(partnerId) : ['partner', 'none'],
     queryFn: partnerId === null ? skipToken : () => partnersApi.get(partnerId),
   });
-  // GET /users is admin-only; non-admins see the raw id (backend gap).
-  const usersQuery = useQuery({
-    queryKey: qk.users,
-    queryFn: () => usersApi.list(),
-    enabled: canAdmin(user) && assignedTo !== null,
-    retry: false,
-  });
-  const assigneeName =
-    assignedTo !== null
-      ? (usersQuery.data?.items.find((u) => u.id === assignedTo)?.display_name ?? `#${assignedTo}`)
-      : '—';
+  const colleagues = useColleagues(assignedTo !== null);
+  const assigneeName = assignedTo !== null ? colleagueName(colleagues.data?.items, assignedTo) : '—';
 
   const patch = useMutation({
     mutationFn: (body: Record<string, unknown>) => leadsApi.patch(id, body),

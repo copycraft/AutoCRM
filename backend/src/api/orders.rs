@@ -142,7 +142,7 @@ async fn search(
         page_offset(q.offset),
     )
     .await?;
-    super::visibility::order_summaries(&me, &mut rows);
+    crate::service::visibility::order_summaries(&me, &mut rows);
     Ok(Items::new(rows))
 }
 
@@ -200,15 +200,16 @@ pub struct OrderBody {
     pub items: Vec<ItemBody>,
 }
 
-/// The five marks on a fuel gauge, matching the CHECK in 0019_intake_extras.sql. A value
-/// the database would reject should come back as a field error, not a 500.
-const FUEL_LEVELS: [&str; 5] = ["E", "1/4", "1/2", "3/4", "F"];
-
+/// One of the marks on a fuel gauge, from the same list the screens get
+/// (`domain::lookups`), matching the CHECK in 0019_intake_extras.sql. A value the database
+/// would reject should come back as a field error, not a 500.
 pub(super) fn fuel_level(value: Option<String>) -> AppResult<Option<String>> {
+    use crate::domain::lookups::FUEL_LEVEL_KEYS;
     match optional(value) {
-        Some(v) if !FUEL_LEVELS.contains(&v.as_str()) => Err(AppError::validation(
-            "fuel_level must be one of E, 1/4, 1/2, 3/4, F",
-        )),
+        Some(v) if !FUEL_LEVEL_KEYS.contains(&v.as_str()) => Err(AppError::validation(format!(
+            "fuel_level must be one of {}",
+            FUEL_LEVEL_KEYS.join(", ")
+        ))),
         v => Ok(v),
     }
 }
@@ -857,10 +858,10 @@ async fn audit_trail(
     ApiQuery(q): ApiQuery<AuditQuery>,
 ) -> AppResult<Json<Items<AuditEntry>>> {
     let mut rows = audit::list_for(&state.db, "order", id, page_limit(q.limit)).await?;
-    rows.retain(|e| super::visibility::history_entry_visible(&me, "change", &e.action));
+    rows.retain(|e| crate::service::visibility::history_entry_visible(&me, "change", &e.action));
     if !me.can(Capability::ViewPrices) {
         rows.iter_mut()
-            .for_each(|e| super::visibility::scrub_money(&mut e.changes));
+            .for_each(|e| crate::service::visibility::scrub_money(&mut e.changes));
     }
     Ok(Items::new(rows))
 }

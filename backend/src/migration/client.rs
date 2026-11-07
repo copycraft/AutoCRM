@@ -124,7 +124,11 @@ impl MiniCrmClient {
     /// GET a search endpoint page by page: R3 searches hold 100 results a page, numbered
     /// from 0, with the total in `Count`. Returns every page's `Results` ids.
     pub async fn search_ids(&self, path_with_query: &str) -> anyhow::Result<Vec<i64>> {
-        let sep = if path_with_query.contains('?') { '&' } else { '?' };
+        let sep = if path_with_query.contains('?') {
+            '&'
+        } else {
+            '?'
+        };
         let mut ids = Vec::new();
         let mut page = 0usize;
         loop {
@@ -134,9 +138,8 @@ impl MiniCrmClient {
             else {
                 break;
             };
-            let found = super::extract::object_or_array_ids(
-                list.get("Results").unwrap_or(&Value::Null),
-            );
+            let found =
+                super::extract::object_or_array_ids(list.get("Results").unwrap_or(&Value::Null));
             if found.is_empty() {
                 break;
             }

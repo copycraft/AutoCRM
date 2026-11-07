@@ -701,7 +701,7 @@ async fn run_tool(
                         .await
                         .map_err(err)?
                         .ok_or("nincs ilyen partner")?;
-                    crate::api::visibility::partner(me, &mut partner);
+                    crate::service::visibility::partner(me, &mut partner);
                     Ok(compact(json!(partner)))
                 }
                 _ => Err("a kind lead, order vagy partner".into()),
@@ -837,7 +837,9 @@ async fn run_tool(
                 _ => return Err("a kind lead, order vagy partner".into()),
             };
             let mut rows = timeline::list(db, entity, id, ROWS).await.map_err(err)?;
-            rows.retain(|e| crate::api::visibility::history_entry_visible(me, &e.kind, &e.action));
+            rows.retain(|e| {
+                crate::service::visibility::history_entry_visible(me, &e.kind, &e.action)
+            });
             Ok(json!(rows.iter().map(|e| json!({
                 "at": e.at.with_timezone(&chrono_tz::Europe::Budapest).format("%Y.%m.%d. %H:%M").to_string(),
                 "kind": e.kind, "action": e.action, "who": e.user_name,

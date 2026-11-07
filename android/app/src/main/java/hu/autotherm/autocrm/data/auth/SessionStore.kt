@@ -76,6 +76,11 @@ class SessionStore(private val context: Context) {
             has("view_incoming_invoices", "admin", "office", "accountant", "purchaser", "viewer")
         /** Átvétel and átadás (0063). */
         val canHandleHandovers: Boolean get() = has("handle_handovers", "admin", "office", "designer", "purchaser")
+        /**
+         * Leave and absences on their own: a workshop head can keep them without the staff
+         * directory (`hrAccess`, which brings this too — the server lists it then).
+         */
+        val canManageLeave: Boolean get() = hrAccess || has("manage_leave", "admin")
         val isAdmin: Boolean get() = role == "admin"
     }
 

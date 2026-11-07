@@ -75,7 +75,11 @@ async fn ctx(pool: &PgPool) -> Ctx {
     )
     .await
     .unwrap();
-    Ctx { state, token, calls }
+    Ctx {
+        state,
+        token,
+        calls,
+    }
 }
 
 async fn call(c: &Ctx, method: &str, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
@@ -96,7 +100,10 @@ async fn call(c: &Ctx, method: &str, uri: &str, body: Option<Value>) -> (StatusC
         .unwrap();
     let status = response.status();
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -151,23 +158,50 @@ async fn a_verdict_is_logged_cached_and_forced(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn invalid_is_a_200_and_is_cached(pool: PgPool) {
     let c = ctx(&pool).await;
-    let (status, r) = call(&c, "POST", "/api/vat/check", Some(json!({ "input": "DE200" }))).await;
-    assert_eq!((status, r["status"].as_str()), (StatusCode::OK, Some("INVALID")));
-    let (_, r) = call(&c, "POST", "/api/vat/check", Some(json!({ "input": "DE200" }))).await;
+    let (status, r) = call(
+        &c,
+        "POST",
+        "/api/vat/check",
+        Some(json!({ "input": "DE200" })),
+    )
+    .await;
+    assert_eq!(
+        (status, r["status"].as_str()),
+        (StatusCode::OK, Some("INVALID"))
+    );
+    let (_, r) = call(
+        &c,
+        "POST",
+        "/api/vat/check",
+        Some(json!({ "input": "DE200" })),
+    )
+    .await;
     assert_eq!(r["cached"], true);
 }
 
 #[sqlx::test(migrations = "./migrations")]
 async fn an_outage_is_unavailable_and_never_cached(pool: PgPool) {
     let c = ctx(&pool).await;
-    let (status, r) = call(&c, "POST", "/api/vat/check", Some(json!({ "input": "DE301" }))).await;
+    let (status, r) = call(
+        &c,
+        "POST",
+        "/api/vat/check",
+        Some(json!({ "input": "DE301" })),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(r["status"], "UNAVAILABLE");
     assert_eq!(r["error_code"], "MS_UNAVAILABLE");
     let after_first = c.calls.load(Ordering::SeqCst);
     assert!(after_first >= 1);
 
-    let (_, r) = call(&c, "POST", "/api/vat/check", Some(json!({ "input": "DE301" }))).await;
+    let (_, r) = call(
+        &c,
+        "POST",
+        "/api/vat/check",
+        Some(json!({ "input": "DE301" })),
+    )
+    .await;
     assert_eq!(r["cached"], false);
     assert!(c.calls.load(Ordering::SeqCst) > after_first);
 }
@@ -175,23 +209,54 @@ async fn an_outage_is_unavailable_and_never_cached(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn a_bad_format_is_422_and_never_reaches_vies(pool: PgPool) {
     let c = ctx(&pool).await;
-    let (status, r) = call(&c, "POST", "/api/vat/check", Some(json!({ "input": "HU1234567" }))).await;
+    let (status, r) = call(
+        &c,
+        "POST",
+        "/api/vat/check",
+        Some(json!({ "input": "HU1234567" })),
+    )
+    .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(r["status"], "FORMAT_INVALID");
     assert_eq!(r["error_code"], "FORMAT_INVALID");
-    let (status, _) = call(&c, "POST", "/api/vat/check", Some(json!({ "input": "12345678" }))).await;
+    let (status, _) = call(
+        &c,
+        "POST",
+        "/api/vat/check",
+        Some(json!({ "input": "12345678" })),
+    )
+    .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(c.calls.load(Ordering::SeqCst), 0);
-    let logged: i64 = sqlx::query_scalar("SELECT count(*) FROM vat_checks").fetch_one(&pool).await.unwrap();
+    let logged: i64 = sqlx::query_scalar("SELECT count(*) FROM vat_checks")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(logged, 0);
 }
 
 #[sqlx::test(migrations = "./migrations")]
 async fn the_audit_log_is_append_only(pool: PgPool) {
     let c = ctx(&pool).await;
-    call(&c, "POST", "/api/vat/check", Some(json!({ "input": "DE100" }))).await;
-    assert!(sqlx::query("UPDATE vat_checks SET status = 'INVALID'").execute(&pool).await.is_err());
-    assert!(sqlx::query("DELETE FROM vat_checks").execute(&pool).await.is_err());
+    call(
+        &c,
+        "POST",
+        "/api/vat/check",
+        Some(json!({ "input": "DE100" })),
+    )
+    .await;
+    assert!(
+        sqlx::query("UPDATE vat_checks SET status = 'INVALID'")
+            .execute(&pool)
+            .await
+            .is_err()
+    );
+    assert!(
+        sqlx::query("DELETE FROM vat_checks")
+            .execute(&pool)
+            .await
+            .is_err()
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]

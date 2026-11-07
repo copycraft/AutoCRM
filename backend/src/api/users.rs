@@ -1,5 +1,6 @@
-//! Staff accounts. Admin only. There is no self-registration: an admin creates the account
-//! with a temporary password that must be changed at first login.
+//! Staff accounts. Admin only — except `GET /colleagues`, everyone's name for everyone.
+//! There is no self-registration: an admin creates the account with a temporary password
+//! that must be changed at first login.
 
 use axum::Json;
 use axum::extract::State;
@@ -27,6 +28,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(reset_password))
         .routes(routes!(revoke_sessions))
         .routes(routes!(reset_two_factor))
+        .routes(routes!(colleagues))
 }
 
 #[utoipa::path(
@@ -36,6 +38,39 @@ pub fn routes() -> OpenApiRouter<AppState> {
 async fn list(State(state): State<AppState>, Auth(me): Auth) -> AppResult<Json<Items<User>>> {
     me.require(Capability::ManageUsers)?;
     Ok(Items::new(users::list(&state.db).await?))
+}
+
+/// A colleague as everyone may see them: who sent a letter, who a job is assigned to.
+#[derive(Serialize, ToSchema)]
+pub struct Colleague {
+    pub id: i64,
+    pub display_name: String,
+    pub role: Role,
+    pub is_active: bool,
+}
+
+/// Everyone's name, for any signed-in user: picking an assignee, reading who sent or wrote
+/// something. Managing accounts (`GET /users`, with email, grants and 2FA) stays
+/// `ManageUsers`; knowing a colleague's name is not account management.
+#[utoipa::path(
+    get, path = "/colleagues", tag = "users",
+    responses((status = 200, body = Items<Colleague>))
+)]
+async fn colleagues(
+    State(state): State<AppState>,
+    Auth(_): Auth,
+) -> AppResult<Json<Items<Colleague>>> {
+    let items = users::list(&state.db)
+        .await?
+        .into_iter()
+        .map(|u| Colleague {
+            id: u.id,
+            display_name: u.display_name,
+            role: u.role,
+            is_active: u.is_active,
+        })
+        .collect();
+    Ok(Items::new(items))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -210,6 +245,8 @@ async fn reset_password(
         return Err(AppError::NotFound("user"));
     }
     sessions::revoke_all(&mut *tx, id, None).await?;
+    // An emailed set-up link must not outlive a password the admin just handed over.
+    crate::service::onboarding::revoke_open(&mut *tx, id).await?;
     audit::record(
         &mut *tx,
         Some(me.user_id),

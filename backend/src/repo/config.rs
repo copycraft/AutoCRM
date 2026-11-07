@@ -303,25 +303,28 @@ pub async fn update_settings(
     .await
 }
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct UserSettings {
     pub user_id: i64,
     pub density: String,
     pub page_size: i32,
     /// Put under hand-written mail when the composer opens (0049). Plain text.
     pub email_signature: Option<String>,
+    /// How the app looks (0066): `system` follows the device, or `light` / `dark`.
+    pub theme: String,
     pub updated_at: DateTime<Utc>,
 }
 
+// Runtime-checked: these read `theme` (0066), which a database built before it lacks.
 pub async fn user_settings(
     db: impl PgExecutor<'_>,
     user_id: i64,
 ) -> sqlx::Result<Option<UserSettings>> {
-    sqlx::query_as!(
-        UserSettings,
-        "SELECT user_id, density, page_size, email_signature, updated_at FROM user_settings WHERE user_id = $1",
-        user_id
+    sqlx::query_as(
+        "SELECT user_id, density, page_size, email_signature, theme, updated_at
+           FROM user_settings WHERE user_id = $1",
     )
+    .bind(user_id)
     .fetch_optional(db)
     .await
 }
@@ -332,17 +335,20 @@ pub async fn upsert_user_settings(
     density: &str,
     page_size: i32,
     email_signature: Option<&str>,
+    theme: &str,
 ) -> sqlx::Result<UserSettings> {
-    sqlx::query_as!(
-        UserSettings,
-        "INSERT INTO user_settings (user_id, density, page_size, email_signature) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id) DO UPDATE SET density = $2, page_size = $3, email_signature = $4
-         RETURNING user_id, density, page_size, email_signature, updated_at",
-        user_id,
-        density,
-        page_size,
-        email_signature
+    sqlx::query_as(
+        "INSERT INTO user_settings (user_id, density, page_size, email_signature, theme)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (user_id) DO UPDATE
+            SET density = $2, page_size = $3, email_signature = $4, theme = $5
+         RETURNING user_id, density, page_size, email_signature, theme, updated_at",
     )
+    .bind(user_id)
+    .bind(density)
+    .bind(page_size)
+    .bind(email_signature)
+    .bind(theme)
     .fetch_one(db)
     .await
 }

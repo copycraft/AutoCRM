@@ -95,7 +95,7 @@ async fn search(
     )
     .await?;
     rows.iter_mut()
-        .for_each(|p| super::visibility::partner(&me, p));
+        .for_each(|p| crate::service::visibility::partner(&me, p));
     Ok(Items::new(rows))
 }
 
@@ -254,10 +254,10 @@ async fn detail(
     };
     let mut orders = orders::search(&state.db, &filter, orders::DEFAULT_SORT, 100, 0).await?;
     let mut leads = leads::for_partner(&state.db, id).await?;
-    super::visibility::partner(&me, &mut partner);
-    super::visibility::contacts(&me, &mut contacts);
-    super::visibility::order_summaries(&me, &mut orders);
-    super::visibility::lead_summaries(&me, &mut leads);
+    crate::service::visibility::partner(&me, &mut partner);
+    crate::service::visibility::contacts(&me, &mut contacts);
+    crate::service::visibility::order_summaries(&me, &mut orders);
+    crate::service::visibility::lead_summaries(&me, &mut leads);
     Ok(Json(PartnerDetail {
         partner,
         contacts,
@@ -450,7 +450,7 @@ async fn list_contacts(
     ApiQuery(q): ApiQuery<ContactsQuery>,
 ) -> AppResult<Json<Items<Contact>>> {
     let mut rows = contacts::list_for_partner(&state.db, id, q.include_archived).await?;
-    super::visibility::contacts(&me, &mut rows);
+    crate::service::visibility::contacts(&me, &mut rows);
     Ok(Items::new(rows))
 }
 

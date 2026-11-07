@@ -21,8 +21,8 @@ use crate::AppState;
 use crate::domain::questionnaire::{Answers, KINDS, Questionnaire};
 use crate::domain::role::Capability;
 use crate::error::{AppError, AppResult};
-use crate::repo::questionnaire::{self as repo, QuestionInput};
 use crate::repo::audit;
+use crate::repo::questionnaire::{self as repo, QuestionInput};
 use crate::service::questionnaire::{self as spec, LeadSpec, SpecAnswers};
 
 pub fn routes() -> OpenApiRouter<AppState> {
@@ -131,9 +131,9 @@ async fn create_section(
     let mut tx = state.db.begin().await?;
     let qn = repo::load(&mut tx).await?;
     let trigger = trigger_id(&qn, None, optional(b.shown_when).as_deref())?;
-    let position = b.position.unwrap_or_else(|| {
-        qn.sections.iter().map(|s| s.position).max().unwrap_or(0) + 10
-    });
+    let position = b
+        .position
+        .unwrap_or_else(|| qn.sections.iter().map(|s| s.position).max().unwrap_or(0) + 10);
     let id = repo::insert_section(&mut *tx, &b.key, &title, position, trigger).await?;
     repo::set_section_types(&mut tx, id, &b.project_type_ids).await?;
     audit::record(
@@ -212,7 +212,11 @@ async fn update_section(
             (
                 "project_type_ids",
                 json!(current.project_type_ids),
-                json!(p.project_type_ids.clone().unwrap_or(current.project_type_ids.clone())),
+                json!(
+                    p.project_type_ids
+                        .clone()
+                        .unwrap_or(current.project_type_ids.clone())
+                ),
             ),
         ]),
     )
@@ -236,7 +240,9 @@ fn clean_options(kind: &str, options: Vec<String>) -> AppResult<Vec<String>> {
     }
     let choice = matches!(kind, "choice" | "multi_choice");
     if choice && out.is_empty() {
-        return Err(AppError::validation("options: a choice needs at least one option"));
+        return Err(AppError::validation(
+            "options: a choice needs at least one option",
+        ));
     }
     if !choice && !out.is_empty() {
         return Err(AppError::validation("options: only a choice has options"));
@@ -254,7 +260,9 @@ fn check_range(kind: &str, min: Option<f64>, max: Option<f64>) -> AppResult<()> 
     if let (Some(min), Some(max)) = (min, max)
         && min > max
     {
-        return Err(AppError::validation("min_value: must not be above max_value"));
+        return Err(AppError::validation(
+            "min_value: must not be above max_value",
+        ));
     }
     Ok(())
 }
@@ -312,7 +320,13 @@ async fn create_question(
         .find(|s| s.id == b.section_id)
         .ok_or_else(|| AppError::validation("section_id: no such section"))?;
     let position = b.position.unwrap_or_else(|| {
-        section.questions.iter().map(|q| q.position).max().unwrap_or(0) + 10
+        section
+            .questions
+            .iter()
+            .map(|q| q.position)
+            .max()
+            .unwrap_or(0)
+            + 10
     });
     let help = optional(b.help);
     let unit = optional(b.unit);
@@ -454,7 +468,11 @@ async fn update_question(
             ("label", json!(current.label), json!(label)),
             ("section_id", json!(current.section_id), json!(section_id)),
             ("options", json!(current.options), json!(options)),
-            ("required", json!(current.required), json!(p.required.unwrap_or(current.required))),
+            (
+                "required",
+                json!(current.required),
+                json!(p.required.unwrap_or(current.required)),
+            ),
             ("is_active", json!(current.is_active), json!(is_active)),
         ]),
     )

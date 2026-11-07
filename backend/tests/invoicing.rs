@@ -48,6 +48,7 @@ async fn emails_for(pool: &PgPool, order_id: i64) -> Vec<emails::EmailSummary> {
             status: None,
             needs_attention: false,
             q: None,
+            include_invites: false,
         },
         50,
         0,

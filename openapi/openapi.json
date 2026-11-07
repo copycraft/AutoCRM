@@ -1143,6 +1143,47 @@
         }
       }
     },
+    "/colleagues": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Everyone's name, for any signed-in user: picking an assignee, reading who sent or wrote\nsomething. Managing accounts (`GET /users`, with email, grants and 2FA) stays\n`ManageUsers`; knowing a colleague's name is not account management.",
+        "operationId": "users_colleagues",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_Colleague"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/roles": {
       "get": {
         "tags": [
@@ -1559,6 +1600,7 @@
         "tags": [
           "configuration"
         ],
+        "summary": "The system settings: the outbound mail server, its sign-in name, where alerts go.\n`ManageSettings`, like changing them — none of it is anyone else's business.",
         "operationId": "configuration_get_settings",
         "responses": {
           "200": {
@@ -10341,6 +10383,7 @@
         "tags": [
           "hr"
         ],
+        "summary": "The staff. With `AccessHr`, the directory itself. With only `ManageLeave`, the people by\nname — to record their leave — without their email, phone numbers or HR status, and\n`q` matches the name alone: a search by phone number would tell whose number it is.",
         "operationId": "hr_list",
         "parameters": [
           {
@@ -19524,6 +19567,233 @@
           }
         }
       }
+    },
+    "/users/invite": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "A new account, set up by its owner: the letter goes out at once with a one-time link\n(7 days). The account has no usable password until the link is used.",
+        "operationId": "users_invite_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteUser"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invited"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The address already has an account"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}/invite": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "The letter again, with a new link; older links stop working. For an account that never\ngot set up, or one whose owner forgot the password. Their password stays until the new\nlink is used.",
+        "operationId": "users_resend_invite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteSent"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/{token}": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "auth_invite_info",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such link, or a newer one replaced it"
+          },
+          "422": {
+            "description": "`invite_used` or `invite_expired`"
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sets the password and the look, spends the link and signs this browser in (the httpOnly\nsession cookie, as at login). Other sessions of the account end.",
+        "operationId": "auth_accept_invite",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Welcome"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Client error; see `error.code`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
     }
   },
   "components": {
@@ -19624,6 +19894,22 @@
           "url": {
             "type": "string",
             "description": "Presigned, expires after one hour; opens in the browser."
+          }
+        }
+      },
+      "AcceptInvite": {
+        "type": "object",
+        "required": [
+          "password",
+          "theme"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "theme": {
+            "type": "string",
+            "description": "`system`, `light` or `dark`."
           }
         }
       },
@@ -21174,7 +21460,9 @@
           "view_contacts",
           "view_business_reports",
           "view_all_modules",
-          "handle_handovers"
+          "handle_handovers",
+          "manage_leave",
+          "manage_recruitment"
         ]
       },
       "ChainStep": {
@@ -21374,6 +21662,31 @@
           "user_deactivated": {
             "type": "boolean",
             "description": "The linked account was switched off."
+          }
+        }
+      },
+      "Colleague": {
+        "type": "object",
+        "description": "A colleague as everyone may see them: who sent a letter, who a job is assigned to.",
+        "required": [
+          "id",
+          "display_name",
+          "role",
+          "is_active"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "is_active": {
+            "type": "boolean"
           }
         }
       },
@@ -24005,6 +24318,8 @@
           "totp_required",
           "totp_invalid",
           "last_admin",
+          "invite_used",
+          "invite_expired",
           "stage_gate",
           "note_required",
           "invalid_transition",
@@ -24183,6 +24498,20 @@
             "code": "last_admin",
             "en": "The last active admin cannot be deactivated.",
             "hu": "Az utolsó aktív adminisztrátor nem tiltható le.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "invite_used",
+            "en": "This invitation link was already used.",
+            "hu": "Ezt a meghívó linket már felhasználták. Jelentkezzen be, vagy kérjen újat a rendszergazdától.",
+            "retryable": false,
+            "status": 422
+          },
+          {
+            "code": "invite_expired",
+            "en": "This invitation link has expired.",
+            "hu": "Ez a meghívó link lejárt. Kérjen újat a rendszergazdától.",
             "retryable": false,
             "status": 422
           },
@@ -26377,6 +26706,75 @@
           }
         ]
       },
+      "InviteInfo": {
+        "type": "object",
+        "description": "Who the link is for, while it can still be used.",
+        "required": [
+          "email",
+          "display_name",
+          "expires_at"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InviteSent": {
+        "type": "object",
+        "required": [
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "InviteUser": {
+        "type": "object",
+        "required": [
+          "email",
+          "display_name",
+          "role"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        }
+      },
+      "Invited": {
+        "type": "object",
+        "required": [
+          "user",
+          "expires_at"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the letter's link stops working."
+          }
+        }
+      },
       "Invoice": {
         "type": "object",
         "required": [
@@ -27787,6 +28185,43 @@
                 "position": {
                   "type": "integer",
                   "format": "int32"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Items_Colleague": {
+        "type": "object",
+        "description": "The list envelope: `{\"items\": [...]}`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A colleague as everyone may see them: who sent a letter, who a job is assigned to.",
+              "required": [
+                "id",
+                "display_name",
+                "role",
+                "is_active"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "display_name": {
+                  "type": "string"
+                },
+                "role": {
+                  "$ref": "#/components/schemas/Role"
+                },
+                "is_active": {
+                  "type": "boolean"
                 }
               }
             }
@@ -36895,6 +37330,13 @@
               "null"
             ],
             "description": "Absent keeps it; empty removes it."
+          },
+          "theme": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`system`, `light` or `dark` (0066). Absent keeps it."
           }
         }
       },
@@ -40379,6 +40821,7 @@
           "user_id",
           "density",
           "page_size",
+          "theme",
           "updated_at"
         ],
         "properties": {
@@ -40399,6 +40842,10 @@
               "null"
             ],
             "description": "Put under hand-written mail when the composer opens (0049). Plain text."
+          },
+          "theme": {
+            "type": "string",
+            "description": "How the app looks (0066): `system` follows the device, or `light` / `dark`."
           },
           "updated_at": {
             "type": "string",
@@ -41305,6 +41752,17 @@
               "type": "string"
             },
             "description": "Who gets the Monday report; empty turns it off."
+          }
+        }
+      },
+      "Welcome": {
+        "type": "object",
+        "required": [
+          "user"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/SessionUser"
           }
         }
       },

@@ -14,11 +14,12 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DocumentLink } from '@/components/orders/InvoicesSection';
 import { Breadcrumbs, BackToList } from '@/components/ui/Breadcrumbs';
 import { CopyButton, CopyLinkButton } from '@/components/ui/CopyButton';
-import { emailApi, usersApi } from '@/lib/api/endpoints';
+import { emailApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import { useRouteId } from '@/hooks/useRouteId';
-import { canAdmin, useAuth } from '@/lib/auth/context';
+import { colleagueName, useColleagues } from '@/hooks/useColleagues';
+import { hasCapability, useAuth } from '@/lib/auth/context';
 import { useToast } from '@/components/ui/Toasts';
 import type { EmailStatus } from '@/lib/api/types';
 import { previewHtml } from '@/lib/emailPreview';
@@ -81,16 +82,9 @@ export default function EmailDetailPage({ params }: { params: { id: string } | P
     queryFn: () => emailApi.get(id),
     enabled: !resolving && !badId,
   });
-  // GET /users is admin-only; non-admins see the raw id (backend gap).
-  const usersQuery = useQuery({
-    queryKey: qk.users,
-    queryFn: () => usersApi.list(),
-    enabled: canAdmin(user) && (detail.data?.sent_by ?? null) !== null,
-    retry: false,
-  });
+  const colleagues = useColleagues((detail.data?.sent_by ?? null) !== null);
   const sentByName = detail.data?.sent_by
-    ? (usersQuery.data?.items.find((u) => u.id === detail.data?.sent_by)?.display_name ??
-      `#${detail.data.sent_by}`)
+    ? colleagueName(colleagues.data?.items, detail.data.sent_by)
     : '—';
 
   const invalidate = () => {
@@ -124,14 +118,14 @@ export default function EmailDetailPage({ params }: { params: { id: string } | P
     onError: fail,
   });
 
-  // Backend rules: own queued mail is cancellable (any queued mail with
-  // system powers); retry is failed/needs-review and admin-only. The backend
+  // Backend rules (api/email.rs): cancelling needs `send_email`, and someone else's mail
+  // also `operate_system`; retry is failed/needs-review with `operate_system`. The backend
   // enforces; the UI only hides what it knows is unavailable.
   const m = detail.data;
   const mine = !!m && !!user && m.sent_by === user.id;
-  const canCancel = !!m && m.status === 'queued' && (mine || canAdmin(user));
-  const canRetry =
-    !!m && canAdmin(user) && (m.status === 'failed' || m.status === 'needs_review');
+  const operate = hasCapability(user, 'operate_system');
+  const canCancel = !!m && m.status === 'queued' && hasCapability(user, 'send_email') && (mine || operate);
+  const canRetry = !!m && operate && (m.status === 'failed' || m.status === 'needs_review');
 
   if (badId) {
     return (

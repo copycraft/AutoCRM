@@ -267,7 +267,7 @@ function TaxNumberLookup({
             onClick={() => setMode(m)}
             className={
               mode === m
-                ? 'rounded-md bg-steel-900 px-3 py-1 text-metadata font-medium text-white'
+                ? 'rounded-md bg-steel-900 px-3 py-1 text-metadata font-medium text-surface'
                 : 'rounded-md px-3 py-1 text-metadata text-steel-500 hover:text-steel-900'
             }
           >

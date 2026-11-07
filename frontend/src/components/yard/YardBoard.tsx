@@ -163,14 +163,14 @@ export function YardBoard({ canMove, canConfigure }: { canMove: boolean; canConf
         <div className="flex gap-1 rounded-lg border border-steel-200 p-0.5">
           <button
             type="button"
-            className={cn('rounded-md px-3 py-1 text-sm font-medium', view === '2d' ? 'bg-steel-900 text-white' : 'text-steel-600 hover:bg-steel-100')}
+            className={cn('rounded-md px-3 py-1 text-sm font-medium', view === '2d' ? 'bg-steel-900 text-surface' : 'text-steel-600 hover:bg-steel-100')}
             onClick={() => setView('2d')}
           >
             {t3('view2d')}
           </button>
           <button
             type="button"
-            className={cn('rounded-md px-3 py-1 text-sm font-medium', view === '3d' ? 'bg-steel-900 text-white' : 'text-steel-600 hover:bg-steel-100')}
+            className={cn('rounded-md px-3 py-1 text-sm font-medium', view === '3d' ? 'bg-steel-900 text-surface' : 'text-steel-600 hover:bg-steel-100')}
             onClick={() => setView('3d')}
           >
             {t3('view3d')}

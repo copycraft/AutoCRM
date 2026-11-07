@@ -8,9 +8,10 @@ import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileUp, Paperclip, Plus, Trash2 } from 'lucide-react';
-import { hrExtrasApi, tasksApi, usersApi } from '@/lib/api/endpoints';
+import { hrExtrasApi, tasksApi } from '@/lib/api/endpoints';
+import { useColleagues } from '@/hooks/useColleagues';
 import { errorMessage } from '@/lib/api/errors';
-import { canAdmin, useAuth } from '@/lib/auth/context';
+import { canManageUsers, useAuth } from '@/lib/auth/context';
 import { useToast } from '@/components/ui/Toasts';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -184,8 +185,10 @@ export function EmployeeOnboarding({ employee }: { employee: Employee }) {
   const qc = useQueryClient();
   const toast = useToast();
   const { user } = useAuth();
-  const admin = canAdmin(user);
-  const users = useQuery({ queryKey: ['users'], queryFn: () => usersApi.list(), enabled: admin });
+  // Linking an account is HR work (AccessHr, this whole section); switching the account off
+  // when someone leaves is account management (ManageUsers).
+  const manageUsers = canManageUsers(user);
+  const users = useColleagues();
   const tasks = useQuery({
     queryKey: ['tasks', 'employee', employee.id],
     queryFn: () => tasksApi.forEntity('employee', employee.id),
@@ -207,7 +210,7 @@ export function EmployeeOnboarding({ employee }: { employee: Employee }) {
       hrExtrasApi.startChecklist(employee.id, {
         kind,
         start_date: start || null,
-        deactivate_user: kind === 'offboarding' && deactivate && admin && employee.user_id != null,
+        deactivate_user: kind === 'offboarding' && deactivate && manageUsers && employee.user_id != null,
       }),
     onSuccess: (r) => {
       toast.success(
@@ -228,7 +231,7 @@ export function EmployeeOnboarding({ employee }: { employee: Employee }) {
   return (
     <section className="space-y-3 border-t border-steel-200 pt-4">
       <h3 className="text-section font-semibold">{t('title')}</h3>
-      {admin && (
+      {users.data && (
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-metadata text-steel-500" htmlFor={`emp-user-${employee.id}`}>{t('account')}</label>
           <select
@@ -239,9 +242,10 @@ export function EmployeeOnboarding({ employee }: { employee: Employee }) {
             onChange={(e) => link.mutate(e.target.value ? Number(e.target.value) : null)}
           >
             <option value="">{t('noAccount')}</option>
-            {(users.data?.items ?? []).map((u) => (
+            {users.data.items.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.display_name} ({u.email}){u.is_active ? '' : ` – ${t('inactive')}`}
+                {u.display_name}
+                {u.is_active ? '' : ` – ${t('inactive')}`}
               </option>
             ))}
           </select>
@@ -273,7 +277,7 @@ export function EmployeeOnboarding({ employee }: { employee: Employee }) {
             onChange={(e) => setStart(e.target.value)}
           />
         </div>
-        {kind === 'offboarding' && admin && employee.user_id != null && (
+        {kind === 'offboarding' && manageUsers && employee.user_id != null && (
           <label className="flex items-center gap-2 pb-1 text-body">
             <input type="checkbox" checked={deactivate} onChange={(e) => setDeactivate(e.target.checked)} />
             {t('deactivate')}

@@ -16,10 +16,10 @@ import {
   ordersApi,
   partnerExtrasApi,
   subscribersApi,
-  usersApi,
 } from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
 import { qk } from '@/lib/query/provider';
+import { useColleagues } from '@/hooks/useColleagues';
 
 /** A checkbox column for DataTable: ticks a row, or every row on the page from the header. */
 export function selectColumn<T extends { id: number }>(
@@ -86,7 +86,7 @@ export function LeadBulkBar({ ids, onClear }: { ids: number[]; onClear: () => vo
   const [value, setValue] = useState('');
   const [result, setResult] = useState<{ applied: number; skipped: Skip[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const users = useQuery({ queryKey: ['users'], queryFn: () => usersApi.list(), enabled: action === 'assign' });
+  const users = useColleagues(action === 'assign');
   const tags = useQuery({ queryKey: ['lead-tags'], queryFn: () => leadTagsApi.list(), enabled: action.endsWith('tag') });
   const stages = useQuery({ queryKey: qk.stages('lead'), queryFn: () => configApi.stages('lead'), enabled: action === 'stage' });
 

@@ -159,6 +159,9 @@ pub struct EmailFilter {
     /// Free text over subject and recipient. Served server-side so the inbox searches
     /// the whole log, not just the loaded page.
     pub q: Option<String>,
+    /// Include invitation letters (0066). Their body is a one-time sign-in link, so only
+    /// those who manage users may list them.
+    pub include_invites: bool,
 }
 
 pub async fn list(
@@ -182,6 +185,7 @@ pub async fn list(
               AND ($4::email_status IS NULL OR m.status = $4)
               AND (NOT $5 OR m.status IN ('failed', 'needs_review'))
               AND ($8::text IS NULL OR m.subject ILIKE $8 OR m.to_address ILIKE $8)
+              AND ($9 OR m.trigger <> 'user_invite')
             ORDER BY m.queued_at DESC, m.id DESC
             LIMIT $6 OFFSET $7"#,
         f.order_id,
@@ -191,7 +195,8 @@ pub async fn list(
         f.needs_attention,
         limit,
         offset,
-        f.q.as_deref().and_then(crate::repo::like_pattern)
+        f.q.as_deref().and_then(crate::repo::like_pattern),
+        f.include_invites
     )
     .fetch_all(db)
     .await

@@ -108,15 +108,51 @@ export function canSendEmail(user: SessionUser | null): boolean {
   return hasCapability(user, 'send_email');
 }
 
-/// The admin role itself (user management is never granted per user).
-export function canAdmin(user: SessionUser | null): boolean {
-  return !!user && user.role === 'admin';
+/// User accounts and the role grid. Never granted per user, so in practice the admin role —
+/// but asked as a right, like every other gate here, so the screens follow the server.
+export function canManageUsers(user: SessionUser | null): boolean {
+  return hasCapability(user, 'manage_users');
 }
 
-/// The HR module: admins, and users an admin granted it (the backend computes it into
-/// `hr_access`, which is already true for admins).
+/// System settings: the mail server, sending windows, where alerts go.
+export function canManageSettings(user: SessionUser | null): boolean {
+  return hasCapability(user, 'manage_settings');
+}
+
+/// Configuration: stages, project types, templates, departments, the yard, the questionnaire.
+export function canManageConfiguration(user: SessionUser | null): boolean {
+  return hasCapability(user, 'manage_configuration');
+}
+
+/// Background work: retrying failed mail and jobs, cancelling anyone's queued mail.
+export function canOperateSystem(user: SessionUser | null): boolean {
+  return hasCapability(user, 'operate_system');
+}
+
+/// Technically annulling a NAV data report.
+export function canAnnulInvoices(user: SessionUser | null): boolean {
+  return hasCapability(user, 'annul_invoices');
+}
+
+/// The HR staff directory: personal data, documents, checklists. Admins, and users an admin
+/// gave `hr_access` (the backend computes it into the flag, already true for admins).
 export function canAccessHr(user: SessionUser | null): boolean {
   return !!user && user.hr_access;
+}
+
+/// Leave and absences; the staff come with it by name only. `hr_access` brings it too.
+export function canManageLeave(user: SessionUser | null): boolean {
+  return hasCapability(user, 'manage_leave');
+}
+
+/// Job listings, ads and applicants. `hr_access` brings it too.
+export function canManageRecruitment(user: SessionUser | null): boolean {
+  return hasCapability(user, 'manage_recruitment');
+}
+
+/// Any part of the HR module: the menu item shows, and the page offers the parts one has.
+export function canEnterHr(user: SessionUser | null): boolean {
+  return canAccessHr(user) || canManageLeave(user) || canManageRecruitment(user);
 }
 
 /// Issuing invoices, marking them paid, and recording incoming ones.

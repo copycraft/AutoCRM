@@ -40,6 +40,12 @@ const GROUPS: { key: string; caps: Capability[] }[] = [
     ],
   },
   {
+    // The parts of HR that can be granted alone; the whole module is the per-person
+    // "HR-hozzáférés" switch in the user list.
+    key: 'hr',
+    caps: ['manage_leave', 'manage_recruitment'],
+  },
+  {
     key: 'admin',
     caps: ['annul_invoices', 'manage_configuration', 'manage_settings', 'operate_system'],
   },

@@ -271,7 +271,7 @@ pub async fn quote_expiry_alerts(state: &AppState) -> anyhow::Result<usize> {
             None => {
                 notifications::broadcast(
                     &mut *tx,
-                    &["admin", "office"],
+                    crate::domain::role::Capability::EditLeads,
                     "quote_expiry",
                     &title,
                     Some(&body),
@@ -332,8 +332,9 @@ pub async fn document_expiry_alerts(state: &AppState) -> anyhow::Result<usize> {
         } else {
             "Hamarosan lejár egy dolgozói dokumentum"
         };
-        notifications::broadcast_hr(
+        notifications::broadcast(
             &mut *tx,
+            crate::domain::role::Capability::AccessHr,
             "employee_document",
             heading,
             Some(&format!("{name}: {title} — {}", hu_date(valid_until))),

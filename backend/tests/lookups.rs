@@ -99,7 +99,6 @@ async fn any_signed_in_user_reads_the_whole_document(pool: PgPool) {
     // The heating fuel and defrost choices are questionnaire options now (0065).
     assert!(doc.get("heating_fuels").is_none());
     assert_eq!(
-
         keys(&doc["order_relations"]),
         ["warranty", "rework", "repeat"]
     );

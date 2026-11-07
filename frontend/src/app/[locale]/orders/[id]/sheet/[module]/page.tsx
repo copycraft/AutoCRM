@@ -65,7 +65,7 @@ export default function ModuleSheetPage() {
   if (chosen.length === 0) return <p className="p-6 text-body">{t('sheetMissing')}</p>;
 
   return (
-    <main className="mx-auto max-w-3xl bg-white p-6 text-steel-900 print:max-w-none print:p-0">
+    <main className="paper mx-auto max-w-3xl bg-white p-6 text-steel-900 print:max-w-none print:p-0">
       <div className="mb-4 flex justify-end gap-2 print:hidden">
         <button type="button" className="btn-primary btn-sm" onClick={() => window.print()}>
           {t('printNow')}

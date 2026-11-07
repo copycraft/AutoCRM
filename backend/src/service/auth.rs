@@ -91,15 +91,13 @@ impl AuthUser {
     }
 
     pub fn can(&self, capability: Capability) -> bool {
-        // Admins are not in the grid: nobody can untick the last admin out of the system.
-        let from_role = match (&self.role_grid, self.role) {
-            (_, Role::Admin) => true,
-            (Some(grid), _) => grid.contains(&capability),
-            (None, role) => role.can(capability),
-        };
-        from_role
-            || (capability == Capability::AccessHr && self.hr_access)
-            || (capability.grantable() && self.permissions.contains(&capability))
+        crate::domain::role::holds(
+            self.role,
+            self.role_grid.as_deref(),
+            self.hr_access,
+            &self.permissions,
+            capability,
+        )
     }
 
     /// Everything this user may do: the role's set plus the grants.
@@ -372,6 +370,8 @@ pub async fn change_password(
     let mut tx = db.begin().await?;
     users::set_password(&mut *tx, auth.user_id, &hash, false).await?;
     sessions::revoke_all(&mut *tx, auth.user_id, Some(auth.session_id)).await?;
+    // A set-up link still in the mailbox would undo the new password.
+    crate::service::onboarding::revoke_open(&mut *tx, auth.user_id).await?;
     tx.commit().await?;
     Ok(())
 }

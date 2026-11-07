@@ -3,9 +3,61 @@
 @tailwind utilities;
 
 @layer base {
+  /* The palette (tailwind.config.ts), as R G B. Light is the default; dark applies when the
+     person picked it, or picked "system" on a device set to dark. The <head> script in
+     app/layout.tsx sets data-theme before the first paint (lib/theme.ts). */
   :root {
     --font-plex-sans: 'IBM Plex Sans', system-ui, sans-serif;
     --font-plex-mono: 'IBM Plex Mono', monospace;
+    --c-panel: 247 248 247;
+    --c-surface: 255 255 255;
+    --c-steel-900: 27 35 39;
+    --c-steel-500: 107 118 124;
+    --c-steel-200: 213 219 220;
+    --c-signal: 232 89 12;
+    --c-cold: 15 92 122;
+    --c-done: 47 122 62;
+    color-scheme: light;
+  }
+
+  :root[data-theme='dark'] {
+    --c-panel: 17 22 25;
+    --c-surface: 27 34 38;
+    --c-steel-900: 230 234 235;
+    --c-steel-500: 154 165 171;
+    --c-steel-200: 52 63 69;
+    --c-signal: 244 112 46;
+    --c-cold: 86 165 199;
+    --c-done: 98 180 112;
+    color-scheme: dark;
+  }
+
+  /* Paper: a page meant for the printer (the job sheet) stays in the light palette
+     whatever the person picked on screen. */
+  .paper {
+    --c-panel: 247 248 247;
+    --c-surface: 255 255 255;
+    --c-steel-900: 27 35 39;
+    --c-steel-500: 107 118 124;
+    --c-steel-200: 213 219 220;
+    --c-signal: 232 89 12;
+    --c-cold: 15 92 122;
+    --c-done: 47 122 62;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme='system'] {
+      --c-panel: 17 22 25;
+      --c-surface: 27 34 38;
+      --c-steel-900: 230 234 235;
+      --c-steel-500: 154 165 171;
+      --c-steel-200: 52 63 69;
+      --c-signal: 244 112 46;
+      --c-cold: 86 165 199;
+      --c-done: 98 180 112;
+      color-scheme: dark;
+    }
   }
 
   * {

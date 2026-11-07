@@ -14,7 +14,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { useUrlState } from '@/hooks/useUrlState';
 import { emailApi } from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
-import { canAdmin, useAuth } from '@/lib/auth/context';
+import { canManageConfiguration, useAuth } from '@/lib/auth/context';
 import { cn } from '@/lib/utils/format';
 import { FollowupSteps } from '@/components/followups/FollowupSteps';
 import { TemplatePreview } from '@/components/email/TemplatePreview';
@@ -29,7 +29,7 @@ export default function TemplatesPage() {
   const tn = useTranslations('navigation');
   const { user } = useAuth();
   // Editing templates is configuration (the server asks for it too).
-  const editable = canAdmin(user);
+  const editable = canManageConfiguration(user);
   const qc = useQueryClient();
   const [tab, setTab] = useUrlState('tab', 'sales');
   const [folder, setFolder] = useUrlState('folder', '');

@@ -166,7 +166,11 @@ impl Questionnaire {
     }
 
     /// The sections asked, in display order.
-    pub fn visible_sections(&self, project_type_id: Option<i64>, answers: &Answers) -> Vec<&Section> {
+    pub fn visible_sections(
+        &self,
+        project_type_id: Option<i64>,
+        answers: &Answers,
+    ) -> Vec<&Section> {
         self.sections
             .iter()
             .filter(|s| self.is_visible(s, project_type_id, answers))
@@ -247,7 +251,9 @@ fn number_value(n: f64) -> Value {
     if n.fract() == 0.0 && n.abs() < 9.0e15 {
         Value::from(n as i64)
     } else {
-        Number::from_f64(n).map(Value::Number).unwrap_or(Value::Null)
+        Number::from_f64(n)
+            .map(Value::Number)
+            .unwrap_or(Value::Null)
     }
 }
 
@@ -307,10 +313,7 @@ fn normalize(
             None => None,
             Some(s) if allowed(q, &s, previous) => Some(Value::String(s)),
             Some(_) => {
-                return Err(err(
-                    q,
-                    format!("must be one of: {}", q.options.join(", ")),
-                ));
+                return Err(err(q, format!("must be one of: {}", q.options.join(", "))));
             }
         },
         "multi_choice" => match value {
@@ -371,7 +374,13 @@ mod tests {
         }
     }
 
-    fn section(id: i64, key: &str, shown_when: Option<&str>, types: &[i64], questions: Vec<Question>) -> Section {
+    fn section(
+        id: i64,
+        key: &str,
+        shown_when: Option<&str>,
+        types: &[i64],
+        questions: Vec<Question>,
+    ) -> Section {
         Section {
             id,
             key: key.into(),
@@ -392,22 +401,52 @@ mod tests {
         temp.max_value = Some(30.0);
         Questionnaire {
             sections: vec![
-                section(1, "general", None, &[], vec![
-                    q(10, 1, "heats", "yes_no", true),
-                    q(11, 1, "cools", "yes_no", true),
-                    q(12, 1, "notes", "long_text", false),
-                ]),
-                section(2, "box", None, &[BOX], vec![q(20, 2, "box_length_mm", "number", true)]),
-                section(3, "cooling", Some("cools"), &[], vec![
-                    temp,
-                    q(31, 3, "freezes", "yes_no", true),
-                    q(32, 3, "defrost", "choice", false),
-                ]),
-                section(4, "freezer", Some("freezes"), &[], vec![q(40, 4, "freeze_temp_c", "number", true)]),
-                section(5, "heating", Some("heats"), &[], vec![
-                    q(50, 5, "heat_temp_c", "number", true),
-                    q(51, 5, "extras", "multi_choice", false),
-                ]),
+                section(
+                    1,
+                    "general",
+                    None,
+                    &[],
+                    vec![
+                        q(10, 1, "heats", "yes_no", true),
+                        q(11, 1, "cools", "yes_no", true),
+                        q(12, 1, "notes", "long_text", false),
+                    ],
+                ),
+                section(
+                    2,
+                    "box",
+                    None,
+                    &[BOX],
+                    vec![q(20, 2, "box_length_mm", "number", true)],
+                ),
+                section(
+                    3,
+                    "cooling",
+                    Some("cools"),
+                    &[],
+                    vec![
+                        temp,
+                        q(31, 3, "freezes", "yes_no", true),
+                        q(32, 3, "defrost", "choice", false),
+                    ],
+                ),
+                section(
+                    4,
+                    "freezer",
+                    Some("freezes"),
+                    &[],
+                    vec![q(40, 4, "freeze_temp_c", "number", true)],
+                ),
+                section(
+                    5,
+                    "heating",
+                    Some("heats"),
+                    &[],
+                    vec![
+                        q(50, 5, "heat_temp_c", "number", true),
+                        q(51, 5, "extras", "multi_choice", false),
+                    ],
+                ),
             ],
         }
     }
@@ -421,14 +460,20 @@ mod tests {
     }
 
     fn missing_keys(qn: &Questionnaire, pt: Option<i64>, a: &Answers) -> Vec<String> {
-        qn.missing(pt, a).into_iter().map(|q| q.key.clone()).collect()
+        qn.missing(pt, a)
+            .into_iter()
+            .map(|q| q.key.clone())
+            .collect()
     }
 
     #[test]
     fn switches_open_their_sections_and_both_can_be_on() {
         let qn = sample();
         let none = answers(json!({}));
-        assert_eq!(keys(qn.visible_sections(Some(BOX), &none)), ["general", "box"]);
+        assert_eq!(
+            keys(qn.visible_sections(Some(BOX), &none)),
+            ["general", "box"]
+        );
         let both = answers(json!({"heats": true, "cools": true}));
         assert_eq!(
             keys(qn.visible_sections(Some(BOX), &both)),
@@ -451,7 +496,10 @@ mod tests {
     #[test]
     fn type_sections_wait_for_a_type() {
         let qn = sample();
-        assert_eq!(keys(qn.visible_sections(None, &Answers::new())), ["general"]);
+        assert_eq!(
+            keys(qn.visible_sections(None, &Answers::new())),
+            ["general"]
+        );
     }
 
     #[test]
@@ -500,7 +548,11 @@ mod tests {
     fn whole_numbers_stay_integers() {
         let qn = sample();
         let out = qn
-            .clean(Some(BOX), &answers(json!({"box_length_mm": "4200,0"})), &Answers::new())
+            .clean(
+                Some(BOX),
+                &answers(json!({"box_length_mm": "4200,0"})),
+                &Answers::new(),
+            )
             .unwrap();
         assert_eq!(out.get("box_length_mm"), Some(&json!(4200)));
     }
@@ -510,24 +562,38 @@ mod tests {
         let qn = sample();
         let none = Answers::new();
         let e = qn
-            .clean(None, &answers(json!({"cools": true, "cool_temp_c": -50})), &none)
+            .clean(
+                None,
+                &answers(json!({"cools": true, "cool_temp_c": -50})),
+                &none,
+            )
             .unwrap_err();
         assert_eq!(e.key, "cool_temp_c");
         assert!(e.message.contains("between -40 and 30"), "{}", e.message);
         assert_eq!(
-            qn.clean(None, &answers(json!({"heats": "yes"})), &none).unwrap_err().key,
+            qn.clean(None, &answers(json!({"heats": "yes"})), &none)
+                .unwrap_err()
+                .key,
             "heats"
         );
         assert_eq!(
-            qn.clean(None, &answers(json!({"cools": true, "defrost": "C"})), &none)
-                .unwrap_err()
-                .key,
+            qn.clean(
+                None,
+                &answers(json!({"cools": true, "defrost": "C"})),
+                &none
+            )
+            .unwrap_err()
+            .key,
             "defrost"
         );
         assert_eq!(
-            qn.clean(None, &answers(json!({"cools": true, "cool_temp_c": "hideg"})), &none)
-                .unwrap_err()
-                .key,
+            qn.clean(
+                None,
+                &answers(json!({"cools": true, "cool_temp_c": "hideg"})),
+                &none
+            )
+            .unwrap_err()
+            .key,
             "cool_temp_c"
         );
     }

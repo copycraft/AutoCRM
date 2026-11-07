@@ -14,11 +14,17 @@ struct Script {
 }
 
 fn fault(code: &str) -> (u16, String) {
-    (200, format!(r#"{{"actionSucceed":false,"errorWrappers":[{{"error":"{code}"}}]}}"#))
+    (
+        200,
+        format!(r#"{{"actionSucceed":false,"errorWrappers":[{{"error":"{code}"}}]}}"#),
+    )
 }
 
 fn valid() -> (u16, String) {
-    (200, r#"{"valid":true,"name":"ACME","address":"---","requestIdentifier":"WAPI1"}"#.into())
+    (
+        200,
+        r#"{"valid":true,"name":"ACME","address":"---","requestIdentifier":"WAPI1"}"#.into(),
+    )
 }
 
 impl Transport for Arc<Script> {
@@ -30,11 +36,20 @@ impl Transport for Arc<Script> {
     ) -> Result<(u16, String), String> {
         if path == "/check-status" {
             self.status_calls.fetch_add(1, Ordering::SeqCst);
-            return self.status.clone().map(|s| (200, s)).ok_or("NETWORK_ERROR".into());
+            return self
+                .status
+                .clone()
+                .map(|s| (200, s))
+                .ok_or("NETWORK_ERROR".into());
         }
         self.seen.lock().unwrap().push(body.unwrap());
         tokio::time::sleep(self.delay).await;
-        Ok(self.answers.lock().unwrap().pop_front().unwrap_or_else(|| fault("SERVICE_UNAVAILABLE")))
+        Ok(self
+            .answers
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or_else(|| fault("SERVICE_UNAVAILABLE")))
     }
 }
 
@@ -49,7 +64,10 @@ fn client(script: Script, requester: Option<&str>) -> (ViesClient<Arc<Script>>, 
 }
 
 fn script(answers: Vec<(u16, String)>) -> Script {
-    Script { answers: Mutex::new(answers.into()), ..Script::default() }
+    Script {
+        answers: Mutex::new(answers.into()),
+        ..Script::default()
+    }
 }
 
 fn de() -> NormalizedVat {
@@ -58,7 +76,14 @@ fn de() -> NormalizedVat {
 
 #[tokio::test]
 async fn concurrency_errors_are_retried_until_a_verdict() {
-    let (client, s) = client(script(vec![fault("MS_MAX_CONCURRENT_REQ"), fault("MS_MAX_CONCURRENT_REQ"), valid()]), None);
+    let (client, s) = client(
+        script(vec![
+            fault("MS_MAX_CONCURRENT_REQ"),
+            fault("MS_MAX_CONCURRENT_REQ"),
+            valid(),
+        ]),
+        None,
+    );
     let out = client.check(&de(), CheckOptions::default()).await;
     assert_eq!(out.status, VatCheckStatus::Valid);
     assert_eq!(out.attempts, 3);
@@ -96,12 +121,18 @@ async fn member_state_outage_is_retried_when_status_says_available() {
     let mut sc = script(vec![fault("MS_UNAVAILABLE"), valid()]);
     sc.status = Some(r#"{"vow":{"available":true},"countries":[{"countryCode":"DE","availability":"Available"}]}"#.into());
     let (client, _) = client(sc, None);
-    assert_eq!(client.check(&de(), CheckOptions::default()).await.status, VatCheckStatus::Valid);
+    assert_eq!(
+        client.check(&de(), CheckOptions::default()).await.status,
+        VatCheckStatus::Valid
+    );
 }
 
 #[tokio::test]
 async fn rejected_requester_is_dropped_and_retried_once() {
-    let (client, s) = client(script(vec![fault("INVALID_REQUESTER_INFO"), valid()]), Some("87654321"));
+    let (client, s) = client(
+        script(vec![fault("INVALID_REQUESTER_INFO"), valid()]),
+        Some("87654321"),
+    );
     let out = client.check(&de(), CheckOptions::default()).await;
     assert_eq!(out.status, VatCheckStatus::Valid);
     assert_eq!(out.hints, vec![HINT_REQUESTER_REJECTED]);
@@ -131,7 +162,14 @@ async fn exhausted_retries_are_unavailable_never_invalid() {
 
 #[tokio::test]
 async fn unknown_codes_retry_once() {
-    let (client, s) = client(script(vec![fault("SOMETHING_NEW"), fault("SOMETHING_NEW"), valid()]), None);
+    let (client, s) = client(
+        script(vec![
+            fault("SOMETHING_NEW"),
+            fault("SOMETHING_NEW"),
+            valid(),
+        ]),
+        None,
+    );
     let out = client.check(&de(), CheckOptions::default()).await;
     assert_eq!(out.status, VatCheckStatus::Unavailable);
     assert_eq!(s.seen.lock().unwrap().len(), 2);
@@ -141,7 +179,10 @@ async fn unknown_codes_retry_once() {
 async fn ip_blocked_is_an_error() {
     let (client, _) = client(script(vec![fault("IP_BLOCKED")]), None);
     let out = client.check(&de(), CheckOptions::default()).await;
-    assert_eq!((out.status, out.error_code.as_deref()), (VatCheckStatus::Error, Some("IP_BLOCKED")));
+    assert_eq!(
+        (out.status, out.error_code.as_deref()),
+        (VatCheckStatus::Error, Some("IP_BLOCKED"))
+    );
 }
 
 #[tokio::test]
@@ -154,7 +195,10 @@ async fn concurrent_checks_of_one_number_share_a_request() {
         client.check(&vat, CheckOptions::default()),
         client.check(&vat, CheckOptions::default())
     );
-    assert_eq!((a.status, b.status), (VatCheckStatus::Valid, VatCheckStatus::Valid));
+    assert_eq!(
+        (a.status, b.status),
+        (VatCheckStatus::Valid, VatCheckStatus::Valid)
+    );
     assert_eq!(s.seen.lock().unwrap().len(), 1);
 
     // Once finished, the next check goes upstream again.
@@ -164,11 +208,17 @@ async fn concurrent_checks_of_one_number_share_a_request() {
 
 #[tokio::test]
 async fn result_merges_format_and_outcome_hints() {
-    let (client, _) = client(script(vec![fault("INVALID_REQUESTER_INFO"), valid()]), Some("1"));
+    let (client, _) = client(
+        script(vec![fault("INVALID_REQUESTER_INFO"), valid()]),
+        Some("1"),
+    );
     let vat = normalize_vat("12345678-4-06", Some("HU")).unwrap();
     let out = client.check(&vat, CheckOptions::default()).await;
     let result = VatCheckResult::from_outcome(&vat, &out, chrono::Utc::now(), None);
-    assert_eq!(result.hints, vec!["HU_VAT_GROUP_MEMBER", "REQUESTER_REJECTED"]);
+    assert_eq!(
+        result.hints,
+        vec!["HU_VAT_GROUP_MEMBER", "REQUESTER_REJECTED"]
+    );
     let json = serde_json::to_value(&result).unwrap();
     assert_eq!(json["status"], "VALID");
     assert_eq!(json["hu_domestic_tax_number"], "12345678406");

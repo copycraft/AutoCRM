@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { configApi, leadSourcesApi, salesReportsApi } from '@/lib/api/endpoints';
 import { errorMessage } from '@/lib/api/errors';
 import { qk } from '@/lib/query/provider';
-import { canAdmin, useAuth } from '@/lib/auth/context';
+import { canManageSettings, useAuth } from '@/lib/auth/context';
 import { cn } from '@/lib/utils/format';
 import { Money } from '@/components/ui/Money';
 import { DateDisplay } from '@/components/ui/DateDisplay';
@@ -377,7 +377,7 @@ function WeeklyReportRecipients() {
   const t = useTranslations('salesReports');
   const ter = useTranslations('errors');
   const { user } = useAuth();
-  const admin = canAdmin(user);
+  const admin = canManageSettings(user);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['weekly-recipients'], queryFn: salesReportsApi.weeklyRecipients, enabled: admin });
   const [text, setText] = useState<string | null>(null);

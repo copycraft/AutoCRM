@@ -57,6 +57,9 @@ pub mod triggers {
     pub const NEW_DEVICE_LOGIN: &str = "new_device_login";
     /// The Monday report to the managers (0049).
     pub const WEEKLY_REPORT: &str = "weekly_report";
+    /// An invitation to set up one's account (0066). It carries a one-time sign-in link, so
+    /// only those who manage users see it in the email log (`api::email`).
+    pub const USER_INVITE: &str = "user_invite";
 }
 
 const MAX_ATTACHMENT_BYTES: i64 = 10 * 1024 * 1024;

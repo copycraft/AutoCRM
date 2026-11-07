@@ -504,11 +504,11 @@ async fn an_enquirys_files_join_the_project_it_becomes(pool: PgPool) {
             fields: common::fields(partner_id, "HUF"),
             items: vec![],
             answers: Some(
-                    serde_json::json!({ "heats": false, "cools": false })
-                        .as_object()
-                        .cloned()
-                        .unwrap(),
-                ),
+                serde_json::json!({ "heats": false, "cools": false })
+                    .as_object()
+                    .cloned()
+                    .unwrap(),
+            ),
         },
     )
     .await

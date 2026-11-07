@@ -15,6 +15,7 @@ import { qk } from '@/lib/query/provider';
 import { ApiError, errorMessage } from '@/lib/api/errors';
 import type { EmailTransportBody, Settings } from '@/lib/api/types';
 import { DepartmentsSettings } from '@/components/admin/DepartmentsSettings';
+import { canManageConfiguration, canManageSettings, useAuth } from '@/lib/auth/context';
 import { QuestionnaireSettings } from '@/components/spec/QuestionnaireSettings';
 
 type Mode = 'inherit' | 'dry_run' | 'smtp';
@@ -23,27 +24,44 @@ function toMode(emailMode: string | null | undefined): Mode {
   return emailMode === 'dry_run' || emailMode === 'smtp' ? emailMode : 'inherit';
 }
 
+/**
+ * Two rights share this page, as on the server: the system settings (mail server, sending
+ * windows — `manage_settings`) and the configuration below them (inspection zones, photo
+ * categories, departments, the questionnaire — `manage_configuration`). Each part shows to
+ * whoever holds its right, so either can be granted without the other.
+ */
 export default function SettingsPage() {
   const t = useTranslations('settings');
-  const tc = useTranslations('common');
-  const ter = useTranslations('errors');
-  const qc = useQueryClient();
-  const query = useQuery({ queryKey: qk.settings, queryFn: () => configApi.settings() });
+  const { user, isLoading } = useAuth();
+  const settingsRight = canManageSettings(user);
+  const configRight = canManageConfiguration(user);
+  const query = useQuery({ queryKey: qk.settings, queryFn: () => configApi.settings(), enabled: settingsRight });
 
   return (
     <AppShell>
       <PageHeader title={t('title')} />
-      {query.isLoading ? (
+      {isLoading ? (
         <DetailSkeleton />
-      ) : query.isError || !query.data ? (
-        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+      ) : !settingsRight && !configRight ? (
+        <ErrorState error={new ApiError('forbidden', 403, 'forbidden')} />
       ) : (
         <>
-          <SettingsForm key={query.data.updated_at} initial={query.data} />
-          <ZoneTemplates />
-          <StagePhotoCategories />
-          <DepartmentsSettings />
-          <QuestionnaireSettings />
+          {settingsRight &&
+            (query.isLoading ? (
+              <DetailSkeleton />
+            ) : query.isError || !query.data ? (
+              <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+            ) : (
+              <SettingsForm key={query.data.updated_at} initial={query.data} />
+            ))}
+          {configRight && (
+            <>
+              <ZoneTemplates />
+              <StagePhotoCategories />
+              <DepartmentsSettings />
+              <QuestionnaireSettings />
+            </>
+          )}
         </>
       )}
     </AppShell>

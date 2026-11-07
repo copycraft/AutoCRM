@@ -215,8 +215,7 @@ async fn upload_document_file(
         .chars()
         .take(200)
         .collect();
-    let (content_type, ext) = super::incoming_invoices::sniff(&body)
-        .filter(|(_, ext)| *ext != "xml")
+    let (content_type, ext) = crate::media::sniff::scan_or_photo(&body)
         .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
     let kind = employee_documents::kind_of(&state.db, doc_id, id)
         .await?
@@ -357,6 +356,9 @@ struct ListQuery {
     status: Option<i64>,
 }
 
+/// The staff. With `AccessHr`, the directory itself. With only `ManageLeave`, the people by
+/// name — to record their leave — without their email, phone numbers or HR status, and
+/// `q` matches the name alone: a search by phone number would tell whose number it is.
 #[utoipa::path(
     get, path = "/hr/employees", tag = "hr",
     params(ListQuery),
@@ -367,7 +369,26 @@ async fn list(
     Auth(me): Auth,
     ApiQuery(q): ApiQuery<ListQuery>,
 ) -> AppResult<Json<Items<Employee>>> {
-    me.require(Capability::AccessHr)?;
+    let directory = me.can(Capability::AccessHr);
+    if !directory {
+        me.require(Capability::ManageLeave)?;
+        let name =
+            q.q.as_deref()
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty());
+        let rows = employees::list(&state.db, None, q.include_archived, None).await?;
+        let mut items = Vec::with_capacity(rows.len());
+        for row in rows {
+            if name
+                .as_ref()
+                .is_some_and(|n| !row.full_name.to_lowercase().contains(n))
+            {
+                continue;
+            }
+            items.push(by_name_only(present(&state, row).await));
+        }
+        return Ok(Items::new(items));
+    }
     let pattern = q.q.as_deref().and_then(like_pattern);
     let rows = employees::list(&state.db, pattern.as_deref(), q.include_archived, q.status).await?;
     let mut items = Vec::with_capacity(rows.len());
@@ -375,6 +396,18 @@ async fn list(
         items.push(present(&state, row).await);
     }
     Ok(Items::new(items))
+}
+
+/// An employee as someone outside the directory sees them: who they are, not how to reach
+/// them or where they stand with HR.
+fn by_name_only(e: Employee) -> Employee {
+    Employee {
+        email: None,
+        company_phone: None,
+        personal_phone: None,
+        status_id: None,
+        ..e
+    }
 }
 
 /// Create requires `full_name`. On PATCH every field is optional; `null` clears.

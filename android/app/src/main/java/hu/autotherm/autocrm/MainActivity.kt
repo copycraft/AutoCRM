@@ -557,7 +557,7 @@ private fun AppScaffold(
                 DESTINATIONS.filter { dest ->
                     when (dest) {
                         Destination.Capture -> account.canUploadMedia
-                        Destination.Hr -> account.hrAccess
+                        Destination.Hr -> account.hrAccess || account.canManageLeave
                         Destination.Users -> account.isAdmin
                         Destination.Leads, Destination.Emails -> account.canViewSales
                         Destination.Incoming -> account.canViewIncomingInvoices
@@ -1050,19 +1050,29 @@ private fun AppScaffold(
                 )
             }
             composable("hr/leave") {
-                if (account.hrAccess) LeaveScreen(
+                if (account.canManageLeave) LeaveScreen(
                     viewModel = viewModel { LeaveViewModel(app.api) },
                     onBack = { navController.popBackStack() },
                 )
             }
             composable(Destination.Hr.route) {
-                if (account.hrAccess) HrListScreen(
-                    viewModel = viewModel { HrListViewModel(app.api) },
-                    onMenu = openDrawer,
-                    onLeave = { navController.navigate("hr/leave") },
-                    onNew = { navController.navigate("hr/new") },
-                    onEdit = { id -> navController.navigate("hr/$id/edit") },
-                )
+                if (account.hrAccess) {
+                    HrListScreen(
+                        viewModel = viewModel { HrListViewModel(app.api) },
+                        onMenu = openDrawer,
+                        onLeave = { navController.navigate("hr/leave") },
+                        onNew = { navController.navigate("hr/new") },
+                        onEdit = { id -> navController.navigate("hr/$id/edit") },
+                    )
+                } else if (account.canManageLeave) {
+                    // Leave without the directory: HR opens straight on the leave screen,
+                    // and its back arrow returns to where the menu was opened from.
+                    LaunchedEffect(Unit) {
+                        navController.navigate("hr/leave") {
+                            popUpTo(Destination.Hr.route) { inclusive = true }
+                        }
+                    }
+                }
             }
             composable("hr/new") {
                 if (account.hrAccess) HrEditScreen(

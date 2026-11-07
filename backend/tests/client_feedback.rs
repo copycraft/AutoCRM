@@ -330,9 +330,16 @@ async fn a_repeat_order_copies_the_job_but_not_the_vehicle(pool: PgPool) {
     assert_eq!(items[0].unit_price, 420_000_000, "the old price");
 
     let spec = questionnaire::order_answers(&pool, new.id).await.unwrap();
-    assert_eq!(spec.get("cooling_unit_make"), Some(&serde_json::json!("Thermo King")));
+    assert_eq!(
+        spec.get("cooling_unit_make"),
+        Some(&serde_json::json!("Thermo King"))
+    );
     assert_eq!(spec.get("insulation_mm"), Some(&serde_json::json!(80)));
-    assert_eq!(spec.get("cooling_unit_serial"), None, "a new unit, a new serial");
+    assert_eq!(
+        spec.get("cooling_unit_serial"),
+        None,
+        "a new unit, a new serial"
+    );
 
     let mods = order_modules::list_for_order(&pool, new.id).await.unwrap();
     assert_eq!(mods.len(), 1);

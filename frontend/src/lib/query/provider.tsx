@@ -52,6 +52,8 @@ export const qk = {
   me: ['me'],
   preferences: ['preferences'],
   users: ['users'],
+  // Under ['users']: invalidating the user list after an admin edit refreshes names too.
+  colleagues: ['users', 'colleagues'],
   employees: (params?: unknown) => ['employees', params],
   jobs: ['jobs'],
   jobApplications: (jobId: number) => ['jobs', jobId, 'applications'],

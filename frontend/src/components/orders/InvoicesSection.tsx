@@ -20,7 +20,7 @@ import { invoicesApi, mediaApi } from '@/lib/api/endpoints';
 import { qk } from '@/lib/query/provider';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
 import { errorMessage } from '@/lib/api/errors';
-import { canAdmin, canIssueInvoices, useAuth } from '@/lib/auth/context';
+import { canAnnulInvoices, canIssueInvoices, useAuth } from '@/lib/auth/context';
 import { Money } from '@/components/ui/Money';
 import { StatusBadge, type StatusTone } from '@/components/ui/StatusBadge';
 import { DateDisplay } from '@/components/ui/DateDisplay';
@@ -91,7 +91,7 @@ export function InvoicesSection({
   const locale = useLocale();
   // The backend asks IssueInvoices for issuing, storno and the draft alike.
   const canIssue = canIssueInvoices(user);
-  const canAnnul = canAdmin(user);
+  const canAnnul = canAnnulInvoices(user);
 
   const [stornoFor, setStornoFor] = useState<Invoice | null>(null);
   const [annulFor, setAnnulFor] = useState<Invoice | null>(null);

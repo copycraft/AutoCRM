@@ -7,6 +7,7 @@ pub mod fs_store;
 pub mod heic;
 pub mod layout;
 pub mod pipeline;
+pub mod sniff;
 pub mod storage;
 pub mod upload_token;
 pub mod zip;

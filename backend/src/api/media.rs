@@ -308,7 +308,7 @@ async fn list_documents(
         .await?
         .ok_or(AppError::NotFound("order"))?;
     let mut docs = documents::list_for_order(&state.db, order_id).await?;
-    docs.retain(|d| super::visibility::document_visible(&me, d));
+    docs.retain(|d| crate::service::visibility::document_visible(&me, d));
     Ok(Items::new(document_views(&state, docs).await?))
 }
 
@@ -364,7 +364,7 @@ async fn search_documents(
         page_offset(q.offset),
     )
     .await?;
-    docs.retain(|d| super::visibility::document_visible(&me, d));
+    docs.retain(|d| crate::service::visibility::document_visible(&me, d));
     Ok(Items::new(docs))
 }
 
@@ -526,7 +526,7 @@ async fn document_url(
         .await?
         .filter(|d| d.deleted_at.is_none())
         .ok_or(AppError::NotFound("document"))?;
-    if !super::visibility::document_visible(&me, &doc) {
+    if !crate::service::visibility::document_visible(&me, &doc) {
         return Err(AppError::Forbidden);
     }
     let url = state
@@ -946,7 +946,7 @@ async fn document_preview(
         .await?
         .filter(|d| d.deleted_at.is_none())
         .ok_or(AppError::NotFound("document"))?;
-    if !super::visibility::document_visible(&me, &doc) {
+    if !crate::service::visibility::document_visible(&me, &doc) {
         return Err(AppError::Forbidden);
     }
     let url = state
@@ -979,7 +979,7 @@ async fn document_versions(
     }
     if !all
         .iter()
-        .all(|d| super::visibility::document_visible(&me, d))
+        .all(|d| crate::service::visibility::document_visible(&me, d))
     {
         return Err(AppError::Forbidden);
     }

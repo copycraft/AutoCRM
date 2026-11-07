@@ -31,8 +31,10 @@ import {
 import { cn } from '@/lib/utils/format';
 import {
   useAuth,
-  canAdmin,
-  canAccessHr,
+  canEnterHr,
+  canManageConfiguration,
+  canManageSettings,
+  canManageUsers,
   canViewIncomingInvoices,
   canViewInvoices,
   canViewSales,
@@ -41,7 +43,7 @@ import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { useNotifications } from '@/components/notifications/useUnread';
 import { isMarketingPath, marketingHref } from '@/components/layout/MarketingTabs';
 
-const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: boolean; hr?: boolean }[] = [
+const NAV: { href: string; icon: typeof LayoutDashboard; key: string }[] = [
   { href: '', icon: LayoutDashboard, key: 'dashboard' },
   { href: '/notifications', icon: Bell, key: 'notifications' },
   { href: '/partners/business', icon: Building2, key: 'business' },
@@ -57,13 +59,16 @@ const NAV: { href: string; icon: typeof LayoutDashboard; key: string; admin?: bo
   { href: '/incidents', icon: ShieldAlert, key: 'incidents' },
   { href: '/reports', icon: BarChart3, key: 'reports' },
   { href: '/tudastar', icon: BookOpen, key: 'knowledge' },
-  { href: '/hr', icon: Users, key: 'hr', hr: true },
-  { href: '/admin', icon: ShieldCheck, key: 'admin', admin: true },
-  { href: '/settings', icon: Settings, key: 'settings', admin: true },
+  { href: '/hr', icon: Users, key: 'hr' },
+  { href: '/admin', icon: ShieldCheck, key: 'admin' },
+  { href: '/settings', icon: Settings, key: 'settings' },
   { href: '/privacy', icon: Shield, key: 'privacy' },
 ] as const;
 
-/** Menu items that need a right to see what is behind them (0061). */
+/**
+ * Menu items that need a right to see what is behind them (0061) — the one place that
+ * decides, by the same capability the server checks behind the page, never by role name.
+ */
 function allowed(key: string, user: ReturnType<typeof useAuth>['user']): boolean {
   switch (key) {
     case 'invoices':
@@ -73,6 +78,12 @@ function allowed(key: string, user: ReturnType<typeof useAuth>['user']): boolean
     case 'marketing':
     case 'emails':
       return canViewSales(user);
+    case 'hr':
+      return canEnterHr(user);
+    case 'admin':
+      return canManageUsers(user);
+    case 'settings':
+      return canManageSettings(user) || canManageConfiguration(user);
     default:
       return true;
   }
@@ -161,13 +172,7 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
           );
         })()}
         {SECTIONS.map((section) => {
-          const items = NAV.filter(
-            (i) =>
-              section.items.includes(i.key) &&
-              (!i.admin || canAdmin(user)) &&
-              (!i.hr || canAccessHr(user)) &&
-              allowed(i.key, user),
-          );
+          const items = NAV.filter((i) => section.items.includes(i.key) && allowed(i.key, user));
           if (items.length === 0) return null;
           const alwaysOpen = section.label === 'Fő' || section.label === 'Üzlet';
           const isActive = items.some((item) => {

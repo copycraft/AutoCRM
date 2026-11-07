@@ -30,12 +30,12 @@ import { ItemsSection } from '@/components/forms/ItemsSection';
 import { ModulesSection } from '@/components/orders/ModulesSection';
 import { CopyOrderDialog } from '@/components/orders/CopyOrderDialog';
 import { OrderStageDialog } from '@/components/forms/OrderStageDialog';
-import { configApi, ordersApi, usersApi } from '@/lib/api/endpoints';
+import { configApi, ordersApi } from '@/lib/api/endpoints';
 import { lookupLabel, useLookups } from '@/hooks/useLookups';
+import { colleagueName, useColleagues } from '@/hooks/useColleagues';
 import { qk } from '@/lib/query/provider';
 import { errorMessage } from '@/lib/api/errors';
 import {
-  canAdmin,
   canChangeStage,
   canComment,
   canEditOrders,
@@ -141,13 +141,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
     queryFn: () => configApi.projectTypes(),
   });
   const { data: lookups } = useLookups();
-  // GET /users is admin-only; non-admins see the raw id (backend gap).
-  const usersQuery = useQuery({
-    queryKey: qk.users,
-    queryFn: () => usersApi.list(),
-    enabled: canAdmin(user) && (detail.data?.order.assigned_to ?? null) !== null,
-    retry: false,
-  });
+  const colleagues = useColleagues((detail.data?.order.assigned_to ?? null) !== null);
 
   const patch = useMutation({
     // The order and its questionnaire are two requests: PATCH is a field diff, the answers
@@ -210,10 +204,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } | P
     ? (projectTypes.data?.items.find((p) => p.id === order.project_type_id)?.label_hu ??
       `#${order.project_type_id}`)
     : '—';
-  const assigneeName = order.assigned_to
-    ? (usersQuery.data?.items.find((u) => u.id === order.assigned_to)?.display_name ??
-      `#${order.assigned_to}`)
-    : '—';
+  const assigneeName = order.assigned_to ? colleagueName(colleagues.data?.items, order.assigned_to) : '—';
   const defs = stagesQuery.data?.items ?? [];
   const openBlockers = blockers.filter(isBlockerOpen);
   const tabs: { key: Tab; label: string }[] = [

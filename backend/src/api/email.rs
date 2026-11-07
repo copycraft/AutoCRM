@@ -73,6 +73,7 @@ async fn list(
         status: q.status,
         needs_attention: q.attention,
         q: q.q,
+        include_invites: me.can(Capability::ManageUsers),
     };
     Ok(Items::new(
         emails::list(
@@ -96,11 +97,14 @@ async fn detail(
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<EmailMessage>> {
     me.require(Capability::ViewSales)?;
-    Ok(Json(
-        emails::find(&state.db, id)
-            .await?
-            .ok_or(AppError::NotFound("email"))?,
-    ))
+    let email = emails::find(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("email"))?;
+    // An invitation's body is a one-time sign-in link: only for those who manage users.
+    if email.trigger == email_service::triggers::USER_INVITE && !me.can(Capability::ManageUsers) {
+        return Err(AppError::NotFound("email"));
+    }
+    Ok(Json(email))
 }
 
 #[utoipa::path(

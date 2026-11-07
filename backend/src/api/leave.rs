@@ -1,5 +1,6 @@
 //! HR leave and absence: who is away when, and how much annual leave is left. Every route
-//! needs `AccessHr`, like the rest of the HR module.
+//! needs `ManageLeave` (which `hr_access` brings): a workshop head can keep their people's
+//! leave without the staff directory.
 
 use std::time::Duration;
 
@@ -100,7 +101,7 @@ async fn list_absences(
     Auth(me): Auth,
     ApiQuery(q): ApiQuery<AbsenceQuery>,
 ) -> AppResult<Json<Items<Absence>>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageLeave)?;
     if q.to < q.from {
         return Err(AppError::validation("to must not be before from"));
     }
@@ -136,7 +137,7 @@ async fn create_absence(
     ApiPath(employee_id): ApiPath<i64>,
     ApiJson(b): ApiJson<AbsenceBody>,
 ) -> AppResult<(StatusCode, Json<Absence>)> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageLeave)?;
     if b.end_date < b.start_date {
         return Err(AppError::validation(
             "end_date must not be before start_date",
@@ -208,7 +209,7 @@ async fn delete_absence(
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<StatusCode> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageLeave)?;
     let mut tx = state.db.begin().await?;
     let row = absences::find(&mut *tx, id)
         .await?
@@ -263,7 +264,7 @@ async fn leave_summary(
     Auth(me): Auth,
     ApiQuery(q): ApiQuery<SummaryQuery>,
 ) -> AppResult<Json<Items<LeaveBalance>>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageLeave)?;
     let year = q
         .year
         .unwrap_or_else(|| business_today(state.config.business_tz).year());
@@ -328,7 +329,7 @@ async fn upload_absence_file(
     ApiQuery(q): ApiQuery<AbsenceFileQuery>,
     body: Bytes,
 ) -> AppResult<StatusCode> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageLeave)?;
     if body.is_empty() {
         return Err(AppError::validation("the request body must be the file"));
     }
@@ -339,8 +340,7 @@ async fn upload_absence_file(
         .chars()
         .take(200)
         .collect();
-    let (content_type, ext) = super::incoming_invoices::sniff(&body)
-        .filter(|(_, ext)| *ext != "xml")
+    let (content_type, ext) = crate::media::sniff::scan_or_photo(&body)
         .ok_or_else(|| AppError::validation("only PDF, JPEG, PNG or WebP files"))?;
     let folder = crate::media::layout::employee_folder_of(&state, row.employee_id).await?;
     let key = crate::media::layout::join(
@@ -395,7 +395,7 @@ async fn absence_file_url(
     Auth(me): Auth,
     ApiPath(id): ApiPath<i64>,
 ) -> AppResult<Json<AbsenceFileUrl>> {
-    me.require(Capability::AccessHr)?;
+    me.require(Capability::ManageLeave)?;
     let (key, name) = absences::file_of(&state.db, id)
         .await?
         .ok_or(AppError::NotFound("absence file"))?;

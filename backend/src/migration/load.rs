@@ -1233,7 +1233,9 @@ pub fn todo_body(todo: &Value) -> String {
     if let Some(Value::Array(notes)) = todo.get("Notes") {
         for note in notes {
             if let Some(comment) = text(note, "Comment") {
-                let when = text(note, "CreatedAt").map(|w| format!("{w}: ")).unwrap_or_default();
+                let when = text(note, "CreatedAt")
+                    .map(|w| format!("{w}: "))
+                    .unwrap_or_default();
                 parts.push(format!("{when}{comment}"));
             }
         }
@@ -1302,7 +1304,11 @@ async fn load_stage_history(
             ("order_stages", "order_id", &mapping.order_statuses),
             ("lead_stages", "lead_id", &mapping.lead_statuses),
         ] {
-            let owner = if table == "order_stages" { "orders" } else { "leads" };
+            let owner = if table == "order_stages" {
+                "orders"
+            } else {
+                "leads"
+            };
             let Some(record_id): Option<i64> =
                 sqlx::query_scalar(&format!("SELECT id FROM {owner} WHERE minicrm_id = $1"))
                     .bind(project)
@@ -1649,7 +1655,10 @@ mod tests {
             }}),
         );
         // AddressList's own shape: labels only, nothing to read a city from.
-        map.insert(8, json!({"Count": 1, "Results": {"5": "Office (John Doe)"}}));
+        map.insert(
+            8,
+            json!({"Count": 1, "Results": {"5": "Office (John Doe)"}}),
+        );
         assert_eq!(
             text(address_for(&map, 7).unwrap(), "City").as_deref(),
             Some("Budapest")

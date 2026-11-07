@@ -564,10 +564,12 @@ async fn detail(
     let tags = lead_tags::for_lead(&state.db, id).await?;
     let spec = crate::repo::questionnaire::lead_spec(&state.db, id)
         .await?
-        .map(|(project_type_id, answers)| service::questionnaire::LeadSpec {
-            project_type_id,
-            answers,
-        })
+        .map(
+            |(project_type_id, answers)| service::questionnaire::LeadSpec {
+                project_type_id,
+                answers,
+            },
+        )
         .unwrap_or_default();
     Ok(Json(LeadDetail {
         spec,
