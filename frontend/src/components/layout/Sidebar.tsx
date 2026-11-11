@@ -89,12 +89,12 @@ function allowed(key: string, user: ReturnType<typeof useAuth>['user']): boolean
   }
 }
 
-const SECTIONS: { label: string; items: string[] }[] = [
-  { label: 'Fő', items: ['dashboard', 'notifications', 'reports', 'knowledge'] },
-  { label: 'Üzlet', items: ['business', 'orders', 'invoices', 'incoming'] },
-  { label: 'Művelet', items: ['yard', 'incidents'] },
-  { label: 'Rendszer', items: ['hr', 'admin', 'settings', 'privacy'] },
-];
+// The menu order, top to bottom: templates hang under orders, the rest folds into
+// "Továbbiak" between the main items and billing.
+const TOP = ['dashboard', 'business', 'marketing', 'orders'];
+const UNDER_ORDERS = ['templates'];
+const MORE = ['notifications', 'emails', 'reports', 'knowledge', 'yard', 'incidents', 'admin', 'settings', 'privacy'];
+const BOTTOM = ['invoices', 'incoming', 'hr'];
 
 function CollapsibleSection({
   label,
@@ -151,42 +151,18 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
       <GlobalSearch />
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-1" aria-label={t('main')}>
-        {allowed('marketing', user) && (() => {
-          const item = NAV.find((i) => i.key === 'marketing')!;
-          const href = marketing;
-          const active = isMarketingPath(pathname, locale);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.key}
-              href={href}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium transition-colors',
-                active ? 'bg-steel-900 text-surface' : 'text-steel-900 hover:bg-panel',
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              {t(item.key)}
-            </Link>
-          );
-        })()}
-        {SECTIONS.map((section) => {
-          const items = NAV.filter((i) => section.items.includes(i.key) && allowed(i.key, user));
-          if (items.length === 0) return null;
-          const alwaysOpen = section.label === 'Fő' || section.label === 'Üzlet';
-          const isActive = items.some((item) => {
-            const isMarketing = item.key === 'marketing';
-            return isMarketing
+        {(() => {
+          type Item = (typeof NAV)[number];
+          const isActive = (item: Item) =>
+            item.key === 'marketing'
               ? isMarketingPath(pathname, locale)
-              : pathname === `/${locale}${item.href}` || (item.href !== '' && pathname.startsWith(`/${locale}${item.href}/`));
-          });
-          const content = items.map((item) => {
-            const isMarketing = item.key === 'marketing';
-            const href = isMarketing ? marketing : `/${locale}${item.href}`;
-            const active = isMarketing
-              ? isMarketingPath(pathname, locale)
-              : pathname === href || (item.href !== '' && pathname.startsWith(href + '/'));
+              : pathname === `/${locale}${item.href}` ||
+                (item.href !== '' && pathname.startsWith(`/${locale}${item.href}/`));
+          const pick = (keys: string[]) =>
+            keys.map((k) => NAV.find((i) => i.key === k)).filter((i): i is Item => !!i && allowed(i.key, user));
+          const link = (item: Item, sub = false) => {
+            const href = item.key === 'marketing' ? marketing : `/${locale}${item.href}`;
+            const active = isActive(item);
             const Icon = item.icon;
             return (
               <Link
@@ -198,7 +174,7 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
                   active ? 'bg-steel-900 text-surface' : 'text-steel-900 hover:bg-panel',
                 )}
               >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                {!sub && <Icon className="h-4 w-4 shrink-0" aria-hidden />}
                 {t(item.key)}
                 {item.key === 'notifications' && unread > 0 && (
                   <span
@@ -210,21 +186,30 @@ export function Sidebar({ onHelp }: { onHelp?: () => void }) {
                 )}
               </Link>
             );
-          });
-          if (alwaysOpen) {
-            return (
-              <div key={section.label} className="space-y-0.5">
-                <p className="px-3 py-1.5 text-metadata font-semibold uppercase tracking-wider">{section.label}</p>
-                {content}
-              </div>
-            );
-          }
+          };
+          const sub = pick(UNDER_ORDERS);
+          const more = pick(MORE);
           return (
-            <CollapsibleSection key={section.label} label={section.label} defaultOpen={isActive}>
-              {content}
-            </CollapsibleSection>
+            <>
+              {pick(TOP).map((item) => (
+                <div key={item.key}>
+                  {link(item)}
+                  {item.key === 'orders' && sub.length > 0 && (
+                    <div className="ml-5 mt-0.5 space-y-0.5 border-l border-steel-200 pl-2">
+                      {sub.map((s) => link(s, true))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {more.length > 0 && (
+                <CollapsibleSection label="Továbbiak" defaultOpen={more.some(isActive)}>
+                  {more.map((item) => link(item))}
+                </CollapsibleSection>
+              )}
+              {pick(BOTTOM).map((item) => link(item))}
+            </>
           );
-        })}
+        })()}
       </nav>
 
       <div className="border-t border-steel-200 p-3">

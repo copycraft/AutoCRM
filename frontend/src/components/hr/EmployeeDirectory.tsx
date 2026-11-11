@@ -105,8 +105,8 @@ export function Directory() {
   }, [wanted, openedWanted]);
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="card self-start p-3">
+    <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_15rem]">
+      <aside className="card self-start p-3 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
         <StatusSidebar value={status} onChange={setStatus} />
       </aside>
     <div className="min-w-0 space-y-4">
